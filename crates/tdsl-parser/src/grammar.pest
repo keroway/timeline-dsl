@@ -1,0 +1,117 @@
+// Timeline DSL Grammar (PEG)
+
+file = { SOI ~ statement* ~ EOI }
+
+statement = _{
+    timeline_block
+  | lane_decl
+  | span_decl
+  | event_decl
+  | event_range_decl
+  | import_block
+  | map_block
+}
+
+// ─── Timeline Block ─────────────────────────────────────────
+timeline_block = {
+    "timeline" ~ string_literal ~ "{" ~ timeline_prop* ~ "}"
+}
+
+timeline_prop = _{
+    title_prop | unit_prop | range_prop | calendar_prop
+}
+title_prop    = { "title" ~ string_literal ~ ";" }
+unit_prop     = { "unit" ~ ident ~ ";" }
+range_prop    = { "range" ~ integer ~ ".." ~ integer ~ ";" }
+calendar_prop = { "calendar" ~ ident ~ ";" }
+
+// ─── Lane Declaration ───────────────────────────────────────
+lane_decl = {
+    "lane" ~ string_literal ~ ("as" ~ ident)? ~ "{" ~ lane_prop* ~ "}"
+}
+
+lane_prop = _{
+    kind_prop | order_prop
+}
+kind_prop  = { "kind" ~ ident ~ ";" }
+order_prop = { "order" ~ integer ~ ";" }
+
+// ─── Span Declaration ───────────────────────────────────────
+span_decl = {
+    "span" ~ ident ~ integer ~ ".." ~ integer ~ string_literal ~ block_options ~ ";"
+}
+
+// ─── Event Declaration ──────────────────────────────────────
+event_decl = {
+    "event" ~ ident ~ integer ~ string_literal ~ block_options ~ ";"
+}
+
+// ─── Event Range Declaration ────────────────────────────────
+event_range_decl = {
+    "event_range" ~ ident ~ integer ~ ".." ~ integer ~ string_literal ~ block_options ~ ";"
+}
+
+// ─── Block Options (shared by span/event/event_range) ───────
+block_options = { "{" ~ item_option* ~ "}" }
+
+item_option = _{
+    tags_option | source_option | id_option | origin_option
+}
+tags_option   = { "tags" ~ "[" ~ string_list ~ "]" ~ ";" }
+source_option = { "source" ~ source_ref ~ ";" }
+id_option     = { "id" ~ string_literal ~ ";" }
+origin_option = { "origin" ~ ident ~ ";" }
+
+// ─── Import Block ───────────────────────────────────────────
+import_block = {
+    "import" ~ source_name ~ ("as" ~ ident)? ~ "{" ~ import_item* ~ "}"
+}
+
+source_name = { ident }
+
+import_item = _{
+    entity_import | query_import | policy_import
+}
+entity_import = { "entity" ~ qid ~ ("as" ~ ident)? ~ ";" }
+query_import  = { "query" ~ string_literal ~ ("as" ~ ident)? ~ ";" }
+policy_import = { "policy" ~ ident ~ ";" }
+
+// ─── Map Block ──────────────────────────────────────────────
+map_block = {
+    "map" ~ dotted_ident ~ "to" ~ target_type ~ "{" ~ map_prop* ~ "}"
+}
+
+target_type = { ident }
+
+map_prop = _{
+    map_lane | map_start | map_end | map_time | map_label | map_tags | map_source
+}
+map_lane   = { "lane" ~ ident ~ ";" }
+map_start  = { "start" ~ map_expr ~ ";" }
+map_end    = { "end" ~ map_expr ~ ";" }
+map_time   = { "time" ~ map_expr ~ ";" }
+map_label  = { "label" ~ label_expr ~ ";" }
+map_tags   = { "tags" ~ "[" ~ string_list ~ "]" ~ ";" }
+map_source = { "source" ~ map_expr ~ ";" }
+
+// ─── Expressions ────────────────────────────────────────────
+map_expr   = { claim_call ~ ("." ~ ident)? }
+claim_call = { "claim" ~ "(" ~ property_id ~ ")" }
+
+label_expr = { label_ref ~ ("??" ~ label_ref)* }
+label_ref  = ${ "label" ~ "@" ~ ident }
+
+// ─── Primitives ─────────────────────────────────────────────
+integer        = @{ "-"? ~ ASCII_DIGIT+ }
+qid            = @{ "Q" ~ ASCII_DIGIT+ }
+property_id    = @{ "P" ~ ASCII_DIGIT+ }
+ident          = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+dotted_ident   = @{ ident ~ ("." ~ ident)+ }
+source_ref     = ${ ident ~ ":" ~ qid }
+string_literal = ${ "\"" ~ string_inner ~ "\"" }
+string_inner   = @{ (!"\"" ~ !"\\" ~ ANY | "\\" ~ ANY)* }
+string_list    =  { string_literal ~ ("," ~ string_literal)* }
+
+// ─── Whitespace & Comments ──────────────────────────────────
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT    = _{ "//" ~ (!"\n" ~ ANY)* | "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
