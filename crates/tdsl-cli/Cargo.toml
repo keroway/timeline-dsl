@@ -1,0 +1,18 @@
+[package]
+name = "tdsl-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "tdsl"
+path = "src/main.rs"
+
+[dependencies]
+tdsl-parser = { path = "../tdsl-parser" }
+tdsl-core = { path = "../tdsl-core" }
+tdsl-wikidata = { path = "../tdsl-wikidata" }
+clap = { version = "4", features = ["derive"] }
+serde_json.workspace = true
+miette = { version = "7", features = ["fancy"] }
+tokio.workspace = true
