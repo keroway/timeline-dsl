@@ -1,0 +1,42 @@
+// 中国王朝年表 — Wikidataインポート付き
+
+timeline "中国王朝年表（Wikidata連携）" {
+    title "中国王朝年表";
+    unit year;
+    range -500..300;
+    calendar proleptic_gregorian;
+}
+
+lane "秦" as qin { kind dynasty; order 10; }
+lane "漢" as han { kind dynasty; order 20; }
+
+// 静的に定義したイベント
+event qin -221 "秦の天下統一" {};
+event han -209 "陳勝・呉広の乱" {};
+
+// Wikidataからインポート
+import wikidata as wd {
+    entity Q7183 as qin_dynasty;
+    entity Q7209 as han_dynasty;
+    policy merge_by_source;
+}
+
+// 秦をWikidataからマッピング
+map wd.qin_dynasty to span {
+    lane qin;
+    start claim(P571).year;
+    end claim(P576).year;
+    label label@ja ?? label@en;
+    tags ["dynasty", "imported"];
+    source claim(P571).year;
+}
+
+// 漢をWikidataからマッピング
+map wd.han_dynasty to span {
+    lane han;
+    start claim(P571).year;
+    end claim(P576).year;
+    label label@ja ?? label@en;
+    tags ["dynasty", "imported"];
+    source claim(P571).year;
+}
