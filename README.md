@@ -7,6 +7,7 @@
 - **宣言型DSL** -- C風の構文で年表をテキスト定義。Git管理・差分レビューに最適
 - **Wikidata連携** -- QIDでWikidataからデータを自動取得
 - **JSON IR出力** -- パース結果を正規化JSONに変換。エディタや描画エンジンで利用可能
+- **HTMLレンダリング** -- スタンドアロンHTML + インラインSVGでタイムラインを可視化。ホバーで詳細表示
 - **レーン構造** -- 王朝・人物・国などをレーン（縦軸カテゴリ）で整理
 - **3種の時間要素** -- `span`（存続期間）、`event`（点イベント）、`event_range`（期間イベント）
 - **ライセンス追跡** -- Wikidataデータ(CC0)の出典を自動記録
@@ -39,6 +40,13 @@ cargo run --release -p tdsl-cli -- ast examples/china_dynasties.tdsl
 
 # Wikidataエンティティの確認
 cargo run --release -p tdsl-cli -- fetch Q7209 --lang ja,en
+
+# スタンドアロンHTMLにレンダリング（ブラウザで開くだけ）
+cargo run --release -p tdsl-cli -- render examples/china_dynasties.tdsl --output china.html
+open china.html
+
+# スケールを大きくして描画
+cargo run --release -p tdsl-cli -- render examples/china_dynasties.tdsl --scale 5 --output china.html
 ```
 
 ## DSL文法
@@ -143,7 +151,8 @@ JSON IR 出力
 | `tdsl-parser` | PEG文法定義とAST構築 |
 | `tdsl-core` | IR変換（lowering）・バリデーション |
 | `tdsl-wikidata` | Wikidata HTTPクライアント・エンティティモデル |
-| `tdsl-cli` | CLIバイナリ（build / check / ast / fetch） |
+| `tdsl-render` | IR → スタンドアロンHTML（インラインSVG）レンダラ |
+| `tdsl-cli` | CLIバイナリ（build / check / ast / fetch / render） |
 
 ## IR (中間表現) の構造
 
