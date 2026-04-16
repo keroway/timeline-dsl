@@ -28,7 +28,6 @@ map wd.qin_dynasty to span {
     end claim(P576).year;
     label label@ja ?? label@en;
     tags ["dynasty", "imported"];
-    source claim(P571).year;
 }
 
 // 漢をWikidataからマッピング
@@ -38,5 +37,4 @@ map wd.han_dynasty to span {
     end claim(P576).year;
     label label@ja ?? label@en;
     tags ["dynasty", "imported"];
-    source claim(P571).year;
 }

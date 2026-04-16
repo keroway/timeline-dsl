@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use tdsl_parser::ast;
+use tdsl_parser::ast::{self, MapTargetType};
 use tdsl_wikidata::entity::{DataValue, WikidataEntity, time_value_to_year};
 use tdsl_wikidata::WikidataClient;
 
@@ -37,6 +37,7 @@ struct LoweringContext {
     sources: Vec<SourceRecord>,
     item_ids: HashMap<String, bool>,
     errors: Vec<LoweringError>,
+    lane_auto_id: usize,
 
     // Import resolution state
     // import_alias -> { entity_alias -> WikidataEntity }
@@ -56,6 +57,7 @@ impl LoweringContext {
             sources: Vec::new(),
             item_ids: HashMap::new(),
             errors: Vec::new(),
+            lane_auto_id: 0,
             import_entities: HashMap::new(),
             import_sources: HashMap::new(),
         }
@@ -81,7 +83,16 @@ impl LoweringContext {
                     });
                 }
                 ast::Statement::Lane(l) => {
-                    let id = l.alias.clone().unwrap_or_else(|| slug(&l.label));
+                    let id = l.alias.clone().unwrap_or_else(|| {
+                        let s = slug(&l.label);
+                        if s.is_empty() {
+                            let auto = format!("lane_{}", self.lane_auto_id);
+                            self.lane_auto_id += 1;
+                            auto
+                        } else {
+                            s
+                        }
+                    });
                     if self.lanes_map.contains_key(&id) {
                         self.errors.push(LoweringError::DuplicateLane(id.clone()));
                         continue;
@@ -128,6 +139,7 @@ impl LoweringContext {
                         label: s.label.clone(),
                         tags: s.props.tags.clone(),
                         source: source_str(&s.props.source),
+                        origin: s.props.origin.clone(),
                     });
                 }
                 ast::Statement::Event(e) => {
@@ -142,6 +154,7 @@ impl LoweringContext {
                         .clone()
                         .unwrap_or_else(|| format!("event:{}:{}", e.lane_ref, e.time));
                     self.check_dup_id(&id);
+                    self.add_source_from_ref(&e.props.source);
                     self.items.push(Item::Event {
                         id,
                         lane: e.lane_ref.clone(),
@@ -149,6 +162,7 @@ impl LoweringContext {
                         label: e.label.clone(),
                         tags: e.props.tags.clone(),
                         source: source_str(&e.props.source),
+                        origin: e.props.origin.clone(),
                     });
                 }
                 ast::Statement::EventRange(er) => {
@@ -163,6 +177,7 @@ impl LoweringContext {
                         .clone()
                         .unwrap_or_else(|| format!("event_range:{}:{}", er.lane_ref, er.start));
                     self.check_dup_id(&id);
+                    self.add_source_from_ref(&er.props.source);
                     self.items.push(Item::EventRange {
                         id,
                         lane: er.lane_ref.clone(),
@@ -171,6 +186,7 @@ impl LoweringContext {
                         label: er.label.clone(),
                         tags: er.props.tags.clone(),
                         source: source_str(&er.props.source),
+                        origin: er.props.origin.clone(),
                     });
                 }
                 _ => {}
@@ -179,6 +195,11 @@ impl LoweringContext {
     }
 
     /// Pass 3: Resolve import blocks by fetching entities from Wikidata.
+    ///
+    /// NOTE: `import.policy` (merge_by_source / overwrite_imported / keep_manual)
+    /// is parsed and stored in the AST but not yet implemented in lowering.
+    /// The field is retained for forward-compatibility; behaviour is currently
+    /// "insert all" regardless of the policy value.
     async fn pass3_resolve_imports(&mut self, file: &ast::File, client: &dyn WikidataClient) {
         for stmt in &file.statements {
             if let ast::Statement::Import(imp) = &stmt.node {
@@ -192,43 +213,15 @@ impl LoweringContext {
                 let mut entities: HashMap<String, WikidataEntity> = HashMap::new();
 
                 for item in &imp.items {
-                    match item {
-                        ast::ImportItem::Entity { qid, alias } => {
-                            match client.get_entity(qid, &["ja", "en"]).await {
-                                Ok(entity) => {
-                                    let key =
-                                        alias.clone().unwrap_or_else(|| qid.to_lowercase());
-                                    entities.insert(key, entity);
-                                }
-                                Err(e) => {
-                                    self.errors.push(LoweringError::Wikidata(e));
-                                }
-                            }
+                    let ast::ImportItem::Entity { qid, alias } = item;
+                    match client.get_entity(qid, &["ja", "en"]).await {
+                        Ok(entity) => {
+                            let key =
+                                alias.clone().unwrap_or_else(|| qid.to_lowercase());
+                            entities.insert(key, entity);
                         }
-                        ast::ImportItem::Query { sparql, alias } => {
-                            match client.sparql_query(sparql).await {
-                                Ok(qids) => {
-                                    for qid in &qids {
-                                        match client.get_entity(qid, &["ja", "en"]).await {
-                                            Ok(entity) => {
-                                                entities
-                                                    .insert(qid.to_lowercase(), entity);
-                                            }
-                                            Err(e) => {
-                                                self.errors.push(LoweringError::Wikidata(e));
-                                            }
-                                        }
-                                    }
-                                    if let Some(a) = alias {
-                                        // Store the query alias pointing to the group name
-                                        // Individual entities are stored by QID
-                                        let _ = a; // used for map resolution
-                                    }
-                                }
-                                Err(e) => {
-                                    self.errors.push(LoweringError::Wikidata(e));
-                                }
-                            }
+                        Err(e) => {
+                            self.errors.push(LoweringError::Wikidata(e));
                         }
                     }
                 }
@@ -251,14 +244,8 @@ impl LoweringContext {
                 }
                 let (import_alias, entity_key) = (parts[0], parts[1]);
 
-                let matching: Vec<WikidataEntity> = match self.import_entities.get(import_alias) {
-                    Some(entities) => {
-                        if let Some(entity) = entities.get(entity_key) {
-                            vec![entity.clone()]
-                        } else {
-                            entities.values().cloned().collect()
-                        }
-                    }
+                let entities = match self.import_entities.get(import_alias) {
+                    Some(entities) => entities,
                     None => {
                         self.errors
                             .push(LoweringError::UnresolvedImport(import_alias.to_string()));
@@ -266,14 +253,15 @@ impl LoweringContext {
                     }
                 };
 
-                if matching.is_empty() {
-                    self.errors
-                        .push(LoweringError::UnresolvedImport(m.source_ref.clone()));
-                    continue;
-                }
-
-                for entity in &matching {
-                    self.apply_map_to_entity(m, entity);
+                match entities.get(entity_key) {
+                    Some(entity) => {
+                        self.apply_map_to_entity(m, &entity.clone());
+                    }
+                    None => {
+                        self.errors
+                            .push(LoweringError::UnresolvedEntity(format!("{}.{}", import_alias, entity_key)));
+                        continue;
+                    }
                 }
             }
         }
@@ -297,8 +285,14 @@ impl LoweringContext {
                     label = eval_label_expr(lexpr, entity).unwrap_or_default();
                 }
                 ast::MapProp::Tags(t) => tags = t.clone(),
-                ast::MapProp::Source(_) => {}
             }
+        }
+
+        // Validate lane existence
+        if !lane_ref.is_empty() && !self.lanes_map.contains_key(&lane_ref) {
+            self.errors
+                .push(LoweringError::UnknownMappedLane(lane_ref));
+            return;
         }
 
         if lane_ref.is_empty() || label.is_empty() {
@@ -313,9 +307,10 @@ impl LoweringContext {
         });
 
         let item_source = Some(source_id.clone());
+        let origin = Some("wikidata".to_string());
 
-        match map.target_type.as_str() {
-            "span" => {
+        match map.target_type {
+            MapTargetType::Span => {
                 if let (Some(s), Some(e)) = (start, end) {
                     let id = format!("span:{}:{}", entity.id.to_lowercase(), s);
                     self.check_dup_id(&id);
@@ -332,10 +327,11 @@ impl LoweringContext {
                         label,
                         tags,
                         source: item_source,
+                        origin,
                     });
                 }
             }
-            "event" => {
+            MapTargetType::Event => {
                 if let Some(t) = time {
                     let id = format!("event:{}:{}", entity.id.to_lowercase(), t);
                     self.check_dup_id(&id);
@@ -351,10 +347,11 @@ impl LoweringContext {
                         label,
                         tags,
                         source: item_source,
+                        origin,
                     });
                 }
             }
-            "event_range" => {
+            MapTargetType::EventRange => {
                 if let (Some(s), Some(e)) = (start, end) {
                     let id = format!("event_range:{}:{}", entity.id.to_lowercase(), s);
                     self.check_dup_id(&id);
@@ -371,10 +368,10 @@ impl LoweringContext {
                         label,
                         tags,
                         source: item_source,
+                        origin,
                     });
                 }
             }
-            _ => {}
         }
     }
 
@@ -459,7 +456,7 @@ fn source_str(sr: &Option<ast::SourceRef>) -> Option<String> {
 
 fn slug(s: &str) -> String {
     s.chars()
-        .filter(|c| c.is_alphanumeric() || *c == '_')
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
         .collect::<String>()
         .to_lowercase()
 }

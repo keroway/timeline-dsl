@@ -105,4 +105,77 @@ mod tests {
         let warnings = validate::validate(&ir);
         assert!(!warnings.is_empty());
     }
+
+    #[test]
+    fn static_event_source_registered_in_sources() {
+        let src = r#"
+            timeline "Test" { unit year; range 0..2000; }
+            lane "A" as a { kind custom; }
+            event a 100 "E" { source wd:Q1234; };
+            event_range a 100..200 "ER" { source wd:Q5678; };
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+
+        assert_eq!(ir.sources.len(), 2);
+        assert!(ir.sources.iter().any(|s| s.id == "wd:Q1234"));
+        assert!(ir.sources.iter().any(|s| s.id == "wd:Q5678"));
+    }
+
+    #[test]
+    fn japanese_lane_without_alias_gets_auto_id() {
+        let src = r#"
+            timeline "Test" { unit year; range 0..2000; }
+            lane "秦" { kind dynasty; }
+            lane "漢" { kind dynasty; }
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+
+        assert_eq!(ir.lanes.len(), 2);
+        assert_eq!(ir.lanes[0].id, "lane_0");
+        assert_eq!(ir.lanes[0].label, "秦");
+        assert_eq!(ir.lanes[1].id, "lane_1");
+        assert_eq!(ir.lanes[1].label, "漢");
+    }
+
+    #[test]
+    fn static_item_origin_preserved_in_ir() {
+        let src = r#"
+            timeline "Test" { unit year; range 0..2000; }
+            lane "A" as a { kind custom; }
+            span a 100..200 "S" { origin manual; };
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+
+        match &ir.items[0] {
+            ir::Item::Span { origin, .. } => assert_eq!(origin.as_deref(), Some("manual")),
+            _ => panic!("expected span"),
+        }
+    }
+
+    #[test]
+    fn ir_json_roundtrip_with_origin() {
+        let src = r#"
+            timeline "Test" { unit year; range 0..100; }
+            lane "A" as a { kind custom; }
+            span a 10..20 "S" { origin manual; source wd:Q1; };
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+
+        let json = serde_json::to_string(&ir).unwrap();
+        let ir2: ir::TimelineIr = serde_json::from_str(&json).unwrap();
+
+        match &ir2.items[0] {
+            ir::Item::Span { origin, source, .. } => {
+                assert_eq!(origin.as_deref(), Some("manual"));
+                assert_eq!(source.as_deref(), Some("wd:Q1"));
+            }
+            _ => panic!("expected span"),
+        }
+        assert_eq!(ir2.sources.len(), 1);
+        assert_eq!(ir2.sources[0].id, "wd:Q1");
+    }
 }

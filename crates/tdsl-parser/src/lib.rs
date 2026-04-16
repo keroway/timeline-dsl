@@ -118,7 +118,6 @@ mod tests {
         let src = r#"
             import wikidata as wd {
                 entity Q7209 as han_dynasty;
-                query "SELECT ?item WHERE { ?item wdt:P31 wd:Q5 }" as people;
                 policy merge_by_source;
             }
         "#;
@@ -128,7 +127,7 @@ mod tests {
             ast::Statement::Import(imp) => {
                 assert_eq!(imp.source_type, "wikidata");
                 assert_eq!(imp.alias.as_deref(), Some("wd"));
-                assert_eq!(imp.items.len(), 2);
+                assert_eq!(imp.items.len(), 1);
                 assert_eq!(imp.policy, Some(ast::ReimportPolicy::MergeBySource));
             }
             _ => panic!("expected Import"),
@@ -150,7 +149,7 @@ mod tests {
         match &file.statements[0].node {
             ast::Statement::Map(m) => {
                 assert_eq!(m.source_ref, "wd.han_dynasty");
-                assert_eq!(m.target_type, "span");
+                assert_eq!(m.target_type, ast::MapTargetType::Span);
                 assert_eq!(m.props.len(), 4);
             }
             _ => panic!("expected Map"),
@@ -199,6 +198,18 @@ mod tests {
             }
         "#;
         let file = parse(src).unwrap();
+        // timeline(1) + lanes(2) + spans(2) + event(1) + event_range(1) + import(1) + map(1) = 9
         assert_eq!(file.statements.len(), 9);
+    }
+
+    #[test]
+    fn parse_unknown_target_type_fails() {
+        let src = r#"
+            map wd.x to unknown_type {
+                lane a;
+            }
+        "#;
+        let result = parse(src);
+        assert!(result.is_err());
     }
 }
