@@ -12,6 +12,7 @@ path = "src/main.rs"
 tdsl-parser = { path = "../tdsl-parser" }
 tdsl-core = { path = "../tdsl-core" }
 tdsl-wikidata = { path = "../tdsl-wikidata" }
+tdsl-render = { path = "../tdsl-render" }
 clap = { version = "4", features = ["derive"] }
 serde_json.workspace = true
 miette = { version = "7", features = ["fancy"] }

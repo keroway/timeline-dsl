@@ -1775,6 +1775,7 @@ dependencies = [
  "serde_json",
  "tdsl-core",
  "tdsl-parser",
+ "tdsl-render",
  "tdsl-wikidata",
  "tokio",
 ]
@@ -1802,6 +1803,13 @@ dependencies = [
  "pest",
  "pest_derive",
  "thiserror",
+]
+
+[[package]]
+name = "tdsl-render"
+version = "0.1.0"
+dependencies = [
+ "tdsl-core",
 ]
 
 [[package]]
