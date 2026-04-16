@@ -37,20 +37,24 @@ pub enum Item {
         start: i64,
         end: i64,
         label: String,
-        #[serde(skip_serializing_if = "Vec::is_empty")]
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
         tags: Vec<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         source: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        origin: Option<String>,
     },
     Event {
         id: String,
         lane: String,
         time: i64,
         label: String,
-        #[serde(skip_serializing_if = "Vec::is_empty")]
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
         tags: Vec<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         source: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        origin: Option<String>,
     },
     EventRange {
         id: String,
@@ -58,10 +62,12 @@ pub enum Item {
         start: i64,
         end: i64,
         label: String,
-        #[serde(skip_serializing_if = "Vec::is_empty")]
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
         tags: Vec<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         source: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        origin: Option<String>,
     },
 }
 

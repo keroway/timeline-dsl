@@ -10,9 +10,9 @@ pub fn validate(ir: &TimelineIr) -> Vec<String> {
 
     for item in &ir.items {
         let lane = match item {
-            crate::ir::Item::Span { lane, .. } => lane,
-            crate::ir::Item::Event { lane, .. } => lane,
-            crate::ir::Item::EventRange { lane, .. } => lane,
+            crate::ir::Item::Span { lane, .. }
+            | crate::ir::Item::Event { lane, .. }
+            | crate::ir::Item::EventRange { lane, .. } => lane,
         };
         if !lane_ids.contains(lane.as_str()) {
             warnings.push(format!("Item references unknown lane: {lane}"));

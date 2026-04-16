@@ -25,4 +25,10 @@ pub enum LoweringError {
 
     #[error("Unresolved import reference: {0}")]
     UnresolvedImport(String),
+
+    #[error("Unresolved entity key: {0}")]
+    UnresolvedEntity(String),
+
+    #[error("Map references unknown lane: {0}")]
+    UnknownMappedLane(String),
 }
