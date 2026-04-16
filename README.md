@@ -5,7 +5,7 @@
 ## 特徴
 
 - **宣言型DSL** -- C風の構文で年表をテキスト定義。Git管理・差分レビューに最適
-- **Wikidata連携** -- QIDやSPARQLクエリでWikidataからデータを自動取得
+- **Wikidata連携** -- QIDでWikidataからデータを自動取得
 - **JSON IR出力** -- パース結果を正規化JSONに変換。エディタや描画エンジンで利用可能
 - **レーン構造** -- 王朝・人物・国などをレーン（縦軸カテゴリ）で整理
 - **3種の時間要素** -- `span`（存続期間）、`event`（点イベント）、`event_range`（期間イベント）
@@ -102,9 +102,11 @@ map wd.han_dynasty to span {
     end claim(P576).year;        // dissolved
     label label@ja ?? label@en;  // 日本語優先、英語フォールバック
     tags ["dynasty", "imported"];
-    source claim(P571).year;
 }
 ```
+
+> `source` はMVP では自動付与（`wd:<entity_id>`）。`map` ブロック内での明示指定は不要。
+> `policy` はパースされるが、lowering では未実装（将来の拡張用に保持）。
 
 ## サンプルファイル
 
@@ -128,7 +130,7 @@ map wd.han_dynasty to span {
     |               Pass 3: Wikidataインポート解決
     |               Pass 4: mapブロックの適用
     v
-[tdsl-wikidata] Wikidata API / SPARQLクライアント
+[tdsl-wikidata] Wikidata APIクライアント
     |
     v
 JSON IR 出力
@@ -159,10 +161,10 @@ JSON IR 出力
     {"id": "han", "label": "漢", "kind": "dynasty", "order": 20}
   ],
   "items": [
-    {"type": "span", "id": "span:han", "lane": "han", "start": -206, "end": 220, "label": "漢", "tags": ["dynasty"], "source": "wd:Q7209"}
+    {"type": "span", "id": "span:han", "lane": "han", "start": -206, "end": 220, "label": "漢", "tags": ["dynasty"], "source": "wd:Q7209", "origin": "wikidata"}
   ],
   "imports": [
-    {"source": "wikidata", "entity_id": "Q7209", "mapped_to": ["span:han"]}
+    {"source": "wikidata", "qid": "Q7209", "mapped_to": "span:han"}
   ],
   "sources": [
     {"id": "wd:Q7209", "provider": "wikidata", "license": "CC0"}

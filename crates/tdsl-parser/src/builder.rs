@@ -197,12 +197,6 @@ fn build_import(pair: Pair<'_, Rule>) -> Result<ImportBlock> {
                 let entity_alias = ei.next().map(|p| p.as_str().to_string());
                 items.push(ImportItem::Entity { qid, alias: entity_alias });
             }
-            Rule::query_import => {
-                let mut qi = item.into_inner();
-                let sparql = extract_string_literal(&qi.next().unwrap());
-                let query_alias = qi.next().map(|p| p.as_str().to_string());
-                items.push(ImportItem::Query { sparql, alias: query_alias });
-            }
             Rule::policy_import => {
                 let name = item.into_inner().next().unwrap().as_str();
                 policy = Some(match name {
@@ -224,7 +218,15 @@ fn build_import(pair: Pair<'_, Rule>) -> Result<ImportBlock> {
 fn build_map(pair: Pair<'_, Rule>) -> Result<MapBlock> {
     let mut inner = pair.into_inner();
     let source_ref = inner.next().unwrap().as_str().to_string();
-    let target_type = inner.next().unwrap().into_inner().next().unwrap().as_str().to_string();
+    let target_type_str = inner.next().unwrap().into_inner().next().unwrap();
+    let target_type = match target_type_str.as_str() {
+        "span" => MapTargetType::Span,
+        "event" => MapTargetType::Event,
+        "event_range" => MapTargetType::EventRange,
+        other => {
+            return Err(ParseError::UnknownTargetType(other.to_string()));
+        }
+    };
 
     let mut props = Vec::new();
     for item in inner {
@@ -250,11 +252,6 @@ fn build_map(pair: Pair<'_, Rule>) -> Result<MapBlock> {
                 props.push(MapProp::Tags(build_string_list(
                     item.into_inner().next().unwrap(),
                 )));
-            }
-            Rule::map_source => {
-                props.push(MapProp::Source(build_map_expr(
-                    item.into_inner().next().unwrap(),
-                )?));
             }
             _ => {}
         }

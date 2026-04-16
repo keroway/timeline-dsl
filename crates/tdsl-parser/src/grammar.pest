@@ -70,10 +70,9 @@ import_block = {
 source_name = { ident }
 
 import_item = _{
-    entity_import | query_import | policy_import
+    entity_import | policy_import
 }
 entity_import = { "entity" ~ qid ~ ("as" ~ ident)? ~ ";" }
-query_import  = { "query" ~ string_literal ~ ("as" ~ ident)? ~ ";" }
 policy_import = { "policy" ~ ident ~ ";" }
 
 // ─── Map Block ──────────────────────────────────────────────
@@ -84,7 +83,7 @@ map_block = {
 target_type = { ident }
 
 map_prop = _{
-    map_lane | map_start | map_end | map_time | map_label | map_tags | map_source
+    map_lane | map_start | map_end | map_time | map_label | map_tags
 }
 map_lane   = { "lane" ~ ident ~ ";" }
 map_start  = { "start" ~ map_expr ~ ";" }
@@ -92,7 +91,6 @@ map_end    = { "end" ~ map_expr ~ ";" }
 map_time   = { "time" ~ map_expr ~ ";" }
 map_label  = { "label" ~ label_expr ~ ";" }
 map_tags   = { "tags" ~ "[" ~ string_list ~ "]" ~ ";" }
-map_source = { "source" ~ map_expr ~ ";" }
 
 // ─── Expressions ────────────────────────────────────────────
 map_expr   = { claim_call ~ ("." ~ ident)? }

@@ -114,10 +114,6 @@ pub enum ImportItem {
         qid: String,
         alias: Option<String>,
     },
-    Query {
-        sparql: String,
-        alias: Option<String>,
-    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,10 +125,17 @@ pub enum ReimportPolicy {
 
 // ─── Map ────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapTargetType {
+    Span,
+    Event,
+    EventRange,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MapBlock {
     pub source_ref: String,
-    pub target_type: String,
+    pub target_type: MapTargetType,
     pub props: Vec<MapProp>,
 }
 
@@ -144,7 +147,6 @@ pub enum MapProp {
     Time(MapExpr),
     Label(LabelExpr),
     Tags(Vec<String>),
-    Source(MapExpr),
 }
 
 #[derive(Debug, Clone, PartialEq)]

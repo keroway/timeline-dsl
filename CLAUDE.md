@@ -100,21 +100,25 @@ crates/
 
 ### 実装済み
 
-- PEG文法 + パーサ（7種のstatement）
+- PEG文法 + パーサ（7種のstatement: timeline, lane, span, event, event_range, import, map）
 - AST → IR変換（静的 / Wikidata連携 両方）
-- Wikidata HTTPクライアント（wbgetentities API + SPARQL）
+- Wikidata HTTPクライアント（wbgetentities API）
 - CLI 4サブコマンド（build / check / ast / fetch）
-- JSON IR出力
+- JSON IR出力（`origin` フィールドを含む）
 - コメント（行 `//` / ブロック `/* */`）
+- `map` の `target_type` は enum 型（span / event / event_range のみ許可）
+- imported item の `source` は `wd:<entity_id>` で自動付与（map 内での手動指定は廃止）
+- 日本語 lane 名で `as` 省略時、ASCII slug が空なら `lane_N` を自動採番
+- 静的アイテム（event / event_range）の `source` も `sources[]` に登録
 
 ### 未実装（今後の拡張）
 
 - `template` / `apply` 構文（パーサ未実装）
-- 再インポートポリシーの完全な実装（merge_by_source のみ部分的）
+- 再インポートポリシーの完全な実装（パース済みだが lowering では未使用）
+- `query "SPARQL" as alias`（MVPから除外済み）
 - CSV/スプレッドシート変換
 - Web UIエディタ
 - レンダリング/可視化エンジン
-- SPARQL queryエイリアスの完全な解決
 
 ## サンプルファイル
 
@@ -125,5 +129,8 @@ crates/
 
 - Wikidata APIにはレート制限あり。大量fetchする場合は `--offline` で開発し、最終確認時にオンラインビルド
 - 負の年（紀元前）は整数で表現: `-206` = 紀元前206年
-- lane IDの `as` 省略時はラベルからスラッグを自動生成
+- lane IDの `as` 省略時はラベルからASCIIスラッグを自動生成。日本語のみの場合は `lane_N` に自動採番
 - `source wd:QXXX` はWikidata出典を表し、IR の sources に CC0 ライセンスとして記録
+- map ブロックの `source` プロパティは廃止済み。imported item の source は `wd:<entity_id>` で自動付与
+- map の `target_type` は `span` / `event` / `event_range` のみ。不正値はパースエラー
+- `wd.xxx` の entity_key が import に存在しない場合はエラー（全件フォールバックしない）
