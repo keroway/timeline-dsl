@@ -52,6 +52,25 @@ enum Commands {
         #[arg(short, long, default_value = "ja,en")]
         lang: String,
     },
+
+    /// Render a .tdsl file to a standalone HTML timeline
+    Render {
+        /// Input .tdsl file path
+        #[arg(value_name = "FILE")]
+        input: PathBuf,
+
+        /// Output HTML file path (default: stdout)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Pixels per year on the horizontal axis
+        #[arg(long, default_value_t = 2.0)]
+        scale: f64,
+
+        /// Skip Wikidata fetching (only process static items)
+        #[arg(long, default_value_t = false)]
+        offline: bool,
+    },
 }
 
 fn main() {
@@ -67,6 +86,12 @@ fn main() {
         Commands::Check { input } => cmd_check(&input),
         Commands::Ast { input } => cmd_ast(&input),
         Commands::Fetch { qid, lang } => cmd_fetch(&qid, &lang),
+        Commands::Render {
+            input,
+            output,
+            scale,
+            offline,
+        } => cmd_render(&input, output.as_deref(), scale, offline),
     };
 
     if let Err(e) = result {
@@ -79,12 +104,11 @@ fn read_source(path: &std::path::Path) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {e}", path.display()))
 }
 
-fn cmd_build(
+/// Parse and lower a .tdsl file into an IR. Shared by `build` and `render`.
+fn load_ir(
     input: &std::path::Path,
-    output: Option<&std::path::Path>,
-    pretty: bool,
     offline: bool,
-) -> Result<(), String> {
+) -> Result<tdsl_core::ir::TimelineIr, String> {
     let source = read_source(input)?;
     let file = tdsl_parser::parse(&source).map_err(|e| e.to_string())?;
 
@@ -107,6 +131,17 @@ fn cmd_build(
     for w in &warnings {
         eprintln!("Warning: {w}");
     }
+
+    Ok(ir)
+}
+
+fn cmd_build(
+    input: &std::path::Path,
+    output: Option<&std::path::Path>,
+    pretty: bool,
+    offline: bool,
+) -> Result<(), String> {
+    let ir = load_ir(input, offline)?;
 
     let json = if pretty {
         serde_json::to_string_pretty(&ir).unwrap()
@@ -196,4 +231,29 @@ fn cmd_fetch(qid: &str, lang: &str) -> Result<(), String> {
 
         Ok(())
     })
+}
+
+fn cmd_render(
+    input: &std::path::Path,
+    output: Option<&std::path::Path>,
+    scale: f64,
+    offline: bool,
+) -> Result<(), String> {
+    let ir = load_ir(input, offline)?;
+
+    let opts = tdsl_render::RenderOptions {
+        scale,
+        ..Default::default()
+    };
+    let html = tdsl_render::render_html(&ir, opts);
+
+    if let Some(out_path) = output {
+        std::fs::write(out_path, &html)
+            .map_err(|e| format!("Failed to write {}: {e}", out_path.display()))?;
+        eprintln!("Written to {}", out_path.display());
+    } else {
+        println!("{html}");
+    }
+
+    Ok(())
 }
