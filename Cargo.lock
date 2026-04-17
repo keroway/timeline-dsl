@@ -1772,6 +1772,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "miette",
+ "serde",
  "serde_json",
  "tdsl-core",
  "tdsl-parser",
