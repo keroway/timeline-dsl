@@ -41,6 +41,9 @@ cargo run --release -p tdsl-cli -- ast examples/china_dynasties.tdsl
 # Wikidataエンティティの確認
 cargo run --release -p tdsl-cli -- fetch Q7209 --lang ja,en
 
+# Wikipedia URL から QID を解決
+cargo run --release -p tdsl-cli -- resolve "https://ja.wikipedia.org/wiki/漢" --lang ja,en
+
 # スタンドアロンHTMLにレンダリング（ブラウザで開くだけ）
 cargo run --release -p tdsl-cli -- render examples/china_dynasties.tdsl --output china.html
 open china.html
@@ -70,6 +73,9 @@ cargo run --release -p tdsl-cli -- lint /tmp/manual.tdsl --fix --format json
 # 1) 候補を探す
 cargo run --release -p tdsl-cli -- search "漢王朝" --lang ja -n 5
 
+# (任意) Wikipedia URL からQIDを解決
+cargo run --release -p tdsl-cli -- resolve "https://ja.wikipedia.org/wiki/漢"
+
 # 2) QIDの年表化適性を確認
 cargo run --release -p tdsl-cli -- inspect Q7209 --lang ja,en
 
@@ -86,7 +92,7 @@ cargo run --release -p tdsl-cli -- scaffold wikidata \
 cargo run --release -p tdsl-cli -- render /tmp/china_scaffold.tdsl --output /tmp/china_scaffold.html
 ```
 
-> `search / inspect / scaffold wikidata` はネットワーク接続が必要です。
+> `search / inspect / resolve / scaffold wikidata` はネットワーク接続が必要です。
 
 ### 最短フロー（手作業起点）
 
@@ -224,7 +230,7 @@ JSON IR 出力
 | `tdsl-core` | IR変換（lowering）・バリデーション |
 | `tdsl-wikidata` | Wikidata HTTPクライアント・エンティティモデル |
 | `tdsl-render` | IR → スタンドアロンHTML（インラインSVG）レンダラ |
-| `tdsl-cli` | CLIバイナリ（build / check / ast / fetch / search / inspect / scaffold / init / import-csv / render） |
+| `tdsl-cli` | CLIバイナリ（build / check / ast / fetch / search / inspect / resolve / scaffold / init / import-csv / render / lint） |
 
 ## IR (中間表現) の構造
 
