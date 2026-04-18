@@ -269,9 +269,47 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 - 範囲: `開始..終了`（例: `-206..220`）
 - Wikidataの時刻値は `.year` 関数で整数年に変換
 
-## レンダラ出力（HTML）
+## CLI
 
-`tdsl render` サブコマンドで、JSON IR ではなくスタンドアロンHTMLとしてタイムラインを可視化できる。
+### サブコマンド一覧
+
+| コマンド | 目的 |
+|---|---|
+| `tdsl build <file>` | `.tdsl` をJSON IRに変換 |
+| `tdsl check <file>` | 構文・意味チェック |
+| `tdsl ast <file>` | ASTダンプ |
+| `tdsl render <file>` | スタンドアロンHTMLを生成 |
+| `tdsl fetch <QID>` | Wikidataエンティティ確認 |
+| `tdsl search <query>` | Wikidata候補検索 |
+| `tdsl inspect <QID>` | 年表化適性の診断 |
+| `tdsl scaffold wikidata ...` | QID群から `.tdsl` 雛形生成 |
+| `tdsl init ...` | 手作業向け `.tdsl` テンプレ生成 |
+| `tdsl import-csv <csv>` | CSVから `span/event/event_range` 生成 |
+| `tdsl lint <file> [--fix]` | 品質チェックと安全な自動補正 |
+
+### 最短フロー（Wikidata起点）
+
+```bash
+tdsl search "漢王朝" --lang ja -n 5
+tdsl inspect Q7209 --lang ja,en
+tdsl scaffold wikidata --qids Q7183,Q7209 --timeline "中国王朝(生成)" --lang ja,en --target auto --lane-mode per-entity --output /tmp/china_scaffold.tdsl
+tdsl render /tmp/china_scaffold.tdsl --output /tmp/china_scaffold.html
+```
+
+> `search / inspect / scaffold wikidata` はネットワークが必要。
+
+### 最短フロー（手作業起点）
+
+```bash
+tdsl init --output /tmp/manual.tdsl --timeline "架空世界年表" --range-start 1000 --range-end 1300 --lanes "王国:kingdom,事件:incidents"
+tdsl import-csv examples/fictional_empire_items.csv --append /tmp/manual.tdsl
+tdsl lint /tmp/manual.tdsl --fix
+tdsl render /tmp/manual.tdsl --output /tmp/manual.html
+```
+
+### `tdsl render`
+
+`tdsl render` はJSON IRではなくスタンドアロンHTMLとしてタイムラインを可視化する。
 
 ```bash
 tdsl render input.tdsl --output timeline.html [--scale N] [--offline]
