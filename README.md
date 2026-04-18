@@ -64,6 +64,51 @@ cargo run --release -p tdsl-cli -- lint /tmp/manual.tdsl
 cargo run --release -p tdsl-cli -- lint /tmp/manual.tdsl --fix --format json
 ```
 
+### 最短フロー（Wikidata起点）
+
+```bash
+# 1) 候補を探す
+cargo run --release -p tdsl-cli -- search "漢王朝" --lang ja -n 5
+
+# 2) QIDの年表化適性を確認
+cargo run --release -p tdsl-cli -- inspect Q7209 --lang ja,en
+
+# 3) .tdsl 雛形を生成
+cargo run --release -p tdsl-cli -- scaffold wikidata \
+  --qids Q7183,Q7209 \
+  --timeline "中国王朝(生成)" \
+  --lang ja,en \
+  --target auto \
+  --lane-mode per-entity \
+  --output /tmp/china_scaffold.tdsl
+
+# 4) HTMLに描画
+cargo run --release -p tdsl-cli -- render /tmp/china_scaffold.tdsl --output /tmp/china_scaffold.html
+```
+
+> `search / inspect / scaffold wikidata` はネットワーク接続が必要です。
+
+### 最短フロー（手作業起点）
+
+```bash
+# 1) 年表テンプレート生成
+cargo run --release -p tdsl-cli -- init \
+  --output /tmp/manual.tdsl \
+  --timeline "架空世界年表" \
+  --range-start 1000 \
+  --range-end 1300 \
+  --lanes "王国:kingdom,事件:incidents"
+
+# 2) CSVから項目を追記
+cargo run --release -p tdsl-cli -- import-csv examples/fictional_empire_items.csv --append /tmp/manual.tdsl
+
+# 3) 品質補正
+cargo run --release -p tdsl-cli -- lint /tmp/manual.tdsl --fix
+
+# 4) HTMLに描画
+cargo run --release -p tdsl-cli -- render /tmp/manual.tdsl --output /tmp/manual.html
+```
+
 ## DSL文法
 
 ### timeline ブロック
@@ -223,6 +268,9 @@ JSON IR 出力
 
 ```bash
 cargo test --workspace
+
+# E2Eスモーク（CIと同じ）
+bash scripts/e2e-smoke.sh
 ```
 
 ## ライセンス
