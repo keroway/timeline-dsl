@@ -110,10 +110,7 @@ pub struct ImportBlock {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ImportItem {
-    Entity {
-        qid: String,
-        alias: Option<String>,
-    },
+    Entity { qid: String, alias: Option<String> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
