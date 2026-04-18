@@ -102,23 +102,25 @@ crates/
 
 - PEG文法 + パーサ（7種のstatement: timeline, lane, span, event, event_range, import, map）
 - AST → IR変換（静的 / Wikidata連携 両方）
-- Wikidata HTTPクライアント（wbgetentities API）
-- CLI 4サブコマンド（build / check / ast / fetch）
+- Wikidata HTTPクライアント（wbgetentities API, wbsearchentities, SPARQL）
+- CLI 12サブコマンド（build / check / ast / fetch / search / inspect / resolve / scaffold / render / init / import-csv / lint）
 - JSON IR出力（`origin` フィールドを含む）
 - コメント（行 `//` / ブロック `/* */`）
 - `map` の `target_type` は enum 型（span / event / event_range のみ許可）
 - imported item の `source` は `wd:<entity_id>` で自動付与（map 内での手動指定は廃止）
 - 日本語 lane 名で `as` 省略時、ASCII slug が空なら `lane_N` を自動採番
 - 静的アイテム（event / event_range）の `source` も `sources[]` に登録
+- 再インポートポリシー（merge_by_source / overwrite_imported / keep_manual）を lowering で実装済み
+- `query "SPARQL" as alias` による複数エンティティの一括インポートを実装済み
+- HTMLレンダリング（`tdsl-render` クレート、インラインSVG）
+- `tdsl lint` による品質チェックと自動修正（`--fix`）
 
 ### 未実装（今後の拡張）
 
 - `template` / `apply` 構文（パーサ未実装）
-- 再インポートポリシーの完全な実装（パース済みだが lowering では未使用）
-- `query "SPARQL" as alias`（MVPから除外済み）
-- CSV/スプレッドシート変換
+- CSV/スプレッドシート変換（手動フロー以外の高度な取り込み）
 - Web UIエディタ
-- レンダリング/可視化エンジン
+- Wikidata取得キャッシュ（TTL / オフライン連携）
 
 ## サンプルファイル
 
