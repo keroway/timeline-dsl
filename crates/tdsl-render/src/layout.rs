@@ -91,12 +91,10 @@ impl<'a> LayoutModel<'a> {
             lane_y.insert(lane.id.clone(), center);
         }
 
-        let total_width = opts.left_gutter
-            + (year_max - year_min) as f64 * opts.scale
-            + opts.right_margin;
-        let total_height = opts.top_margin
-            + lanes_ordered.len() as f64 * opts.lane_height
-            + opts.bottom_margin;
+        let total_width =
+            opts.left_gutter + (year_max - year_min) as f64 * opts.scale + opts.right_margin;
+        let total_height =
+            opts.top_margin + lanes_ordered.len() as f64 * opts.lane_height + opts.bottom_margin;
 
         let tick_step = pick_tick_step(year_max - year_min);
 
@@ -108,8 +106,14 @@ impl<'a> LayoutModel<'a> {
             };
             match item {
                 Item::Span { start, end, .. } => {
-                    let (x, width) =
-                        span_x_width(*start, *end, year_min, year_max, opts.scale, opts.left_gutter);
+                    let (x, width) = span_x_width(
+                        *start,
+                        *end,
+                        year_min,
+                        year_max,
+                        opts.scale,
+                        opts.left_gutter,
+                    );
                     items.push(LaidItem::Span {
                         item,
                         x,
@@ -119,8 +123,14 @@ impl<'a> LayoutModel<'a> {
                     });
                 }
                 Item::EventRange { start, end, .. } => {
-                    let (x, width) =
-                        span_x_width(*start, *end, year_min, year_max, opts.scale, opts.left_gutter);
+                    let (x, width) = span_x_width(
+                        *start,
+                        *end,
+                        year_min,
+                        year_max,
+                        opts.scale,
+                        opts.left_gutter,
+                    );
                     items.push(LaidItem::EventRange {
                         item,
                         x,
@@ -334,7 +344,10 @@ mod tests {
         let layout = LayoutModel::compute(&ir, RenderOptions::default());
         let ya = layout.lane_y["a"];
         let yb = layout.lane_y["b"];
-        assert!(ya < yb, "lane a (order 10) should be above lane b (order 20)");
+        assert!(
+            ya < yb,
+            "lane a (order 10) should be above lane b (order 20)"
+        );
     }
 
     #[test]

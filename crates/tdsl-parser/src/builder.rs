@@ -15,19 +15,31 @@ pub fn build_file(pairs: Pairs<'_, Rule>) -> Result<File> {
         match pair.as_rule() {
             Rule::timeline_block => {
                 let span = pair_span(&pair);
-                statements.push(Spanned { node: Statement::Timeline(build_timeline(pair)?), span });
+                statements.push(Spanned {
+                    node: Statement::Timeline(build_timeline(pair)?),
+                    span,
+                });
             }
             Rule::lane_decl => {
                 let span = pair_span(&pair);
-                statements.push(Spanned { node: Statement::Lane(build_lane(pair)?), span });
+                statements.push(Spanned {
+                    node: Statement::Lane(build_lane(pair)?),
+                    span,
+                });
             }
             Rule::span_decl => {
                 let span = pair_span(&pair);
-                statements.push(Spanned { node: Statement::Span(build_span(pair)?), span });
+                statements.push(Spanned {
+                    node: Statement::Span(build_span(pair)?),
+                    span,
+                });
             }
             Rule::event_decl => {
                 let span = pair_span(&pair);
-                statements.push(Spanned { node: Statement::Event(build_event(pair)?), span });
+                statements.push(Spanned {
+                    node: Statement::Event(build_event(pair)?),
+                    span,
+                });
             }
             Rule::event_range_decl => {
                 let span = pair_span(&pair);
@@ -38,11 +50,17 @@ pub fn build_file(pairs: Pairs<'_, Rule>) -> Result<File> {
             }
             Rule::import_block => {
                 let span = pair_span(&pair);
-                statements.push(Spanned { node: Statement::Import(build_import(pair)?), span });
+                statements.push(Spanned {
+                    node: Statement::Import(build_import(pair)?),
+                    span,
+                });
             }
             Rule::map_block => {
                 let span = pair_span(&pair);
-                statements.push(Spanned { node: Statement::Map(build_map(pair)?), span });
+                statements.push(Spanned {
+                    node: Statement::Map(build_map(pair)?),
+                    span,
+                });
             }
             Rule::EOI => {}
             _ => {}
@@ -94,7 +112,12 @@ fn build_lane(pair: Pair<'_, Rule>) -> Result<LaneDecl> {
     let mut inner = pair.into_inner();
     let label = extract_string_literal(&inner.next().unwrap());
 
-    let mut decl = LaneDecl { label, alias: None, kind: None, order: None };
+    let mut decl = LaneDecl {
+        label,
+        alias: None,
+        kind: None,
+        order: None,
+    };
 
     for item in inner {
         match item.as_rule() {
@@ -123,7 +146,13 @@ fn build_span(pair: Pair<'_, Rule>) -> Result<SpanDecl> {
     let label = extract_string_literal(&inner.next().unwrap());
     let props = build_block_options(inner.next().unwrap())?;
 
-    Ok(SpanDecl { lane_ref, start, end, label, props })
+    Ok(SpanDecl {
+        lane_ref,
+        start,
+        end,
+        label,
+        props,
+    })
 }
 
 // ─── Event ──────────────────────────────────────────────────
@@ -135,7 +164,12 @@ fn build_event(pair: Pair<'_, Rule>) -> Result<EventDecl> {
     let label = extract_string_literal(&inner.next().unwrap());
     let props = build_block_options(inner.next().unwrap())?;
 
-    Ok(EventDecl { lane_ref, time, label, props })
+    Ok(EventDecl {
+        lane_ref,
+        time,
+        label,
+        props,
+    })
 }
 
 // ─── Event Range ────────────────────────────────────────────
@@ -148,7 +182,13 @@ fn build_event_range(pair: Pair<'_, Rule>) -> Result<EventRangeDecl> {
     let label = extract_string_literal(&inner.next().unwrap());
     let props = build_block_options(inner.next().unwrap())?;
 
-    Ok(EventRangeDecl { lane_ref, start, end, label, props })
+    Ok(EventRangeDecl {
+        lane_ref,
+        start,
+        end,
+        label,
+        props,
+    })
 }
 
 // ─── Block Options ──────────────────────────────────────────
@@ -180,7 +220,14 @@ fn build_block_options(pair: Pair<'_, Rule>) -> Result<ItemProps> {
 fn build_import(pair: Pair<'_, Rule>) -> Result<ImportBlock> {
     let mut inner = pair.into_inner();
 
-    let source_type = inner.next().unwrap().into_inner().next().unwrap().as_str().to_string();
+    let source_type = inner
+        .next()
+        .unwrap()
+        .into_inner()
+        .next()
+        .unwrap()
+        .as_str()
+        .to_string();
 
     let mut alias = None;
     let mut items = Vec::new();
@@ -195,7 +242,10 @@ fn build_import(pair: Pair<'_, Rule>) -> Result<ImportBlock> {
                 let mut ei = item.into_inner();
                 let qid = ei.next().unwrap().as_str().to_string();
                 let entity_alias = ei.next().map(|p| p.as_str().to_string());
-                items.push(ImportItem::Entity { qid, alias: entity_alias });
+                items.push(ImportItem::Entity {
+                    qid,
+                    alias: entity_alias,
+                });
             }
             Rule::policy_import => {
                 let name = item.into_inner().next().unwrap().as_str();
@@ -210,7 +260,12 @@ fn build_import(pair: Pair<'_, Rule>) -> Result<ImportBlock> {
         }
     }
 
-    Ok(ImportBlock { source_type, alias, items, policy })
+    Ok(ImportBlock {
+        source_type,
+        alias,
+        items,
+        policy,
+    })
 }
 
 // ─── Map ────────────────────────────────────────────────────
@@ -232,16 +287,24 @@ fn build_map(pair: Pair<'_, Rule>) -> Result<MapBlock> {
     for item in inner {
         match item.as_rule() {
             Rule::map_lane => {
-                props.push(MapProp::Lane(item.into_inner().next().unwrap().as_str().to_string()));
+                props.push(MapProp::Lane(
+                    item.into_inner().next().unwrap().as_str().to_string(),
+                ));
             }
             Rule::map_start => {
-                props.push(MapProp::Start(build_map_expr(item.into_inner().next().unwrap())?));
+                props.push(MapProp::Start(build_map_expr(
+                    item.into_inner().next().unwrap(),
+                )?));
             }
             Rule::map_end => {
-                props.push(MapProp::End(build_map_expr(item.into_inner().next().unwrap())?));
+                props.push(MapProp::End(build_map_expr(
+                    item.into_inner().next().unwrap(),
+                )?));
             }
             Rule::map_time => {
-                props.push(MapProp::Time(build_map_expr(item.into_inner().next().unwrap())?));
+                props.push(MapProp::Time(build_map_expr(
+                    item.into_inner().next().unwrap(),
+                )?));
             }
             Rule::map_label => {
                 props.push(MapProp::Label(build_label_expr(
@@ -257,18 +320,17 @@ fn build_map(pair: Pair<'_, Rule>) -> Result<MapBlock> {
         }
     }
 
-    Ok(MapBlock { source_ref, target_type, props })
+    Ok(MapBlock {
+        source_ref,
+        target_type,
+        props,
+    })
 }
 
 fn build_map_expr(pair: Pair<'_, Rule>) -> Result<MapExpr> {
     let mut inner = pair.into_inner();
     let claim_pair = inner.next().unwrap();
-    let property = claim_pair
-        .into_inner()
-        .next()
-        .unwrap()
-        .as_str()
-        .to_string();
+    let property = claim_pair.into_inner().next().unwrap().as_str().to_string();
     let accessor = inner.next().map(|p| p.as_str().to_string());
 
     Ok(MapExpr {
@@ -314,13 +376,18 @@ fn build_string_list(pair: Pair<'_, Rule>) -> Vec<String> {
 }
 
 fn parse_int(pair: &Pair<'_, Rule>) -> Result<i64> {
-    pair.as_str().parse::<i64>().map_err(|_| ParseError::InvalidInt {
-        value: pair.as_str().to_string(),
-        location: format!("{}:{}", pair.as_span().start(), pair.as_span().end()),
-    })
+    pair.as_str()
+        .parse::<i64>()
+        .map_err(|_| ParseError::InvalidInt {
+            value: pair.as_str().to_string(),
+            location: format!("{}:{}", pair.as_span().start(), pair.as_span().end()),
+        })
 }
 
 fn pair_span(pair: &Pair<'_, Rule>) -> Span {
     let s = pair.as_span();
-    Span { start: s.start(), end: s.end() }
+    Span {
+        start: s.start(),
+        end: s.end(),
+    }
 }
