@@ -4,25 +4,25 @@
 
 ## 実装順（優先度順）
 
-1. `tdsl scaffold wikidata` を追加する  
+1. [x] `tdsl scaffold wikidata` を追加する  
    Issue: https://github.com/keroway/timeline-dsl/issues/5
 
-2. `import query` を実装して仕様と一致させる  
+2. [x] `import query` を実装して仕様と一致させる  
    Issue: https://github.com/keroway/timeline-dsl/issues/8
 
-3. `tdsl init` + `tdsl import-csv` を追加する（手作業フロー強化）  
+3. [x] `tdsl init` + `tdsl import-csv` を追加する（手作業フロー強化）  
    Issue: https://github.com/keroway/timeline-dsl/issues/6
 
-4. `tdsl lint --fix` を追加する（品質チェック自動化）  
+4. [x] `tdsl lint --fix` を追加する（品質チェック自動化）  
    Issue: https://github.com/keroway/timeline-dsl/issues/7
 
-5. `import policy` を lowering に実装する  
-   Issue: 未作成
+5. [x] `import policy` を lowering に実装する  
+   PR: https://github.com/keroway/timeline-dsl/pull/18
 
-6. Wikipedia URL から QID を解決するコマンドを追加する  
-   Issue: 未作成
+6. [x] Wikipedia URL から QID を解決するコマンドを追加する  
+   PR: (this branch)
 
-7. Wikidata 取得キャッシュ（TTL/オフライン連携）を追加する  
+7. [ ] Wikidata 取得キャッシュ（TTL/オフライン連携）を追加する  
    Issue: 未作成
 
 ## Epic

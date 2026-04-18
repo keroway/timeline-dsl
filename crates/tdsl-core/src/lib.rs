@@ -30,6 +30,31 @@ mod tests {
                 .ok_or_else(|| WikidataError::NotFound(qid.to_string()))
         }
 
+        async fn get_entity_by_sitelink(
+            &self,
+            _site: &str,
+            title: &str,
+            _langs: &[&str],
+        ) -> Result<WikidataEntity, WikidataError> {
+            let qid =
+                self.entities
+                    .iter()
+                    .find_map(|(qid, entity)| {
+                        if entity.labels.values().any(|label| {
+                            label.value == title || label.value.replace(' ', "_") == title
+                        }) {
+                            Some(qid.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .ok_or_else(|| WikidataError::NotFound(title.to_string()))?;
+            self.entities
+                .get(&qid)
+                .cloned()
+                .ok_or(WikidataError::NotFound(title.to_string()))
+        }
+
         async fn search_entities(
             &self,
             _query: &str,

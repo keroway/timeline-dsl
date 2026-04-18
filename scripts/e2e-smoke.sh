@@ -9,7 +9,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "[e2e] verify CLI help includes documented commands"
 cargo run -q -p tdsl-cli -- --help >"$TMP_DIR/help.txt"
-for cmd in build check ast fetch search inspect scaffold render init import-csv lint; do
+for cmd in build check ast fetch search inspect resolve scaffold render init import-csv lint; do
   grep -Eq "[[:space:]]${cmd}[[:space:]]" "$TMP_DIR/help.txt"
 done
 

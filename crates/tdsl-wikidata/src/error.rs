@@ -5,6 +5,9 @@ pub enum WikidataError {
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
 
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
     #[error("Entity not found: {0}")]
     NotFound(String),
 
