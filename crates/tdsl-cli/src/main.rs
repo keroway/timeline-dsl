@@ -5,7 +5,7 @@ use std::process;
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 use tdsl_wikidata::entity::{DataValue, time_value_to_year};
-use tdsl_wikidata::{WikidataClient, WikidataEntity};
+use tdsl_wikidata::{WikidataClient, WikidataEntity, parse_wikipedia_url};
 
 #[derive(Parser)]
 #[command(name = "tdsl", version, about = "Timeline DSL compiler")]
@@ -79,6 +79,20 @@ enum Commands {
     Inspect {
         /// Wikidata QID (e.g., Q7209)
         qid: String,
+
+        /// Label fallback languages (comma-separated)
+        #[arg(short, long, default_value = "ja,en")]
+        lang: String,
+
+        /// Output as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
+    /// Resolve a Wikipedia article URL to a Wikidata QID
+    Resolve {
+        /// Wikipedia article URL
+        url: String,
 
         /// Label fallback languages (comma-separated)
         #[arg(short, long, default_value = "ja,en")]
@@ -245,6 +259,7 @@ fn main() {
             json,
         } => cmd_search(&query, &lang, limit, json),
         Commands::Inspect { qid, lang, json } => cmd_inspect(&qid, &lang, json),
+        Commands::Resolve { url, lang, json } => cmd_resolve(&url, &lang, json),
         Commands::Scaffold { target } => match target {
             ScaffoldTarget::Wikidata {
                 qids,
@@ -482,6 +497,73 @@ fn cmd_inspect(qid: &str, lang: &str, json: bool) -> Result<(), String> {
         print_inspect_report(&report);
         Ok(())
     })
+}
+
+#[derive(Debug, Serialize)]
+struct ResolveReport {
+    qid: String,
+    site: String,
+    title: String,
+    labels: Vec<InspectLabel>,
+}
+
+fn cmd_resolve(url: &str, lang: &str, json: bool) -> Result<(), String> {
+    let page = parse_wikipedia_url(url).map_err(|e| e.to_string())?;
+    let langs_owned = parse_langs(lang);
+    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
+    let report = rt.block_on(async {
+        let client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let langs: Vec<&str> = langs_owned.iter().map(String::as_str).collect();
+        let entity =
+            WikidataClient::get_entity_by_sitelink(&client, &page.site, &page.title, &langs)
+                .await
+                .map_err(|e| e.to_string())?;
+
+        let mut labels = Vec::new();
+        for lang in &langs_owned {
+            if let Some(lv) = entity.labels.get(lang) {
+                labels.push(InspectLabel {
+                    lang: lang.clone(),
+                    value: lv.value.clone(),
+                });
+            }
+        }
+        if labels.is_empty() {
+            for (lang, lv) in &entity.labels {
+                labels.push(InspectLabel {
+                    lang: lang.clone(),
+                    value: lv.value.clone(),
+                });
+                if labels.len() >= 3 {
+                    break;
+                }
+            }
+        }
+
+        Ok::<ResolveReport, String>(ResolveReport {
+            qid: entity.id,
+            site: page.site.clone(),
+            title: page.title.clone(),
+            labels,
+        })
+    })?;
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        return Ok(());
+    }
+
+    println!("Resolved QID: {}", report.qid);
+    println!("  site: {}", report.site);
+    println!("  title: {}", report.title);
+    if report.labels.is_empty() {
+        println!("  labels: (none)");
+    } else {
+        for label in &report.labels {
+            println!("  label@{}: {}", label.lang, label.value);
+        }
+    }
+    Ok(())
 }
 
 fn cmd_scaffold_wikidata(

@@ -282,6 +282,7 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 | `tdsl fetch <QID>` | Wikidataエンティティ確認 |
 | `tdsl search <query>` | Wikidata候補検索 |
 | `tdsl inspect <QID>` | 年表化適性の診断 |
+| `tdsl resolve <wikipedia-url>` | Wikipedia URL から QID を解決 |
 | `tdsl scaffold wikidata ...` | QID群から `.tdsl` 雛形生成 |
 | `tdsl init ...` | 手作業向け `.tdsl` テンプレ生成 |
 | `tdsl import-csv <csv>` | CSVから `span/event/event_range` 生成 |
@@ -291,12 +292,13 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 
 ```bash
 tdsl search "漢王朝" --lang ja -n 5
+tdsl resolve "https://ja.wikipedia.org/wiki/漢"
 tdsl inspect Q7209 --lang ja,en
 tdsl scaffold wikidata --qids Q7183,Q7209 --timeline "中国王朝(生成)" --lang ja,en --target auto --lane-mode per-entity --output /tmp/china_scaffold.tdsl
 tdsl render /tmp/china_scaffold.tdsl --output /tmp/china_scaffold.html
 ```
 
-> `search / inspect / scaffold wikidata` はネットワークが必要。
+> `search / inspect / resolve / scaffold wikidata` はネットワークが必要。
 
 ### 最短フロー（手作業起点）
 
