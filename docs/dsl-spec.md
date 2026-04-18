@@ -56,7 +56,6 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
                  | "time" <expr> ";"
                  | "label" <expr> ";"
                  | "tags" "[" <string_list> "]" ";"
-                 | "source" <expr> ";"
 
 <expr>         ::= <claim_expr> | <lang_expr> | <literal>
 <claim_expr>   ::= "claim(" <property_id> ")" ["." <function>]
@@ -177,9 +176,9 @@ import wikidata as wd {
 
 | ポリシー | 動作 |
 |---|---|
-| `merge_by_source` | 同一ソースの項目を同一視。手動修正を優先 |
-| `overwrite_imported` | インポート済みデータを常にWikidata最新で上書き |
-| `keep_manual` | インポート済み部分は変更せず、手動追加のみ許可 |
+| `merge_by_source` | ID衝突をエラーとして扱う（デフォルト） |
+| `overwrite_imported` | 既存のインポート済み項目のみ上書き。手動定義との衝突はエラー |
+| `keep_manual` | ID衝突時はインポート側をスキップして既存項目を保持 |
 
 ### map
 
@@ -192,9 +191,10 @@ map wd.han_dynasty to span {
     end claim(P576).year;
     label label@ja ?? label@en;
     tags ["dynasty", "imported"];
-    source claim(P571).year;
 }
 ```
+
+> `source` はインポートされたアイテムに `wd:<entity_id>` として自動付与されます。`map` ブロック内での明示指定は廃止されています。
 
 | プロパティ | 説明 |
 |---|---|
@@ -204,7 +204,6 @@ map wd.han_dynasty to span {
 | `time` | 点イベントの時点を計算する式（event用） |
 | `label` | ラベルを計算する式 |
 | `tags` | タグのリスト |
-| `source` | ソースを計算する式 |
 
 ### 式（Expression）
 
