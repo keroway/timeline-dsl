@@ -7,6 +7,8 @@ use tdsl_wikidata::entity::{DataValue, WikidataEntity, time_value_to_year};
 use crate::error::LoweringError;
 use crate::ir::*;
 
+const MAX_IMPORT_QUERY_RESULTS: usize = 50;
+
 /// Lower a parsed AST into the canonical IR (static items only, no Wikidata).
 pub fn lower_static(file: &ast::File) -> Result<TimelineIr, Vec<LoweringError>> {
     let mut ctx = LoweringContext::new();
@@ -42,6 +44,8 @@ struct LoweringContext {
     // Import resolution state
     // import_alias -> { entity_alias -> WikidataEntity }
     import_entities: HashMap<String, HashMap<String, WikidataEntity>>,
+    // import_alias -> { query_alias -> [entity_alias] }
+    import_groups: HashMap<String, HashMap<String, Vec<String>>>,
     // import_alias -> source_type
     import_sources: HashMap<String, String>,
 }
@@ -59,6 +63,7 @@ impl LoweringContext {
             errors: Vec::new(),
             lane_auto_id: 0,
             import_entities: HashMap::new(),
+            import_groups: HashMap::new(),
             import_sources: HashMap::new(),
         }
     }
@@ -208,21 +213,63 @@ impl LoweringContext {
                     .insert(import_alias.clone(), imp.source_type.clone());
 
                 let mut entities: HashMap<String, WikidataEntity> = HashMap::new();
+                let mut groups: HashMap<String, Vec<String>> = HashMap::new();
+                let mut unnamed_query_index = 0usize;
 
                 for item in &imp.items {
-                    let ast::ImportItem::Entity { qid, alias } = item;
-                    match client.get_entity(qid, &["ja", "en"]).await {
-                        Ok(entity) => {
-                            let key = alias.clone().unwrap_or_else(|| qid.to_lowercase());
-                            entities.insert(key, entity);
+                    match item {
+                        ast::ImportItem::Entity { qid, alias } => {
+                            match client.get_entity(qid, &["ja", "en"]).await {
+                                Ok(entity) => {
+                                    let key = alias.clone().unwrap_or_else(|| qid.to_lowercase());
+                                    entities.insert(key, entity);
+                                }
+                                Err(e) => {
+                                    self.errors.push(LoweringError::Wikidata(e));
+                                }
+                            }
                         }
-                        Err(e) => {
-                            self.errors.push(LoweringError::Wikidata(e));
+                        ast::ImportItem::Query { query, alias } => {
+                            match client.sparql_query(query).await {
+                                Ok(mut qids) => {
+                                    qids.sort();
+                                    qids.dedup();
+                                    if qids.len() > MAX_IMPORT_QUERY_RESULTS {
+                                        qids.truncate(MAX_IMPORT_QUERY_RESULTS);
+                                    }
+
+                                    let mut group_keys = Vec::new();
+                                    for qid in qids {
+                                        match client.get_entity(&qid, &["ja", "en"]).await {
+                                            Ok(entity) => {
+                                                let key = qid.to_lowercase();
+                                                group_keys.push(key.clone());
+                                                entities.insert(key, entity);
+                                            }
+                                            Err(e) => {
+                                                self.errors.push(LoweringError::Wikidata(e));
+                                            }
+                                        }
+                                    }
+
+                                    if let Some(group_alias) = alias.clone().or_else(|| {
+                                        let name = format!("query_{unnamed_query_index}");
+                                        unnamed_query_index += 1;
+                                        Some(name)
+                                    }) {
+                                        groups.insert(group_alias, group_keys);
+                                    }
+                                }
+                                Err(e) => {
+                                    self.errors.push(LoweringError::Wikidata(e));
+                                }
+                            }
                         }
                     }
                 }
 
-                self.import_entities.insert(import_alias, entities);
+                self.import_entities.insert(import_alias.clone(), entities);
+                self.import_groups.insert(import_alias, groups);
             }
         }
     }
@@ -249,18 +296,28 @@ impl LoweringContext {
                     }
                 };
 
-                match entities.get(entity_key) {
-                    Some(entity) => {
-                        self.apply_map_to_entity(m, &entity.clone());
-                    }
-                    None => {
-                        self.errors.push(LoweringError::UnresolvedEntity(format!(
-                            "{}.{}",
-                            import_alias, entity_key
-                        )));
+                if let Some(entity) = entities.get(entity_key) {
+                    self.apply_map_to_entity(m, &entity.clone());
+                    continue;
+                }
+
+                if let Some(entity_groups) = self.import_groups.get(import_alias) {
+                    if let Some(keys) = entity_groups.get(entity_key) {
+                        let mapped_entities: Vec<WikidataEntity> = keys
+                            .iter()
+                            .filter_map(|k| entities.get(k).cloned())
+                            .collect();
+                        for entity in &mapped_entities {
+                            self.apply_map_to_entity(m, entity);
+                        }
                         continue;
                     }
                 }
+
+                self.errors.push(LoweringError::UnresolvedEntity(format!(
+                    "{}.{}",
+                    import_alias, entity_key
+                )));
             }
         }
     }
