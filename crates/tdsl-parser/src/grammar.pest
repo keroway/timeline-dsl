@@ -70,9 +70,10 @@ import_block = {
 source_name = { ident }
 
 import_item = _{
-    entity_import | policy_import
+    entity_import | query_import | policy_import
 }
 entity_import = { "entity" ~ qid ~ ("as" ~ ident)? ~ ";" }
+query_import = { "query" ~ string_literal ~ ("as" ~ ident)? ~ ";" }
 policy_import = { "policy" ~ ident ~ ";" }
 
 // ─── Map Block ──────────────────────────────────────────────
