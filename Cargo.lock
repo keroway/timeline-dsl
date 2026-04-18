@@ -1785,6 +1785,7 @@ dependencies = [
 name = "tdsl-core"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "insta",
  "miette",
  "serde",

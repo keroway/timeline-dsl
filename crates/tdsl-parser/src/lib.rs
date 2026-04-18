@@ -128,6 +128,7 @@ mod tests {
         let src = r#"
             import wikidata as wd {
                 entity Q7209 as han_dynasty;
+                query "SELECT ?item WHERE { ?item wdt:P31 wd:Q28171280 . }" as dynasties;
                 policy merge_by_source;
             }
         "#;
@@ -137,7 +138,17 @@ mod tests {
             ast::Statement::Import(imp) => {
                 assert_eq!(imp.source_type, "wikidata");
                 assert_eq!(imp.alias.as_deref(), Some("wd"));
-                assert_eq!(imp.items.len(), 1);
+                assert_eq!(imp.items.len(), 2);
+                assert!(matches!(
+                    &imp.items[0],
+                    ast::ImportItem::Entity { qid, alias }
+                        if qid == "Q7209" && alias.as_deref() == Some("han_dynasty")
+                ));
+                assert!(matches!(
+                    &imp.items[1],
+                    ast::ImportItem::Query { query, alias }
+                        if query.contains("P31") && alias.as_deref() == Some("dynasties")
+                ));
                 assert_eq!(imp.policy, Some(ast::ReimportPolicy::MergeBySource));
             }
             _ => panic!("expected Import"),

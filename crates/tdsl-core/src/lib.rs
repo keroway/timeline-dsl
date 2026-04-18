@@ -6,6 +6,86 @@ pub mod validate;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+
+    use async_trait::async_trait;
+    use tdsl_wikidata::entity::{DataValue, LabelValue, Snak, Statement, TimeValue};
+    use tdsl_wikidata::{SearchResult, WikidataClient, WikidataEntity, WikidataError};
+
+    struct MockWikidataClient {
+        entities: HashMap<String, WikidataEntity>,
+        query_results: Vec<String>,
+    }
+
+    #[async_trait]
+    impl WikidataClient for MockWikidataClient {
+        async fn get_entity(
+            &self,
+            qid: &str,
+            _langs: &[&str],
+        ) -> Result<WikidataEntity, WikidataError> {
+            self.entities
+                .get(qid)
+                .cloned()
+                .ok_or_else(|| WikidataError::NotFound(qid.to_string()))
+        }
+
+        async fn search_entities(
+            &self,
+            _query: &str,
+            _lang: &str,
+            _limit: usize,
+        ) -> Result<Vec<SearchResult>, WikidataError> {
+            Ok(Vec::new())
+        }
+
+        async fn sparql_query(&self, _query: &str) -> Result<Vec<String>, WikidataError> {
+            Ok(self.query_results.clone())
+        }
+    }
+
+    fn make_time(year: i64) -> TimeValue {
+        TimeValue {
+            time: format!("{year:+05}-01-01T00:00:00Z"),
+            precision: 9,
+            calendarmodel: "http://www.wikidata.org/entity/Q1985727".to_string(),
+        }
+    }
+
+    fn make_time_statement(property: &str, year: i64) -> Statement {
+        Statement {
+            mainsnak: Snak {
+                snaktype: "value".to_string(),
+                property: property.to_string(),
+                datavalue: Some(DataValue::Time {
+                    value: make_time(year),
+                }),
+            },
+            rank: "normal".to_string(),
+            qualifiers: HashMap::new(),
+        }
+    }
+
+    fn make_entity(id: &str, ja_label: &str, start: i64, end: i64) -> WikidataEntity {
+        let mut labels = HashMap::new();
+        labels.insert(
+            "ja".to_string(),
+            LabelValue {
+                language: "ja".to_string(),
+                value: ja_label.to_string(),
+            },
+        );
+
+        let mut claims = HashMap::new();
+        claims.insert("P571".to_string(), vec![make_time_statement("P571", start)]);
+        claims.insert("P576".to_string(), vec![make_time_statement("P576", end)]);
+
+        WikidataEntity {
+            id: id.to_string(),
+            labels,
+            claims,
+        }
+    }
 
     #[test]
     fn lower_static_basic() {
@@ -181,5 +261,57 @@ mod tests {
         }
         assert_eq!(ir2.sources.len(), 1);
         assert_eq!(ir2.sources[0].id, "wd:Q1");
+    }
+
+    #[tokio::test]
+    async fn lower_with_wikidata_supports_query_import_mapping_multiple_entities() {
+        let src = r#"
+            timeline "Dynasties" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                query "SELECT ?item WHERE { ?item wdt:P31 wd:Q28171280 . }" as chinese_dynasties;
+            }
+
+            map wd.chinese_dynasties to span {
+                lane dynasty;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja ?? label@en;
+                tags ["imported"];
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+
+        let mut entities = HashMap::new();
+        entities.insert("Q7183".to_string(), make_entity("Q7183", "秦", -221, -206));
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![
+                "Q7209".to_string(),
+                "Q7183".to_string(),
+                "Q7209".to_string(),
+            ],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+
+        assert_eq!(ir.items.len(), 2);
+        assert_eq!(ir.imports.len(), 2);
+        assert!(ir.imports.iter().any(|r| r.qid == "Q7183"));
+        assert!(ir.imports.iter().any(|r| r.qid == "Q7209"));
+
+        let labels: Vec<&str> = ir
+            .items
+            .iter()
+            .map(|item| match item {
+                ir::Item::Span { label, .. } => label.as_str(),
+                _ => panic!("expected span"),
+            })
+            .collect();
+        assert!(labels.contains(&"秦"));
+        assert!(labels.contains(&"漢"));
     }
 }
