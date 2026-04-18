@@ -56,6 +56,12 @@ cargo run --release -p tdsl-cli -- import-csv examples/fictional_empire_items.cs
 
 # CSVから item 定義を既存ファイルへ追記
 cargo run --release -p tdsl-cli -- import-csv examples/fictional_empire_items.csv --append /tmp/manual.tdsl
+
+# 品質チェック（テキスト表示）
+cargo run --release -p tdsl-cli -- lint /tmp/manual.tdsl
+
+# 自動修正付き品質チェック（JSON表示）
+cargo run --release -p tdsl-cli -- lint /tmp/manual.tdsl --fix --format json
 ```
 
 ## DSL文法
@@ -133,6 +139,14 @@ map wd.han_dynasty to span {
 | `examples/china_with_import.tdsl` | Wikidata連携つき。秦・漢をQIDからインポート |
 | `examples/fictional_empire.tdsl` | 架空世界向けの手作業年表サンプル |
 | `examples/fictional_empire_items.csv` | `import-csv` 用の入力CSVサンプル |
+
+## Lint
+
+`tdsl lint <file> [--fix] [--format text|json]`
+
+- 初期ルール: 未定義lane参照 / 重複id / `start > end` / 空label / タグの空要素・重複
+- `--fix` 対応: タグ重複除去・空タグ除去 / `start,end` 入れ替え / `id` 未設定時の安定ID生成
+- `--format json` はCI連携向けに issue 一覧と `ok` フラグを出力
 
 ## アーキテクチャ
 
