@@ -430,4 +430,36 @@ mod tests {
         }
         assert_eq!(ir.imports[0].mapped_to, "span:q7209:-206");
     }
+
+    #[tokio::test]
+    async fn eval_map_expr_unknown_accessor_returns_none() {
+        // .month のような未対応アクセサは None を返し、アイテムが生成されない
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            map wd.han to span {
+                lane dynasty;
+                start claim(P571).month;
+                end claim(P576).year;
+                label label@ja ?? label@en;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        // start が None になるためアイテムは生成されない
+        assert_eq!(ir.items.len(), 0);
+    }
 }
