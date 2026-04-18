@@ -47,6 +47,15 @@ open china.html
 
 # スケールを大きくして描画
 cargo run --release -p tdsl-cli -- render examples/china_dynasties.tdsl --scale 5 --output china.html
+
+# 手作業向けテンプレートを生成
+cargo run --release -p tdsl-cli -- init --output /tmp/manual.tdsl --timeline "架空世界年表" --range-start 1000 --range-end 1300 --lanes "王国:kingdom,事件:incidents"
+
+# CSVから item 定義を生成（stdout）
+cargo run --release -p tdsl-cli -- import-csv examples/fictional_empire_items.csv
+
+# CSVから item 定義を既存ファイルへ追記
+cargo run --release -p tdsl-cli -- import-csv examples/fictional_empire_items.csv --append /tmp/manual.tdsl
 ```
 
 ## DSL文法
@@ -122,6 +131,8 @@ map wd.han_dynasty to span {
 |---|---|
 | `examples/china_dynasties.tdsl` | 静的定義のみ。秦・漢・三国の年表 |
 | `examples/china_with_import.tdsl` | Wikidata連携つき。秦・漢をQIDからインポート |
+| `examples/fictional_empire.tdsl` | 架空世界向けの手作業年表サンプル |
+| `examples/fictional_empire_items.csv` | `import-csv` 用の入力CSVサンプル |
 
 ## アーキテクチャ
 
@@ -152,7 +163,7 @@ JSON IR 出力
 | `tdsl-core` | IR変換（lowering）・バリデーション |
 | `tdsl-wikidata` | Wikidata HTTPクライアント・エンティティモデル |
 | `tdsl-render` | IR → スタンドアロンHTML（インラインSVG）レンダラ |
-| `tdsl-cli` | CLIバイナリ（build / check / ast / fetch / render） |
+| `tdsl-cli` | CLIバイナリ（build / check / ast / fetch / search / inspect / scaffold / init / import-csv / render） |
 
 ## IR (中間表現) の構造
 
