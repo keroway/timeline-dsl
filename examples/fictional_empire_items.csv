@@ -1,0 +1,5 @@
+lane,type,start,end,time,label,tags,id
+kingdom,span,1001,1180,,アルカディア王国,dynasty|fictional,span:arcadia
+incidents,event,,,1042,竜騎士団の創設,founding|fictional,event:knights
+incidents,event_range,1175,1180,,黒霧戦争,war|fictional,range:black_mist
+incidents,event,,,1201,王都再建宣言,reform|fictional,event:rebuild
