@@ -20,7 +20,7 @@
    PR: https://github.com/keroway/timeline-dsl/pull/18
 
 6. [x] Wikipedia URL から QID を解決するコマンドを追加する  
-   PR: (this branch)
+   PR: https://github.com/keroway/timeline-dsl/pull/19
 
 7. [ ] Wikidata 取得キャッシュ（TTL/オフライン連携）を追加する  
    Issue: 未作成
