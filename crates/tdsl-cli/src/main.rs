@@ -151,6 +151,21 @@ enum Commands {
         #[arg(long, conflicts_with = "output")]
         append: Option<PathBuf>,
     },
+
+    /// Lint a .tdsl file and optionally apply safe fixes
+    Lint {
+        /// Input .tdsl file path
+        #[arg(value_name = "FILE")]
+        input: PathBuf,
+
+        /// Apply safe fixes in-place
+        #[arg(long, default_value_t = false)]
+        fix: bool,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = LintOutputFormat::Text)]
+        format: LintOutputFormat,
+    },
 }
 
 #[derive(Subcommand)]
@@ -202,6 +217,12 @@ enum ScaffoldLaneMode {
     #[default]
     PerEntity,
     ByKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum LintOutputFormat {
+    Text,
+    Json,
 }
 
 fn main() {
@@ -261,6 +282,7 @@ fn main() {
             output,
             append,
         } => cmd_import_csv(&input, output.as_deref(), append.as_deref()),
+        Commands::Lint { input, fix, format } => cmd_lint(&input, fix, format),
     };
 
     if let Err(e) = result {
@@ -1314,6 +1336,614 @@ fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
     out
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum LintSeverity {
+    Error,
+    Warning,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+struct LintIssue {
+    code: String,
+    severity: LintSeverity,
+    line: usize,
+    message: String,
+    fixable: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct LintReportOutput {
+    file: String,
+    fix_applied: usize,
+    issue_count: usize,
+    ok: bool,
+    issues: Vec<LintIssue>,
+}
+
+fn cmd_lint(input: &std::path::Path, fix: bool, format: LintOutputFormat) -> Result<(), String> {
+    let source = read_source(input)?;
+    let mut file = tdsl_parser::parse(&source).map_err(|e| e.to_string())?;
+
+    let mut fix_applied = 0usize;
+    let mut lint_source = source.clone();
+    if fix {
+        fix_applied = apply_lint_fixes(&mut file);
+        let rewritten = render_tdsl_file(&file);
+        if rewritten != source {
+            std::fs::write(input, &rewritten)
+                .map_err(|e| format!("Failed to write {}: {e}", input.display()))?;
+            lint_source = rewritten;
+        }
+    }
+
+    let issues = lint_issues(&file, &lint_source);
+    match format {
+        LintOutputFormat::Text => {
+            if fix {
+                println!("Applied {fix_applied} fix(es) to {}", input.display());
+            }
+            if issues.is_empty() {
+                println!("OK: no lint issues");
+                return Ok(());
+            }
+            println!("Found {} issue(s):", issues.len());
+            for issue in &issues {
+                println!(
+                    "- {severity} [{code}] line {line}: {message}{fixable}",
+                    severity = match issue.severity {
+                        LintSeverity::Error => "ERROR",
+                        LintSeverity::Warning => "WARN",
+                    },
+                    code = issue.code,
+                    line = issue.line,
+                    message = issue.message,
+                    fixable = if issue.fixable { " (fixable)" } else { "" }
+                );
+            }
+        }
+        LintOutputFormat::Json => {
+            let report = LintReportOutput {
+                file: input.display().to_string(),
+                fix_applied,
+                issue_count: issues.len(),
+                ok: issues.is_empty(),
+                issues,
+            };
+            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        }
+    }
+
+    Ok(())
+}
+
+fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue> {
+    use tdsl_parser::ast::Statement;
+
+    let lane_ids = collect_lane_ids(file);
+    let mut seen_ids: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut issues = Vec::new();
+
+    for stmt in &file.statements {
+        let line = line_from_offset(source, stmt.span.start);
+        match &stmt.node {
+            Statement::Span(s) => {
+                lint_item_common(
+                    &lane_ids,
+                    &mut seen_ids,
+                    &s.lane_ref,
+                    &s.label,
+                    &s.props,
+                    line,
+                    &mut issues,
+                );
+                if s.start > s.end {
+                    issues.push(LintIssue {
+                        code: "start_gt_end".to_string(),
+                        severity: LintSeverity::Error,
+                        line,
+                        message: format!("span range is reversed: {}..{}", s.start, s.end),
+                        fixable: true,
+                    });
+                }
+            }
+            Statement::Event(e) => {
+                lint_item_common(
+                    &lane_ids,
+                    &mut seen_ids,
+                    &e.lane_ref,
+                    &e.label,
+                    &e.props,
+                    line,
+                    &mut issues,
+                );
+            }
+            Statement::EventRange(er) => {
+                lint_item_common(
+                    &lane_ids,
+                    &mut seen_ids,
+                    &er.lane_ref,
+                    &er.label,
+                    &er.props,
+                    line,
+                    &mut issues,
+                );
+                if er.start > er.end {
+                    issues.push(LintIssue {
+                        code: "start_gt_end".to_string(),
+                        severity: LintSeverity::Error,
+                        line,
+                        message: format!("event_range is reversed: {}..{}", er.start, er.end),
+                        fixable: true,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    issues
+}
+
+fn lint_item_common(
+    lane_ids: &std::collections::HashSet<String>,
+    seen_ids: &mut std::collections::HashMap<String, usize>,
+    lane_ref: &str,
+    label: &str,
+    props: &tdsl_parser::ast::ItemProps,
+    line: usize,
+    issues: &mut Vec<LintIssue>,
+) {
+    if !lane_ids.contains(lane_ref) {
+        issues.push(LintIssue {
+            code: "unknown_lane".to_string(),
+            severity: LintSeverity::Error,
+            line,
+            message: format!("unknown lane reference `{lane_ref}`"),
+            fixable: false,
+        });
+    }
+
+    if label.trim().is_empty() {
+        issues.push(LintIssue {
+            code: "empty_label".to_string(),
+            severity: LintSeverity::Error,
+            line,
+            message: "label must not be empty".to_string(),
+            fixable: false,
+        });
+    }
+
+    let mut tag_seen = std::collections::HashSet::new();
+    let mut has_empty_tag = false;
+    let mut has_duplicate_tag = false;
+    for tag in &props.tags {
+        let normalized = tag.trim();
+        if normalized.is_empty() {
+            has_empty_tag = true;
+            continue;
+        }
+        if !tag_seen.insert(normalized.to_string()) {
+            has_duplicate_tag = true;
+        }
+    }
+    if has_empty_tag || has_duplicate_tag {
+        let reason = match (has_empty_tag, has_duplicate_tag) {
+            (true, true) => "tags contain empty and duplicated elements",
+            (true, false) => "tags contain empty elements",
+            (false, true) => "tags contain duplicated elements",
+            (false, false) => unreachable!(),
+        };
+        issues.push(LintIssue {
+            code: "invalid_tags".to_string(),
+            severity: LintSeverity::Error,
+            line,
+            message: reason.to_string(),
+            fixable: true,
+        });
+    }
+
+    match props
+        .id
+        .as_ref()
+        .map(|id| id.trim())
+        .filter(|id| !id.is_empty())
+    {
+        Some(id) => {
+            if let Some(first_line) = seen_ids.get(id) {
+                issues.push(LintIssue {
+                    code: "duplicate_id".to_string(),
+                    severity: LintSeverity::Error,
+                    line,
+                    message: format!("id `{id}` duplicates line {first_line}"),
+                    fixable: false,
+                });
+            } else {
+                seen_ids.insert(id.to_string(), line);
+            }
+        }
+        None => {
+            issues.push(LintIssue {
+                code: "missing_id".to_string(),
+                severity: LintSeverity::Warning,
+                line,
+                message: "id is missing".to_string(),
+                fixable: true,
+            });
+        }
+    }
+}
+
+fn collect_lane_ids(file: &tdsl_parser::ast::File) -> std::collections::HashSet<String> {
+    use tdsl_parser::ast::Statement;
+
+    let mut out = std::collections::HashSet::new();
+    let mut auto = 0usize;
+    for stmt in &file.statements {
+        if let Statement::Lane(lane) = &stmt.node {
+            let id = match &lane.alias {
+                Some(alias) => alias.clone(),
+                None => {
+                    let slug = lane_slug(&lane.label);
+                    if slug.is_empty() {
+                        let generated = format!("lane_{auto}");
+                        auto += 1;
+                        generated
+                    } else {
+                        slug
+                    }
+                }
+            };
+            out.insert(id);
+        }
+    }
+    out
+}
+
+fn lane_slug(s: &str) -> String {
+    s.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect::<String>()
+        .to_lowercase()
+}
+
+fn line_from_offset(source: &str, offset: usize) -> usize {
+    let len = source.len();
+    let clamped = offset.min(len);
+    source.as_bytes()[..clamped]
+        .iter()
+        .filter(|b| **b == b'\n')
+        .count()
+        + 1
+}
+
+fn apply_lint_fixes(file: &mut tdsl_parser::ast::File) -> usize {
+    use tdsl_parser::ast::Statement;
+
+    let mut fixed = 0usize;
+    let mut used_ids = std::collections::HashSet::new();
+    for stmt in &file.statements {
+        match &stmt.node {
+            Statement::Span(s) => {
+                if let Some(id) = s
+                    .props
+                    .id
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|id| !id.is_empty())
+                {
+                    used_ids.insert(id.to_string());
+                }
+            }
+            Statement::Event(e) => {
+                if let Some(id) = e
+                    .props
+                    .id
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|id| !id.is_empty())
+                {
+                    used_ids.insert(id.to_string());
+                }
+            }
+            Statement::EventRange(er) => {
+                if let Some(id) = er
+                    .props
+                    .id
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|id| !id.is_empty())
+                {
+                    used_ids.insert(id.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for stmt in &mut file.statements {
+        match &mut stmt.node {
+            Statement::Span(s) => {
+                fixed += fix_tags(&mut s.props.tags);
+                if s.start > s.end {
+                    std::mem::swap(&mut s.start, &mut s.end);
+                    fixed += 1;
+                }
+                fixed +=
+                    ensure_item_id("span", &s.lane_ref, s.start, &mut s.props.id, &mut used_ids);
+            }
+            Statement::Event(e) => {
+                fixed += fix_tags(&mut e.props.tags);
+                fixed +=
+                    ensure_item_id("event", &e.lane_ref, e.time, &mut e.props.id, &mut used_ids);
+            }
+            Statement::EventRange(er) => {
+                fixed += fix_tags(&mut er.props.tags);
+                if er.start > er.end {
+                    std::mem::swap(&mut er.start, &mut er.end);
+                    fixed += 1;
+                }
+                fixed += ensure_item_id(
+                    "event_range",
+                    &er.lane_ref,
+                    er.start,
+                    &mut er.props.id,
+                    &mut used_ids,
+                );
+            }
+            _ => {}
+        }
+    }
+
+    fixed
+}
+
+fn fix_tags(tags: &mut Vec<String>) -> usize {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for tag in tags.iter() {
+        let normalized = tag.trim();
+        if normalized.is_empty() {
+            continue;
+        }
+        if seen.insert(normalized.to_string()) {
+            out.push(normalized.to_string());
+        }
+    }
+    if *tags != out {
+        *tags = out;
+        1
+    } else {
+        0
+    }
+}
+
+fn ensure_item_id(
+    prefix: &str,
+    lane: &str,
+    anchor: i64,
+    id_slot: &mut Option<String>,
+    used_ids: &mut std::collections::HashSet<String>,
+) -> usize {
+    if let Some(existing) = id_slot
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    {
+        used_ids.insert(existing.to_string());
+        return 0;
+    }
+
+    let base = format!("{prefix}:{lane}:{anchor}");
+    let mut candidate = base.clone();
+    let mut i = 2usize;
+    while used_ids.contains(&candidate) {
+        candidate = format!("{base}_{i}");
+        i += 1;
+    }
+    used_ids.insert(candidate.clone());
+    *id_slot = Some(candidate);
+    1
+}
+
+fn render_tdsl_file(file: &tdsl_parser::ast::File) -> String {
+    use tdsl_parser::ast::Statement;
+
+    let mut out = String::new();
+    for (idx, stmt) in file.statements.iter().enumerate() {
+        if idx > 0 {
+            out.push('\n');
+            out.push('\n');
+        }
+        match &stmt.node {
+            Statement::Timeline(t) => {
+                writeln!(out, r#"timeline "{}" {{"#, escape_tdsl_string(&t.name)).unwrap();
+                if let Some(title) = &t.title {
+                    writeln!(out, r#"    title "{}";"#, escape_tdsl_string(title)).unwrap();
+                }
+                if let Some(unit) = &t.unit {
+                    writeln!(out, "    unit {unit};").unwrap();
+                }
+                if let Some(range) = &t.range {
+                    writeln!(out, "    range {}..{};", range.start, range.end).unwrap();
+                }
+                if let Some(calendar) = &t.calendar {
+                    writeln!(out, "    calendar {calendar};").unwrap();
+                }
+                write!(out, "}}").unwrap();
+            }
+            Statement::Lane(l) => {
+                write!(out, r#"lane "{}""#, escape_tdsl_string(&l.label)).unwrap();
+                if let Some(alias) = &l.alias {
+                    write!(out, " as {alias}").unwrap();
+                }
+                let mut props = Vec::new();
+                if let Some(kind) = &l.kind {
+                    props.push(format!("kind {kind};"));
+                }
+                if let Some(order) = l.order {
+                    props.push(format!("order {order};"));
+                }
+                if props.is_empty() {
+                    write!(out, " {{}}").unwrap();
+                } else {
+                    write!(out, " {{ {} }}", props.join(" ")).unwrap();
+                }
+            }
+            Statement::Span(s) => {
+                write!(
+                    out,
+                    r#"span {} {}..{} "{}" {};"#,
+                    s.lane_ref,
+                    s.start,
+                    s.end,
+                    escape_tdsl_string(&s.label),
+                    render_item_props(&s.props)
+                )
+                .unwrap();
+            }
+            Statement::Event(e) => {
+                write!(
+                    out,
+                    r#"event {} {} "{}" {};"#,
+                    e.lane_ref,
+                    e.time,
+                    escape_tdsl_string(&e.label),
+                    render_item_props(&e.props)
+                )
+                .unwrap();
+            }
+            Statement::EventRange(er) => {
+                write!(
+                    out,
+                    r#"event_range {} {}..{} "{}" {};"#,
+                    er.lane_ref,
+                    er.start,
+                    er.end,
+                    escape_tdsl_string(&er.label),
+                    render_item_props(&er.props)
+                )
+                .unwrap();
+            }
+            Statement::Import(imp) => {
+                write!(out, "import {}", imp.source_type).unwrap();
+                if let Some(alias) = &imp.alias {
+                    write!(out, " as {alias}").unwrap();
+                }
+                writeln!(out, " {{").unwrap();
+                for item in &imp.items {
+                    match item {
+                        tdsl_parser::ast::ImportItem::Entity { qid, alias } => {
+                            write!(out, "    entity {qid}").unwrap();
+                            if let Some(alias) = alias {
+                                write!(out, " as {alias}").unwrap();
+                            }
+                            writeln!(out, ";").unwrap();
+                        }
+                        tdsl_parser::ast::ImportItem::Query { query, alias } => {
+                            write!(out, r#"    query "{}""#, escape_tdsl_string(query)).unwrap();
+                            if let Some(alias) = alias {
+                                write!(out, " as {alias}").unwrap();
+                            }
+                            writeln!(out, ";").unwrap();
+                        }
+                    }
+                }
+                if let Some(policy) = imp.policy {
+                    let policy_name = match policy {
+                        tdsl_parser::ast::ReimportPolicy::MergeBySource => "merge_by_source",
+                        tdsl_parser::ast::ReimportPolicy::OverwriteImported => "overwrite_imported",
+                        tdsl_parser::ast::ReimportPolicy::KeepManual => "keep_manual",
+                    };
+                    writeln!(out, "    policy {policy_name};").unwrap();
+                }
+                write!(out, "}}").unwrap();
+            }
+            Statement::Map(m) => {
+                let target = match m.target_type {
+                    tdsl_parser::ast::MapTargetType::Span => "span",
+                    tdsl_parser::ast::MapTargetType::Event => "event",
+                    tdsl_parser::ast::MapTargetType::EventRange => "event_range",
+                };
+                writeln!(out, "map {} to {} {{", m.source_ref, target).unwrap();
+                for prop in &m.props {
+                    match prop {
+                        tdsl_parser::ast::MapProp::Lane(lane) => {
+                            writeln!(out, "    lane {lane};").unwrap();
+                        }
+                        tdsl_parser::ast::MapProp::Start(expr) => {
+                            writeln!(out, "    start {};", render_map_expr(expr)).unwrap();
+                        }
+                        tdsl_parser::ast::MapProp::End(expr) => {
+                            writeln!(out, "    end {};", render_map_expr(expr)).unwrap();
+                        }
+                        tdsl_parser::ast::MapProp::Time(expr) => {
+                            writeln!(out, "    time {};", render_map_expr(expr)).unwrap();
+                        }
+                        tdsl_parser::ast::MapProp::Label(expr) => {
+                            writeln!(out, "    label {};", render_label_expr(expr)).unwrap();
+                        }
+                        tdsl_parser::ast::MapProp::Tags(tags) => {
+                            let joined = tags
+                                .iter()
+                                .map(|t| format!(r#""{}""#, escape_tdsl_string(t)))
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            writeln!(out, "    tags [{joined}];").unwrap();
+                        }
+                    }
+                }
+                write!(out, "}}").unwrap();
+            }
+        }
+    }
+    out.push('\n');
+    out
+}
+
+fn render_item_props(props: &tdsl_parser::ast::ItemProps) -> String {
+    let mut parts = Vec::new();
+    if !props.tags.is_empty() {
+        let joined = props
+            .tags
+            .iter()
+            .map(|t| format!(r#""{}""#, escape_tdsl_string(t)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        parts.push(format!("tags [{joined}];"));
+    }
+    if let Some(source) = &props.source {
+        parts.push(format!("source {}:{};", source.prefix, source.qid));
+    }
+    if let Some(id) = &props.id {
+        parts.push(format!(r#"id "{}";"#, escape_tdsl_string(id)));
+    }
+    if let Some(origin) = &props.origin {
+        parts.push(format!("origin {origin};"));
+    }
+    if parts.is_empty() {
+        "{}".to_string()
+    } else {
+        format!("{{ {} }}", parts.join(" "))
+    }
+}
+
+fn render_map_expr(expr: &tdsl_parser::ast::MapExpr) -> String {
+    if let Some(accessor) = &expr.accessor {
+        format!("claim({}).{}", expr.claim.property, accessor)
+    } else {
+        format!("claim({})", expr.claim.property)
+    }
+}
+
+fn render_label_expr(expr: &tdsl_parser::ast::LabelExpr) -> String {
+    expr.fallbacks
+        .iter()
+        .map(|l| format!("label@{}", l.lang))
+        .collect::<Vec<_>>()
+        .join(" ?? ")
+}
+
 fn parse_langs(lang: &str) -> Vec<String> {
     let mut out = Vec::new();
     for part in lang.split(',') {
@@ -1728,6 +2358,51 @@ mod tests {
     fn parse_lane_specs_rejects_invalid_alias() {
         let err = parse_lane_specs("王国:123bad").unwrap_err();
         assert!(err.contains("invalid lane alias"));
+    }
+
+    #[test]
+    fn lint_issues_detects_initial_rule_set() {
+        let src = r#"
+timeline "Lint" { unit year; range 0..100; }
+lane "A" as a { kind custom; order 10; }
+span b 20..10 "" { tags ["x", "", "x"]; id "dup"; };
+event a 30 "E" { id "dup"; };
+event a 40 "No ID" {};
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        let codes: std::collections::HashSet<String> =
+            issues.iter().map(|i| i.code.clone()).collect();
+        assert!(codes.contains("unknown_lane"));
+        assert!(codes.contains("duplicate_id"));
+        assert!(codes.contains("start_gt_end"));
+        assert!(codes.contains("empty_label"));
+        assert!(codes.contains("invalid_tags"));
+        assert!(codes.contains("missing_id"));
+    }
+
+    #[test]
+    fn apply_lint_fixes_normalizes_tags_swaps_ranges_and_generates_ids() {
+        let src = r#"
+timeline "Fix" { unit year; range 0..100; }
+lane "A" as a { kind custom; order 10; }
+span a 20..10 "S" { tags ["x", "", "x"]; };
+event a 30 "E" {};
+event_range a 50..40 "R" { tags ["war", "war"]; };
+"#;
+        let mut file = tdsl_parser::parse(src).unwrap();
+        let fixed = apply_lint_fixes(&mut file);
+        assert!(fixed >= 5);
+
+        let rendered = render_tdsl_file(&file);
+        let reparsed = tdsl_parser::parse(&rendered).unwrap();
+        let issues = lint_issues(&reparsed, &rendered);
+        assert!(!issues.iter().any(|i| i.code == "start_gt_end"
+            || i.code == "invalid_tags"
+            || i.code == "missing_id"));
+
+        let ir = tdsl_core::lower::lower_static(&reparsed).unwrap();
+        assert_eq!(ir.items.len(), 3);
     }
 
     #[test]
