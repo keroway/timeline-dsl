@@ -174,7 +174,9 @@ map wd.han_dynasty to span {
 ```
 
 > `source` はMVP では自動付与（`wd:<entity_id>`）。`map` ブロック内での明示指定は不要。
-> `policy` はパースされるが、lowering では未実装（将来の拡張用に保持）。
+> `policy` はID衝突時の挙動を切り替える:
+> `merge_by_source` は衝突をエラー扱い、`overwrite_imported` は既存 imported 項目のみ置換、
+> `keep_manual` は既存項目（主に手動定義）を優先して imported 側をスキップ。
 
 ## サンプルファイル
 

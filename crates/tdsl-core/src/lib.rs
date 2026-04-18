@@ -314,4 +314,95 @@ mod tests {
         assert!(labels.contains(&"秦"));
         assert!(labels.contains(&"漢"));
     }
+
+    #[tokio::test]
+    async fn lower_with_wikidata_keep_manual_skips_conflicting_imported_item() {
+        let src = r#"
+            timeline "Policy" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            span dynasty -206..220 "手動の漢" { id "span:q7209:-206"; origin manual; };
+
+            import wikidata as wd {
+                entity Q7209 as han_dynasty;
+                policy keep_manual;
+            }
+
+            map wd.han_dynasty to span {
+                lane dynasty;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja ?? label@en;
+                tags ["imported"];
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 1);
+        assert_eq!(ir.imports.len(), 0);
+        match &ir.items[0] {
+            ir::Item::Span { label, origin, .. } => {
+                assert_eq!(label, "手動の漢");
+                assert_eq!(origin.as_deref(), Some("manual"));
+            }
+            _ => panic!("expected span"),
+        }
+    }
+
+    #[tokio::test]
+    async fn lower_with_wikidata_overwrite_imported_replaces_previous_imported_item() {
+        let src = r#"
+            timeline "Policy" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q7209 as han_single;
+                query "SELECT ?item WHERE { VALUES ?item { wd:Q7209 } }" as han_group;
+                policy overwrite_imported;
+            }
+
+            map wd.han_single to span {
+                lane dynasty;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja ?? label@en;
+                tags ["first"];
+            }
+
+            map wd.han_group to span {
+                lane dynasty;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja ?? label@en;
+                tags ["second"];
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec!["Q7209".to_string()],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 1);
+        assert_eq!(ir.imports.len(), 1);
+        match &ir.items[0] {
+            ir::Item::Span { tags, .. } => {
+                assert_eq!(tags, &vec!["second".to_string()]);
+            }
+            _ => panic!("expected span"),
+        }
+        assert_eq!(ir.imports[0].mapped_to, "span:q7209:-206");
+    }
 }
