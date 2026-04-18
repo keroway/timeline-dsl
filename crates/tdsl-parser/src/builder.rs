@@ -247,6 +247,15 @@ fn build_import(pair: Pair<'_, Rule>) -> Result<ImportBlock> {
                     alias: entity_alias,
                 });
             }
+            Rule::query_import => {
+                let mut qi = item.into_inner();
+                let query = extract_string_literal(&qi.next().unwrap());
+                let query_alias = qi.next().map(|p| p.as_str().to_string());
+                items.push(ImportItem::Query {
+                    query,
+                    alias: query_alias,
+                });
+            }
             Rule::policy_import => {
                 let name = item.into_inner().next().unwrap().as_str();
                 policy = Some(match name {
