@@ -10,7 +10,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 echo "[e2e] verify CLI help includes documented commands"
 cargo run -q -p tdsl-cli -- --help >"$TMP_DIR/help.txt"
 for cmd in build check ast fetch search inspect scaffold render init import-csv lint; do
-  rg -q "\\b${cmd}\\b" "$TMP_DIR/help.txt"
+  grep -Eq "[[:space:]]${cmd}[[:space:]]" "$TMP_DIR/help.txt"
 done
 
 echo "[e2e] Wikidata-origin flow (fixture + offline)"
@@ -29,7 +29,7 @@ cargo run -q -p tdsl-cli -- init \
   --lanes "王国:kingdom,事件:incidents"
 cargo run -q -p tdsl-cli -- import-csv examples/fictional_empire_items.csv --append "$TMP_DIR/manual.tdsl"
 cargo run -q -p tdsl-cli -- lint "$TMP_DIR/manual.tdsl" --fix --format json >"$TMP_DIR/manual_lint.json"
-rg -q '"ok": true' "$TMP_DIR/manual_lint.json"
+grep -Fq '"ok": true' "$TMP_DIR/manual_lint.json"
 cargo run -q -p tdsl-cli -- check "$TMP_DIR/manual.tdsl"
 cargo run -q -p tdsl-cli -- build "$TMP_DIR/manual.tdsl" --pretty --output "$TMP_DIR/manual.json"
 cargo run -q -p tdsl-cli -- render "$TMP_DIR/manual.tdsl" --output "$TMP_DIR/manual.html"
