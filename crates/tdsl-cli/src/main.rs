@@ -1214,6 +1214,8 @@ fn render_init_tdsl(
     let mut lane_alias_seen = std::collections::HashSet::new();
     for (i, lane) in lane_specs.iter().enumerate() {
         let alias = if let Some(alias) = &lane.alias {
+            // 明示的なエイリアスは make_unique_alias を通さないため手動で登録
+            lane_alias_seen.insert(alias.clone());
             alias.clone()
         } else {
             let base = slug_ascii(&lane.label);
@@ -1222,9 +1224,9 @@ fn render_init_tdsl(
             } else {
                 base
             };
+            // make_unique_alias 内部で lane_alias_seen に挿入済み
             make_unique_alias(&seed, &mut lane_alias_seen)
         };
-        lane_alias_seen.insert(alias.clone());
         writeln!(
             out,
             r#"lane "{label}" as {alias} {{ kind custom; order {order}; }}"#,
