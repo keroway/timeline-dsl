@@ -541,13 +541,10 @@ impl LoweringContext {
 fn eval_map_expr(expr: &ast::MapExpr, entity: &WikidataEntity) -> Option<i64> {
     let dv = entity.claim(&expr.claim.property)?;
     match dv {
-        DataValue::Time { value } => {
-            if expr.accessor.as_deref() == Some("year") {
-                time_value_to_year(value).ok()
-            } else {
-                time_value_to_year(value).ok()
-            }
-        }
+        DataValue::Time { value } => match expr.accessor.as_deref() {
+            Some("year") | None => time_value_to_year(value).ok(),
+            _ => None,
+        },
         _ => None,
     }
 }
