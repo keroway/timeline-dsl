@@ -147,10 +147,7 @@ fn read_source(path: &std::path::Path) -> Result<String, String> {
 }
 
 /// Parse and lower a .tdsl file into an IR. Shared by `build` and `render`.
-fn load_ir(
-    input: &std::path::Path,
-    offline: bool,
-) -> Result<tdsl_core::ir::TimelineIr, String> {
+fn load_ir(input: &std::path::Path, offline: bool) -> Result<tdsl_core::ir::TimelineIr, String> {
     let source = read_source(input)?;
     let file = tdsl_parser::parse(&source).map_err(|e| e.to_string())?;
 
@@ -470,12 +467,11 @@ fn build_inspect_report(entity: &WikidataEntity, langs: &[String]) -> InspectRep
 
 fn summarize_claim_value(dv: &DataValue) -> (Option<i64>, String) {
     match dv {
-        DataValue::Time { value } => (
-            time_value_to_year(value).ok(),
-            value.time.clone(),
-        ),
+        DataValue::Time { value } => (time_value_to_year(value).ok(), value.time.clone()),
         DataValue::String { value } => (None, value.clone()),
-        DataValue::MonolingualText { value } => (None, format!("{}@{}", value.text, value.language)),
+        DataValue::MonolingualText { value } => {
+            (None, format!("{}@{}", value.text, value.language))
+        }
         DataValue::WikibaseEntityId { value } => (None, value.id.clone()),
         DataValue::Quantity { value } => (None, value.to_string()),
         DataValue::GlobeCoordinate { value } => (None, value.to_string()),
@@ -641,8 +637,10 @@ mod tests {
         ];
         let suggestions = suggest_map_targets(&claims, &["ja".to_string(), "en".to_string()]);
         assert!(suggestions.iter().any(|s| s.target == "span"));
-        assert!(suggestions
-            .iter()
-            .any(|s| s.start.as_deref() == Some("claim(P571).year")));
+        assert!(
+            suggestions
+                .iter()
+                .any(|s| s.start.as_deref() == Some("claim(P571).year"))
+        );
     }
 }

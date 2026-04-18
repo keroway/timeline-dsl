@@ -36,7 +36,13 @@ mod tests {
                 assert_eq!(t.name, "中国王朝年表");
                 assert_eq!(t.title.as_deref(), Some("中国王朝年表"));
                 assert_eq!(t.unit.as_deref(), Some("year"));
-                assert_eq!(t.range, Some(ast::RangeExpr { start: -500, end: 2000 }));
+                assert_eq!(
+                    t.range,
+                    Some(ast::RangeExpr {
+                        start: -500,
+                        end: 2000
+                    })
+                );
                 assert_eq!(t.calendar.as_deref(), Some("proleptic_gregorian"));
             }
             _ => panic!("expected Timeline"),
@@ -61,7 +67,8 @@ mod tests {
 
     #[test]
     fn parse_span() {
-        let src = r#"span han -206..220 "漢" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };"#;
+        let src =
+            r#"span han -206..220 "漢" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };"#;
         let file = parse(src).unwrap();
         assert_eq!(file.statements.len(), 1);
         match &file.statements[0].node {
@@ -71,10 +78,13 @@ mod tests {
                 assert_eq!(s.end, 220);
                 assert_eq!(s.label, "漢");
                 assert_eq!(s.props.tags, vec!["dynasty"]);
-                assert_eq!(s.props.source, Some(ast::SourceRef {
-                    prefix: "wd".to_string(),
-                    qid: "Q7209".to_string(),
-                }));
+                assert_eq!(
+                    s.props.source,
+                    Some(ast::SourceRef {
+                        prefix: "wd".to_string(),
+                        qid: "Q7209".to_string(),
+                    })
+                );
                 assert_eq!(s.props.id.as_deref(), Some("span:han"));
             }
             _ => panic!("expected Span"),

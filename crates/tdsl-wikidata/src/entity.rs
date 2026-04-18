@@ -160,21 +160,30 @@ mod tests {
     #[test]
     fn label_fallback() {
         let mut labels = HashMap::new();
-        labels.insert("ja".to_string(), LabelValue {
-            language: "ja".to_string(),
-            value: "漢".to_string(),
-        });
-        labels.insert("en".to_string(), LabelValue {
-            language: "en".to_string(),
-            value: "Han dynasty".to_string(),
-        });
+        labels.insert(
+            "ja".to_string(),
+            LabelValue {
+                language: "ja".to_string(),
+                value: "漢".to_string(),
+            },
+        );
+        labels.insert(
+            "en".to_string(),
+            LabelValue {
+                language: "en".to_string(),
+                value: "Han dynasty".to_string(),
+            },
+        );
         let entity = WikidataEntity {
             id: "Q7209".to_string(),
             labels,
             claims: HashMap::new(),
         };
         assert_eq!(entity.label_with_fallback(&["ja", "en"]), Some("漢"));
-        assert_eq!(entity.label_with_fallback(&["zh", "en"]), Some("Han dynasty"));
+        assert_eq!(
+            entity.label_with_fallback(&["zh", "en"]),
+            Some("Han dynasty")
+        );
         assert_eq!(entity.label_with_fallback(&["fr"]), None);
     }
 }

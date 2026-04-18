@@ -35,7 +35,11 @@ mod tests {
         let result = lower::lower_static(&file);
         assert!(result.is_err());
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::UnknownLane(_))));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, error::LoweringError::UnknownLane(_)))
+        );
     }
 
     #[test]
