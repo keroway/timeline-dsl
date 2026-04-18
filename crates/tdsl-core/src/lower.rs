@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use tdsl_parser::ast::{self, MapTargetType};
-use tdsl_wikidata::entity::{DataValue, WikidataEntity, time_value_to_year};
 use tdsl_wikidata::WikidataClient;
+use tdsl_wikidata::entity::{DataValue, WikidataEntity, time_value_to_year};
 
 use crate::error::LoweringError;
 use crate::ir::*;
@@ -203,10 +203,7 @@ impl LoweringContext {
     async fn pass3_resolve_imports(&mut self, file: &ast::File, client: &dyn WikidataClient) {
         for stmt in &file.statements {
             if let ast::Statement::Import(imp) = &stmt.node {
-                let import_alias = imp
-                    .alias
-                    .clone()
-                    .unwrap_or_else(|| imp.source_type.clone());
+                let import_alias = imp.alias.clone().unwrap_or_else(|| imp.source_type.clone());
                 self.import_sources
                     .insert(import_alias.clone(), imp.source_type.clone());
 
@@ -216,8 +213,7 @@ impl LoweringContext {
                     let ast::ImportItem::Entity { qid, alias } = item;
                     match client.get_entity(qid, &["ja", "en"]).await {
                         Ok(entity) => {
-                            let key =
-                                alias.clone().unwrap_or_else(|| qid.to_lowercase());
+                            let key = alias.clone().unwrap_or_else(|| qid.to_lowercase());
                             entities.insert(key, entity);
                         }
                         Err(e) => {
@@ -258,8 +254,10 @@ impl LoweringContext {
                         self.apply_map_to_entity(m, &entity.clone());
                     }
                     None => {
-                        self.errors
-                            .push(LoweringError::UnresolvedEntity(format!("{}.{}", import_alias, entity_key)));
+                        self.errors.push(LoweringError::UnresolvedEntity(format!(
+                            "{}.{}",
+                            import_alias, entity_key
+                        )));
                         continue;
                     }
                 }
@@ -290,8 +288,7 @@ impl LoweringContext {
 
         // Validate lane existence
         if !lane_ref.is_empty() && !self.lanes_map.contains_key(&lane_ref) {
-            self.errors
-                .push(LoweringError::UnknownMappedLane(lane_ref));
+            self.errors.push(LoweringError::UnknownMappedLane(lane_ref));
             return;
         }
 
@@ -443,9 +440,7 @@ fn eval_map_expr(expr: &ast::MapExpr, entity: &WikidataEntity) -> Option<i64> {
 /// Evaluate a label expression with fallback (e.g. `label@ja ?? label@en`).
 fn eval_label_expr(expr: &ast::LabelExpr, entity: &WikidataEntity) -> Option<String> {
     let langs: Vec<&str> = expr.fallbacks.iter().map(|lr| lr.lang.as_str()).collect();
-    entity
-        .label_with_fallback(&langs)
-        .map(|s| s.to_string())
+    entity.label_with_fallback(&langs).map(|s| s.to_string())
 }
 
 // ─── Helpers ────────────────────────────────────────────────

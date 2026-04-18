@@ -6,10 +6,7 @@ pub enum ParseError {
     Syntax(#[from] pest::error::Error<crate::Rule>),
 
     #[error("Invalid integer at {location}: {value}")]
-    InvalidInt {
-        value: String,
-        location: String,
-    },
+    InvalidInt { value: String, location: String },
 
     #[error("Unknown re-import policy: {0}")]
     UnknownPolicy(String),
@@ -18,8 +15,5 @@ pub enum ParseError {
     UnknownTargetType(String),
 
     #[error("Unexpected rule {rule} at {location}")]
-    UnexpectedRule {
-        rule: String,
-        location: String,
-    },
+    UnexpectedRule { rule: String, location: String },
 }
