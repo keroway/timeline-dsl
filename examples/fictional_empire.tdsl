@@ -1,0 +1,14 @@
+timeline "ルメリア帝国年表" {
+    title "ルメリア帝国年表";
+    unit year;
+    range 1000..1300;
+    calendar proleptic_gregorian;
+}
+
+lane "王国" as kingdom { kind custom; order 10; }
+lane "事件" as incidents { kind custom; order 20; }
+
+span kingdom 1001..1180 "アルカディア王国" { tags ["dynasty", "fictional"]; id "span:arcadia"; };
+event incidents 1042 "竜騎士団の創設" { tags ["founding", "fictional"]; id "event:knights"; };
+event_range incidents 1175..1180 "黒霧戦争" { tags ["war", "fictional"]; id "range:black_mist"; };
+event incidents 1201 "王都再建宣言" { tags ["reform", "fictional"]; id "event:rebuild"; };
