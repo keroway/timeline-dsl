@@ -12,6 +12,20 @@
 - **3種の時間要素** -- `span`（存続期間）、`event`（点イベント）、`event_range`（期間イベント）
 - **ライセンス追跡** -- Wikidataデータ(CC0)の出典を自動記録
 
+## インストール
+
+### ワンラインインストール（macOS / Linux）
+
+```sh
+curl -sSfL https://raw.githubusercontent.com/keroway/timeline-dsl/main/install.sh | sh
+```
+
+### cargo でインストール（Rust開発者向け）
+
+```sh
+cargo install --git https://github.com/keroway/timeline-dsl tdsl-cli
+```
+
 ## クイックスタート
 
 ### ビルド

@@ -2,6 +2,16 @@ use std::collections::HashMap;
 
 use tdsl_core::ir::{Item, Lane, TimelineIr};
 
+/// Color/style theme for HTML output.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Theme {
+    #[default]
+    Default,
+    Dark,
+    Print,
+    Pastel,
+}
+
 /// Rendering options. Pixel dimensions and styling parameters.
 #[derive(Debug, Clone)]
 pub struct RenderOptions {
@@ -17,6 +27,10 @@ pub struct RenderOptions {
     pub right_margin: f64,
     /// Bottom margin.
     pub bottom_margin: f64,
+    /// Color/style theme.
+    pub theme: Theme,
+    /// Optional custom CSS (content, not a file path) injected after the theme CSS.
+    pub custom_css: Option<String>,
 }
 
 impl Default for RenderOptions {
@@ -28,6 +42,8 @@ impl Default for RenderOptions {
             top_margin: 40.0,
             right_margin: 20.0,
             bottom_margin: 20.0,
+            theme: Theme::Default,
+            custom_css: None,
         }
     }
 }

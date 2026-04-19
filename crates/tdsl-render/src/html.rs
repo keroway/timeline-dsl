@@ -1,5 +1,19 @@
 /// Wrap a pre-rendered SVG string in a standalone HTML document with embedded CSS.
-pub fn wrap_html(svg_body: &str, title: &str) -> String {
+pub fn wrap_html(svg_body: &str, title: &str, opts: &crate::layout::RenderOptions) -> String {
+    use crate::layout::Theme;
+
+    let theme_css = match opts.theme {
+        Theme::Default => "",
+        Theme::Dark => DARK_THEME_CSS,
+        Theme::Print => PRINT_THEME_CSS,
+        Theme::Pastel => PASTEL_THEME_CSS,
+    };
+
+    let custom_css_block = match &opts.custom_css {
+        Some(css) => format!("\n<style>\n{css}\n</style>"),
+        None => String::new(),
+    };
+
     format!(
         r#"<!DOCTYPE html>
 <html lang="ja">
@@ -9,7 +23,7 @@ pub fn wrap_html(svg_body: &str, title: &str) -> String {
 <title>{title}</title>
 <style>
 {css}
-</style>
+{theme_css}</style>{custom_css_block}
 </head>
 <body>
 <h1>{title}</h1>
@@ -25,6 +39,8 @@ pub fn wrap_html(svg_body: &str, title: &str) -> String {
 "#,
         title = escape_html(title),
         css = EMBEDDED_CSS,
+        theme_css = theme_css,
+        custom_css_block = custom_css_block,
         svg = svg_body,
         js = EMBEDDED_JS,
     )
@@ -117,6 +133,85 @@ h1 {
 }
 "#;
 
+/// Dark theme overrides — deep navy background, light text.
+const DARK_THEME_CSS: &str = r#"body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+h1 { color: #e0e0e0; }
+.tdsl-timeline {
+  background: #16213e;
+  border-color: #0f3460;
+}
+.tdsl-lane-band-even { fill: #16213e; }
+.tdsl-lane-band-odd  { fill: #0f3460; }
+.tdsl-axis-baseline  { stroke: #555; }
+.tdsl-axis-tick      { stroke: #2a4a7f; }
+.tdsl-axis-text      { fill: #aaa; }
+.tdsl-lane-label     { fill: #ccc; }
+.tdsl-item-label     { fill: #f0f0f0; }
+.tdsl-tooltip {
+  background: rgba(22, 33, 62, 0.96);
+  border-color: #0f3460;
+  color: #e0e0e0;
+}
+"#;
+
+/// Print theme overrides — monochrome, high contrast.
+const PRINT_THEME_CSS: &str = r#"body {
+  background: #fff;
+  color: #000;
+}
+.tdsl-timeline {
+  background: #fff;
+  border-color: #000;
+}
+.tdsl-lane-band-even { fill: #fff; }
+.tdsl-lane-band-odd  { fill: #eee; }
+.tdsl-axis-baseline  { stroke: #000; }
+.tdsl-axis-tick      { stroke: #bbb; }
+.tdsl-axis-text      { fill: #000; }
+.tdsl-lane-label     { fill: #000; }
+.tdsl-span {
+  fill: #333;
+  stroke: #000;
+}
+.tdsl-event-range {
+  fill: #666;
+  stroke: #000;
+}
+.tdsl-event-dot      { fill: #000; }
+.tdsl-item-label     { fill: #fff; }
+"#;
+
+/// Pastel theme overrides — soft, light colors with rounded spans.
+const PASTEL_THEME_CSS: &str = r#"body {
+  background: #fef9f0;
+  color: #444;
+}
+.tdsl-timeline {
+  background: #fffdf7;
+  border-color: #e8dcc8;
+}
+.tdsl-lane-band-even { fill: #fffdf7; }
+.tdsl-lane-band-odd  { fill: #fdf3e3; }
+.tdsl-axis-baseline  { stroke: #ccc; }
+.tdsl-axis-tick      { stroke: #e8dcc8; }
+.tdsl-axis-text      { fill: #888; }
+.tdsl-lane-label     { fill: #666; }
+.tdsl-span {
+  fill: #b5d5f5;
+  stroke: #7aabdf;
+  rx: 6;
+}
+.tdsl-event-range {
+  fill: #f5c6b5;
+  stroke: #df8a7a;
+}
+.tdsl-event-dot      { fill: #888; stroke: #fff; }
+.tdsl-item-label     { fill: #333; }
+"#;
+
 const EMBEDDED_JS: &str = r#"(() => {
   const tooltip = document.getElementById("tdsl-tooltip");
   if (!tooltip) return;
@@ -202,10 +297,13 @@ fn escape_html(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::layout::RenderOptions;
+    use crate::layout::Theme;
 
     #[test]
     fn html_wraps_with_doctype_and_svg() {
-        let html = wrap_html("<svg></svg>", "test title");
+        let opts = RenderOptions::default();
+        let html = wrap_html("<svg></svg>", "test title", &opts);
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains("<title>test title</title>"));
         assert!(html.contains("<style>"));
@@ -216,8 +314,26 @@ mod tests {
 
     #[test]
     fn html_escapes_title() {
-        let html = wrap_html("<svg></svg>", "A & B <danger>");
+        let opts = RenderOptions::default();
+        let html = wrap_html("<svg></svg>", "A & B <danger>", &opts);
         assert!(html.contains("A &amp; B &lt;danger&gt;"));
         assert!(!html.contains("<danger>"));
+    }
+
+    #[test]
+    fn dark_theme_applies_dark_background() {
+        let opts = RenderOptions { theme: Theme::Dark, ..Default::default() };
+        let html = wrap_html("<svg></svg>", "test", &opts);
+        assert!(html.contains("1a1a2e"), "dark theme should include #1a1a2e");
+    }
+
+    #[test]
+    fn custom_css_is_injected() {
+        let opts = RenderOptions {
+            custom_css: Some(".tdsl-span { fill: hotpink; }".into()),
+            ..Default::default()
+        };
+        let html = wrap_html("<svg></svg>", "test", &opts);
+        assert!(html.contains("hotpink"), "custom CSS should be in output");
     }
 }
