@@ -216,6 +216,111 @@ mod tests {
     }
 
     #[test]
+    fn validate_warns_on_span_start_gt_end() {
+        let ir = ir::TimelineIr {
+            meta: ir::Meta {
+                title: "Test".into(),
+                unit: "year".into(),
+                range: (0, 1000),
+                calendar: "proleptic_gregorian".into(),
+            },
+            lanes: vec![ir::Lane {
+                id: "a".into(),
+                label: "A".into(),
+                kind: "dynasty".into(),
+                order: 1,
+            }],
+            items: vec![ir::Item::Span {
+                id: "span:a:200".into(),
+                lane: "a".into(),
+                start: 200,
+                end: 100,
+                label: "Bad Span".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let warnings = validate::validate(&ir);
+        assert!(
+            warnings.iter().any(|w| w.contains("start") && w.contains("end")),
+            "expected start > end warning, got: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn validate_warns_on_event_range_start_gt_end() {
+        let ir = ir::TimelineIr {
+            meta: ir::Meta {
+                title: "Test".into(),
+                unit: "year".into(),
+                range: (0, 1000),
+                calendar: "proleptic_gregorian".into(),
+            },
+            lanes: vec![ir::Lane {
+                id: "a".into(),
+                label: "A".into(),
+                kind: "dynasty".into(),
+                order: 1,
+            }],
+            items: vec![ir::Item::EventRange {
+                id: "event_range:a:300".into(),
+                lane: "a".into(),
+                start: 300,
+                end: 150,
+                label: "Bad EventRange".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let warnings = validate::validate(&ir);
+        assert!(
+            warnings.iter().any(|w| w.contains("start") && w.contains("end")),
+            "expected start > end warning, got: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn validate_no_warning_on_valid_span() {
+        let ir = ir::TimelineIr {
+            meta: ir::Meta {
+                title: "Test".into(),
+                unit: "year".into(),
+                range: (0, 1000),
+                calendar: "proleptic_gregorian".into(),
+            },
+            lanes: vec![ir::Lane {
+                id: "a".into(),
+                label: "A".into(),
+                kind: "dynasty".into(),
+                order: 1,
+            }],
+            items: vec![ir::Item::Span {
+                id: "span:a:100".into(),
+                lane: "a".into(),
+                start: 100,
+                end: 200,
+                label: "Valid Span".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let warnings = validate::validate(&ir);
+        assert!(
+            warnings.is_empty(),
+            "expected no warnings, got: {warnings:?}"
+        );
+    }
+
+    #[test]
     fn static_event_source_registered_in_sources() {
         let src = r#"
             timeline "Test" { unit year; range 0..2000; }
