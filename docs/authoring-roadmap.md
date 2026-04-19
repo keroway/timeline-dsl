@@ -23,11 +23,17 @@
    PR: https://github.com/keroway/timeline-dsl/pull/19
 
 7. [ ] Wikidata 取得キャッシュ（TTL/オフライン連携）を追加する  
-   Issue: 未作成
+   Issue: https://github.com/keroway/timeline-dsl/issues/28
+
+## その他の改善 Issue
+
+- #29 テスト一時ファイルの flaky test 修正
+- #30 `validate.rs` に `start > end` チェックを追加
+- #31 SPARQL クエリ結果の QID 抽出改善
 
 ## Epic
 
-- https://github.com/keroway/timeline-dsl/issues/10
+- https://github.com/keroway/timeline-dsl/issues/10 （完了・クローズ済み）
 
 ## 方針
 
