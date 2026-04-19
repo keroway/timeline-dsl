@@ -1,8 +1,21 @@
+use std::collections::HashMap;
 use std::fmt::Write;
 
 use tdsl_core::ir::Item;
 
 use crate::layout::{LaidItem, LayoutModel};
+
+/// Colorblind-friendly 8-color palette for per-lane fill colors.
+const LANE_PALETTE: &[&str] = &[
+    "#4682B4", // steel blue
+    "#E67E22", // orange
+    "#27AE60", // green
+    "#8E44AD", // purple
+    "#E74C3C", // red
+    "#1ABC9C", // teal
+    "#F39C12", // amber
+    "#2980B9", // blue
+];
 
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
 pub fn render_svg(layout: &LayoutModel) -> String {
@@ -18,10 +31,18 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     )
     .unwrap();
 
+    // Build lane_id → palette color map from ordered lane list.
+    let lane_color: HashMap<&str, &str> = layout
+        .lanes_ordered
+        .iter()
+        .enumerate()
+        .map(|(idx, lane)| (lane.id.as_str(), LANE_PALETTE[idx % LANE_PALETTE.len()]))
+        .collect();
+
     render_lane_bands(&mut s, layout);
     render_axis(&mut s, layout);
     render_lane_labels(&mut s, layout);
-    render_items(&mut s, layout);
+    render_items(&mut s, layout, &lane_color);
 
     writeln!(s, "</svg>").unwrap();
     s
@@ -103,7 +124,7 @@ fn render_lane_labels(s: &mut String, layout: &LayoutModel) {
     }
 }
 
-fn render_items(s: &mut String, layout: &LayoutModel) {
+fn render_items(s: &mut String, layout: &LayoutModel, lane_color: &HashMap<&str, &str>) {
     for laid in &layout.items {
         match laid {
             LaidItem::Span {
@@ -116,11 +137,15 @@ fn render_items(s: &mut String, layout: &LayoutModel) {
                 let raw_tip = item_tooltip(item);
                 let tip = escape_xml(&raw_tip);
                 let tip_attr = escape_xml_attr(&raw_tip);
+                let lane_id = item_lane_id(item);
+                let fill = lane_color.get(lane_id).copied().unwrap_or("#4682B4");
+                let fill_style = format!("fill:{fill};");
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-span" tabindex="0" data-tdsl-tooltip="{tip_attr}"><rect class="tdsl-span" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect><text class="tdsl-item-label" x="{tx}" y="{ty}" dominant-baseline="middle">{label}</text></g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-span" tabindex="0" data-tdsl-tooltip="{tip_attr}"><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect><text class="tdsl-item-label" x="{tx}" y="{ty}" dominant-baseline="middle">{label}</text></g>"#,
                     tip = tip,
                     tip_attr = tip_attr,
+                    fill_style = fill_style,
                     x = fmt_f(*x),
                     y = fmt_f(*y),
                     w = fmt_f(*width),
@@ -141,11 +166,15 @@ fn render_items(s: &mut String, layout: &LayoutModel) {
                 let raw_tip = item_tooltip(item);
                 let tip = escape_xml(&raw_tip);
                 let tip_attr = escape_xml_attr(&raw_tip);
+                let lane_id = item_lane_id(item);
+                let fill = lane_color.get(lane_id).copied().unwrap_or("#E67E22");
+                let fill_style = format!("fill:{fill};fill-opacity:0.75;");
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-event-range" tabindex="0" data-tdsl-tooltip="{tip_attr}"><rect class="tdsl-event-range" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-event-range" tabindex="0" data-tdsl-tooltip="{tip_attr}"><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
                     tip = tip,
                     tip_attr = tip_attr,
+                    fill_style = fill_style,
                     x = fmt_f(*x),
                     y = fmt_f(*y),
                     w = fmt_f(*width),
@@ -164,15 +193,19 @@ fn render_items(s: &mut String, layout: &LayoutModel) {
                 let raw_tip = item_tooltip(item);
                 let tip = escape_xml(&raw_tip);
                 let tip_attr = escape_xml_attr(&raw_tip);
+                let lane_id = item_lane_id(item);
+                let fill = lane_color.get(lane_id).copied().unwrap_or("#333");
+                let dot_style = format!("fill:{fill};");
                 let hit_x = *x - 8.0;
                 let hit_w = 16.0;
                 let hit_y = *y_top;
                 let hit_h = (y_bottom - y_top).max(20.0);
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-event" tabindex="0" data-tdsl-tooltip="{tip_attr}"><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"><title>{tip}</title></line><circle class="tdsl-event-dot" cx="{x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-event" tabindex="0" data-tdsl-tooltip="{tip_attr}"><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"><title>{tip}</title></line><circle class="tdsl-event-dot" style="{dot_style}" cx="{x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
                     tip = tip,
                     tip_attr = tip_attr,
+                    dot_style = dot_style,
                     hx = fmt_f(hit_x),
                     hy = fmt_f(hit_y),
                     hw = fmt_f(hit_w),
@@ -185,6 +218,12 @@ fn render_items(s: &mut String, layout: &LayoutModel) {
                 .unwrap();
             }
         }
+    }
+}
+
+fn item_lane_id(item: &Item) -> &str {
+    match item {
+        Item::Span { lane, .. } | Item::Event { lane, .. } | Item::EventRange { lane, .. } => lane,
     }
 }
 
