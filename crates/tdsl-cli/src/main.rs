@@ -2361,7 +2361,8 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("tdsl_cli_test_{nanos}.csv"));
+        let thread_id = std::thread::current().id();
+        let path = std::env::temp_dir().join(format!("tdsl_cli_test_{thread_id:?}_{nanos}.csv"));
         std::fs::write(&path, contents).unwrap();
         path
     }
