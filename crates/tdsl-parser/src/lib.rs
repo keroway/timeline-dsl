@@ -234,6 +234,173 @@ mod tests {
         assert!(result.is_err());
     }
 
+    // ─── Edge cases ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_string_with_escaped_quote() {
+        let src = r#"lane "He said \"hello\"" as x {}"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Lane(l) => {
+                assert!(l.label.contains("hello"));
+            }
+            _ => panic!("expected Lane"),
+        }
+    }
+
+    #[test]
+    fn parse_negative_boundary_values() {
+        let src = r#"span han -9999..0 "大昔" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Span(s) => {
+                assert_eq!(s.start, -9999);
+                assert_eq!(s.end, 0);
+            }
+            _ => panic!("expected Span"),
+        }
+    }
+
+    #[test]
+    fn parse_multiple_tags_in_list() {
+        let src = r#"span han 100..200 "漢" { tags ["a", "b", "c"]; };"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Span(s) => {
+                assert_eq!(s.props.tags, vec!["a", "b", "c"]);
+            }
+            _ => panic!("expected Span"),
+        }
+    }
+
+    #[test]
+    fn parse_event_range_with_id_and_origin() {
+        let src = r#"event_range han 100..200 "乱" { id "er:han:100"; origin manual; };"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::EventRange(er) => {
+                assert_eq!(er.props.id.as_deref(), Some("er:han:100"));
+                assert_eq!(er.props.origin.as_deref(), Some("manual"));
+            }
+            _ => panic!("expected EventRange"),
+        }
+    }
+
+    #[test]
+    fn parse_import_without_alias() {
+        let src = r#"
+            import wikidata {
+                entity Q7209;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Import(imp) => {
+                assert_eq!(imp.source_type, "wikidata");
+                assert!(imp.alias.is_none());
+                assert_eq!(imp.items.len(), 1);
+                assert!(matches!(&imp.items[0],
+                    ast::ImportItem::Entity { qid, alias }
+                        if qid == "Q7209" && alias.is_none()
+                ));
+            }
+            _ => panic!("expected Import"),
+        }
+    }
+
+    #[test]
+    fn parse_map_with_tags() {
+        let src = r#"
+            map wd.han to span {
+                lane han;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja;
+                tags ["dynasty", "china"];
+            }
+        "#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let has_tags = m.props.iter().any(|p| matches!(p, ast::MapProp::Tags(t) if t.len() == 2));
+                assert!(has_tags);
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
+    fn parse_lane_without_alias_no_kind() {
+        let src = r#"lane "Simple" {}"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Lane(l) => {
+                assert_eq!(l.label, "Simple");
+                assert!(l.alias.is_none());
+                assert!(l.kind.is_none());
+                assert!(l.order.is_none());
+            }
+            _ => panic!("expected Lane"),
+        }
+    }
+
+    #[test]
+    fn parse_block_comment_multiline() {
+        let src = r#"
+            /* This is a
+               multi-line
+               block comment */
+            lane "秦" as qin {}
+        "#;
+        let file = parse(src).unwrap();
+        assert_eq!(file.statements.len(), 1);
+        match &file.statements[0].node {
+            ast::Statement::Lane(l) => assert_eq!(l.label, "秦"),
+            _ => panic!("expected Lane"),
+        }
+    }
+
+    #[test]
+    fn parse_event_with_zero_year() {
+        let src = r#"event han 0 "年0の出来事" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Event(e) => assert_eq!(e.time, 0),
+            _ => panic!("expected Event"),
+        }
+    }
+
+    #[test]
+    fn parse_overwrite_imported_policy() {
+        let src = r#"import wikidata as wd { policy overwrite_imported; }"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Import(imp) => {
+                assert_eq!(imp.policy, Some(ast::ReimportPolicy::OverwriteImported));
+            }
+            _ => panic!("expected Import"),
+        }
+    }
+
+    #[test]
+    fn parse_keep_manual_policy() {
+        let src = r#"import wikidata as wd { policy keep_manual; }"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Import(imp) => {
+                assert_eq!(imp.policy, Some(ast::ReimportPolicy::KeepManual));
+            }
+            _ => panic!("expected Import"),
+        }
+    }
+
+    #[test]
+    fn parse_unknown_policy_fails() {
+        let src = r#"import wikidata as wd { policy unknown_policy; }"#;
+        let result = parse(src);
+        assert!(result.is_err());
+    }
+
     #[test]
     fn parse_template_block_with_alias() {
         let src = r#"
