@@ -1,5 +1,8 @@
 # Timeline DSL
 
+[![CI](https://github.com/keroway/timeline-dsl/actions/workflows/ci.yml/badge.svg)](https://github.com/keroway/timeline-dsl/actions/workflows/ci.yml)
+[![Release](https://github.com/keroway/timeline-dsl/actions/workflows/release.yml/badge.svg)](https://github.com/keroway/timeline-dsl/actions/workflows/release.yml)
+
 年表特化のドメイン固有言語（DSL）コンパイラ。テキストベースで年表を定義し、Wikidataから構造化データを自動インポートできる。
 
 ## 特徴
@@ -28,73 +31,69 @@ cargo install --git https://github.com/keroway/timeline-dsl tdsl-cli
 
 ## クイックスタート
 
-### ビルド
-
-```bash
-cargo build --release
-```
+インストール後は `tdsl` コマンドが直接使えます。
 
 ### 基本的な使い方
 
 ```bash
 # DSLファイルをJSONにコンパイル
-cargo run --release -p tdsl-cli -- build examples/china_dynasties.tdsl --pretty
+tdsl build examples/china_dynasties.tdsl --pretty
 
 # 構文・意味チェック
-cargo run --release -p tdsl-cli -- check examples/china_dynasties.tdsl
+tdsl check examples/china_dynasties.tdsl
 
 # Wikidata連携つきコンパイル
-cargo run --release -p tdsl-cli -- build examples/china_with_import.tdsl --pretty
+tdsl build examples/china_with_import.tdsl --pretty
 
 # オフラインモード（Wikidataアクセスなし）
-cargo run --release -p tdsl-cli -- build examples/china_with_import.tdsl --offline --pretty
+tdsl build examples/china_with_import.tdsl --offline --pretty
 
 # ASTダンプ（デバッグ用）
-cargo run --release -p tdsl-cli -- ast examples/china_dynasties.tdsl
+tdsl ast examples/china_dynasties.tdsl
 
 # Wikidataエンティティの確認
-cargo run --release -p tdsl-cli -- fetch Q7209 --lang ja,en
+tdsl fetch Q7209 --lang ja,en
 
 # Wikipedia URL から QID を解決
-cargo run --release -p tdsl-cli -- resolve "https://ja.wikipedia.org/wiki/漢" --lang ja,en
+tdsl resolve "https://ja.wikipedia.org/wiki/漢" --lang ja,en
 
 # スタンドアロンHTMLにレンダリング（ブラウザで開くだけ）
-cargo run --release -p tdsl-cli -- render examples/china_dynasties.tdsl --output china.html
+tdsl render examples/china_dynasties.tdsl --output china.html
 open china.html
 
 # スケールを大きくして描画
-cargo run --release -p tdsl-cli -- render examples/china_dynasties.tdsl --scale 5 --output china.html
+tdsl render examples/china_dynasties.tdsl --scale 5 --output china.html
 
 # 手作業向けテンプレートを生成
-cargo run --release -p tdsl-cli -- init --output /tmp/manual.tdsl --timeline "架空世界年表" --range-start 1000 --range-end 1300 --lanes "王国:kingdom,事件:incidents"
+tdsl init --output /tmp/manual.tdsl --timeline "架空世界年表" --range-start 1000 --range-end 1300 --lanes "王国:kingdom,事件:incidents"
 
 # CSVから item 定義を生成（stdout）
-cargo run --release -p tdsl-cli -- import-csv examples/fictional_empire_items.csv
+tdsl import-csv examples/fictional_empire_items.csv
 
 # CSVから item 定義を既存ファイルへ追記
-cargo run --release -p tdsl-cli -- import-csv examples/fictional_empire_items.csv --append /tmp/manual.tdsl
+tdsl import-csv examples/fictional_empire_items.csv --append /tmp/manual.tdsl
 
 # 品質チェック（テキスト表示）
-cargo run --release -p tdsl-cli -- lint /tmp/manual.tdsl
+tdsl lint /tmp/manual.tdsl
 
 # 自動修正付き品質チェック（JSON表示）
-cargo run --release -p tdsl-cli -- lint /tmp/manual.tdsl --fix --format json
+tdsl lint /tmp/manual.tdsl --fix --format json
 ```
 
 ### 最短フロー（Wikidata起点）
 
 ```bash
 # 1) 候補を探す
-cargo run --release -p tdsl-cli -- search "漢王朝" --lang ja -n 5
+tdsl search "漢王朝" --lang ja -n 5
 
 # (任意) Wikipedia URL からQIDを解決
-cargo run --release -p tdsl-cli -- resolve "https://ja.wikipedia.org/wiki/漢"
+tdsl resolve "https://ja.wikipedia.org/wiki/漢"
 
 # 2) QIDの年表化適性を確認
-cargo run --release -p tdsl-cli -- inspect Q7209 --lang ja,en
+tdsl inspect Q7209 --lang ja,en
 
 # 3) .tdsl 雛形を生成
-cargo run --release -p tdsl-cli -- scaffold wikidata \
+tdsl scaffold wikidata \
   --qids Q7183,Q7209 \
   --timeline "中国王朝(生成)" \
   --lang ja,en \
@@ -103,7 +102,7 @@ cargo run --release -p tdsl-cli -- scaffold wikidata \
   --output /tmp/china_scaffold.tdsl
 
 # 4) HTMLに描画
-cargo run --release -p tdsl-cli -- render /tmp/china_scaffold.tdsl --output /tmp/china_scaffold.html
+tdsl render /tmp/china_scaffold.tdsl --output /tmp/china_scaffold.html
 ```
 
 > `search / inspect / resolve / scaffold wikidata` はネットワーク接続が必要です。
@@ -112,7 +111,7 @@ cargo run --release -p tdsl-cli -- render /tmp/china_scaffold.tdsl --output /tmp
 
 ```bash
 # 1) 年表テンプレート生成
-cargo run --release -p tdsl-cli -- init \
+tdsl init \
   --output /tmp/manual.tdsl \
   --timeline "架空世界年表" \
   --range-start 1000 \
@@ -120,13 +119,13 @@ cargo run --release -p tdsl-cli -- init \
   --lanes "王国:kingdom,事件:incidents"
 
 # 2) CSVから項目を追記
-cargo run --release -p tdsl-cli -- import-csv examples/fictional_empire_items.csv --append /tmp/manual.tdsl
+tdsl import-csv examples/fictional_empire_items.csv --append /tmp/manual.tdsl
 
 # 3) 品質補正
-cargo run --release -p tdsl-cli -- lint /tmp/manual.tdsl --fix
+tdsl lint /tmp/manual.tdsl --fix
 
 # 4) HTMLに描画
-cargo run --release -p tdsl-cli -- render /tmp/manual.tdsl --output /tmp/manual.html
+tdsl render /tmp/manual.tdsl --output /tmp/manual.html
 ```
 
 ## DSL文法
