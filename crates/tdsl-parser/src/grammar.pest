@@ -10,6 +10,8 @@ statement = _{
   | event_range_decl
   | import_block
   | map_block
+  | template_block
+  | apply_block
 }
 
 // ─── Timeline Block ─────────────────────────────────────────
@@ -92,6 +94,21 @@ map_end    = { "end" ~ map_expr ~ ";" }
 map_time   = { "time" ~ map_expr ~ ";" }
 map_label  = { "label" ~ label_expr ~ ";" }
 map_tags   = { "tags" ~ "[" ~ string_list ~ "]" ~ ";" }
+
+// ─── Template Block ─────────────────────────────────────────
+template_block = {
+    "template" ~ string_literal ~ ("as" ~ ident)?
+    ~ "to" ~ target_type ~ "{" ~ map_prop* ~ "}"
+}
+
+// ─── Apply Block ────────────────────────────────────────────
+apply_block = {
+    "apply" ~ ident ~ "to" ~ ident ~ "{" ~ apply_override* ~ "}"
+}
+
+apply_override = _{
+    map_lane
+}
 
 // ─── Expressions ────────────────────────────────────────────
 map_expr   = { claim_call ~ ("." ~ ident)? }

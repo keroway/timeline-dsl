@@ -233,4 +233,87 @@ mod tests {
         let result = parse(src);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn parse_template_block_with_alias() {
+        let src = r#"
+            template "人物の生涯" as person_life
+                to event_range {
+                    start claim(P569).year;
+                    end claim(P570).year;
+                    label label@ja ?? label@en;
+                }
+        "#;
+        let file = parse(src).unwrap();
+        assert_eq!(file.statements.len(), 1);
+        match &file.statements[0].node {
+            ast::Statement::Template(t) => {
+                assert_eq!(t.name, "人物の生涯");
+                assert_eq!(t.alias.as_deref(), Some("person_life"));
+                assert_eq!(t.target_type, ast::MapTargetType::EventRange);
+                assert_eq!(t.props.len(), 3);
+                assert!(matches!(&t.props[0], ast::MapProp::Start(_)));
+                assert!(matches!(&t.props[1], ast::MapProp::End(_)));
+                assert!(matches!(&t.props[2], ast::MapProp::Label(_)));
+            }
+            _ => panic!("expected Template"),
+        }
+    }
+
+    #[test]
+    fn parse_template_block_without_alias() {
+        let src = r#"
+            template "Dynasty Span"
+                to span {
+                    start claim(P571).year;
+                    end claim(P576).year;
+                    label label@ja ?? label@en;
+                }
+        "#;
+        let file = parse(src).unwrap();
+        assert_eq!(file.statements.len(), 1);
+        match &file.statements[0].node {
+            ast::Statement::Template(t) => {
+                assert_eq!(t.name, "Dynasty Span");
+                assert!(t.alias.is_none());
+                assert_eq!(t.target_type, ast::MapTargetType::Span);
+            }
+            _ => panic!("expected Template"),
+        }
+    }
+
+    #[test]
+    fn parse_apply_block_with_override() {
+        let src = r#"
+            apply person_life to emperors {
+                lane imperial;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        assert_eq!(file.statements.len(), 1);
+        match &file.statements[0].node {
+            ast::Statement::Apply(a) => {
+                assert_eq!(a.template_alias, "person_life");
+                assert_eq!(a.import_alias, "emperors");
+                assert_eq!(a.overrides.len(), 1);
+                assert!(matches!(&a.overrides[0], ast::MapProp::Lane(id) if id == "imperial"));
+            }
+            _ => panic!("expected Apply"),
+        }
+    }
+
+    #[test]
+    fn parse_apply_block_empty_overrides() {
+        let src = r#"apply dynasty_template to imports {}"#;
+        let file = parse(src).unwrap();
+        assert_eq!(file.statements.len(), 1);
+        match &file.statements[0].node {
+            ast::Statement::Apply(a) => {
+                assert_eq!(a.template_alias, "dynasty_template");
+                assert_eq!(a.import_alias, "imports");
+                assert!(a.overrides.is_empty());
+            }
+            _ => panic!("expected Apply"),
+        }
+    }
 }

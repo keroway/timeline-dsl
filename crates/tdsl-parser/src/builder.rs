@@ -62,6 +62,20 @@ pub fn build_file(pairs: Pairs<'_, Rule>) -> Result<File> {
                     span,
                 });
             }
+            Rule::template_block => {
+                let span = pair_span(&pair);
+                statements.push(Spanned {
+                    node: Statement::Template(build_template(pair)?),
+                    span,
+                });
+            }
+            Rule::apply_block => {
+                let span = pair_span(&pair);
+                statements.push(Spanned {
+                    node: Statement::Apply(build_apply(pair)?),
+                    span,
+                });
+            }
             Rule::EOI => {}
             _ => {}
         }
@@ -277,56 +291,65 @@ fn build_import(pair: Pair<'_, Rule>) -> Result<ImportBlock> {
     })
 }
 
+// ─── Template ───────────────────────────────────────────────
+
+fn build_template(pair: Pair<'_, Rule>) -> Result<TemplateBlock> {
+    let mut inner = pair.into_inner();
+    let name = extract_string_literal(&inner.next().unwrap());
+
+    // Optional alias: if the next token is an ident before target_type
+    let mut alias = None;
+    let mut peeked = inner.next().unwrap();
+    if peeked.as_rule() == Rule::ident {
+        alias = Some(peeked.as_str().to_string());
+        peeked = inner.next().unwrap();
+    }
+
+    // peeked is now target_type
+    let target_type = parse_target_type(peeked.into_inner().next().unwrap())?;
+
+    let mut props = Vec::new();
+    for item in inner {
+        build_map_prop(item, &mut props)?;
+    }
+
+    Ok(TemplateBlock {
+        name,
+        alias,
+        target_type,
+        props,
+    })
+}
+
+// ─── Apply ──────────────────────────────────────────────────
+
+fn build_apply(pair: Pair<'_, Rule>) -> Result<ApplyBlock> {
+    let mut inner = pair.into_inner();
+    let template_alias = inner.next().unwrap().as_str().to_string();
+    let import_alias = inner.next().unwrap().as_str().to_string();
+
+    let mut overrides = Vec::new();
+    for item in inner {
+        build_map_prop(item, &mut overrides)?;
+    }
+
+    Ok(ApplyBlock {
+        template_alias,
+        import_alias,
+        overrides,
+    })
+}
+
 // ─── Map ────────────────────────────────────────────────────
 
 fn build_map(pair: Pair<'_, Rule>) -> Result<MapBlock> {
     let mut inner = pair.into_inner();
     let source_ref = inner.next().unwrap().as_str().to_string();
-    let target_type_str = inner.next().unwrap().into_inner().next().unwrap();
-    let target_type = match target_type_str.as_str() {
-        "span" => MapTargetType::Span,
-        "event" => MapTargetType::Event,
-        "event_range" => MapTargetType::EventRange,
-        other => {
-            return Err(ParseError::UnknownTargetType(other.to_string()));
-        }
-    };
+    let target_type = parse_target_type(inner.next().unwrap().into_inner().next().unwrap())?;
 
     let mut props = Vec::new();
     for item in inner {
-        match item.as_rule() {
-            Rule::map_lane => {
-                props.push(MapProp::Lane(
-                    item.into_inner().next().unwrap().as_str().to_string(),
-                ));
-            }
-            Rule::map_start => {
-                props.push(MapProp::Start(build_map_expr(
-                    item.into_inner().next().unwrap(),
-                )?));
-            }
-            Rule::map_end => {
-                props.push(MapProp::End(build_map_expr(
-                    item.into_inner().next().unwrap(),
-                )?));
-            }
-            Rule::map_time => {
-                props.push(MapProp::Time(build_map_expr(
-                    item.into_inner().next().unwrap(),
-                )?));
-            }
-            Rule::map_label => {
-                props.push(MapProp::Label(build_label_expr(
-                    item.into_inner().next().unwrap(),
-                )));
-            }
-            Rule::map_tags => {
-                props.push(MapProp::Tags(build_string_list(
-                    item.into_inner().next().unwrap(),
-                )));
-            }
-            _ => {}
-        }
+        build_map_prop(item, &mut props)?;
     }
 
     Ok(MapBlock {
@@ -334,6 +357,43 @@ fn build_map(pair: Pair<'_, Rule>) -> Result<MapBlock> {
         target_type,
         props,
     })
+}
+
+fn build_map_prop(item: Pair<'_, Rule>, props: &mut Vec<MapProp>) -> Result<()> {
+    match item.as_rule() {
+        Rule::map_lane => {
+            props.push(MapProp::Lane(
+                item.into_inner().next().unwrap().as_str().to_string(),
+            ));
+        }
+        Rule::map_start => {
+            props.push(MapProp::Start(build_map_expr(
+                item.into_inner().next().unwrap(),
+            )?));
+        }
+        Rule::map_end => {
+            props.push(MapProp::End(build_map_expr(
+                item.into_inner().next().unwrap(),
+            )?));
+        }
+        Rule::map_time => {
+            props.push(MapProp::Time(build_map_expr(
+                item.into_inner().next().unwrap(),
+            )?));
+        }
+        Rule::map_label => {
+            props.push(MapProp::Label(build_label_expr(
+                item.into_inner().next().unwrap(),
+            )));
+        }
+        Rule::map_tags => {
+            props.push(MapProp::Tags(build_string_list(
+                item.into_inner().next().unwrap(),
+            )));
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn build_map_expr(pair: Pair<'_, Rule>) -> Result<MapExpr> {
@@ -359,6 +419,15 @@ fn build_label_expr(pair: Pair<'_, Rule>) -> LabelExpr {
         })
         .collect();
     LabelExpr { fallbacks }
+}
+
+fn parse_target_type(pair: Pair<'_, Rule>) -> Result<MapTargetType> {
+    match pair.as_str() {
+        "span" => Ok(MapTargetType::Span),
+        "event" => Ok(MapTargetType::Event),
+        "event_range" => Ok(MapTargetType::EventRange),
+        other => Err(ParseError::UnknownTargetType(other.to_string())),
+    }
 }
 
 // ─── Helpers ────────────────────────────────────────────────
