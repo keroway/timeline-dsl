@@ -33,6 +33,14 @@ enum Commands {
         /// Skip Wikidata fetching (only process static items)
         #[arg(long, default_value_t = false)]
         offline: bool,
+
+        /// Bypass the local Wikidata cache and force a fresh API request
+        #[arg(long, default_value_t = false)]
+        no_cache: bool,
+
+        /// Cache time-to-live in seconds (0 disables caching, default: 86400 = 24h)
+        #[arg(long, default_value_t = 86400u64)]
+        cache_ttl: u64,
     },
 
     /// Check a .tdsl file for syntax and semantic errors
@@ -123,9 +131,37 @@ enum Commands {
         #[arg(long, default_value_t = 2.0)]
         scale: f64,
 
+        /// Height of each lane in pixels
+        #[arg(long, default_value_t = 60.0)]
+        lane_height: f64,
+
+        /// Width of the left-hand gutter for lane labels
+        #[arg(long, default_value_t = 120.0)]
+        left_gutter: f64,
+
+        /// Top margin reserved for the time axis
+        #[arg(long, default_value_t = 40.0)]
+        top_margin: f64,
+
+        /// Color/style theme
+        #[arg(long, default_value = "default", value_enum)]
+        theme: ThemeArg,
+
+        /// Path to a CSS file whose contents are injected after the theme CSS
+        #[arg(long)]
+        custom_css: Option<PathBuf>,
+
         /// Skip Wikidata fetching (only process static items)
         #[arg(long, default_value_t = false)]
         offline: bool,
+
+        /// Bypass the local Wikidata cache and force a fresh API request
+        #[arg(long, default_value_t = false)]
+        no_cache: bool,
+
+        /// Cache time-to-live in seconds (0 disables caching, default: 86400 = 24h)
+        #[arg(long, default_value_t = 86400u64)]
+        cache_ttl: u64,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -239,6 +275,26 @@ enum LintOutputFormat {
     Json,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+enum ThemeArg {
+    #[default]
+    Default,
+    Dark,
+    Print,
+    Pastel,
+}
+
+impl ThemeArg {
+    fn into_theme(self) -> tdsl_render::layout::Theme {
+        match self {
+            ThemeArg::Default => tdsl_render::layout::Theme::Default,
+            ThemeArg::Dark => tdsl_render::layout::Theme::Dark,
+            ThemeArg::Print => tdsl_render::layout::Theme::Print,
+            ThemeArg::Pastel => tdsl_render::layout::Theme::Pastel,
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -248,7 +304,18 @@ fn main() {
             output,
             pretty,
             offline,
-        } => cmd_build(&input, output.as_deref(), pretty, offline),
+            no_cache,
+            cache_ttl,
+        } => cmd_build(
+            &input,
+            output.as_deref(),
+            pretty,
+            offline,
+            tdsl_wikidata::CacheOptions {
+                no_cache,
+                ttl: std::time::Duration::from_secs(cache_ttl),
+            },
+        ),
         Commands::Check { input } => cmd_check(&input),
         Commands::Ast { input } => cmd_ast(&input),
         Commands::Fetch { qid, lang } => cmd_fetch(&qid, &lang),
@@ -283,8 +350,29 @@ fn main() {
             input,
             output,
             scale,
+            lane_height,
+            left_gutter,
+            top_margin,
+            theme,
+            custom_css,
             offline,
-        } => cmd_render(&input, output.as_deref(), scale, offline),
+            no_cache,
+            cache_ttl,
+        } => cmd_render(
+            &input,
+            output.as_deref(),
+            scale,
+            lane_height,
+            left_gutter,
+            top_margin,
+            theme,
+            custom_css.as_deref(),
+            offline,
+            tdsl_wikidata::CacheOptions {
+                no_cache,
+                ttl: std::time::Duration::from_secs(cache_ttl),
+            },
+        ),
         Commands::Init {
             output,
             timeline,
@@ -311,7 +399,11 @@ fn read_source(path: &std::path::Path) -> Result<String, String> {
 }
 
 /// Parse and lower a .tdsl file into an IR. Shared by `build` and `render`.
-fn load_ir(input: &std::path::Path, offline: bool) -> Result<tdsl_core::ir::TimelineIr, String> {
+fn load_ir(
+    input: &std::path::Path,
+    offline: bool,
+    cache_opts: tdsl_wikidata::CacheOptions,
+) -> Result<tdsl_core::ir::TimelineIr, String> {
     let source = read_source(input)?;
     let file = tdsl_parser::parse(&source).map_err(|e| e.to_string())?;
 
@@ -319,7 +411,8 @@ fn load_ir(input: &std::path::Path, offline: bool) -> Result<tdsl_core::ir::Time
         tdsl_core::lower::lower_static(&file)
     } else {
         let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-        let client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let http_client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let client = tdsl_wikidata::CachedWikidataClient::new(http_client, cache_opts);
         rt.block_on(tdsl_core::lower::lower_with_wikidata(&file, &client))
     };
 
@@ -343,8 +436,9 @@ fn cmd_build(
     output: Option<&std::path::Path>,
     pretty: bool,
     offline: bool,
+    cache_opts: tdsl_wikidata::CacheOptions,
 ) -> Result<(), String> {
-    let ir = load_ir(input, offline)?;
+    let ir = load_ir(input, offline, cache_opts)?;
 
     let json = if pretty {
         serde_json::to_string_pretty(&ir).unwrap()
@@ -1029,12 +1123,32 @@ fn cmd_render(
     input: &std::path::Path,
     output: Option<&std::path::Path>,
     scale: f64,
+    lane_height: f64,
+    left_gutter: f64,
+    top_margin: f64,
+    theme: ThemeArg,
+    custom_css_path: Option<&std::path::Path>,
     offline: bool,
+    cache_opts: tdsl_wikidata::CacheOptions,
 ) -> Result<(), String> {
-    let ir = load_ir(input, offline)?;
+    let ir = load_ir(input, offline, cache_opts)?;
+
+    let custom_css = match custom_css_path {
+        Some(path) => {
+            let css = std::fs::read_to_string(path)
+                .map_err(|e| format!("Failed to read CSS file {}: {e}", path.display()))?;
+            Some(css)
+        }
+        None => None,
+    };
 
     let opts = tdsl_render::RenderOptions {
         scale,
+        lane_height,
+        left_gutter,
+        top_margin,
+        theme: theme.into_theme(),
+        custom_css,
         ..Default::default()
     };
     let html = tdsl_render::render_html(&ir, opts);
