@@ -19,6 +19,27 @@ pub fn validate(ir: &TimelineIr) -> Vec<String> {
         }
     }
 
+    // Check start > end for span and event_range items
+    for item in &ir.items {
+        match item {
+            crate::ir::Item::Span { id, start, end, .. } => {
+                if start > end {
+                    warnings.push(format!(
+                        "Span \"{id}\" has start ({start}) > end ({end})"
+                    ));
+                }
+            }
+            crate::ir::Item::EventRange { id, start, end, .. } => {
+                if start > end {
+                    warnings.push(format!(
+                        "EventRange \"{id}\" has start ({start}) > end ({end})"
+                    ));
+                }
+            }
+            crate::ir::Item::Event { .. } => {}
+        }
+    }
+
     // Check range coherence
     let (range_start, range_end) = ir.meta.range;
     if range_start >= range_end {

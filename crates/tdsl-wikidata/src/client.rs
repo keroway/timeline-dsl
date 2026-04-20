@@ -274,15 +274,22 @@ impl WikidataClient for HttpWikidataClient {
             .results
             .bindings
             .into_iter()
-            .filter_map(|row| {
-                // Extract QID from the first URI-typed binding (e.g. "http://www.wikidata.org/entity/Q42")
-                row.into_values().next().and_then(|v| {
-                    v.value
-                        .rsplit('/')
-                        .next()
-                        .filter(|s| s.starts_with('Q'))
-                        .map(String::from)
-                })
+            .filter_map(|mut row| {
+                // Prefer the `item` key (Wikidata SPARQL convention: SELECT ?item WHERE ...),
+                // then fall back to any URI-valued binding that looks like a Wikidata entity URL.
+                let value = if let Some(v) = row.remove("item") {
+                    Some(v.value)
+                } else {
+                    row.into_values()
+                        .find(|v| {
+                            v.value
+                                .starts_with("http://www.wikidata.org/entity/Q")
+                        })
+                        .map(|v| v.value)
+                }?;
+                value.rsplit('/').next()
+                    .filter(|s| s.starts_with('Q'))
+                    .map(String::from)
             })
             .collect();
 
@@ -349,5 +356,74 @@ mod tests {
     fn parse_wikipedia_url_rejects_non_wikipedia_host() {
         let err = parse_wikipedia_url("https://example.com/wiki/Han").unwrap_err();
         assert!(matches!(err, WikidataError::InvalidInput(_)));
+    }
+
+    /// Helper: parse a SPARQL JSON response and extract QIDs using the same
+    /// logic as `HttpWikidataClient::sparql_query`.
+    fn extract_qids_from_sparql_json(payload: &str) -> Vec<String> {
+        let resp: SparqlResponse = serde_json::from_str(payload).unwrap();
+        resp.results
+            .bindings
+            .into_iter()
+            .filter_map(|mut row| {
+                let value = if let Some(v) = row.remove("item") {
+                    Some(v.value)
+                } else {
+                    row.into_values()
+                        .find(|v| {
+                            v.value
+                                .starts_with("http://www.wikidata.org/entity/Q")
+                        })
+                        .map(|v| v.value)
+                }?;
+                value.rsplit('/').next()
+                    .filter(|s| s.starts_with('Q'))
+                    .map(String::from)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn parse_sparql_response_prefers_item_key() {
+        // Response has both `item` and `name` columns; `item` should be used
+        let payload = r#"
+        {
+          "results": {
+            "bindings": [
+              {
+                "name": { "value": "http://www.wikidata.org/entity/Q9999" },
+                "item": { "value": "http://www.wikidata.org/entity/Q42" }
+              },
+              {
+                "name": { "value": "http://www.wikidata.org/entity/Q8888" },
+                "item": { "value": "http://www.wikidata.org/entity/Q7209" }
+              }
+            ]
+          }
+        }"#;
+
+        let qids = extract_qids_from_sparql_json(payload);
+        assert_eq!(qids, vec!["Q42", "Q7209"]);
+    }
+
+    #[test]
+    fn parse_sparql_response_fallback_to_uri_binding() {
+        // Response has no `item` key; should fall back to URI-valued binding
+        let payload = r#"
+        {
+          "results": {
+            "bindings": [
+              {
+                "entity": { "value": "http://www.wikidata.org/entity/Q7183" }
+              },
+              {
+                "entity": { "value": "http://www.wikidata.org/entity/Q7209" }
+              }
+            ]
+          }
+        }"#;
+
+        let qids = extract_qids_from_sparql_json(payload);
+        assert_eq!(qids, vec!["Q7183", "Q7209"]);
     }
 }

@@ -123,6 +123,26 @@ enum Commands {
         #[arg(long, default_value_t = 2.0)]
         scale: f64,
 
+        /// Height of each lane in pixels
+        #[arg(long, default_value_t = 60.0)]
+        lane_height: f64,
+
+        /// Width of the left-hand gutter for lane labels
+        #[arg(long, default_value_t = 120.0)]
+        left_gutter: f64,
+
+        /// Top margin reserved for the time axis
+        #[arg(long, default_value_t = 40.0)]
+        top_margin: f64,
+
+        /// Color/style theme
+        #[arg(long, default_value = "default", value_enum)]
+        theme: ThemeArg,
+
+        /// Path to a CSS file whose contents are injected after the theme CSS
+        #[arg(long)]
+        custom_css: Option<PathBuf>,
+
         /// Skip Wikidata fetching (only process static items)
         #[arg(long, default_value_t = false)]
         offline: bool,
@@ -239,6 +259,26 @@ enum LintOutputFormat {
     Json,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+enum ThemeArg {
+    #[default]
+    Default,
+    Dark,
+    Print,
+    Pastel,
+}
+
+impl ThemeArg {
+    fn into_theme(self) -> tdsl_render::layout::Theme {
+        match self {
+            ThemeArg::Default => tdsl_render::layout::Theme::Default,
+            ThemeArg::Dark => tdsl_render::layout::Theme::Dark,
+            ThemeArg::Print => tdsl_render::layout::Theme::Print,
+            ThemeArg::Pastel => tdsl_render::layout::Theme::Pastel,
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -283,8 +323,23 @@ fn main() {
             input,
             output,
             scale,
+            lane_height,
+            left_gutter,
+            top_margin,
+            theme,
+            custom_css,
             offline,
-        } => cmd_render(&input, output.as_deref(), scale, offline),
+        } => cmd_render(
+            &input,
+            output.as_deref(),
+            scale,
+            lane_height,
+            left_gutter,
+            top_margin,
+            theme,
+            custom_css.as_deref(),
+            offline,
+        ),
         Commands::Init {
             output,
             timeline,
@@ -1029,12 +1084,31 @@ fn cmd_render(
     input: &std::path::Path,
     output: Option<&std::path::Path>,
     scale: f64,
+    lane_height: f64,
+    left_gutter: f64,
+    top_margin: f64,
+    theme: ThemeArg,
+    custom_css_path: Option<&std::path::Path>,
     offline: bool,
 ) -> Result<(), String> {
     let ir = load_ir(input, offline)?;
 
+    let custom_css = match custom_css_path {
+        Some(path) => {
+            let css = std::fs::read_to_string(path)
+                .map_err(|e| format!("Failed to read CSS file {}: {e}", path.display()))?;
+            Some(css)
+        }
+        None => None,
+    };
+
     let opts = tdsl_render::RenderOptions {
         scale,
+        lane_height,
+        left_gutter,
+        top_margin,
+        theme: theme.into_theme(),
+        custom_css,
         ..Default::default()
     };
     let html = tdsl_render::render_html(&ir, opts);
