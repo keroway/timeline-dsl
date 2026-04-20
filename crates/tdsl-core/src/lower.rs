@@ -52,6 +52,10 @@ struct LoweringContext {
     import_sources: HashMap<String, String>,
     // import_alias -> import policy
     import_policies: HashMap<String, ast::ReimportPolicy>,
+
+    // Template registry
+    // template_alias -> TemplateBlock
+    templates: HashMap<String, ast::TemplateBlock>,
 }
 
 impl LoweringContext {
@@ -72,6 +76,7 @@ impl LoweringContext {
             import_groups: HashMap::new(),
             import_sources: HashMap::new(),
             import_policies: HashMap::new(),
+            templates: HashMap::new(),
         }
     }
 
@@ -117,6 +122,15 @@ impl LoweringContext {
                     };
                     self.lane_order.push(id.clone());
                     self.lanes_map.insert(id, lane);
+                }
+                ast::Statement::Template(t) => {
+                    let key = t.alias.clone().unwrap_or_else(|| t.name.clone());
+                    if self.templates.contains_key(&key) {
+                        self.errors
+                            .push(LoweringError::DuplicateTemplate(key.clone()));
+                        continue;
+                    }
+                    self.templates.insert(key, t.clone());
                 }
                 _ => {}
             }
@@ -286,9 +300,13 @@ impl LoweringContext {
         }
     }
 
-    /// Pass 4: Apply map blocks to generate items from imported entities.
+    /// Pass 4: Apply map blocks and apply blocks to generate items from imported entities.
     fn pass4_apply_maps(&mut self, file: &ast::File) {
         for stmt in &file.statements {
+            if let ast::Statement::Apply(apply) = &stmt.node {
+                self.process_apply_block(apply);
+                continue;
+            }
             if let ast::Statement::Map(m) = &stmt.node {
                 // Parse source_ref: "wd.han_dynasty" -> import_alias="wd", entity_key="han_dynasty"
                 let parts: Vec<&str> = m.source_ref.splitn(2, '.').collect();
@@ -334,6 +352,58 @@ impl LoweringContext {
                     "{}.{}",
                     import_alias, entity_key
                 )));
+            }
+        }
+    }
+
+    fn process_apply_block(&mut self, apply: &ast::ApplyBlock) {
+        let template = match self.templates.get(&apply.template_alias).cloned() {
+            Some(t) => t,
+            None => {
+                self.errors
+                    .push(LoweringError::UnknownTemplate(apply.template_alias.clone()));
+                return;
+            }
+        };
+
+        let entities = match self.import_entities.get(&apply.import_alias).cloned() {
+            Some(e) => e,
+            None => {
+                self.errors
+                    .push(LoweringError::UnresolvedImport(apply.import_alias.clone()));
+                return;
+            }
+        };
+
+        let policy = *self
+            .import_policies
+            .get(&apply.import_alias)
+            .unwrap_or(&ast::ReimportPolicy::MergeBySource);
+
+        // Merge template props with apply overrides (overrides win)
+        let merged_props = merge_map_props(&template.props, &apply.overrides);
+
+        // Build a synthetic MapBlock to reuse apply_map_to_entity
+        let synthetic_map = ast::MapBlock {
+            source_ref: apply.import_alias.clone(),
+            target_type: template.target_type,
+            props: merged_props,
+        };
+
+        // Apply to every entity in the import
+        for entity in entities.values() {
+            self.apply_map_to_entity(&synthetic_map, entity, policy);
+        }
+
+        // Also apply to query groups (apply all entities in each group)
+        if let Some(groups) = self.import_groups.get(&apply.import_alias).cloned() {
+            let all_entities = self.import_entities[&apply.import_alias].clone();
+            for keys in groups.values() {
+                for key in keys {
+                    if let Some(entity) = all_entities.get(key) {
+                        self.apply_map_to_entity(&synthetic_map, entity, policy);
+                    }
+                }
             }
         }
     }
@@ -556,6 +626,33 @@ fn eval_label_expr(expr: &ast::LabelExpr, entity: &WikidataEntity) -> Option<Str
 }
 
 // ─── Helpers ────────────────────────────────────────────────
+
+/// Merge template props with apply overrides.
+/// Override props of the same variant replace the template props.
+fn merge_map_props(base: &[ast::MapProp], overrides: &[ast::MapProp]) -> Vec<ast::MapProp> {
+    let mut result = base.to_vec();
+    for ov in overrides {
+        let replaced = result.iter_mut().find(|p| props_same_variant(p, ov));
+        if let Some(slot) = replaced {
+            *slot = ov.clone();
+        } else {
+            result.push(ov.clone());
+        }
+    }
+    result
+}
+
+fn props_same_variant(a: &ast::MapProp, b: &ast::MapProp) -> bool {
+    matches!(
+        (a, b),
+        (ast::MapProp::Lane(_), ast::MapProp::Lane(_))
+            | (ast::MapProp::Start(_), ast::MapProp::Start(_))
+            | (ast::MapProp::End(_), ast::MapProp::End(_))
+            | (ast::MapProp::Time(_), ast::MapProp::Time(_))
+            | (ast::MapProp::Label(_), ast::MapProp::Label(_))
+            | (ast::MapProp::Tags(_), ast::MapProp::Tags(_))
+    )
+}
 
 fn source_str(sr: &Option<ast::SourceRef>) -> Option<String> {
     sr.as_ref().map(|s| format!("{}:{}", s.prefix, s.qid))

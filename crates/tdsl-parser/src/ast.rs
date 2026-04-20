@@ -27,6 +27,8 @@ pub enum Statement {
     EventRange(EventRangeDecl),
     Import(ImportBlock),
     Map(MapBlock),
+    Template(TemplateBlock),
+    Apply(ApplyBlock),
 }
 
 // ─── Timeline ───────────────────────────────────────────────
@@ -125,6 +127,26 @@ pub enum ReimportPolicy {
     MergeBySource,
     OverwriteImported,
     KeepManual,
+}
+
+// ─── Template / Apply ───────────────────────────────────────
+
+/// Named reusable map pattern.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TemplateBlock {
+    pub name: String,
+    pub alias: Option<String>,
+    pub target_type: MapTargetType,
+    pub props: Vec<MapProp>,
+}
+
+/// Applies a template to an import alias with optional overrides.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ApplyBlock {
+    pub template_alias: String,
+    pub import_alias: String,
+    /// Overriding props (currently only lane).
+    pub overrides: Vec<MapProp>,
 }
 
 // ─── Map ────────────────────────────────────────────────────
