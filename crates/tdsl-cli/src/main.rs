@@ -33,6 +33,14 @@ enum Commands {
         /// Skip Wikidata fetching (only process static items)
         #[arg(long, default_value_t = false)]
         offline: bool,
+
+        /// Bypass the local Wikidata cache and force a fresh API request
+        #[arg(long, default_value_t = false)]
+        no_cache: bool,
+
+        /// Cache time-to-live in seconds (0 disables caching, default: 86400 = 24h)
+        #[arg(long, default_value_t = 86400u64)]
+        cache_ttl: u64,
     },
 
     /// Check a .tdsl file for syntax and semantic errors
@@ -146,6 +154,14 @@ enum Commands {
         /// Skip Wikidata fetching (only process static items)
         #[arg(long, default_value_t = false)]
         offline: bool,
+
+        /// Bypass the local Wikidata cache and force a fresh API request
+        #[arg(long, default_value_t = false)]
+        no_cache: bool,
+
+        /// Cache time-to-live in seconds (0 disables caching, default: 86400 = 24h)
+        #[arg(long, default_value_t = 86400u64)]
+        cache_ttl: u64,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -288,7 +304,18 @@ fn main() {
             output,
             pretty,
             offline,
-        } => cmd_build(&input, output.as_deref(), pretty, offline),
+            no_cache,
+            cache_ttl,
+        } => cmd_build(
+            &input,
+            output.as_deref(),
+            pretty,
+            offline,
+            tdsl_wikidata::CacheOptions {
+                no_cache,
+                ttl: std::time::Duration::from_secs(cache_ttl),
+            },
+        ),
         Commands::Check { input } => cmd_check(&input),
         Commands::Ast { input } => cmd_ast(&input),
         Commands::Fetch { qid, lang } => cmd_fetch(&qid, &lang),
@@ -329,6 +356,8 @@ fn main() {
             theme,
             custom_css,
             offline,
+            no_cache,
+            cache_ttl,
         } => cmd_render(
             &input,
             output.as_deref(),
@@ -339,6 +368,10 @@ fn main() {
             theme,
             custom_css.as_deref(),
             offline,
+            tdsl_wikidata::CacheOptions {
+                no_cache,
+                ttl: std::time::Duration::from_secs(cache_ttl),
+            },
         ),
         Commands::Init {
             output,
@@ -366,7 +399,11 @@ fn read_source(path: &std::path::Path) -> Result<String, String> {
 }
 
 /// Parse and lower a .tdsl file into an IR. Shared by `build` and `render`.
-fn load_ir(input: &std::path::Path, offline: bool) -> Result<tdsl_core::ir::TimelineIr, String> {
+fn load_ir(
+    input: &std::path::Path,
+    offline: bool,
+    cache_opts: tdsl_wikidata::CacheOptions,
+) -> Result<tdsl_core::ir::TimelineIr, String> {
     let source = read_source(input)?;
     let file = tdsl_parser::parse(&source).map_err(|e| e.to_string())?;
 
@@ -374,7 +411,8 @@ fn load_ir(input: &std::path::Path, offline: bool) -> Result<tdsl_core::ir::Time
         tdsl_core::lower::lower_static(&file)
     } else {
         let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-        let client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let http_client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let client = tdsl_wikidata::CachedWikidataClient::new(http_client, cache_opts);
         rt.block_on(tdsl_core::lower::lower_with_wikidata(&file, &client))
     };
 
@@ -398,8 +436,9 @@ fn cmd_build(
     output: Option<&std::path::Path>,
     pretty: bool,
     offline: bool,
+    cache_opts: tdsl_wikidata::CacheOptions,
 ) -> Result<(), String> {
-    let ir = load_ir(input, offline)?;
+    let ir = load_ir(input, offline, cache_opts)?;
 
     let json = if pretty {
         serde_json::to_string_pretty(&ir).unwrap()
@@ -1090,8 +1129,9 @@ fn cmd_render(
     theme: ThemeArg,
     custom_css_path: Option<&std::path::Path>,
     offline: bool,
+    cache_opts: tdsl_wikidata::CacheOptions,
 ) -> Result<(), String> {
-    let ir = load_ir(input, offline)?;
+    let ir = load_ir(input, offline, cache_opts)?;
 
     let custom_css = match custom_css_path {
         Some(path) => {
