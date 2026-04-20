@@ -2093,10 +2093,67 @@ fn render_tdsl_file(file: &tdsl_parser::ast::File) -> String {
                 }
                 write!(out, "}}").unwrap();
             }
+            Statement::Template(t) => {
+                let target = match t.target_type {
+                    tdsl_parser::ast::MapTargetType::Span => "span",
+                    tdsl_parser::ast::MapTargetType::Event => "event",
+                    tdsl_parser::ast::MapTargetType::EventRange => "event_range",
+                };
+                write!(out, r#"template "{}""#, escape_tdsl_string(&t.name)).unwrap();
+                if let Some(alias) = &t.alias {
+                    write!(out, " as {alias}").unwrap();
+                }
+                writeln!(out, "\n    to {target} {{").unwrap();
+                for prop in &t.props {
+                    render_map_prop(&mut out, prop);
+                }
+                write!(out, "}}").unwrap();
+            }
+            Statement::Apply(a) => {
+                write!(out, "apply {} to {} {{", a.template_alias, a.import_alias).unwrap();
+                if a.overrides.is_empty() {
+                    write!(out, "}}").unwrap();
+                } else {
+                    writeln!(out).unwrap();
+                    for prop in &a.overrides {
+                        render_map_prop(&mut out, prop);
+                    }
+                    write!(out, "}}").unwrap();
+                }
+            }
         }
     }
     out.push('\n');
     out
+}
+
+fn render_map_prop(out: &mut String, prop: &tdsl_parser::ast::MapProp) {
+    use std::fmt::Write as _;
+    match prop {
+        tdsl_parser::ast::MapProp::Lane(id) => {
+            writeln!(out, "    lane {id};").unwrap();
+        }
+        tdsl_parser::ast::MapProp::Start(expr) => {
+            writeln!(out, "    start {};", render_map_expr(expr)).unwrap();
+        }
+        tdsl_parser::ast::MapProp::End(expr) => {
+            writeln!(out, "    end {};", render_map_expr(expr)).unwrap();
+        }
+        tdsl_parser::ast::MapProp::Time(expr) => {
+            writeln!(out, "    time {};", render_map_expr(expr)).unwrap();
+        }
+        tdsl_parser::ast::MapProp::Label(expr) => {
+            writeln!(out, "    label {};", render_label_expr(expr)).unwrap();
+        }
+        tdsl_parser::ast::MapProp::Tags(tags) => {
+            let joined = tags
+                .iter()
+                .map(|t| format!(r#""{}""#, escape_tdsl_string(t)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(out, "    tags [{joined}];").unwrap();
+        }
+    }
 }
 
 fn render_item_props(props: &tdsl_parser::ast::ItemProps) -> String {
