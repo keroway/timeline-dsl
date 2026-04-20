@@ -537,6 +537,147 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn lower_with_template_apply_generates_items() {
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            template "王朝スパン" as dynasty_tpl
+                to span {
+                    start claim(P571).year;
+                    end claim(P576).year;
+                    label label@ja ?? label@en;
+                }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            apply dynasty_tpl to wd {
+                lane dynasty;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 1);
+        match &ir.items[0] {
+            ir::Item::Span { lane, label, start, end, .. } => {
+                assert_eq!(lane, "dynasty");
+                assert_eq!(label, "漢");
+                assert_eq!(*start, -206);
+                assert_eq!(*end, 220);
+            }
+            _ => panic!("expected span"),
+        }
+    }
+
+    #[tokio::test]
+    async fn lower_apply_lane_override_works() {
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "History" as history { kind custom; order 1; }
+            lane "Dynasty" as dynasty { kind dynasty; order 2; }
+
+            template "スパンテンプレート" as tpl
+                to span {
+                    lane history;
+                    start claim(P571).year;
+                    end claim(P576).year;
+                    label label@ja ?? label@en;
+                }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            apply tpl to wd {
+                lane dynasty;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 1);
+        match &ir.items[0] {
+            ir::Item::Span { lane, .. } => {
+                // override should win over template's lane
+                assert_eq!(lane, "dynasty");
+            }
+            _ => panic!("expected span"),
+        }
+    }
+
+    #[tokio::test]
+    async fn lower_apply_unknown_template_is_error() {
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            apply nonexistent_template to wd {
+                lane dynasty;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let result = lower::lower_with_wikidata(&file, &client).await;
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::UnknownTemplate(_))));
+    }
+
+    #[test]
+    fn lower_static_duplicate_template_is_error() {
+        let src = r#"
+            timeline "Test" { unit year; range 0..100; }
+
+            template "テンプレート" as tpl
+                to span {
+                    start claim(P571).year;
+                    end claim(P576).year;
+                    label label@ja;
+                }
+
+            template "別のテンプレート" as tpl
+                to event {
+                    time claim(P571).year;
+                    label label@ja;
+                }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let result = lower::lower_static(&file);
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::DuplicateTemplate(_))));
+    }
+
+    #[tokio::test]
     async fn eval_map_expr_unknown_accessor_returns_none() {
         // .month のような未対応アクセサは None を返し、アイテムが生成されない
         let src = r#"

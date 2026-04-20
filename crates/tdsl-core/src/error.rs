@@ -31,4 +31,10 @@ pub enum LoweringError {
 
     #[error("Map references unknown lane: {0}")]
     UnknownMappedLane(String),
+
+    #[error("Duplicate template alias: {0}")]
+    DuplicateTemplate(String),
+
+    #[error("Unknown template reference: {0}")]
+    UnknownTemplate(String),
 }
