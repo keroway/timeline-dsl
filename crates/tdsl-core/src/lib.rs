@@ -536,6 +536,170 @@ mod tests {
         assert_eq!(ir.imports[0].mapped_to, "span:q7209:-206");
     }
 
+    // ─── Edge cases ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn lower_detects_no_timeline() {
+        let src = r#"lane "A" as a { kind dynasty; }"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let result = lower::lower_static(&file);
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::NoTimeline)));
+    }
+
+    #[test]
+    fn lower_detects_multiple_timelines() {
+        let src = r#"
+            timeline "A" { unit year; range 0..100; }
+            timeline "B" { unit year; range 0..100; }
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let result = lower::lower_static(&file);
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::MultipleTimelines)));
+    }
+
+    #[test]
+    fn lower_custom_id_is_preserved() {
+        let src = r#"
+            timeline "Test" { unit year; range 0..2000; }
+            lane "A" as a { kind custom; }
+            span a 100..200 "S" { id "my-custom-id"; };
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        match &ir.items[0] {
+            ir::Item::Span { id, .. } => assert_eq!(id, "my-custom-id"),
+            _ => panic!("expected span"),
+        }
+    }
+
+    #[test]
+    fn lower_event_range_auto_id_format() {
+        let src = r#"
+            timeline "Test" { unit year; range 0..2000; }
+            lane "A" as a { kind custom; }
+            event_range a 50..150 "ER" {};
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        match &ir.items[0] {
+            ir::Item::EventRange { id, .. } => assert_eq!(id, "event_range:a:50"),
+            _ => panic!("expected event_range"),
+        }
+    }
+
+    #[test]
+    fn lower_duplicate_item_id_is_error() {
+        let src = r#"
+            timeline "Test" { unit year; range 0..2000; }
+            lane "A" as a { kind custom; }
+            span a 100..200 "S1" { id "same-id"; };
+            span a 300..400 "S2" { id "same-id"; };
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let result = lower::lower_static(&file);
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::DuplicateItemId(_))));
+    }
+
+    #[test]
+    fn lower_import_ignored_in_static_mode() {
+        // import block should not cause errors in lower_static
+        let src = r#"
+            timeline "Test" { unit year; range 0..2000; }
+            lane "A" as a { kind custom; }
+            import wikidata as wd { entity Q7209; }
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let result = lower::lower_static(&file);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn lower_meta_defaults_when_optional_fields_missing() {
+        // timeline with only name (no title/unit/range/calendar)
+        let src = r#"timeline "Minimal" {}"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        assert_eq!(ir.meta.title, "Minimal");
+        assert_eq!(ir.meta.unit, "year");
+        assert_eq!(ir.meta.range, (0, 2000));
+        assert_eq!(ir.meta.calendar, "proleptic_gregorian");
+    }
+
+    #[tokio::test]
+    async fn lower_wikidata_entity_without_label_skips_item() {
+        // An entity with no label results in empty label → item is skipped
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q9999 as nolabel;
+            }
+
+            map wd.nolabel to span {
+                lane dynasty;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja ?? label@en;
+            }
+        "#;
+
+        // Entity with no labels
+        let mut entity = make_entity("Q9999", "", -100, 100);
+        entity.labels.clear();
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q9999".to_string(), entity);
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn lower_wikidata_entity_missing_claim_skips_item() {
+        // An entity without P571 (start year) results in None → span not generated
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            map wd.han to span {
+                lane dynasty;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja;
+            }
+        "#;
+
+        let mut entity = make_entity("Q7209", "漢", -206, 220);
+        entity.claims.remove("P571"); // Remove start claim
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), entity);
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 0);
+    }
+
     #[tokio::test]
     async fn lower_with_template_apply_generates_items() {
         let src = r#"

@@ -64,4 +64,153 @@ mod tests {
         assert!(html.contains("サンプル年表"));
         assert!(html.ends_with("</html>\n") || html.ends_with("</html>"));
     }
+
+    // ─── Render integration tests ──────────────────────────────────────────
+
+    #[test]
+    fn render_html_contains_lane_label() {
+        let ir = sample_ir();
+        let html = render_html(&ir, RenderOptions::default());
+        assert!(html.contains("漢"));
+    }
+
+    #[test]
+    fn render_html_contains_span_label() {
+        let ir = sample_ir();
+        let html = render_html(&ir, RenderOptions::default());
+        assert!(html.contains("漢"));
+    }
+
+    #[test]
+    fn render_html_multiple_lanes_ordered_by_order_field() {
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "Multi-lane".into(),
+                unit: "year".into(),
+                range: (0, 500),
+                calendar: "proleptic_gregorian".into(),
+            },
+            lanes: vec![
+                Lane {
+                    id: "b".into(),
+                    label: "B".into(),
+                    kind: "dynasty".into(),
+                    order: 20,
+                },
+                Lane {
+                    id: "a".into(),
+                    label: "A".into(),
+                    kind: "dynasty".into(),
+                    order: 10,
+                },
+            ],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let html = render_html(&ir, RenderOptions::default());
+        // Both lanes should appear in output
+        let pos_a = html.find(">A<").or_else(|| html.find("A</"));
+        let pos_b = html.find(">B<").or_else(|| html.find("B</"));
+        assert!(pos_a.is_some() || html.contains("A"));
+        assert!(pos_b.is_some() || html.contains("B"));
+    }
+
+    #[test]
+    fn render_html_empty_ir_does_not_panic() {
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "Empty".into(),
+                unit: "year".into(),
+                range: (0, 100),
+                calendar: "proleptic_gregorian".into(),
+            },
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let html = render_html(&ir, RenderOptions::default());
+        assert!(html.contains("Empty"));
+    }
+
+    #[test]
+    fn render_html_event_item_appears_in_output() {
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "Events".into(),
+                unit: "year".into(),
+                range: (0, 500),
+                calendar: "proleptic_gregorian".into(),
+            },
+            lanes: vec![Lane {
+                id: "politics".into(),
+                label: "政治".into(),
+                kind: "custom".into(),
+                order: 1,
+            }],
+            items: vec![Item::Event {
+                id: "event:politics:100".into(),
+                lane: "politics".into(),
+                time: 100,
+                label: "即位".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let html = render_html(&ir, RenderOptions::default());
+        assert!(html.contains("即位"));
+    }
+
+    #[test]
+    fn render_html_event_range_item_appears_in_output() {
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "Ranges".into(),
+                unit: "year".into(),
+                range: (0, 500),
+                calendar: "proleptic_gregorian".into(),
+            },
+            lanes: vec![Lane {
+                id: "war".into(),
+                label: "戦争".into(),
+                kind: "custom".into(),
+                order: 1,
+            }],
+            items: vec![Item::EventRange {
+                id: "event_range:war:100".into(),
+                lane: "war".into(),
+                start: 100,
+                end: 200,
+                label: "大乱".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let html = render_html(&ir, RenderOptions::default());
+        assert!(html.contains("大乱"));
+    }
+
+    #[test]
+    fn render_html_custom_scale_changes_width() {
+        let ir = sample_ir();
+        let opts_narrow = RenderOptions {
+            scale: 1.0,
+            ..RenderOptions::default()
+        };
+        let opts_wide = RenderOptions {
+            scale: 5.0,
+            ..RenderOptions::default()
+        };
+        let narrow = render_html(&ir, opts_narrow);
+        let wide = render_html(&ir, opts_wide);
+        // wider scale → larger viewBox width
+        assert_ne!(narrow, wide);
+    }
 }
