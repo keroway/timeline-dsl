@@ -146,8 +146,8 @@ impl LoweringContext {
             match &stmt.node {
                 ast::Statement::Span(s) => {
                     if !self.lanes_map.contains_key(&s.lane_ref) {
-                        self.errors
-                            .push(LoweringError::UnknownLane(s.lane_ref.clone()));
+                        let err = self.make_unknown_lane_error(&s.lane_ref);
+                        self.errors.push(err);
                         continue;
                     }
                     let id = s
@@ -172,8 +172,8 @@ impl LoweringContext {
                 }
                 ast::Statement::Event(e) => {
                     if !self.lanes_map.contains_key(&e.lane_ref) {
-                        self.errors
-                            .push(LoweringError::UnknownLane(e.lane_ref.clone()));
+                        let err = self.make_unknown_lane_error(&e.lane_ref);
+                        self.errors.push(err);
                         continue;
                     }
                     let id = e
@@ -197,8 +197,8 @@ impl LoweringContext {
                 }
                 ast::Statement::EventRange(er) => {
                     if !self.lanes_map.contains_key(&er.lane_ref) {
-                        self.errors
-                            .push(LoweringError::UnknownLane(er.lane_ref.clone()));
+                        let err = self.make_unknown_lane_error(&er.lane_ref);
+                        self.errors.push(err);
                         continue;
                     }
                     let id = er
@@ -436,7 +436,8 @@ impl LoweringContext {
 
         // Validate lane existence
         if !lane_ref.is_empty() && !self.lanes_map.contains_key(&lane_ref) {
-            self.errors.push(LoweringError::UnknownMappedLane(lane_ref));
+            let err = self.make_unknown_mapped_lane_error(&lane_ref);
+            self.errors.push(err);
             return;
         }
 
@@ -590,6 +591,20 @@ impl LoweringContext {
         }
     }
 
+    /// Build an UnknownLane error with suggestions from currently-declared lanes.
+    fn make_unknown_lane_error(&self, lane_ref: &str) -> LoweringError {
+        let available = self.lane_order.clone();
+        let hint = lane_suggestion_hint(lane_ref, &available);
+        LoweringError::UnknownLane(format!("'{lane_ref}' — {hint}"))
+    }
+
+    /// Build an UnknownMappedLane error with suggestions.
+    fn make_unknown_mapped_lane_error(&self, lane_ref: &str) -> LoweringError {
+        let available = self.lane_order.clone();
+        let hint = lane_suggestion_hint(lane_ref, &available);
+        LoweringError::UnknownMappedLane(format!("'{lane_ref}' — {hint}"))
+    }
+
     fn add_source_from_ref(&mut self, sr: &Option<ast::SourceRef>) {
         if let Some(sr) = sr {
             self.sources.push(SourceRecord {
@@ -652,6 +667,38 @@ fn props_same_variant(a: &ast::MapProp, b: &ast::MapProp) -> bool {
             | (ast::MapProp::Label(_), ast::MapProp::Label(_))
             | (ast::MapProp::Tags(_), ast::MapProp::Tags(_))
     )
+}
+
+/// Build a human-readable hint for an unknown lane reference.
+/// Shows similar-looking candidates (prefix match or substring) first, then all available.
+fn lane_suggestion_hint(unknown: &str, available: &[String]) -> String {
+    if available.is_empty() {
+        return "定義済みのlaneがありません。先にlane宣言を追加してください".to_string();
+    }
+
+    // Find candidates that share a common prefix (>=2 chars), or contain/are contained by unknown
+    let u_lower = unknown.to_lowercase();
+    let similar: Vec<&str> = available
+        .iter()
+        .filter(|candidate| {
+            let c = candidate.to_lowercase();
+            let prefix_len = u_lower.len().min(2);
+            c.starts_with(&u_lower[..prefix_len]) || c.contains(&u_lower) || u_lower.contains(c.as_str())
+        })
+        .map(|s| s.as_str())
+        .collect();
+
+    let all: Vec<&str> = available.iter().map(|s| s.as_str()).collect();
+
+    if !similar.is_empty() && similar != all {
+        format!(
+            "もしかして: {} ？（利用可能なlane: {}）",
+            similar.join(", "),
+            all.join(", ")
+        )
+    } else {
+        format!("利用可能なlane: {}", all.join(", "))
+    }
 }
 
 fn source_str(sr: &Option<ast::SourceRef>) -> Option<String> {
