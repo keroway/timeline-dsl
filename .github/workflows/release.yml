@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            archive: tdsl-linux-x86_64.tar.gz
+            use_cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tdsl-macos-x86_64.tar.gz
+            use_cross: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tdsl-macos-aarch64.tar.gz
+            use_cross: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.use_cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build (cross)
+        if: matrix.use_cross
+        run: cross build --release --target ${{ matrix.target }} -p tdsl-cli
+
+      - name: Build (cargo)
+        if: "!matrix.use_cross"
+        run: cargo build --release --target ${{ matrix.target }} -p tdsl-cli
+
+      - name: Strip binary (Linux)
+        if: matrix.use_cross
+        run: strip target/${{ matrix.target }}/release/tdsl
+
+      - name: Strip binary (macOS)
+        if: "!matrix.use_cross"
+        run: strip target/${{ matrix.target }}/release/tdsl
+
+      - name: Create archive
+        run: |
+          tar czf ${{ matrix.archive }} -C target/${{ matrix.target }}/release tdsl
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
+
+  release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            tdsl-linux-x86_64.tar.gz
+            tdsl-macos-x86_64.tar.gz
+            tdsl-macos-aarch64.tar.gz
+          generate_release_notes: true

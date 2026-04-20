@@ -9,15 +9,15 @@ pub mod html;
 pub mod layout;
 pub mod svg;
 
-pub use layout::{LayoutModel, RenderOptions};
+pub use layout::{LayoutModel, RenderOptions, Theme};
 
 use tdsl_core::ir::TimelineIr;
 
 /// Render the given IR as a standalone HTML document string.
 pub fn render_html(ir: &TimelineIr, opts: RenderOptions) -> String {
-    let layout = LayoutModel::compute(ir, opts);
+    let layout = LayoutModel::compute(ir, opts.clone());
     let svg = svg::render_svg(&layout);
-    html::wrap_html(&svg, &ir.meta.title)
+    html::wrap_html(&svg, &ir.meta.title, &opts)
 }
 
 #[cfg(test)]
