@@ -16,6 +16,8 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
                  | <event_range>
                  | <import_block>
                  | <map_block>
+                 | <template_block>
+                 | <apply_block>
 
 <timeline>     ::= "timeline" <string> "{" { <timeline_setting> } "}"
 <timeline_setting>
@@ -56,6 +58,13 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
                  | "time" <expr> ";"
                  | "label" <expr> ";"
                  | "tags" "[" <string_list> "]" ";"
+
+<template_block> ::= "template" <string> ["as" <identifier>]
+                   "to" <mapping_target> "{" { <mapping_rule> } "}"
+
+<apply_block>  ::= "apply" <identifier> "to" <identifier>
+                   "{" { <apply_override> } "}"
+<apply_override> ::= "lane" <identifier> ";"
 
 <expr>         ::= <claim_expr> | <lang_expr> | <literal>
 <claim_expr>   ::= "claim(" <property_id> ")" ["." <function>]
