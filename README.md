@@ -206,6 +206,27 @@ map wd.han_dynasty to span {
 | `examples/fictional_empire.tdsl` | 架空世界向けの手作業年表サンプル |
 | `examples/fictional_empire_items.csv` | `import-csv` 用の入力CSVサンプル |
 
+## エディタサポート
+
+### VS Code 構文ハイライト
+
+`editors/vscode/` に VS Code 拡張があります。`.tdsl` ファイルのキーワード・文字列・コメント・QID などを色分けします。
+
+**インストール方法（手動）:**
+
+```bash
+# プロジェクトルートから
+cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
+# VS Code を再起動
+```
+
+ハイライト対象:
+- キーワード: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`
+- 文字列リテラル（ダブルクォート）
+- コメント（`//` と `/* */`）
+- Wikidata QID（`Q123`）・プロパティID（`P569`）・参照（`wd:Q123`）
+- `claim(P571).year` 式、`label@ja` 式
+
 ## Lint
 
 `tdsl lint <file> [--fix] [--format text|json]`

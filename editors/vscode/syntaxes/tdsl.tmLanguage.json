@@ -1,0 +1,100 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Timeline DSL",
+  "scopeName": "source.tdsl",
+  "fileTypes": ["tdsl"],
+  "patterns": [
+    { "include": "#comment-line" },
+    { "include": "#comment-block" },
+    { "include": "#string" },
+    { "include": "#qid" },
+    { "include": "#pid" },
+    { "include": "#wikidata-ref" },
+    { "include": "#claim-expr" },
+    { "include": "#label-expr" },
+    { "include": "#keyword-block" },
+    { "include": "#keyword-item" },
+    { "include": "#keyword-misc" },
+    { "include": "#number" },
+    { "include": "#property-key" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comment-line": {
+      "name": "comment.line.double-slash.tdsl",
+      "match": "//.*$"
+    },
+    "comment-block": {
+      "name": "comment.block.tdsl",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+    "string": {
+      "name": "string.quoted.double.tdsl",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.tdsl",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "qid": {
+      "name": "constant.other.qid.tdsl",
+      "match": "\\bQ[0-9]+"
+    },
+    "pid": {
+      "name": "constant.other.pid.tdsl",
+      "match": "\\bP[0-9]+"
+    },
+    "wikidata-ref": {
+      "name": "entity.name.tag.wikidata-ref.tdsl",
+      "match": "\\bwd:[A-Z][0-9]+"
+    },
+    "claim-expr": {
+      "name": "support.function.claim.tdsl",
+      "match": "\\bclaim\\s*\\([^)]*\\)(\\.\\w+)*"
+    },
+    "label-expr": {
+      "name": "support.function.label.tdsl",
+      "match": "\\blabel@[a-z]{2,3}"
+    },
+    "keyword-block": {
+      "name": "keyword.control.block.tdsl",
+      "match": "\\b(timeline|lane|import|map|template|apply)\\b"
+    },
+    "keyword-item": {
+      "name": "keyword.other.item.tdsl",
+      "match": "\\b(span|event|event_range)\\b"
+    },
+    "keyword-misc": {
+      "name": "keyword.other.misc.tdsl",
+      "match": "\\b(as|query|wikidata|unit|range|calendar|kind|order|tags|source|label|start|end|time|id|target_type|target_lane|merge_by_source|overwrite_imported|keep_manual|proleptic_gregorian|year|dynasty|person|era)\\b"
+    },
+    "number": {
+      "name": "constant.numeric.tdsl",
+      "match": "-?[0-9]+(\\.[0-9]+)?"
+    },
+    "property-key": {
+      "name": "variable.other.property.tdsl",
+      "match": "\\b(title|label|source|id|tags|kind|order|origin)\\s*(?=\\s)"
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.definition.block.tdsl",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.separator.tdsl",
+          "match": "[;,]"
+        },
+        {
+          "name": "punctuation.accessor.tdsl",
+          "match": "\\.\\.|\\.(?!\\d)"
+        }
+      ]
+    }
+  }
+}

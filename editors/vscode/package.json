@@ -1,0 +1,39 @@
+{
+  "name": "timeline-dsl",
+  "displayName": "Timeline DSL",
+  "description": "Syntax highlighting for Timeline DSL (.tdsl) files",
+  "version": "0.1.0",
+  "publisher": "keroway",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/keroway/timeline-dsl"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "tdsl",
+        "aliases": [
+          "Timeline DSL",
+          "tdsl"
+        ],
+        "extensions": [
+          ".tdsl"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "tdsl",
+        "scopeName": "source.tdsl",
+        "path": "./syntaxes/tdsl.tmLanguage.json"
+      }
+    ]
+  }
+}
