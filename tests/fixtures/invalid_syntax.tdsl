@@ -1,0 +1,4 @@
+// 構文エラーのある .tdsl ファイル（E2Eテスト用）
+timeline "テスト" {
+    unit year;
+    range 1..100;
