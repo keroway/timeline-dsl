@@ -1,0 +1,59 @@
+// 戦国武将生没年サンプル（Wikidata連携）
+//
+// このサンプルで示しているDSL機能:
+//   - import ブロックによる Wikidata エンティティの取り込み
+//   - P569（date of birth）/ P570（date of death）を使った span へのマッピング
+//   - 人物ごとに個別 lane を割り当てる per-entity レイアウト
+//   - label@ja ?? label@en による多言語フォールバック
+//
+// 注意: --offline でビルドするとアイテムは生成されないがエラーにはなりません。
+//   オンラインビルドには Wikidata へのネットワーク接続が必要です。
+//   例: cargo run -p tdsl-cli -- build examples/samurai_wikidata.tdsl --pretty
+//   オフライン: cargo run -p tdsl-cli -- build examples/samurai_wikidata.tdsl --offline --pretty
+
+timeline "戦国武将生没年（Wikidata連携）" {
+    title "戦国武将生没年";
+    unit year;
+    range 1520..1620;
+    calendar proleptic_gregorian;
+}
+
+// 武将ごとのレーン
+lane "織田信長" as nobunaga { kind person; order 10; }
+lane "豊臣秀吉" as hideyoshi { kind person; order 20; }
+lane "徳川家康" as ieyasu    { kind person; order 30; }
+
+// Wikidataから生没年をインポート
+import wikidata as wd {
+    entity Q193538 as oda_nobunaga;   // 織田信長
+    entity Q190497 as toyotomi_hideyoshi; // 豊臣秀吉
+    entity Q45975  as tokugawa_ieyasu;    // 徳川家康
+    policy merge_by_source;
+}
+
+// 織田信長（P569:誕生年 〜 P570:死亡年）を span にマッピング
+map wd.oda_nobunaga to span {
+    lane nobunaga;
+    start claim(P569).year;
+    end claim(P570).year;
+    label label@ja ?? label@en;
+    tags ["person", "sengoku"];
+}
+
+// 豊臣秀吉
+map wd.toyotomi_hideyoshi to span {
+    lane hideyoshi;
+    start claim(P569).year;
+    end claim(P570).year;
+    label label@ja ?? label@en;
+    tags ["person", "sengoku"];
+}
+
+// 徳川家康
+map wd.tokugawa_ieyasu to span {
+    lane ieyasu;
+    start claim(P569).year;
+    end claim(P570).year;
+    label label@ja ?? label@en;
+    tags ["person", "sengoku"];
+}
