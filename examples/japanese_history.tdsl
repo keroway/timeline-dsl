@@ -1,0 +1,44 @@
+// 日本史年表サンプル（静的定義のみ）
+//
+// このサンプルで示しているDSL機能:
+//   - 複数 lane を使った時代区分の表現
+//   - span で各時代の存続期間を定義
+//   - event / event_range で主要な出来事を追加
+//   - 静的定義のみ（Wikidata 不要）
+//   - range で広めの年代を指定して概観表示
+
+timeline "日本史年表（奈良〜江戸）" {
+    title "日本史年表（奈良〜江戸）";
+    unit year;
+    range 700..1900;
+    calendar proleptic_gregorian;
+}
+
+// 時代区分レーン
+lane "時代区分" as jidai { kind dynasty; order 10; }
+
+// 出来事レーン（政治・戦乱）
+lane "政治・戦乱" as seiji { kind event; order 20; }
+
+// 時代区分 — span で各時代の存続期間を定義
+span jidai 710..794   "奈良時代"       { tags ["era"]; id "span:nara"; };
+span jidai 794..1185  "平安時代"       { tags ["era"]; id "span:heian"; };
+span jidai 1185..1333 "鎌倉時代"       { tags ["era"]; id "span:kamakura"; };
+span jidai 1336..1573 "室町時代"       { tags ["era"]; id "span:muromachi"; };
+span jidai 1573..1603 "安土桃山時代"   { tags ["era"]; id "span:azuchi_momoyama"; };
+span jidai 1603..1868 "江戸時代"       { tags ["era"]; id "span:edo"; };
+
+// 主要な出来事 — event（点イベント）
+event jidai 710   "平城京遷都" {};
+event jidai 794   "平安京遷都" {};
+event jidai 1192  "鎌倉幕府成立" {};
+event jidai 1338  "室町幕府成立" {};
+event jidai 1603  "江戸幕府成立" {};
+event jidai 1868  "明治維新" {};
+
+// 戦乱・政変 — event_range（期間イベント）
+event_range seiji 1156..1160 "保元・平治の乱" { tags ["war"]; };
+event_range seiji 1180..1185 "源平合戦"       { tags ["war"]; };
+event_range seiji 1274..1281 "元寇"           { tags ["war"]; };
+event_range seiji 1467..1477 "応仁の乱"       { tags ["war"]; };
+event_range seiji 1560..1600 "戦国〜天下統一" { tags ["war"]; };

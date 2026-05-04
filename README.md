@@ -205,6 +205,10 @@ map wd.han_dynasty to span {
 | `examples/china_with_import.tdsl` | Wikidata連携つき。秦・漢をQIDからインポート |
 | `examples/fictional_empire.tdsl` | 架空世界向けの手作業年表サンプル |
 | `examples/fictional_empire_items.csv` | `import-csv` 用の入力CSVサンプル |
+| `examples/japanese_history.tdsl` | 日本史（奈良〜江戸）。複数lane・静的定義 |
+| `examples/samurai_wikidata.tdsl` | 戦国武将の生没年。Wikidata連携（P569/P570）サンプル |
+| `examples/world_wars.tdsl` | 近代戦争年表。event_range 中心の年表 |
+| `examples/sci_tech_timeline.tdsl` | 科学技術の発明・発見年表。event 中心の年表 |
 
 ## Lint
 
