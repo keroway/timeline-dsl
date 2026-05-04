@@ -16,4 +16,10 @@ pub enum WikidataError {
 
     #[error("Missing claim {property} on entity {entity}")]
     MissingClaim { entity: String, property: String },
+
+    #[error("Wikidata API request timed out. Try running with the --offline flag.")]
+    Timeout,
+
+    #[error("Wikidata API rate limit exceeded (HTTP 429). Please wait a moment and retry.")]
+    RateLimit,
 }
