@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -65,6 +66,59 @@ impl HttpWikidataClient {
             .build()
             .expect("failed to create HTTP client");
         Self { http }
+    }
+}
+
+const MAX_RETRIES: u32 = 3;
+
+impl HttpWikidataClient {
+    /// Send an HTTP GET request with exponential backoff retry on 429 and 5xx errors.
+    async fn send_with_retry(
+        &self,
+        make_req: impl Fn() -> reqwest::RequestBuilder,
+    ) -> Result<reqwest::Response, WikidataError> {
+        let mut attempt = 0u32;
+        loop {
+            match make_req().send().await {
+                Err(e) => {
+                    if e.is_timeout() {
+                        return Err(WikidataError::Timeout);
+                    }
+                    if attempt < MAX_RETRIES && e.is_connect() {
+                        tokio::time::sleep(Duration::from_secs(1u64 << attempt)).await;
+                        attempt += 1;
+                        continue;
+                    }
+                    return Err(WikidataError::Http(e));
+                }
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        return Ok(resp);
+                    }
+                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                        if attempt >= MAX_RETRIES {
+                            return Err(WikidataError::RateLimit);
+                        }
+                        let wait = resp
+                            .headers()
+                            .get("Retry-After")
+                            .and_then(|v| v.to_str().ok())
+                            .and_then(|s| s.parse::<u64>().ok())
+                            .unwrap_or(1u64 << attempt);
+                        tokio::time::sleep(Duration::from_secs(wait)).await;
+                        attempt += 1;
+                        continue;
+                    }
+                    if status.is_server_error() && attempt < MAX_RETRIES {
+                        tokio::time::sleep(Duration::from_secs(1u64 << attempt)).await;
+                        attempt += 1;
+                        continue;
+                    }
+                    return Err(WikidataError::Http(resp.error_for_status().unwrap_err()));
+                }
+            }
+        }
     }
 }
 
@@ -190,17 +244,17 @@ impl WikidataClient for HttpWikidataClient {
     async fn get_entity(&self, qid: &str, langs: &[&str]) -> Result<WikidataEntity, WikidataError> {
         let languages = langs.join("|");
         let resp: WbGetEntitiesResponse = self
-            .http
-            .get("https://www.wikidata.org/w/api.php")
-            .query(&[
-                ("action", "wbgetentities"),
-                ("format", "json"),
-                ("ids", qid),
-                ("languages", &languages),
-            ])
-            .send()
+            .send_with_retry(|| {
+                self.http
+                    .get("https://www.wikidata.org/w/api.php")
+                    .query(&[
+                        ("action", "wbgetentities"),
+                        ("format", "json"),
+                        ("ids", qid),
+                        ("languages", &languages),
+                    ])
+            })
             .await?
-            .error_for_status()?
             .json()
             .await?;
         first_entity(resp, qid)
@@ -214,18 +268,18 @@ impl WikidataClient for HttpWikidataClient {
     ) -> Result<WikidataEntity, WikidataError> {
         let languages = langs.join("|");
         let resp: WbGetEntitiesResponse = self
-            .http
-            .get("https://www.wikidata.org/w/api.php")
-            .query(&[
-                ("action", "wbgetentities"),
-                ("format", "json"),
-                ("sites", site),
-                ("titles", title),
-                ("languages", &languages),
-            ])
-            .send()
+            .send_with_retry(|| {
+                self.http
+                    .get("https://www.wikidata.org/w/api.php")
+                    .query(&[
+                        ("action", "wbgetentities"),
+                        ("format", "json"),
+                        ("sites", site),
+                        ("titles", title),
+                        ("languages", &languages),
+                    ])
+            })
             .await?
-            .error_for_status()?
             .json()
             .await?;
 
@@ -239,20 +293,21 @@ impl WikidataClient for HttpWikidataClient {
         limit: usize,
     ) -> Result<Vec<SearchResult>, WikidataError> {
         let max_limit = limit.clamp(1, 50);
+        let limit_str = max_limit.to_string();
         let resp: WbSearchResponse = self
-            .http
-            .get("https://www.wikidata.org/w/api.php")
-            .query(&[
-                ("action", "wbsearchentities"),
-                ("format", "json"),
-                ("type", "item"),
-                ("language", lang),
-                ("search", query),
-                ("limit", &max_limit.to_string()),
-            ])
-            .send()
+            .send_with_retry(|| {
+                self.http
+                    .get("https://www.wikidata.org/w/api.php")
+                    .query(&[
+                        ("action", "wbsearchentities"),
+                        ("format", "json"),
+                        ("type", "item"),
+                        ("language", lang),
+                        ("search", query),
+                        ("limit", &limit_str),
+                    ])
+            })
             .await?
-            .error_for_status()?
             .json()
             .await?;
 
@@ -261,12 +316,12 @@ impl WikidataClient for HttpWikidataClient {
 
     async fn sparql_query(&self, query: &str) -> Result<Vec<String>, WikidataError> {
         let resp: SparqlResponse = self
-            .http
-            .get("https://query.wikidata.org/sparql")
-            .query(&[("query", query), ("format", "json")])
-            .send()
+            .send_with_retry(|| {
+                self.http
+                    .get("https://query.wikidata.org/sparql")
+                    .query(&[("query", query), ("format", "json")])
+            })
             .await?
-            .error_for_status()?
             .json()
             .await?;
 
@@ -425,5 +480,112 @@ mod tests {
 
         let qids = extract_qids_from_sparql_json(payload);
         assert_eq!(qids, vec!["Q7183", "Q7209"]);
+    }
+
+    #[tokio::test]
+    async fn retry_on_429_then_success() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        // First call returns 429, second returns 200 with valid JSON.
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(ResponseTemplate::new(429))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_raw(
+                    r#"{"search":[]}"#,
+                    "application/json",
+                ),
+            )
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::builder()
+            .user_agent("tdsl-test")
+            .build()
+            .unwrap();
+        let client = HttpWikidataClient { http };
+        let base = format!("{}/w/api.php", server.uri());
+
+        let result = client
+            .send_with_retry(|| client.http.get(&base))
+            .await;
+
+        assert!(result.is_ok(), "expected success after retry, got: {result:?}");
+    }
+
+    #[tokio::test]
+    async fn returns_rate_limit_error_after_max_retries() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        // Always returns 429.
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(ResponseTemplate::new(429))
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::builder()
+            .user_agent("tdsl-test")
+            .build()
+            .unwrap();
+        let client = HttpWikidataClient { http };
+        let base = format!("{}/w/api.php", server.uri());
+
+        let result = client
+            .send_with_retry(|| client.http.get(&base))
+            .await;
+
+        assert!(
+            matches!(result, Err(WikidataError::RateLimit)),
+            "expected RateLimit error, got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn retry_on_500_then_success() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(ResponseTemplate::new(500))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_raw(r#"{"search":[]}"#, "application/json"),
+            )
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::builder()
+            .user_agent("tdsl-test")
+            .build()
+            .unwrap();
+        let client = HttpWikidataClient { http };
+        let base = format!("{}/w/api.php", server.uri());
+
+        let result = client
+            .send_with_retry(|| client.http.get(&base))
+            .await;
+
+        assert!(result.is_ok(), "expected success after 500 retry, got: {result:?}");
     }
 }
