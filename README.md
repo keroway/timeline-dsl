@@ -214,6 +214,11 @@ map wd.han_dynasty to span {
 - `--fix` 対応: タグ重複除去・空タグ除去 / `start,end` 入れ替え / `id` 未設定時の安定ID生成
 - `--format json` はCI連携向けに issue 一覧と `ok` フラグを出力
 
+## ドキュメント
+
+- [Getting Started チュートリアル](docs/tutorial.md) — ステップバイステップのハンズオン
+- [DSL 言語仕様](docs/dsl-spec.md) — 文法リファレンス
+
 ## アーキテクチャ
 
 ```
