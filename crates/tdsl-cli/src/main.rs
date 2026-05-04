@@ -123,9 +123,13 @@ enum Commands {
         #[arg(value_name = "FILE")]
         input: PathBuf,
 
-        /// Output HTML file path (default: stdout)
+        /// Output file path (default: stdout)
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = RenderFormat::Html)]
+        format: RenderFormat,
 
         /// Pixels per year on the horizontal axis
         #[arg(long, default_value_t = 2.0)]
@@ -284,6 +288,13 @@ enum ThemeArg {
     Pastel,
 }
 
+#[derive(ValueEnum, Clone, Default, Debug)]
+enum RenderFormat {
+    #[default]
+    Html,
+    Svg,
+}
+
 impl ThemeArg {
     fn into_theme(self) -> tdsl_render::layout::Theme {
         match self {
@@ -349,6 +360,7 @@ fn main() {
         Commands::Render {
             input,
             output,
+            format,
             scale,
             lane_height,
             left_gutter,
@@ -361,6 +373,7 @@ fn main() {
         } => cmd_render(
             &input,
             output.as_deref(),
+            format,
             scale,
             lane_height,
             left_gutter,
@@ -1122,6 +1135,7 @@ fn escape_tdsl_string(input: &str) -> String {
 fn cmd_render(
     input: &std::path::Path,
     output: Option<&std::path::Path>,
+    format: RenderFormat,
     scale: f64,
     lane_height: f64,
     left_gutter: f64,
@@ -1151,14 +1165,18 @@ fn cmd_render(
         custom_css,
         ..Default::default()
     };
-    let html = tdsl_render::render_html(&ir, opts);
+
+    let output_str = match format {
+        RenderFormat::Html => tdsl_render::render_html(&ir, opts),
+        RenderFormat::Svg => tdsl_render::render_svg_only(&ir, opts),
+    };
 
     if let Some(out_path) = output {
-        std::fs::write(out_path, &html)
+        std::fs::write(out_path, &output_str)
             .map_err(|e| format!("Failed to write {}: {e}", out_path.display()))?;
         eprintln!("Written to {}", out_path.display());
     } else {
-        println!("{html}");
+        println!("{output_str}");
     }
 
     Ok(())
