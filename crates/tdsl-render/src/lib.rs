@@ -20,6 +20,12 @@ pub fn render_html(ir: &TimelineIr, opts: RenderOptions) -> String {
     html::wrap_html(&svg, &ir.meta.title, &opts)
 }
 
+/// Render the given IR as a standalone SVG string.
+pub fn render_svg_only(ir: &TimelineIr, opts: RenderOptions) -> String {
+    let layout = LayoutModel::compute(ir, opts);
+    svg::render_svg(&layout)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
