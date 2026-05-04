@@ -1,0 +1,12 @@
+// 意味エラーのある .tdsl ファイル（E2Eテスト用）
+// 存在しないlaneを参照する
+
+timeline "テスト" {
+    unit year;
+    range 1..100;
+}
+
+lane "王国" as kingdom { kind dynasty; order 1; }
+
+// 未定義のlane "empire" を参照
+span empire 10..50 "架空帝国" {};
