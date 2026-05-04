@@ -23,6 +23,13 @@
 curl -sSfL https://raw.githubusercontent.com/keroway/timeline-dsl/main/install.sh | sh
 ```
 
+### Homebrew（macOS / Linux）
+
+```sh
+brew tap keroway/tap
+brew install tdsl
+```
+
 ### cargo でインストール（Rust開発者向け）
 
 ```sh
