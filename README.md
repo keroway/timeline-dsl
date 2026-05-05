@@ -258,6 +258,7 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 
 - [Getting Started チュートリアル](docs/tutorial.md) — ステップバイステップのハンズオン
 - [DSL 言語仕様](docs/dsl-spec.md) — 文法リファレンス
+- [スタイルカスタマイズガイド](docs/styling.md) — `--theme` / `--custom-css` によるCSSカスタマイズのリファレンス
 - [エラーコードカタログ](docs/error-catalog.md) — エラーメッセージの原因と修正方法
 - [v0→v1 移行ガイド](docs/migration-v0-to-v1.md) — バージョンアップ時の変更点
 
