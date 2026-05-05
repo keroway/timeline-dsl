@@ -31,6 +31,8 @@ pub struct RenderOptions {
     pub theme: Theme,
     /// Optional custom CSS (content, not a file path) injected after the theme CSS.
     pub custom_css: Option<String>,
+    /// Tag-to-color overrides. Key: tag name, Value: CSS color string (e.g. "#cc0000").
+    pub color_map: std::collections::HashMap<String, String>,
 }
 
 impl Default for RenderOptions {
@@ -44,6 +46,7 @@ impl Default for RenderOptions {
             bottom_margin: 20.0,
             theme: Theme::Default,
             custom_css: None,
+            color_map: std::collections::HashMap::new(),
         }
     }
 }

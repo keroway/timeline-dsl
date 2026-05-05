@@ -42,7 +42,7 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     render_lane_bands(&mut s, layout);
     render_axis(&mut s, layout);
     render_lane_labels(&mut s, layout);
-    render_items(&mut s, layout, &lane_color);
+    render_items(&mut s, layout, &lane_color, &layout.opts.color_map);
 
     writeln!(s, "</svg>").unwrap();
     s
@@ -124,7 +124,27 @@ fn render_lane_labels(s: &mut String, layout: &LayoutModel) {
     }
 }
 
-fn render_items(s: &mut String, layout: &LayoutModel, lane_color: &HashMap<&str, &str>) {
+fn resolve_item_color(
+    tags: &[String],
+    color_map: &HashMap<String, String>,
+    lane_fallback: &str,
+    lane_color: &HashMap<&str, &str>,
+) -> String {
+    // Tag-based override takes priority: use the first matching tag.
+    for tag in tags {
+        if let Some(color) = color_map.get(tag.as_str()) {
+            return color.clone();
+        }
+    }
+    lane_color.get(lane_fallback).copied().unwrap_or("#4682B4").to_string()
+}
+
+fn render_items(
+    s: &mut String,
+    layout: &LayoutModel,
+    lane_color: &HashMap<&str, &str>,
+    color_map: &HashMap<String, String>,
+) {
     for laid in &layout.items {
         match laid {
             LaidItem::Span {
@@ -138,7 +158,8 @@ fn render_items(s: &mut String, layout: &LayoutModel, lane_color: &HashMap<&str,
                 let tip = escape_xml(&raw_tip);
                 let tip_attr = escape_xml_attr(&raw_tip);
                 let lane_id = item_lane_id(item);
-                let fill = lane_color.get(lane_id).copied().unwrap_or("#4682B4");
+                let tags = item_tags(item);
+                let fill = resolve_item_color(tags, color_map, lane_id, lane_color);
                 let fill_style = format!("fill:{fill};");
                 writeln!(
                     s,
@@ -167,7 +188,8 @@ fn render_items(s: &mut String, layout: &LayoutModel, lane_color: &HashMap<&str,
                 let tip = escape_xml(&raw_tip);
                 let tip_attr = escape_xml_attr(&raw_tip);
                 let lane_id = item_lane_id(item);
-                let fill = lane_color.get(lane_id).copied().unwrap_or("#E67E22");
+                let tags = item_tags(item);
+                let fill = resolve_item_color(tags, color_map, lane_id, lane_color);
                 let fill_style = format!("fill:{fill};fill-opacity:0.75;");
                 writeln!(
                     s,
@@ -194,7 +216,8 @@ fn render_items(s: &mut String, layout: &LayoutModel, lane_color: &HashMap<&str,
                 let tip = escape_xml(&raw_tip);
                 let tip_attr = escape_xml_attr(&raw_tip);
                 let lane_id = item_lane_id(item);
-                let fill = lane_color.get(lane_id).copied().unwrap_or("#333");
+                let tags = item_tags(item);
+                let fill = resolve_item_color(tags, color_map, lane_id, lane_color);
                 let dot_style = format!("fill:{fill};");
                 let hit_x = *x - 8.0;
                 let hit_w = 16.0;
@@ -224,6 +247,12 @@ fn render_items(s: &mut String, layout: &LayoutModel, lane_color: &HashMap<&str,
 fn item_lane_id(item: &Item) -> &str {
     match item {
         Item::Span { lane, .. } | Item::Event { lane, .. } | Item::EventRange { lane, .. } => lane,
+    }
+}
+
+fn item_tags(item: &Item) -> &[String] {
+    match item {
+        Item::Span { tags, .. } | Item::Event { tags, .. } | Item::EventRange { tags, .. } => tags,
     }
 }
 
@@ -440,5 +469,23 @@ mod tests {
         assert_eq!(format_year(-206), "BC206");
         assert_eq!(format_year(0), "0");
         assert_eq!(format_year(220), "220");
+    }
+
+    #[test]
+    fn color_map_tag_overrides_lane_palette() {
+        let ir = sample_ir();
+        let color_map: std::collections::HashMap<String, String> = [
+            ("dynasty".to_string(), "#cc0000".to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let opts = RenderOptions {
+            color_map,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout);
+        // The span item has tag "dynasty", so its fill must use the color_map color.
+        assert!(svg.contains("fill:#cc0000;"), "expected fill:#cc0000; in SVG, got:\n{svg}");
     }
 }
