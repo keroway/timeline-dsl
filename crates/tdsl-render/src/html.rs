@@ -543,9 +543,29 @@ const INTERACTIVE_JS: &str = r#"(() => {
     window.addEventListener("resize", hide);
   }
 
-  // ── Pan (drag) ──────────────────────────────────────────────────────────
+  // ── Zoom (wheel) + Pan (drag) ────────────────────────────────────────────
   const canvas = document.getElementById("tdsl-canvas");
   if (canvas) {
+    const svg = canvas.querySelector("svg");
+    let svgBaseWidth = svg ? parseFloat(svg.getAttribute("width") || "0") : 0;
+    let zoomLevel = 1.0;
+
+    // Zoom: scale SVG width on wheel; canvas overflow:auto provides scrollbars.
+    if (svg && svgBaseWidth > 0) {
+      canvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.12 : 0.893;
+        zoomLevel = Math.min(10, Math.max(0.25, zoomLevel * factor));
+        // Preserve the hovered x-position after zoom.
+        const canvasRect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - canvasRect.left + canvas.scrollLeft;
+        const ratio = mouseX / (svgBaseWidth * zoomLevel / factor);
+        svg.style.width = (svgBaseWidth * zoomLevel) + "px";
+        canvas.scrollLeft = ratio * svgBaseWidth * zoomLevel - (e.clientX - canvasRect.left);
+      }, { passive: false });
+    }
+
+    // Pan: drag to scroll horizontally.
     let dragging = false;
     let startX = 0, startScrollLeft = 0;
     canvas.addEventListener("mousedown", (e) => {
