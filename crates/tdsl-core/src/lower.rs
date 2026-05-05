@@ -107,6 +107,11 @@ impl LoweringContext {
                         self.errors.push(LoweringError::MultipleTimelines);
                         continue;
                     }
+                    let color_map = t
+                        .color_map
+                        .iter()
+                        .cloned()
+                        .collect::<std::collections::HashMap<_, _>>();
                     self.meta = Some(Meta {
                         title: t.title.clone().unwrap_or_else(|| t.name.clone()),
                         unit: t.unit.clone().unwrap_or_else(|| "year".to_string()),
@@ -115,6 +120,7 @@ impl LoweringContext {
                             .calendar
                             .clone()
                             .unwrap_or_else(|| "proleptic_gregorian".to_string()),
+                        color_map,
                     });
                 }
                 ast::Statement::Lane(l) => {

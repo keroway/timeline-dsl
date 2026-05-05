@@ -435,6 +435,7 @@ mod tests {
                 unit: "year".into(),
                 range: (-300, 300),
                 calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
             },
             lanes: vec![Lane {
                 id: "han".into(),
