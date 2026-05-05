@@ -20,6 +20,7 @@ pub enum LoweringError {
     #[error("Multiple timeline blocks found")]
     MultipleTimelines,
 
+    #[cfg(feature = "wikidata")]
     #[error("Wikidata error: {0}")]
     Wikidata(#[from] tdsl_wikidata::WikidataError),
 

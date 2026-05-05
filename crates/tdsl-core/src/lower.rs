@@ -1,12 +1,17 @@
 use std::collections::HashMap;
 
-use tdsl_parser::ast::{self, MapTargetType};
+use tdsl_parser::ast;
+#[cfg(feature = "wikidata")]
+use tdsl_parser::ast::MapTargetType;
+#[cfg(feature = "wikidata")]
 use tdsl_wikidata::WikidataClient;
+#[cfg(feature = "wikidata")]
 use tdsl_wikidata::entity::{DataValue, WikidataEntity, time_value_to_year};
 
 use crate::error::LoweringError;
 use crate::ir::*;
 
+#[cfg(feature = "wikidata")]
 const MAX_IMPORT_QUERY_RESULTS: usize = 50;
 
 /// Lower a parsed AST into the canonical IR (static items only, no Wikidata).
@@ -18,6 +23,7 @@ pub fn lower_static(file: &ast::File) -> Result<TimelineIr, Vec<LoweringError>> 
 }
 
 /// Lower a parsed AST into the canonical IR with Wikidata resolution.
+#[cfg(feature = "wikidata")]
 pub async fn lower_with_wikidata(
     file: &ast::File,
     client: &dyn WikidataClient,
@@ -38,19 +44,25 @@ struct LoweringContext {
     imports: Vec<ImportRecord>,
     sources: Vec<SourceRecord>,
     item_index_by_id: HashMap<String, usize>,
+    #[cfg(feature = "wikidata")]
     item_imported_by_id: HashMap<String, bool>,
+    #[cfg(feature = "wikidata")]
     import_record_index_by_item_id: HashMap<String, usize>,
     errors: Vec<LoweringError>,
     lane_auto_id: usize,
 
     // Import resolution state
     // import_alias -> { entity_alias -> WikidataEntity }
+    #[cfg(feature = "wikidata")]
     import_entities: HashMap<String, HashMap<String, WikidataEntity>>,
     // import_alias -> { query_alias -> [entity_alias] }
+    #[cfg(feature = "wikidata")]
     import_groups: HashMap<String, HashMap<String, Vec<String>>>,
     // import_alias -> source_type
+    #[cfg(feature = "wikidata")]
     import_sources: HashMap<String, String>,
     // import_alias -> import policy
+    #[cfg(feature = "wikidata")]
     import_policies: HashMap<String, ast::ReimportPolicy>,
 
     // Template registry
@@ -68,13 +80,19 @@ impl LoweringContext {
             imports: Vec::new(),
             sources: Vec::new(),
             item_index_by_id: HashMap::new(),
+            #[cfg(feature = "wikidata")]
             item_imported_by_id: HashMap::new(),
+            #[cfg(feature = "wikidata")]
             import_record_index_by_item_id: HashMap::new(),
             errors: Vec::new(),
             lane_auto_id: 0,
+            #[cfg(feature = "wikidata")]
             import_entities: HashMap::new(),
+            #[cfg(feature = "wikidata")]
             import_groups: HashMap::new(),
+            #[cfg(feature = "wikidata")]
             import_sources: HashMap::new(),
+            #[cfg(feature = "wikidata")]
             import_policies: HashMap::new(),
             templates: HashMap::new(),
         }
@@ -227,6 +245,7 @@ impl LoweringContext {
     }
 
     /// Pass 3: Resolve import blocks by fetching entities from Wikidata.
+    #[cfg(feature = "wikidata")]
     async fn pass3_resolve_imports(&mut self, file: &ast::File, client: &dyn WikidataClient) {
         for stmt in &file.statements {
             if let ast::Statement::Import(imp) = &stmt.node {
@@ -301,6 +320,7 @@ impl LoweringContext {
     }
 
     /// Pass 4: Apply map blocks and apply blocks to generate items from imported entities.
+    #[cfg(feature = "wikidata")]
     fn pass4_apply_maps(&mut self, file: &ast::File) {
         for stmt in &file.statements {
             if let ast::Statement::Apply(apply) = &stmt.node {
@@ -356,6 +376,7 @@ impl LoweringContext {
         }
     }
 
+    #[cfg(feature = "wikidata")]
     fn process_apply_block(&mut self, apply: &ast::ApplyBlock) {
         let template = match self.templates.get(&apply.template_alias).cloned() {
             Some(t) => t,
@@ -408,6 +429,7 @@ impl LoweringContext {
         }
     }
 
+    #[cfg(feature = "wikidata")]
     fn apply_map_to_entity(
         &mut self,
         map: &ast::MapBlock,
@@ -538,10 +560,12 @@ impl LoweringContext {
         }
         let idx = self.items.len();
         self.item_index_by_id.insert(id.to_string(), idx);
+        #[cfg(feature = "wikidata")]
         self.item_imported_by_id.insert(id.to_string(), false);
         true
     }
 
+    #[cfg(feature = "wikidata")]
     fn insert_imported_item(&mut self, item: Item, qid: &str, policy: ast::ReimportPolicy) {
         let id = item_id(&item).to_string();
 
@@ -579,6 +603,7 @@ impl LoweringContext {
         }
     }
 
+    #[cfg(feature = "wikidata")]
     fn upsert_import_record(&mut self, item_id: &str, qid: &str) {
         if let Some(idx) = self.import_record_index_by_item_id.get(item_id).copied() {
             self.imports[idx] = ImportRecord {
@@ -606,6 +631,7 @@ impl LoweringContext {
     }
 
     /// Build an UnknownMappedLane error with suggestions.
+    #[cfg(feature = "wikidata")]
     fn make_unknown_mapped_lane_error(&self, lane_ref: &str) -> LoweringError {
         let available = self.lane_order.clone();
         let hint = lane_suggestion_hint(lane_ref, &available);
@@ -630,6 +656,7 @@ impl LoweringContext {
 // ─── Expression Evaluation ──────────────────────────────────
 
 /// Evaluate a map expression (e.g. `claim(P571).year`) against a Wikidata entity.
+#[cfg(feature = "wikidata")]
 fn eval_map_expr(expr: &ast::MapExpr, entity: &WikidataEntity) -> Option<i64> {
     let dv = entity.claim(&expr.claim.property)?;
     match dv {
@@ -642,6 +669,7 @@ fn eval_map_expr(expr: &ast::MapExpr, entity: &WikidataEntity) -> Option<i64> {
 }
 
 /// Evaluate a label expression with fallback (e.g. `label@ja ?? label@en`).
+#[cfg(feature = "wikidata")]
 fn eval_label_expr(expr: &ast::LabelExpr, entity: &WikidataEntity) -> Option<String> {
     let langs: Vec<&str> = expr.fallbacks.iter().map(|lr| lr.lang.as_str()).collect();
     entity.label_with_fallback(&langs).map(|s| s.to_string())
@@ -651,6 +679,7 @@ fn eval_label_expr(expr: &ast::LabelExpr, entity: &WikidataEntity) -> Option<Str
 
 /// Merge template props with apply overrides.
 /// Override props of the same variant replace the template props.
+#[cfg(feature = "wikidata")]
 fn merge_map_props(base: &[ast::MapProp], overrides: &[ast::MapProp]) -> Vec<ast::MapProp> {
     let mut result = base.to_vec();
     for ov in overrides {
@@ -664,6 +693,7 @@ fn merge_map_props(base: &[ast::MapProp], overrides: &[ast::MapProp]) -> Vec<ast
     result
 }
 
+#[cfg(feature = "wikidata")]
 fn props_same_variant(a: &ast::MapProp, b: &ast::MapProp) -> bool {
     matches!(
         (a, b),
@@ -712,6 +742,7 @@ fn source_str(sr: &Option<ast::SourceRef>) -> Option<String> {
     sr.as_ref().map(|s| format!("{}:{}", s.prefix, s.qid))
 }
 
+#[cfg(feature = "wikidata")]
 fn item_id(item: &Item) -> &str {
     match item {
         Item::Span { id, .. } => id,
@@ -727,6 +758,7 @@ fn slug(s: &str) -> String {
         .to_lowercase()
 }
 
+#[cfg(feature = "wikidata")]
 fn merge_items_by_field_priority(
     existing: Item,
     incoming: Item,
