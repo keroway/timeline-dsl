@@ -123,10 +123,35 @@ pub enum ImportItem {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldStrategy {
+    Manual,
+    Wikidata,
+    Merge,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FieldPriorityConfig {
+    pub label: FieldStrategy,
+    pub time: FieldStrategy,
+    pub tags: FieldStrategy,
+}
+
+impl Default for FieldPriorityConfig {
+    fn default() -> Self {
+        Self {
+            label: FieldStrategy::Manual,
+            time: FieldStrategy::Wikidata,
+            tags: FieldStrategy::Merge,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReimportPolicy {
     MergeBySource,
     OverwriteImported,
     KeepManual,
+    FieldPriority(FieldPriorityConfig),
 }
 
 // ─── Template / Apply ───────────────────────────────────────

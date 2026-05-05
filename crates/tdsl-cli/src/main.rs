@@ -2183,12 +2183,40 @@ fn render_tdsl_file(file: &tdsl_parser::ast::File) -> String {
                     }
                 }
                 if let Some(policy) = imp.policy {
-                    let policy_name = match policy {
-                        tdsl_parser::ast::ReimportPolicy::MergeBySource => "merge_by_source",
-                        tdsl_parser::ast::ReimportPolicy::OverwriteImported => "overwrite_imported",
-                        tdsl_parser::ast::ReimportPolicy::KeepManual => "keep_manual",
-                    };
-                    writeln!(out, "    policy {policy_name};").unwrap();
+                    match policy {
+                        tdsl_parser::ast::ReimportPolicy::MergeBySource => {
+                            writeln!(out, "    policy merge_by_source;").unwrap();
+                        }
+                        tdsl_parser::ast::ReimportPolicy::OverwriteImported => {
+                            writeln!(out, "    policy overwrite_imported;").unwrap();
+                        }
+                        tdsl_parser::ast::ReimportPolicy::KeepManual => {
+                            writeln!(out, "    policy keep_manual;").unwrap();
+                        }
+                        tdsl_parser::ast::ReimportPolicy::FieldPriority(config) => {
+                            use tdsl_parser::ast::FieldStrategy;
+                            let label = match config.label {
+                                FieldStrategy::Manual => "manual",
+                                FieldStrategy::Wikidata => "wikidata",
+                                FieldStrategy::Merge => "merge",
+                            };
+                            let time = match config.time {
+                                FieldStrategy::Manual => "manual",
+                                FieldStrategy::Wikidata => "wikidata",
+                                FieldStrategy::Merge => "merge",
+                            };
+                            let tags = match config.tags {
+                                FieldStrategy::Manual => "manual",
+                                FieldStrategy::Wikidata => "wikidata",
+                                FieldStrategy::Merge => "merge",
+                            };
+                            writeln!(out, "    policy field_priority {{").unwrap();
+                            writeln!(out, "        label: {label};").unwrap();
+                            writeln!(out, "        time: {time};").unwrap();
+                            writeln!(out, "        tags: {tags};").unwrap();
+                            writeln!(out, "    }}").unwrap();
+                        }
+                    }
                 }
                 write!(out, "}}").unwrap();
             }

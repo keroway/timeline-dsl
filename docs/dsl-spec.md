@@ -379,7 +379,30 @@ apply PersonLife to wd.SengokuSamurai;
 
 ### フィールド別優先度
 
-再インポート時にフィールドごとの優先度を設定:
-- `label`: 手動優先
-- `time`: Wikidata優先
-- `tags`: 統合（マージ）
+`policy field_priority { ... }` を使うと、再インポート時にフィールドごとの戦略を指定できます：
+
+```
+import wikidata as wd {
+    entity Q7209 as han_dynasty;
+    policy field_priority {
+        label: manual;    // 手動で編集したラベルを保持
+        time: wikidata;   // Wikidata の最新値で上書き
+        tags: merge;      // 両方のタグを統合
+    }
+}
+```
+
+| フィールド | 戦略 | 効果 |
+|---|---|---|
+| `label` | `manual` | 既存ラベルを保持 |
+| `label` | `wikidata` | Wikidata のラベルで上書き |
+| `time` | `manual` | 既存の start/end/time を保持 |
+| `time` | `wikidata` | Wikidata の時刻で上書き |
+| `tags` | `manual` | 既存タグを保持 |
+| `tags` | `wikidata` | Wikidata のタグで上書き |
+| `tags` | `merge` | 両方のタグを統合（重複なし） |
+
+すべてのフィールドにデフォルト値があるため、一部のフィールドのみ指定することも可能です：
+- `label`: デフォルト `manual`
+- `time`: デフォルト `wikidata`
+- `tags`: デフォルト `merge`
