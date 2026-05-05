@@ -28,6 +28,10 @@ jobs:
             os: macos-latest
             archive: tdsl-macos-aarch64.tar.gz
             use_cross: false
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: tdsl-windows-x86_64.zip
+            use_cross: false
 
     steps:
       - name: Checkout
@@ -60,12 +64,18 @@ jobs:
         run: strip target/${{ matrix.target }}/release/tdsl
 
       - name: Strip binary (macOS)
-        if: "!matrix.use_cross"
+        if: "!matrix.use_cross && matrix.os != 'windows-latest'"
         run: strip target/${{ matrix.target }}/release/tdsl
 
-      - name: Create archive
+      - name: Create archive (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
           tar czf ${{ matrix.archive }} -C target/${{ matrix.target }}/release tdsl
+
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          Compress-Archive -Path target\${{ matrix.target }}\release\tdsl.exe -DestinationPath ${{ matrix.archive }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -90,6 +100,7 @@ jobs:
             tdsl-linux-x86_64.tar.gz
             tdsl-macos-x86_64.tar.gz
             tdsl-macos-aarch64.tar.gz
+            tdsl-windows-x86_64.zip
           generate_release_notes: true
 
   update-homebrew-formula:
