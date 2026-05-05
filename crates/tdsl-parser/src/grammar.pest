@@ -20,12 +20,14 @@ timeline_block = {
 }
 
 timeline_prop = _{
-    title_prop | unit_prop | range_prop | calendar_prop
+    title_prop | unit_prop | range_prop | calendar_prop | color_map_block
 }
-title_prop    = { "title" ~ string_literal ~ ";" }
-unit_prop     = { "unit" ~ ident ~ ";" }
-range_prop    = { "range" ~ integer ~ ".." ~ integer ~ ";" }
-calendar_prop = { "calendar" ~ ident ~ ";" }
+title_prop      = { "title" ~ string_literal ~ ";" }
+unit_prop       = { "unit" ~ ident ~ ";" }
+range_prop      = { "range" ~ integer ~ ".." ~ integer ~ ";" }
+calendar_prop   = { "calendar" ~ ident ~ ";" }
+color_map_block = { "color_map" ~ "{" ~ color_map_entry* ~ "}" }
+color_map_entry = { ident ~ ":" ~ string_literal ~ ";" }
 
 // ─── Lane Declaration ───────────────────────────────────────
 lane_decl = {

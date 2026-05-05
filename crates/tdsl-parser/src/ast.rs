@@ -40,6 +40,7 @@ pub struct TimelineBlock {
     pub unit: Option<String>,
     pub range: Option<RangeExpr>,
     pub calendar: Option<String>,
+    pub color_map: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

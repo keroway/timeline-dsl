@@ -485,6 +485,41 @@ mod tests {
     }
 
     #[test]
+    fn parse_color_map_block() {
+        let src = r##"
+            timeline "テスト" {
+                title "テスト";
+                unit year;
+                range 0..2000;
+                color_map {
+                    dynasty: "#3366cc";
+                    war: "#cc0000";
+                }
+            }
+        "##;
+        let file = parse(src).unwrap();
+        assert_eq!(file.statements.len(), 1);
+        match &file.statements[0].node {
+            ast::Statement::Timeline(t) => {
+                assert_eq!(t.color_map.len(), 2);
+                assert!(t.color_map.iter().any(|(k, v)| k == "dynasty" && v == "#3366cc"));
+                assert!(t.color_map.iter().any(|(k, v)| k == "war" && v == "#cc0000"));
+            }
+            _ => panic!("expected Timeline"),
+        }
+    }
+
+    #[test]
+    fn parse_color_map_block_empty() {
+        let src = r#"timeline "T" { color_map {} }"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Timeline(t) => assert!(t.color_map.is_empty()),
+            _ => panic!("expected Timeline"),
+        }
+    }
+
+    #[test]
     fn test_field_priority_policy_parse() {
         let src = r#"
             import wikidata as wd {

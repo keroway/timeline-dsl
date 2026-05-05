@@ -1,3 +1,4 @@
+pub mod decompile;
 pub mod error;
 pub mod ir;
 pub mod lower;
@@ -215,6 +216,7 @@ mod tests {
                 unit: "year".into(),
                 range: (100, 0),
                 calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
             },
             lanes: vec![],
             items: vec![],
@@ -233,6 +235,7 @@ mod tests {
                 unit: "year".into(),
                 range: (0, 1000),
                 calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
             },
             lanes: vec![ir::Lane {
                 id: "a".into(),
@@ -268,6 +271,7 @@ mod tests {
                 unit: "year".into(),
                 range: (0, 1000),
                 calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
             },
             lanes: vec![ir::Lane {
                 id: "a".into(),
@@ -303,6 +307,7 @@ mod tests {
                 unit: "year".into(),
                 range: (0, 1000),
                 calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
             },
             lanes: vec![ir::Lane {
                 id: "a".into(),
@@ -634,7 +639,6 @@ mod tests {
 
     #[test]
     fn lower_meta_defaults_when_optional_fields_missing() {
-        // timeline with only name (no title/unit/range/calendar)
         let src = r#"timeline "Minimal" {}"#;
         let file = tdsl_parser::parse(src).unwrap();
         let ir = lower::lower_static(&file).unwrap();
@@ -642,6 +646,46 @@ mod tests {
         assert_eq!(ir.meta.unit, "year");
         assert_eq!(ir.meta.range, (0, 2000));
         assert_eq!(ir.meta.calendar, "proleptic_gregorian");
+        assert!(ir.meta.color_map.is_empty());
+    }
+
+    #[test]
+    fn lower_color_map_in_meta() {
+        let src = r##"
+            timeline "テスト" {
+                title "テスト";
+                unit year;
+                range 0..2000;
+                color_map {
+                    dynasty: "#3366cc";
+                    war: "#cc0000";
+                }
+            }
+            lane "A" as a { kind dynasty; }
+            span a 100..200 "テスト" {};
+        "##;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        assert_eq!(ir.meta.color_map.len(), 2);
+        assert_eq!(ir.meta.color_map.get("dynasty").map(String::as_str), Some("#3366cc"));
+        assert_eq!(ir.meta.color_map.get("war").map(String::as_str), Some("#cc0000"));
+    }
+
+    #[test]
+    fn lower_color_map_serializes_to_json() {
+        let src = r##"
+            timeline "T" {
+                color_map {
+                    tag1: "#aabbcc";
+                }
+            }
+        "##;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        let json = serde_json::to_string(&ir).unwrap();
+        assert!(json.contains("color_map"));
+        assert!(json.contains("tag1"));
+        assert!(json.contains("#aabbcc"));
     }
 
     #[cfg(feature = "wikidata")]

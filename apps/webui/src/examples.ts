@@ -5,7 +5,7 @@ export interface Example {
 
 export const EXAMPLES: Example[] = [
   {
-    label: '中国王朝（静的）',
+    label: '中国王朝',
     source: `timeline "中国王朝年表" {
     title "中国王朝年表";
     unit year;

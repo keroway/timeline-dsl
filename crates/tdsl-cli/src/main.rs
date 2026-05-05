@@ -234,6 +234,16 @@ enum Commands {
         #[command(subcommand)]
         action: CacheAction,
     },
+
+    /// Decompile a JSON IR file back to a .tdsl source file
+    Decompile {
+        /// Input JSON file path (default: stdin)
+        input: Option<PathBuf>,
+
+        /// Output .tdsl file path (default: stdout)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -431,6 +441,7 @@ fn main() {
         } => cmd_import_csv(&input, output.as_deref(), append.as_deref()),
         Commands::Lint { input, fix, format } => cmd_lint(&input, fix, format),
         Commands::Cache { action } => cmd_cache(action),
+        Commands::Decompile { input, output } => cmd_decompile(input.as_deref(), output.as_deref()),
     };
 
     if let Err(e) = result {
@@ -497,6 +508,38 @@ fn cmd_build(
         eprintln!("Written to {}", out_path.display());
     } else {
         println!("{json}");
+    }
+
+    Ok(())
+}
+
+fn cmd_decompile(
+    input: Option<&std::path::Path>,
+    output: Option<&std::path::Path>,
+) -> Result<(), String> {
+    let json_str = match input {
+        Some(path) => std::fs::read_to_string(path)
+            .map_err(|e| format!("Failed to read {}: {e}", path.display()))?,
+        None => {
+            use std::io::Read;
+            let mut buf = String::new();
+            std::io::stdin()
+                .read_to_string(&mut buf)
+                .map_err(|e| format!("Failed to read stdin: {e}"))?;
+            buf
+        }
+    };
+
+    let ir: tdsl_core::ir::TimelineIr =
+        serde_json::from_str(&json_str).map_err(|e| format!("Invalid IR JSON: {e}"))?;
+    let tdsl = tdsl_core::decompile::decompile(&ir);
+
+    if let Some(out_path) = output {
+        std::fs::write(out_path, &tdsl)
+            .map_err(|e| format!("Failed to write {}: {e}", out_path.display()))?;
+        eprintln!("Written to {}", out_path.display());
+    } else {
+        print!("{tdsl}");
     }
 
     Ok(())
@@ -1213,10 +1256,12 @@ fn cmd_render(
         None => None,
     };
 
-    let color_map = match color_map_raw {
-        Some(raw) => parse_color_map(raw)?,
-        None => std::collections::HashMap::new(),
-    };
+    let mut color_map = ir.meta.color_map.clone();
+    if let Some(raw) = color_map_raw {
+        for (tag, color) in parse_color_map(raw)? {
+            color_map.insert(tag, color);
+        }
+    }
 
     let opts = tdsl_render::RenderOptions {
         scale,

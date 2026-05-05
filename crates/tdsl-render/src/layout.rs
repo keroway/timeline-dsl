@@ -308,6 +308,7 @@ mod tests {
             unit: "year".into(),
             range,
             calendar: "proleptic_gregorian".into(),
+            color_map: std::collections::HashMap::new(),
         }
     }
 
