@@ -546,7 +546,6 @@ impl LoweringContext {
         let id = item_id(&item).to_string();
 
         if let Some(idx) = self.item_index_by_id.get(&id).copied() {
-            let existing_imported = self.item_imported_by_id.get(&id).copied().unwrap_or(false);
             match policy {
                 ast::ReimportPolicy::MergeBySource => {
                     self.errors.push(LoweringError::DuplicateItemId(id));
@@ -555,12 +554,20 @@ impl LoweringContext {
                     // Keep existing item when IDs conflict.
                 }
                 ast::ReimportPolicy::OverwriteImported => {
+                    let existing_imported =
+                        self.item_imported_by_id.get(&id).copied().unwrap_or(false);
                     if existing_imported {
                         self.items[idx] = item;
                         self.upsert_import_record(&id, qid);
                     } else {
                         self.errors.push(LoweringError::DuplicateItemId(id));
                     }
+                }
+                ast::ReimportPolicy::FieldPriority(config) => {
+                    let existing = self.items[idx].clone();
+                    let merged = merge_items_by_field_priority(existing, item, &config);
+                    self.items[idx] = merged;
+                    self.upsert_import_record(&id, qid);
                 }
             }
         } else {
@@ -718,4 +725,119 @@ fn slug(s: &str) -> String {
         .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
         .collect::<String>()
         .to_lowercase()
+}
+
+fn merge_items_by_field_priority(
+    existing: Item,
+    incoming: Item,
+    config: &ast::FieldPriorityConfig,
+) -> Item {
+    use ast::FieldStrategy;
+
+    let pick_label = |ex: String, inc: String| match config.label {
+        FieldStrategy::Manual => ex,
+        FieldStrategy::Wikidata | FieldStrategy::Merge => inc,
+    };
+    let pick_time = |ex: i64, inc: i64| match config.time {
+        FieldStrategy::Manual => ex,
+        FieldStrategy::Wikidata | FieldStrategy::Merge => inc,
+    };
+    let merge_tags = |ex: Vec<String>, inc: Vec<String>| match config.tags {
+        FieldStrategy::Manual => ex,
+        FieldStrategy::Wikidata => inc,
+        FieldStrategy::Merge => {
+            let mut merged = ex;
+            for t in inc {
+                if !merged.contains(&t) {
+                    merged.push(t);
+                }
+            }
+            merged
+        }
+    };
+
+    match (existing, incoming) {
+        (
+            Item::Span {
+                id,
+                lane,
+                start: ex_start,
+                end: ex_end,
+                label: ex_label,
+                tags: ex_tags,
+                source,
+                origin,
+            },
+            Item::Span {
+                start: in_start,
+                end: in_end,
+                label: in_label,
+                tags: in_tags,
+                ..
+            },
+        ) => Item::Span {
+            id,
+            lane,
+            start: pick_time(ex_start, in_start),
+            end: pick_time(ex_end, in_end),
+            label: pick_label(ex_label, in_label),
+            tags: merge_tags(ex_tags, in_tags),
+            source,
+            origin,
+        },
+        (
+            Item::Event {
+                id,
+                lane,
+                time: ex_time,
+                label: ex_label,
+                tags: ex_tags,
+                source,
+                origin,
+            },
+            Item::Event {
+                time: in_time,
+                label: in_label,
+                tags: in_tags,
+                ..
+            },
+        ) => Item::Event {
+            id,
+            lane,
+            time: pick_time(ex_time, in_time),
+            label: pick_label(ex_label, in_label),
+            tags: merge_tags(ex_tags, in_tags),
+            source,
+            origin,
+        },
+        (
+            Item::EventRange {
+                id,
+                lane,
+                start: ex_start,
+                end: ex_end,
+                label: ex_label,
+                tags: ex_tags,
+                source,
+                origin,
+            },
+            Item::EventRange {
+                start: in_start,
+                end: in_end,
+                label: in_label,
+                tags: in_tags,
+                ..
+            },
+        ) => Item::EventRange {
+            id,
+            lane,
+            start: pick_time(ex_start, in_start),
+            end: pick_time(ex_end, in_end),
+            label: pick_label(ex_label, in_label),
+            tags: merge_tags(ex_tags, in_tags),
+            source,
+            origin,
+        },
+        (_, incoming) => incoming,
+    }
 }

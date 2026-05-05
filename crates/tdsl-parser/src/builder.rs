@@ -279,6 +279,26 @@ fn build_import(pair: Pair<'_, Rule>) -> Result<ImportBlock> {
                     other => return Err(ParseError::UnknownPolicy(other.to_string())),
                 });
             }
+            Rule::field_priority_policy => {
+                let mut config = FieldPriorityConfig::default();
+                for decl in item.into_inner() {
+                    let rule = decl.as_rule();
+                    let strategy_str = decl.into_inner().next().unwrap().as_str();
+                    let strategy = match strategy_str {
+                        "manual" => FieldStrategy::Manual,
+                        "wikidata" => FieldStrategy::Wikidata,
+                        "merge" => FieldStrategy::Merge,
+                        _ => unreachable!("grammar enforces valid values"),
+                    };
+                    match rule {
+                        Rule::label_strategy => config.label = strategy,
+                        Rule::time_strategy => config.time = strategy,
+                        Rule::tags_strategy => config.tags = strategy,
+                        _ => {}
+                    }
+                }
+                policy = Some(ReimportPolicy::FieldPriority(config));
+            }
             _ => {}
         }
     }
