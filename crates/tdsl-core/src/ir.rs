@@ -18,6 +18,8 @@ pub struct Meta {
     pub unit: String,
     pub range: (i64, i64),
     pub calendar: String,
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub color_map: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

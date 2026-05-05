@@ -190,12 +190,11 @@ body,
 
 .svg-container {
   padding: 16px;
-  width: 100%;
+  display: inline-block;
+  min-width: 100%;
 }
 
 .svg-container svg {
-  max-width: 100%;
-  height: auto;
   display: block;
 }
 
@@ -282,4 +281,22 @@ body,
   color: #cdd6f4;
   flex: 1;
   word-break: break-word;
+}
+
+/* Tooltip */
+.tdsl-tooltip {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  line-height: 1.6;
+  max-width: 280px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  white-space: pre-line;
 }

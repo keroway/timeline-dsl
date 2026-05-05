@@ -95,6 +95,7 @@ fn build_timeline(pair: Pair<'_, Rule>) -> Result<TimelineBlock> {
         unit: None,
         range: None,
         calendar: None,
+        color_map: Vec::new(),
     };
 
     for prop in inner {
@@ -113,6 +114,14 @@ fn build_timeline(pair: Pair<'_, Rule>) -> Result<TimelineBlock> {
             }
             Rule::calendar_prop => {
                 block.calendar = Some(prop.into_inner().next().unwrap().as_str().to_string());
+            }
+            Rule::color_map_block => {
+                for entry in prop.into_inner() {
+                    let mut ei = entry.into_inner();
+                    let tag = ei.next().unwrap().as_str().to_string();
+                    let color = extract_string_literal(&ei.next().unwrap());
+                    block.color_map.push((tag, color));
+                }
             }
             _ => {}
         }
@@ -453,9 +462,23 @@ fn parse_target_type(pair: Pair<'_, Rule>) -> Result<MapTargetType> {
 // ─── Helpers ────────────────────────────────────────────────
 
 fn extract_string_literal(pair: &Pair<'_, Rule>) -> String {
-    // string_literal = ${ "\"" ~ string_inner ~ "\"" }
     let inner = pair.clone().into_inner().next().unwrap();
-    inner.as_str().to_string()
+    let s = inner.as_str();
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('"') => out.push('"'),
+                Some('\\') => out.push('\\'),
+                Some(c) => { out.push('\\'); out.push(c); }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 fn build_source_ref(pair: Pair<'_, Rule>) -> SourceRef {
