@@ -17,7 +17,11 @@ use tdsl_core::ir::TimelineIr;
 pub fn render_html(ir: &TimelineIr, opts: RenderOptions) -> String {
     let layout = LayoutModel::compute(ir, opts.clone());
     let svg = svg::render_svg(&layout);
-    html::wrap_html(&svg, &ir.meta.title, &opts)
+    if opts.interactive {
+        html::wrap_html_interactive(&svg, &ir.meta.title, &opts, &ir.lanes)
+    } else {
+        html::wrap_html(&svg, &ir.meta.title, &opts)
+    }
 }
 
 /// Render the given IR as a standalone SVG string.
@@ -218,5 +222,55 @@ mod tests {
         let wide = render_html(&ir, opts_wide);
         // wider scale → larger viewBox width
         assert_ne!(narrow, wide);
+    }
+
+    #[test]
+    fn render_html_interactive_contains_script_tag() {
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            interactive: true,
+            ..RenderOptions::default()
+        };
+        let html = render_html(&ir, opts);
+        assert!(html.contains("<script>"), "interactive mode must include <script>");
+        assert!(
+            html.contains("tdsl-search"),
+            "interactive mode must include search input"
+        );
+        assert!(
+            html.contains("tdsl-legend"),
+            "interactive mode must include legend"
+        );
+        assert!(
+            html.contains("tdsl-detail"),
+            "interactive mode must include detail panel"
+        );
+        assert!(
+            html.contains("data-label="),
+            "interactive mode must include data-label attributes on SVG items"
+        );
+    }
+
+    #[test]
+    fn render_html_non_interactive_unchanged_behavior() {
+        let ir = sample_ir();
+        let opts_default = RenderOptions::default();
+        let opts_explicit = RenderOptions {
+            interactive: false,
+            ..RenderOptions::default()
+        };
+        let html_default = render_html(&ir, opts_default);
+        let html_explicit = render_html(&ir, opts_explicit);
+        // interactive:false (default) should produce identical output to explicit false
+        assert_eq!(html_default, html_explicit);
+        // should NOT include interactive-only elements
+        assert!(
+            !html_default.contains("tdsl-search"),
+            "non-interactive mode must not include search input"
+        );
+        assert!(
+            !html_default.contains("tdsl-legend"),
+            "non-interactive mode must not include legend"
+        );
     }
 }
