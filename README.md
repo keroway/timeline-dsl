@@ -30,6 +30,14 @@ brew tap keroway/tap
 brew install tdsl
 ```
 
+### cargo-binstall（Rust開発者向け・高速）
+
+```sh
+cargo binstall tdsl-cli
+```
+
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) を事前にインストールしておく必要があります。プリビルドバイナリを直接ダウンロードするため、ソースからのビルドが不要です。
+
 ### cargo でインストール（Rust開発者向け）
 
 ```sh

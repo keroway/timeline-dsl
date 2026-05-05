@@ -8,6 +8,20 @@ license.workspace = true
 name = "tdsl"
 path = "src/main.rs"
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/tdsl-{ target }.tar.gz"
+bin-dir = "tdsl{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides."x86_64-unknown-linux-musl"]
+pkg-url = "{ repo }/releases/download/v{ version }/tdsl-linux-x86_64.tar.gz"
+
+[package.metadata.binstall.overrides."x86_64-apple-darwin"]
+pkg-url = "{ repo }/releases/download/v{ version }/tdsl-macos-x86_64.tar.gz"
+
+[package.metadata.binstall.overrides."aarch64-apple-darwin"]
+pkg-url = "{ repo }/releases/download/v{ version }/tdsl-macos-aarch64.tar.gz"
+
 [dependencies]
 tdsl-parser = { path = "../tdsl-parser" }
 tdsl-core = { path = "../tdsl-core" }
