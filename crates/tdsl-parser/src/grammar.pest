@@ -72,11 +72,19 @@ import_block = {
 source_name = { ident }
 
 import_item = _{
-    entity_import | query_import | policy_import
+    entity_import | query_import | field_priority_policy | policy_import
 }
 entity_import = { "entity" ~ qid ~ ("as" ~ ident)? ~ ";" }
 query_import = { "query" ~ string_literal ~ ("as" ~ ident)? ~ ";" }
 policy_import = { "policy" ~ ident ~ ";" }
+field_priority_policy = { "policy" ~ "field_priority" ~ "{" ~ field_strategy_decl* ~ "}" }
+field_strategy_decl = _{
+    label_strategy | time_strategy | tags_strategy
+}
+label_strategy = { "label" ~ ":" ~ field_strategy_value ~ ";" }
+time_strategy  = { "time"  ~ ":" ~ field_strategy_value ~ ";" }
+tags_strategy  = { "tags"  ~ ":" ~ field_strategy_value ~ ";" }
+field_strategy_value = { "manual" | "wikidata" | "merge" }
 
 // ─── Map Block ──────────────────────────────────────────────
 map_block = {

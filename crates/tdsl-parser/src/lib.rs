@@ -483,4 +483,61 @@ mod tests {
             _ => panic!("expected Apply"),
         }
     }
+
+    #[test]
+    fn test_field_priority_policy_parse() {
+        let src = r#"
+            import wikidata as wd {
+                entity Q123 as foo;
+                policy field_priority {
+                    label: manual;
+                    time: wikidata;
+                    tags: merge;
+                }
+            }
+        "#;
+        let result = parse(src);
+        assert!(result.is_ok(), "parse failed: {:?}", result.err());
+        let file = result.unwrap();
+        let import = match &file.statements[0].node {
+            crate::ast::Statement::Import(b) => b,
+            _ => panic!("expected import"),
+        };
+        match import.policy {
+            Some(crate::ast::ReimportPolicy::FieldPriority(config)) => {
+                assert_eq!(config.label, crate::ast::FieldStrategy::Manual);
+                assert_eq!(config.time, crate::ast::FieldStrategy::Wikidata);
+                assert_eq!(config.tags, crate::ast::FieldStrategy::Merge);
+            }
+            other => panic!("expected FieldPriority, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_field_priority_partial_fields() {
+        // デフォルト値が適用されること
+        let src = r#"
+            import wikidata as wd {
+                entity Q123 as foo;
+                policy field_priority {
+                    tags: wikidata;
+                }
+            }
+        "#;
+        let result = parse(src);
+        assert!(result.is_ok());
+        let file = result.unwrap();
+        let import = match &file.statements[0].node {
+            crate::ast::Statement::Import(b) => b,
+            _ => panic!("expected import"),
+        };
+        match import.policy {
+            Some(crate::ast::ReimportPolicy::FieldPriority(config)) => {
+                assert_eq!(config.label, crate::ast::FieldStrategy::Manual);   // default
+                assert_eq!(config.time, crate::ast::FieldStrategy::Wikidata);  // default
+                assert_eq!(config.tags, crate::ast::FieldStrategy::Wikidata);  // overridden
+            }
+            other => panic!("expected FieldPriority, got {:?}", other),
+        }
+    }
 }
