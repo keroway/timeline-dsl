@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -110,7 +110,7 @@ jobs:
           echo "macos_aarch64=$(sha256sum tdsl-macos-aarch64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Checkout formula repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: keroway/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
