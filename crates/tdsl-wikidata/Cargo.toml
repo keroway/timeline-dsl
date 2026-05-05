@@ -10,10 +10,10 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-governor = "0.8"
+governor = "0.10"
 url = "2"
 async-trait = "0.1"
-dirs = "5"
+dirs = "6"
 tempfile = "3"
 
 [dev-dependencies]
