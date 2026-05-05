@@ -50,6 +50,22 @@ jobs:
         working-directory: apps/webui
         run: npm run build
 
+  bench-compile:
+    name: Bench (compile only)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Compile benchmarks
+        run: cargo bench --no-run
+
   test-windows:
     name: Test (Windows)
     runs-on: windows-latest

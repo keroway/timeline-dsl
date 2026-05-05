@@ -6,3 +6,10 @@ license.workspace = true
 
 [dependencies]
 tdsl-core = { path = "../tdsl-core", default-features = false }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "render_bench"
+harness = false
