@@ -1,3 +1,4 @@
+pub mod decompile;
 pub mod error;
 pub mod ir;
 pub mod lower;
