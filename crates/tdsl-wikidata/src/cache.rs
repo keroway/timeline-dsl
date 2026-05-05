@@ -1,7 +1,9 @@
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use async_trait::async_trait;
+use tempfile::NamedTempFile;
 
 use crate::client::{SearchResult, WikidataClient};
 use crate::entity::WikidataEntity;
@@ -123,8 +125,24 @@ impl<C: WikidataClient> CachedWikidataClient<C> {
         }
         match serde_json::to_vec(entity) {
             Ok(data) => {
-                if let Err(e) = std::fs::write(path, &data) {
-                    eprintln!("tdsl cache: 書き込み失敗 {}: {}", path.display(), e);
+                // アトミック書き込み: 一時ファイルに書き込み後 rename(2) で切り替える。
+                // 複数プロセスが同一ファイルに同時書き込みしても JSON が壊れない。
+                match NamedTempFile::new_in(&self.cache_dir) {
+                    Ok(mut tmp) => {
+                        if let Err(e) = tmp.write_all(&data) {
+                            eprintln!("tdsl cache: 一時ファイル書き込み失敗: {e}");
+                            return;
+                        }
+                        if let Err(e) = tmp.persist(path) {
+                            eprintln!("tdsl cache: persist 失敗 {}: {e}", path.display());
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "tdsl cache: 一時ファイル作成失敗 {}: {e}",
+                            self.cache_dir.display()
+                        );
+                    }
                 }
             }
             Err(e) => {
@@ -175,6 +193,118 @@ impl<C: WikidataClient> WikidataClient for CachedWikidataClient<C> {
     async fn sparql_query(&self, query: &str) -> Result<Vec<String>, WikidataError> {
         self.inner.sparql_query(query).await
     }
+}
+
+// ---------------------------------------------------------------------------
+// キャッシュ管理 API（`tdsl cache` サブコマンド向け）
+// ---------------------------------------------------------------------------
+
+/// OS 標準のキャッシュディレクトリ内の `tdsl` サブディレクトリを返す。
+///
+/// `dirs::cache_dir()` が取得できない環境ではシステムの一時ディレクトリを使う。
+pub fn default_cache_dir() -> PathBuf {
+    dirs::cache_dir()
+        .map(|d| d.join("tdsl"))
+        .unwrap_or_else(|| std::env::temp_dir().join("tdsl_cache"))
+}
+
+/// キャッシュの統計情報。
+#[derive(Debug)]
+pub struct CacheStatus {
+    /// キャッシュディレクトリのパス。
+    pub cache_dir: PathBuf,
+    /// キャッシュファイルの総数。
+    pub file_count: usize,
+    /// キャッシュファイルの合計サイズ（バイト）。
+    pub total_bytes: u64,
+    /// 最も古いキャッシュエントリの最終更新時刻（ファイルが 1 件以上の場合）。
+    pub oldest: Option<SystemTime>,
+    /// 最も新しいキャッシュエントリの最終更新時刻（ファイルが 1 件以上の場合）。
+    pub newest: Option<SystemTime>,
+}
+
+/// キャッシュの統計情報を収集して返す。
+///
+/// キャッシュディレクトリが存在しない場合はファイル数 0 の [`CacheStatus`] を返す。
+pub fn cache_status(cache_dir: &Path) -> std::io::Result<CacheStatus> {
+    let mut file_count = 0usize;
+    let mut total_bytes = 0u64;
+    let mut oldest: Option<SystemTime> = None;
+    let mut newest: Option<SystemTime> = None;
+
+    if cache_dir.exists() {
+        for entry in std::fs::read_dir(cache_dir)? {
+            let entry = entry?;
+            let meta = entry.metadata()?;
+            if meta.is_file() {
+                file_count += 1;
+                total_bytes += meta.len();
+                if let Ok(modified) = meta.modified() {
+                    oldest = Some(match oldest {
+                        None => modified,
+                        Some(prev) => prev.min(modified),
+                    });
+                    newest = Some(match newest {
+                        None => modified,
+                        Some(prev) => prev.max(modified),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(CacheStatus {
+        cache_dir: cache_dir.to_path_buf(),
+        file_count,
+        total_bytes,
+        oldest,
+        newest,
+    })
+}
+
+/// キャッシュを削除する。
+///
+/// `older_than_days` が `Some(n)` の場合、最終更新から `n` 日以上経過したファイルのみを削除する。
+/// `None` の場合はすべてのキャッシュファイルを削除する。
+///
+/// キャッシュディレクトリが存在しない場合は何もせずに `0` を返す（エラーにしない）。
+///
+/// 返り値: 削除したファイル数。
+pub fn cache_clear(cache_dir: &Path, older_than_days: Option<u64>) -> std::io::Result<usize> {
+    if !cache_dir.exists() {
+        return Ok(0);
+    }
+
+    let threshold: Option<Duration> = older_than_days.map(|d| Duration::from_secs(d * 86400));
+    let now = SystemTime::now();
+    let mut deleted = 0usize;
+
+    for entry in std::fs::read_dir(cache_dir)? {
+        let entry = entry?;
+        let meta = entry.metadata()?;
+        if !meta.is_file() {
+            continue;
+        }
+
+        let should_delete = match threshold {
+            None => true,
+            Some(min_age) => {
+                let age = meta
+                    .modified()
+                    .ok()
+                    .and_then(|m| now.duration_since(m).ok())
+                    .unwrap_or(Duration::ZERO);
+                age >= min_age
+            }
+        };
+
+        if should_delete {
+            std::fs::remove_file(entry.path())?;
+            deleted += 1;
+        }
+    }
+
+    Ok(deleted)
 }
 
 #[cfg(test)]
@@ -338,6 +468,72 @@ mod tests {
             // 2回目はキャッシュヒット
             assert_eq!(call_count.load(Ordering::SeqCst), 1);
         });
+    }
+
+    // ------------------------------------------------------------------
+    // cache_status / cache_clear のテスト
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn cache_status_empty_dir_returns_zero_files() {
+        let tmp = TempDir::new().unwrap();
+        let status = cache_status(tmp.path()).unwrap();
+        assert_eq!(status.file_count, 0);
+        assert_eq!(status.total_bytes, 0);
+        assert!(status.oldest.is_none());
+        assert!(status.newest.is_none());
+    }
+
+    #[test]
+    fn cache_status_nonexistent_dir_returns_zero_files() {
+        let tmp = TempDir::new().unwrap();
+        let nonexistent = tmp.path().join("no_such_dir");
+        let status = cache_status(&nonexistent).unwrap();
+        assert_eq!(status.file_count, 0);
+        assert_eq!(status.total_bytes, 0);
+    }
+
+    #[test]
+    fn cache_status_counts_files_and_bytes() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("a.json"), b"hello").unwrap();
+        std::fs::write(tmp.path().join("b.json"), b"world!").unwrap();
+        let status = cache_status(tmp.path()).unwrap();
+        assert_eq!(status.file_count, 2);
+        assert_eq!(status.total_bytes, 11); // 5 + 6
+        assert!(status.oldest.is_some());
+        assert!(status.newest.is_some());
+    }
+
+    #[test]
+    fn cache_clear_nonexistent_dir_returns_zero() {
+        let tmp = TempDir::new().unwrap();
+        let nonexistent = tmp.path().join("no_such_dir");
+        let deleted = cache_clear(&nonexistent, None).unwrap();
+        assert_eq!(deleted, 0);
+    }
+
+    #[test]
+    fn cache_clear_all_deletes_all_files() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("a.json"), b"x").unwrap();
+        std::fs::write(tmp.path().join("b.json"), b"y").unwrap();
+        let deleted = cache_clear(tmp.path(), None).unwrap();
+        assert_eq!(deleted, 2);
+        let status = cache_status(tmp.path()).unwrap();
+        assert_eq!(status.file_count, 0);
+    }
+
+    #[test]
+    fn cache_clear_older_than_does_not_delete_fresh_files() {
+        let tmp = TempDir::new().unwrap();
+        // 新しいファイルを作成（現時刻）
+        std::fs::write(tmp.path().join("fresh.json"), b"x").unwrap();
+        // 30日以上古いものだけ削除 → 新しいファイルは残る
+        let deleted = cache_clear(tmp.path(), Some(30)).unwrap();
+        assert_eq!(deleted, 0);
+        let status = cache_status(tmp.path()).unwrap();
+        assert_eq!(status.file_count, 1);
     }
 
     #[test]
