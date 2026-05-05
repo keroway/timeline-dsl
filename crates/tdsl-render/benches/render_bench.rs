@@ -23,7 +23,6 @@ fn make_ir(n: usize) -> TimelineIr {
             unit: "year".into(),
             range: (0, n as i64 * 10),
             calendar: "proleptic_gregorian".into(),
-            color_map: Default::default(),
         },
         lanes: vec![Lane {
             id: "bench".into(),
