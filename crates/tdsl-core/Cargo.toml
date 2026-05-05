@@ -4,14 +4,18 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = ["wikidata"]
+wikidata = ["dep:tdsl-wikidata", "dep:tokio"]
+
 [dependencies]
 tdsl-parser = { path = "../tdsl-parser" }
-tdsl-wikidata = { path = "../tdsl-wikidata" }
+tdsl-wikidata = { path = "../tdsl-wikidata", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 miette.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta = { version = "1", features = ["yaml", "json"] }

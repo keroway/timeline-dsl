@@ -6,17 +6,24 @@ pub mod validate;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "wikidata")]
     use std::collections::HashMap;
 
+    #[cfg(feature = "wikidata")]
     use async_trait::async_trait;
+    #[cfg(feature = "wikidata")]
     use tdsl_wikidata::entity::{DataValue, LabelValue, Snak, Statement, TimeValue};
+    #[cfg(feature = "wikidata")]
     use tdsl_wikidata::{SearchResult, WikidataClient, WikidataEntity, WikidataError};
 
+    #[cfg(feature = "wikidata")]
     struct MockWikidataClient {
         entities: HashMap<String, WikidataEntity>,
         query_results: Vec<String>,
     }
 
+    #[cfg(feature = "wikidata")]
     #[async_trait]
     impl WikidataClient for MockWikidataClient {
         async fn get_entity(
@@ -69,6 +76,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "wikidata")]
     fn make_time(year: i64) -> TimeValue {
         TimeValue {
             time: format!("{year:+05}-01-01T00:00:00Z"),
@@ -77,6 +85,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "wikidata")]
     fn make_time_statement(property: &str, year: i64) -> Statement {
         Statement {
             mainsnak: Snak {
@@ -91,6 +100,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "wikidata")]
     fn make_entity(id: &str, ja_label: &str, start: i64, end: i64) -> WikidataEntity {
         let mut labels = HashMap::new();
         labels.insert(
@@ -393,6 +403,7 @@ mod tests {
         assert_eq!(ir2.sources[0].id, "wd:Q1");
     }
 
+    #[cfg(feature = "wikidata")]
     #[tokio::test]
     async fn lower_with_wikidata_supports_query_import_mapping_multiple_entities() {
         let src = r#"
@@ -445,6 +456,7 @@ mod tests {
         assert!(labels.contains(&"漢"));
     }
 
+    #[cfg(feature = "wikidata")]
     #[tokio::test]
     async fn lower_with_wikidata_keep_manual_skips_conflicting_imported_item() {
         let src = r#"
@@ -487,6 +499,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "wikidata")]
     #[tokio::test]
     async fn lower_with_wikidata_overwrite_imported_replaces_previous_imported_item() {
         let src = r#"
@@ -631,6 +644,7 @@ mod tests {
         assert_eq!(ir.meta.calendar, "proleptic_gregorian");
     }
 
+    #[cfg(feature = "wikidata")]
     #[tokio::test]
     async fn lower_wikidata_entity_without_label_skips_item() {
         // An entity with no label results in empty label → item is skipped
@@ -666,6 +680,7 @@ mod tests {
         assert_eq!(ir.items.len(), 0);
     }
 
+    #[cfg(feature = "wikidata")]
     #[tokio::test]
     async fn lower_wikidata_entity_missing_claim_skips_item() {
         // An entity without P571 (start year) results in None → span not generated
@@ -700,6 +715,7 @@ mod tests {
         assert_eq!(ir.items.len(), 0);
     }
 
+    #[cfg(feature = "wikidata")]
     #[tokio::test]
     async fn lower_with_template_apply_generates_items() {
         let src = r#"
@@ -743,6 +759,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "wikidata")]
     #[tokio::test]
     async fn lower_apply_lane_override_works() {
         let src = r#"
@@ -786,6 +803,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "wikidata")]
     #[tokio::test]
     async fn lower_apply_unknown_template_is_error() {
         let src = r#"
@@ -841,6 +859,7 @@ mod tests {
         assert!(errors.iter().any(|e| matches!(e, error::LoweringError::DuplicateTemplate(_))));
     }
 
+    #[cfg(feature = "wikidata")]
     #[tokio::test]
     async fn eval_map_expr_unknown_accessor_returns_none() {
         // .month のような未対応アクセサは None を返し、アイテムが生成されない

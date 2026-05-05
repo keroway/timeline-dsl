@@ -1,0 +1,16 @@
+{
+  "name": "tdsl-wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "tdsl_wasm_bg.wasm",
+    "tdsl_wasm.js",
+    "tdsl_wasm.d.ts"
+  ],
+  "main": "tdsl_wasm.js",
+  "types": "tdsl_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

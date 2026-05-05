@@ -5,4 +5,4 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-tdsl-core = { path = "../tdsl-core" }
+tdsl-core = { path = "../tdsl-core", default-features = false }
