@@ -234,6 +234,7 @@ enum Commands {
         #[command(subcommand)]
         action: CacheAction,
     },
+
 }
 
 #[derive(Subcommand)]
@@ -1213,10 +1214,12 @@ fn cmd_render(
         None => None,
     };
 
-    let color_map = match color_map_raw {
-        Some(raw) => parse_color_map(raw)?,
-        None => std::collections::HashMap::new(),
-    };
+    let mut color_map = ir.meta.color_map.clone();
+    if let Some(raw) = color_map_raw {
+        for (tag, color) in parse_color_map(raw)? {
+            color_map.insert(tag, color);
+        }
+    }
 
     let opts = tdsl_render::RenderOptions {
         scale,
