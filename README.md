@@ -250,6 +250,8 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 
 - [Getting Started チュートリアル](docs/tutorial.md) — ステップバイステップのハンズオン
 - [DSL 言語仕様](docs/dsl-spec.md) — 文法リファレンス
+- [エラーコードカタログ](docs/error-catalog.md) — エラーメッセージの原因と修正方法
+- [v0→v1 移行ガイド](docs/migration-v0-to-v1.md) — バージョンアップ時の変更点
 
 ## アーキテクチャ
 
@@ -333,6 +335,12 @@ bash scripts/e2e-smoke.sh
 
 ## ライセンス
 
-MIT License
+### このソフトウェア
 
-Wikidataの構造化データは [CC0](https://www.wikidata.org/wiki/Wikidata:Licensing) で提供されており、出典表示なしで自由に利用可能。
+MIT License — 詳細は [LICENSE](./LICENSE) を参照。
+
+### Wikidataから取得したデータ
+
+Wikidataの構造化データは [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) で提供されます。
+`tdsl` でWikidataデータをインポートした場合、そのデータ自体は出典表示なしで自由に利用できます。
+これはこのソフトウェア（MIT）とは独立した条件です。
