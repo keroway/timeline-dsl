@@ -56,6 +56,13 @@ cargo install --git https://github.com/keroway/timeline-dsl tdsl-cli
 
 インストール後は `tdsl` コマンドが直接使えます。
 
+## 関連ドキュメント
+
+- [DSL仕様](docs/dsl-spec.md)
+- [チュートリアル](docs/tutorial.md)
+- [スタイルカスタマイズガイド](docs/styling.md)
+- [WebUI 技術選定](docs/webui-design.md)
+
 ### 基本的な使い方
 
 ```bash
