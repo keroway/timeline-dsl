@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -18,6 +18,7 @@ function App() {
   const [selectedExample, setSelectedExample] = useState<number>(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
 
   // Initialize WASM on mount
   useEffect(() => {
@@ -124,6 +125,20 @@ function App() {
     fileInputRef.current?.click()
   }
 
+  function handlePreviewMouseMove(e: MouseEvent<HTMLDivElement>) {
+    const target = (e.target as Element).closest<HTMLElement>('[data-tdsl-tooltip]')
+    if (target) {
+      const text = target.dataset.tdslTooltip ?? ''
+      setTooltip({ text, x: e.clientX, y: e.clientY })
+    } else {
+      setTooltip(null)
+    }
+  }
+
+  function handlePreviewMouseLeave() {
+    setTooltip(null)
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -226,7 +241,11 @@ function App() {
             }}
           />
         </div>
-        <div className="preview-pane">
+        <div
+          className="preview-pane"
+          onMouseMove={handlePreviewMouseMove}
+          onMouseLeave={handlePreviewMouseLeave}
+        >
           {svgContent ? (
             <div
               className="svg-container"
@@ -260,6 +279,16 @@ function App() {
             ))}
           </ul>
         </aside>
+      )}
+      {tooltip && (
+        <div
+          className="tdsl-tooltip"
+          style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}
+        >
+          {tooltip.text.split('\n').map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </div>
       )}
     </div>
   )
