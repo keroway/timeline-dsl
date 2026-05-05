@@ -14,8 +14,8 @@ governor = "0.8"
 url = "2"
 async-trait = "0.1"
 dirs = "5"
+tempfile = "3"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 wiremock = "0.6"
-tempfile = "3"
