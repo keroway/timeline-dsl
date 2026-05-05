@@ -24,7 +24,7 @@ pkg-url = "{ repo }/releases/download/v{ version }/tdsl-macos-aarch64.tar.gz"
 
 [dependencies]
 tdsl-parser = { path = "../tdsl-parser" }
-tdsl-core = { path = "../tdsl-core" }
+tdsl-core = { path = "../tdsl-core", features = ["wikidata"] }
 tdsl-wikidata = { path = "../tdsl-wikidata" }
 tdsl-render = { path = "../tdsl-render" }
 clap = { version = "4", features = ["derive"] }
