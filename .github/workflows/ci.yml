@@ -27,3 +27,19 @@ jobs:
 
       - name: E2E smoke
         run: bash scripts/e2e-smoke.sh
+
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Unit tests
+        run: cargo test --workspace --all-targets

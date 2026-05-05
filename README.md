@@ -23,6 +23,14 @@
 curl -sSfL https://raw.githubusercontent.com/keroway/timeline-dsl/main/install.sh | sh
 ```
 
+### ワンラインインストール（Windows）
+
+PowerShell で実行します。
+
+```powershell
+irm https://raw.githubusercontent.com/keroway/timeline-dsl/main/install.ps1 | iex
+```
+
 ### Homebrew（macOS / Linux）
 
 ```sh
