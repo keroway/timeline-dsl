@@ -1,3 +1,7 @@
 /target/
 .claude/
 CLAUDE.md.bak
+
+# Playwright テスト成果物
+.playwright-mcp/
+webui-*.png
