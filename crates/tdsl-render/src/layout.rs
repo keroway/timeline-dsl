@@ -33,6 +33,8 @@ pub struct RenderOptions {
     pub custom_css: Option<String>,
     /// Tag-to-color overrides. Key: tag name, Value: CSS color string (e.g. "#cc0000").
     pub color_map: std::collections::HashMap<String, String>,
+    /// Enable interactive mode (zoom, pan, search, legend, detail panel).
+    pub interactive: bool,
 }
 
 impl Default for RenderOptions {
@@ -47,6 +49,7 @@ impl Default for RenderOptions {
             theme: Theme::Default,
             custom_css: None,
             color_map: std::collections::HashMap::new(),
+            interactive: false,
         }
     }
 }

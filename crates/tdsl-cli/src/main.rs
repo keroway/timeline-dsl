@@ -155,6 +155,10 @@ enum Commands {
         #[arg(long)]
         custom_css: Option<PathBuf>,
 
+        /// Enable interactive mode (zoom, pan, search, legend, detail panel)
+        #[arg(long, default_value_t = false)]
+        interactive: bool,
+
         /// Skip Wikidata fetching (only process static items)
         #[arg(long, default_value_t = false)]
         offline: bool,
@@ -390,6 +394,7 @@ fn main() {
             top_margin,
             theme,
             custom_css,
+            interactive,
             offline,
             no_cache,
             cache_ttl,
@@ -404,6 +409,7 @@ fn main() {
             top_margin,
             theme,
             custom_css.as_deref(),
+            interactive,
             offline,
             tdsl_wikidata::CacheOptions {
                 no_cache,
@@ -1191,6 +1197,7 @@ fn cmd_render(
     top_margin: f64,
     theme: ThemeArg,
     custom_css_path: Option<&std::path::Path>,
+    interactive: bool,
     offline: bool,
     cache_opts: tdsl_wikidata::CacheOptions,
     color_map_raw: Option<&str>,
@@ -1219,6 +1226,7 @@ fn cmd_render(
         theme: theme.into_theme(),
         custom_css,
         color_map,
+        interactive,
         ..Default::default()
     };
 
