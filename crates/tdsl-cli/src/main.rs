@@ -166,6 +166,10 @@ enum Commands {
         /// Cache time-to-live in seconds (0 disables caching, default: 86400 = 24h)
         #[arg(long, default_value_t = 86400u64)]
         cache_ttl: u64,
+
+        /// Tag-to-color mapping (e.g. "war=#cc0000,dynasty=#3366cc")
+        #[arg(long)]
+        color_map: Option<String>,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -389,6 +393,7 @@ fn main() {
             offline,
             no_cache,
             cache_ttl,
+            color_map,
         } => cmd_render(
             &input,
             output.as_deref(),
@@ -404,6 +409,7 @@ fn main() {
                 no_cache,
                 ttl: std::time::Duration::from_secs(cache_ttl),
             },
+            color_map.as_deref(),
         ),
         Commands::Init {
             output,
@@ -1152,6 +1158,29 @@ fn escape_tdsl_string(input: &str) -> String {
     input.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+fn parse_color_map(raw: &str) -> Result<std::collections::HashMap<String, String>, String> {
+    let mut map = std::collections::HashMap::new();
+    for pair in raw.split(',') {
+        let pair = pair.trim();
+        if pair.is_empty() {
+            continue;
+        }
+        let (tag, color) = pair
+            .split_once('=')
+            .ok_or_else(|| format!("Invalid color-map entry (expected tag=color): {pair}"))?;
+        let tag = tag.trim().to_string();
+        let color = color.trim().to_string();
+        if !color.starts_with('#') || (color.len() != 4 && color.len() != 7) {
+            eprintln!(
+                "Warning: color '{color}' for tag '{tag}' is not a valid hex color (#RGB or #RRGGBB); skipping"
+            );
+            continue;
+        }
+        map.insert(tag, color);
+    }
+    Ok(map)
+}
+
 fn cmd_render(
     input: &std::path::Path,
     output: Option<&std::path::Path>,
@@ -1164,6 +1193,7 @@ fn cmd_render(
     custom_css_path: Option<&std::path::Path>,
     offline: bool,
     cache_opts: tdsl_wikidata::CacheOptions,
+    color_map_raw: Option<&str>,
 ) -> Result<(), String> {
     let ir = load_ir(input, offline, cache_opts)?;
 
@@ -1176,6 +1206,11 @@ fn cmd_render(
         None => None,
     };
 
+    let color_map = match color_map_raw {
+        Some(raw) => parse_color_map(raw)?,
+        None => std::collections::HashMap::new(),
+    };
+
     let opts = tdsl_render::RenderOptions {
         scale,
         lane_height,
@@ -1183,6 +1218,7 @@ fn cmd_render(
         top_margin,
         theme: theme.into_theme(),
         custom_css,
+        color_map,
         ..Default::default()
     };
 
