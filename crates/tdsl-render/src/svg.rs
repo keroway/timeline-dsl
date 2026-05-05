@@ -42,7 +42,7 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     render_lane_bands(&mut s, layout);
     render_axis(&mut s, layout);
     render_lane_labels(&mut s, layout);
-    render_items(&mut s, layout, &lane_color, &layout.opts.color_map);
+    render_items(&mut s, layout, &lane_color, &layout.opts.color_map, layout.opts.interactive);
 
     writeln!(s, "</svg>").unwrap();
     s
@@ -144,6 +144,7 @@ fn render_items(
     layout: &LayoutModel,
     lane_color: &HashMap<&str, &str>,
     color_map: &HashMap<String, String>,
+    interactive: bool,
 ) {
     for laid in &layout.items {
         match laid {
@@ -161,12 +162,18 @@ fn render_items(
                 let tags = item_tags(item);
                 let fill = resolve_item_color(tags, color_map, lane_id, lane_color);
                 let fill_style = format!("fill:{fill};");
+                let data_attrs = if interactive {
+                    build_data_attrs(item, lane_id)
+                } else {
+                    String::new()
+                };
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-span" tabindex="0" data-tdsl-tooltip="{tip_attr}"><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect><text class="tdsl-item-label" x="{tx}" y="{ty}" dominant-baseline="middle">{label}</text></g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-span" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect><text class="tdsl-item-label" x="{tx}" y="{ty}" dominant-baseline="middle">{label}</text></g>"#,
                     tip = tip,
                     tip_attr = tip_attr,
                     fill_style = fill_style,
+                    data_attrs = data_attrs,
                     x = fmt_f(*x),
                     y = fmt_f(*y),
                     w = fmt_f(*width),
@@ -191,12 +198,18 @@ fn render_items(
                 let tags = item_tags(item);
                 let fill = resolve_item_color(tags, color_map, lane_id, lane_color);
                 let fill_style = format!("fill:{fill};fill-opacity:0.75;");
+                let data_attrs = if interactive {
+                    build_data_attrs(item, lane_id)
+                } else {
+                    String::new()
+                };
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-event-range" tabindex="0" data-tdsl-tooltip="{tip_attr}"><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-event-range" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
                     tip = tip,
                     tip_attr = tip_attr,
                     fill_style = fill_style,
+                    data_attrs = data_attrs,
                     x = fmt_f(*x),
                     y = fmt_f(*y),
                     w = fmt_f(*width),
@@ -223,12 +236,18 @@ fn render_items(
                 let hit_w = 16.0;
                 let hit_y = *y_top;
                 let hit_h = (y_bottom - y_top).max(20.0);
+                let data_attrs = if interactive {
+                    build_data_attrs(item, lane_id)
+                } else {
+                    String::new()
+                };
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-event" tabindex="0" data-tdsl-tooltip="{tip_attr}"><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"><title>{tip}</title></line><circle class="tdsl-event-dot" style="{dot_style}" cx="{x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-event" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"><title>{tip}</title></line><circle class="tdsl-event-dot" style="{dot_style}" cx="{x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
                     tip = tip,
                     tip_attr = tip_attr,
                     dot_style = dot_style,
+                    data_attrs = data_attrs,
                     hx = fmt_f(hit_x),
                     hy = fmt_f(hit_y),
                     hw = fmt_f(hit_w),
@@ -254,6 +273,27 @@ fn item_tags(item: &Item) -> &[String] {
     match item {
         Item::Span { tags, .. } | Item::Event { tags, .. } | Item::EventRange { tags, .. } => tags,
     }
+}
+
+/// Build data-* attributes for interactive mode as a string fragment (leading space included).
+fn build_data_attrs(item: &Item, lane_id: &str) -> String {
+    let (label, type_str, source) = match item {
+        Item::Span { label, source, .. } => (label.as_str(), "span", source.as_deref()),
+        Item::Event { label, source, .. } => (label.as_str(), "event", source.as_deref()),
+        Item::EventRange { label, source, .. } => {
+            (label.as_str(), "event_range", source.as_deref())
+        }
+    };
+    let mut attrs = format!(
+        r#" data-label="{}" data-type="{}" data-lane="{}""#,
+        escape_xml_attr(label),
+        type_str,
+        escape_xml_attr(lane_id),
+    );
+    if let Some(src) = source {
+        attrs.push_str(&format!(r#" data-source="{}""#, escape_xml_attr(src)));
+    }
+    attrs
 }
 
 fn item_label(item: &Item) -> &str {

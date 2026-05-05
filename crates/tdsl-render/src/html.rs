@@ -294,6 +294,367 @@ fn escape_html(s: &str) -> String {
     out
 }
 
+/// Wrap a pre-rendered SVG string in an interactive standalone HTML document.
+///
+/// The interactive document adds zoom/pan, search filtering, click detail panel,
+/// and lane legend checkboxes — all via inline JS/CSS with no external CDN deps.
+pub fn wrap_html_interactive(
+    svg_body: &str,
+    title: &str,
+    opts: &crate::layout::RenderOptions,
+    lanes: &[tdsl_core::ir::Lane],
+) -> String {
+    use crate::layout::Theme;
+
+    let theme_css = match opts.theme {
+        Theme::Default => "",
+        Theme::Dark => DARK_THEME_CSS,
+        Theme::Print => PRINT_THEME_CSS,
+        Theme::Pastel => PASTEL_THEME_CSS,
+    };
+
+    let custom_css_block = match &opts.custom_css {
+        Some(css) => format!("\n<style>\n{css}\n</style>"),
+        None => String::new(),
+    };
+
+    // Generate legend HTML from lane data.
+    let mut legend_html = String::new();
+    for lane in lanes {
+        let lane_id_escaped = escape_html(&lane.id);
+        let lane_label_escaped = escape_html(&lane.label);
+        legend_html.push_str(&format!(
+            r#"<label class="tdsl-legend-item"><input type="checkbox" checked data-lane-toggle="{lane_id_escaped}"> {lane_label_escaped}</label>"#,
+        ));
+    }
+
+    format!(
+        r#"<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<style>
+{css}
+{theme_css}{interactive_css}</style>{custom_css_block}
+</head>
+<body>
+<div id="tdsl-app">
+  <header id="tdsl-header">
+    <h1>{title}</h1>
+    <input id="tdsl-search" type="search" placeholder="ラベル検索..." autocomplete="off">
+  </header>
+  <div id="tdsl-main">
+    <div id="tdsl-legend">
+      {legend_html}
+    </div>
+    <div id="tdsl-canvas">
+      {svg}
+    </div>
+    <div id="tdsl-detail" hidden>
+      <button id="tdsl-detail-close" aria-label="閉じる">&times;</button>
+      <div id="tdsl-detail-content"></div>
+    </div>
+  </div>
+</div>
+<div id="tdsl-tooltip" class="tdsl-tooltip" role="tooltip" hidden aria-hidden="true"></div>
+<script>
+{js}
+</script>
+</body>
+</html>
+"#,
+        title = escape_html(title),
+        css = EMBEDDED_CSS,
+        theme_css = theme_css,
+        interactive_css = INTERACTIVE_CSS,
+        custom_css_block = custom_css_block,
+        legend_html = legend_html,
+        svg = svg_body,
+        js = INTERACTIVE_JS,
+    )
+}
+
+const INTERACTIVE_CSS: &str = r#"
+/* Interactive mode layout */
+#tdsl-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+}
+#tdsl-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e5e5e5;
+  flex-shrink: 0;
+}
+#tdsl-header h1 {
+  margin: 0;
+  font-size: 16px;
+}
+#tdsl-search {
+  padding: 5px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  width: 200px;
+  outline-offset: 2px;
+}
+#tdsl-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+#tdsl-legend {
+  width: 160px;
+  flex-shrink: 0;
+  padding: 12px 8px;
+  border-right: 1px solid #e5e5e5;
+  overflow-y: auto;
+  background: #fafafa;
+  font-size: 12px;
+}
+.tdsl-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  cursor: pointer;
+  user-select: none;
+}
+#tdsl-canvas {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  cursor: grab;
+}
+#tdsl-canvas.dragging {
+  cursor: grabbing;
+}
+#tdsl-canvas svg {
+  display: block;
+}
+#tdsl-detail {
+  width: 240px;
+  flex-shrink: 0;
+  padding: 12px;
+  border-left: 1px solid #e5e5e5;
+  background: #fafafa;
+  font-size: 13px;
+  overflow-y: auto;
+  position: relative;
+}
+#tdsl-detail[hidden] {
+  display: none;
+}
+#tdsl-detail-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #666;
+  line-height: 1;
+  padding: 2px 6px;
+}
+#tdsl-detail-close:hover {
+  color: #111;
+}
+#tdsl-detail-content {
+  margin-top: 4px;
+}
+#tdsl-detail-content dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+}
+#tdsl-detail-content dt {
+  font-weight: 600;
+  color: #555;
+  white-space: nowrap;
+}
+#tdsl-detail-content dd {
+  margin: 0;
+  word-break: break-all;
+}
+/* Search highlight / dim */
+.tdsl-item.tdsl-search-dim {
+  opacity: 0.15;
+}
+.tdsl-item.tdsl-search-match .tdsl-span,
+.tdsl-item.tdsl-search-match .tdsl-event-range,
+.tdsl-item.tdsl-search-match .tdsl-event-dot {
+  stroke: #f5c000;
+  stroke-width: 2.5;
+}
+/* Lane hide */
+.tdsl-item.tdsl-lane-hidden {
+  display: none;
+}
+"#;
+
+const INTERACTIVE_JS: &str = r#"(() => {
+  // ── Tooltip (reuse existing logic) ──────────────────────────────────────
+  const tooltip = document.getElementById("tdsl-tooltip");
+  const items = document.querySelectorAll(".tdsl-item[data-tdsl-tooltip]");
+  if (tooltip && items.length) {
+    const GAP = 12, PAD = 8;
+    const hide = () => { tooltip.hidden = true; tooltip.setAttribute("aria-hidden","true"); };
+    const show = (text) => {
+      if (!text) return;
+      tooltip.textContent = text;
+      tooltip.hidden = false;
+      tooltip.setAttribute("aria-hidden","false");
+    };
+    const move = (cx, cy) => {
+      if (tooltip.hidden) return;
+      const r = tooltip.getBoundingClientRect();
+      let x = cx + GAP, y = cy + GAP;
+      if (x + r.width  > window.innerWidth  - PAD) x = Math.max(PAD, cx - r.width  - GAP);
+      if (y + r.height > window.innerHeight - PAD) y = Math.max(PAD, cy - r.height - GAP);
+      tooltip.style.left = x + "px";
+      tooltip.style.top  = y + "px";
+    };
+    const showAt = (el) => {
+      const text = el.getAttribute("data-tdsl-tooltip");
+      if (!text) return;
+      show(text);
+      const box = el.getBoundingClientRect();
+      move(box.left + box.width / 2, box.top + box.height / 2);
+    };
+    for (const el of items) {
+      el.addEventListener("pointerenter", (e) => { show(el.getAttribute("data-tdsl-tooltip")); move(e.clientX, e.clientY); });
+      el.addEventListener("pointermove",  (e) => move(e.clientX, e.clientY));
+      el.addEventListener("pointerleave", hide);
+      el.addEventListener("focus", () => showAt(el));
+      el.addEventListener("blur",  hide);
+    }
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
+    window.addEventListener("scroll", hide, { passive: true });
+    window.addEventListener("resize", hide);
+  }
+
+  // ── Pan (drag) ──────────────────────────────────────────────────────────
+  const canvas = document.getElementById("tdsl-canvas");
+  if (canvas) {
+    let dragging = false;
+    let startX = 0, startScrollLeft = 0;
+    canvas.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      dragging = true;
+      startX = e.clientX;
+      startScrollLeft = canvas.scrollLeft;
+      canvas.classList.add("dragging");
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      canvas.scrollLeft = startScrollLeft - dx;
+    });
+    document.addEventListener("mouseup", () => {
+      if (dragging) {
+        dragging = false;
+        canvas.classList.remove("dragging");
+      }
+    });
+  }
+
+  // ── Search filter ────────────────────────────────────────────────────────
+  const searchInput = document.getElementById("tdsl-search");
+  const allItems = Array.from(document.querySelectorAll(".tdsl-item[data-label]"));
+  if (searchInput && allItems.length) {
+    searchInput.addEventListener("input", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      for (const el of allItems) {
+        const label = (el.getAttribute("data-label") || "").toLowerCase();
+        if (!q) {
+          el.classList.remove("tdsl-search-dim", "tdsl-search-match");
+        } else if (label.includes(q)) {
+          el.classList.remove("tdsl-search-dim");
+          el.classList.add("tdsl-search-match");
+        } else {
+          el.classList.remove("tdsl-search-match");
+          el.classList.add("tdsl-search-dim");
+        }
+      }
+    });
+  }
+
+  // ── Click detail panel ───────────────────────────────────────────────────
+  const detail = document.getElementById("tdsl-detail");
+  const detailContent = document.getElementById("tdsl-detail-content");
+  const detailClose = document.getElementById("tdsl-detail-close");
+  if (detail && detailContent && allItems.length) {
+    const showDetail = (el) => {
+      const label  = el.getAttribute("data-label")  || "";
+      const type_  = el.getAttribute("data-type")   || "";
+      const lane   = el.getAttribute("data-lane")   || "";
+      const source = el.getAttribute("data-source") || "";
+      let html = "<dl>";
+      if (label)  html += "<dt>ラベル</dt><dd>" + escapeHtml(label) + "</dd>";
+      if (type_)  html += "<dt>種別</dt><dd>"   + escapeHtml(type_) + "</dd>";
+      if (lane)   html += "<dt>レーン</dt><dd>"  + escapeHtml(lane)  + "</dd>";
+      if (source) {
+        const wd = source.match(/^wd:(Q\d+)$/);
+        if (wd) {
+          html += "<dt>出典</dt><dd><a href='https://www.wikidata.org/wiki/" + wd[1] + "' target='_blank' rel='noopener'>" + escapeHtml(source) + "</a></dd>";
+        } else {
+          html += "<dt>出典</dt><dd>" + escapeHtml(source) + "</dd>";
+        }
+      }
+      html += "</dl>";
+      detailContent.innerHTML = html;
+      detail.hidden = false;
+    };
+    for (const el of allItems) {
+      el.addEventListener("click", () => showDetail(el));
+    }
+    if (detailClose) {
+      detailClose.addEventListener("click", () => { detail.hidden = true; });
+    }
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") detail.hidden = true; });
+  }
+
+  // ── Legend toggles ───────────────────────────────────────────────────────
+  const laneToggles = document.querySelectorAll("[data-lane-toggle]");
+  if (laneToggles.length) {
+    const laneItemMap = {};
+    for (const el of allItems) {
+      const l = el.getAttribute("data-lane") || "";
+      if (!laneItemMap[l]) laneItemMap[l] = [];
+      laneItemMap[l].push(el);
+    }
+    for (const cb of laneToggles) {
+      cb.addEventListener("change", () => {
+        const laneId = cb.getAttribute("data-lane-toggle");
+        const visible = cb.checked;
+        for (const el of (laneItemMap[laneId] || [])) {
+          el.classList.toggle("tdsl-lane-hidden", !visible);
+        }
+      });
+    }
+  }
+
+  // ── Utility ─────────────────────────────────────────────────────────────
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+})();"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
