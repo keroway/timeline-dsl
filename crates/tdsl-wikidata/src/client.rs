@@ -69,6 +69,12 @@ impl HttpWikidataClient {
     }
 }
 
+impl Default for HttpWikidataClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 const MAX_RETRIES: u32 = 3;
 
 impl HttpWikidataClient {
