@@ -3,17 +3,22 @@
 [![CI](https://github.com/keroway/timeline-dsl/actions/workflows/ci.yml/badge.svg)](https://github.com/keroway/timeline-dsl/actions/workflows/ci.yml)
 [![Release](https://github.com/keroway/timeline-dsl/actions/workflows/release.yml/badge.svg)](https://github.com/keroway/timeline-dsl/actions/workflows/release.yml)
 
-年表特化のドメイン固有言語（DSL）コンパイラ。テキストベースで年表を定義し、Wikidataから構造化データを自動インポートできる。
+年表特化のドメイン固有言語（DSL）コンパイラ。テキストベースで年表を定義し、WikidataからデータをインポートしてHTML/SVGで可視化できる。
+
+**[WebUI で今すぐ試す →](https://keroway.github.io/timeline-dsl/)**
 
 ## 特徴
 
-- **宣言型DSL** -- C風の構文で年表をテキスト定義。Git管理・差分レビューに最適
-- **Wikidata連携** -- QIDでWikidataからデータを自動取得
-- **JSON IR出力** -- パース結果を正規化JSONに変換。エディタや描画エンジンで利用可能
-- **HTMLレンダリング** -- スタンドアロンHTML + インラインSVGでタイムラインを可視化。ホバーで詳細表示
-- **レーン構造** -- 王朝・人物・国などをレーン（縦軸カテゴリ）で整理
-- **3種の時間要素** -- `span`（存続期間）、`event`（点イベント）、`event_range`（期間イベント）
-- **ライセンス追跡** -- Wikidataデータ(CC0)の出典を自動記録
+- **宣言型DSL** — C風の構文で年表をテキスト定義。Git管理・差分レビューに最適
+- **Wikidata連携** — QIDを指定するだけで歴史データを自動取得。ローカルキャッシュ（24時間TTL）でオフライン利用も可能
+- **インタラクティブHTML出力** — ズーム・パン・検索・凡例・詳細パネルを内蔵したスタンドアロンHTMLを生成
+- **SVG出力** — ベクター形式で書き出し。論文・スライドへの組み込みに
+- **カラーマッピング** — タグ→色の対応を DSL 内または CLI フラグで指定
+- **逆コンパイル** — JSON IRから`.tdsl`ソースを再生成
+- **WebUI** — ブラウザ上でリアルタイム編集・プレビュー（WASM駆動）
+- **レーン構造** — 王朝・人物・国などをレーン（縦軸カテゴリ）で整理
+- **3種の時間要素** — `span`（存続期間）、`event`（点イベント）、`event_range`（期間イベント）
+- **ライセンス追跡** — Wikidataデータ（CC0）の出典を自動記録
 
 ## インストール
 
@@ -38,30 +43,21 @@ brew tap keroway/tap
 brew install tdsl
 ```
 
-### cargo-binstall（Rust開発者向け・高速）
+### cargo-binstall（高速）
 
 ```sh
 cargo binstall tdsl-cli
 ```
 
-[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) を事前にインストールしておく必要があります。プリビルドバイナリを直接ダウンロードするため、ソースからのビルドが不要です。
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) を事前にインストールしておく必要があります。プリビルドバイナリを直接ダウンロードするため、ソースコンパイル不要です。
 
-### cargo でインストール（Rust開発者向け）
+### cargo でインストール
 
 ```sh
 cargo install --git https://github.com/keroway/timeline-dsl tdsl-cli
 ```
 
 ## クイックスタート
-
-インストール後は `tdsl` コマンドが直接使えます。
-
-## 関連ドキュメント
-
-- [DSL仕様](docs/dsl-spec.md)
-- [チュートリアル](docs/tutorial.md)
-- [スタイルカスタマイズガイド](docs/styling.md)
-- [WebUI 技術選定](docs/webui-design.md)
 
 ### 基本的な使い方
 
@@ -72,10 +68,20 @@ tdsl build examples/china_dynasties.tdsl --pretty
 # 構文・意味チェック
 tdsl check examples/china_dynasties.tdsl
 
+# スタンドアロンHTMLにレンダリング（ブラウザで開くだけ）
+tdsl render examples/china_dynasties.tdsl --output china.html
+open china.html
+
+# インタラクティブHTML（ズーム・パン・検索・詳細パネル付き）
+tdsl render examples/china_dynasties.tdsl --interactive --output china.html
+
+# SVG形式で出力
+tdsl render examples/china_dynasties.tdsl --format svg --output china.svg
+
 # Wikidata連携つきコンパイル
 tdsl build examples/china_with_import.tdsl --pretty
 
-# オフラインモード（Wikidataアクセスなし）
+# オフラインモード（キャッシュのみ使用）
 tdsl build examples/china_with_import.tdsl --offline --pretty
 
 # ASTダンプ（デバッグ用）
@@ -87,27 +93,14 @@ tdsl fetch Q7209 --lang ja,en
 # Wikipedia URL から QID を解決
 tdsl resolve "https://ja.wikipedia.org/wiki/漢" --lang ja,en
 
-# スタンドアロンHTMLにレンダリング（ブラウザで開くだけ）
-tdsl render examples/china_dynasties.tdsl --output china.html
-open china.html
+# JSON IRから.tdslソースを逆コンパイル
+tdsl decompile output.json --output restored.tdsl
 
-# スケールを大きくして描画
-tdsl render examples/china_dynasties.tdsl --scale 5 --output china.html
+# キャッシュの状態を確認
+tdsl cache status
 
-# 手作業向けテンプレートを生成
-tdsl init --output /tmp/manual.tdsl --timeline "架空世界年表" --range-start 1000 --range-end 1300 --lanes "王国:kingdom,事件:incidents"
-
-# CSVから item 定義を生成（stdout）
-tdsl import-csv examples/fictional_empire_items.csv
-
-# CSVから item 定義を既存ファイルへ追記
-tdsl import-csv examples/fictional_empire_items.csv --append /tmp/manual.tdsl
-
-# 品質チェック（テキスト表示）
-tdsl lint /tmp/manual.tdsl
-
-# 自動修正付き品質チェック（JSON表示）
-tdsl lint /tmp/manual.tdsl --fix --format json
+# 古いキャッシュエントリを削除（7日以上）
+tdsl cache clear --older-than 7
 ```
 
 ### 最短フロー（Wikidata起点）
@@ -162,7 +155,7 @@ tdsl render /tmp/manual.tdsl --output /tmp/manual.html
 
 ### timeline ブロック
 
-タイトル・単位・表示範囲・暦法を宣言する。
+タイトル・単位・表示範囲・暦法・カラーマッピングを宣言する。
 
 ```
 timeline "中国王朝年表" {
@@ -170,6 +163,10 @@ timeline "中国王朝年表" {
     unit year;
     range -500..2000;
     calendar proleptic_gregorian;
+    color_map {
+        dynasty: "#3366cc";
+        war:     "#cc0000";
+    }
 }
 ```
 
@@ -205,6 +202,12 @@ import wikidata as wd {
     entity Q7183 as qin_dynasty;
     entity Q7209 as han_dynasty;
     policy merge_by_source;
+    // フィールド単位のマージ戦略（任意）
+    policy field_priority {
+        label: manual;    // ラベルは手動定義を優先
+        time:  wikidata;  // 時刻はWikidataを優先
+        tags:  merge;     // タグは両方をマージ
+    }
 }
 ```
 
@@ -222,10 +225,26 @@ map wd.han_dynasty to span {
 }
 ```
 
-> `source` はMVP では自動付与（`wd:<entity_id>`）。`map` ブロック内での明示指定は不要。
-> `policy` はID衝突時の挙動を切り替える:
-> `merge_by_source` は衝突をエラー扱い、`overwrite_imported` は既存 imported 項目のみ置換、
-> `keep_manual` は既存項目（主に手動定義）を優先して imported 側をスキップ。
+### template / apply 構文
+
+共通のマッピングパターンをテンプレート化して複数のインポートに再利用できる。
+
+```
+template "王朝スパン" as dynasty_span to span {
+    start claim(P571).year;
+    end claim(P576).year;
+    label label@ja ?? label@en;
+}
+
+apply dynasty_span to wd {
+    lane han;
+}
+```
+
+> `source` はインポートされたアイテムに `wd:<entity_id>` として自動付与されます。`map` ブロック内での明示指定は不要です。
+> `policy` はID衝突時の挙動を切り替えます:
+> `merge_by_source` は衝突をエラー扱い、`overwrite_imported` は既存のインポート済み項目のみ置換、
+> `keep_manual` は既存項目（手動定義）を優先してインポート側をスキップします。
 
 ## サンプルファイル
 
@@ -233,6 +252,7 @@ map wd.han_dynasty to span {
 |---|---|
 | `examples/china_dynasties.tdsl` | 静的定義のみ。秦・漢・三国の年表 |
 | `examples/china_with_import.tdsl` | Wikidata連携つき。秦・漢をQIDからインポート |
+| `examples/template_apply_example.tdsl` | template / apply 構文のサンプル |
 | `examples/fictional_empire.tdsl` | 架空世界向けの手作業年表サンプル |
 | `examples/fictional_empire_items.csv` | `import-csv` 用の入力CSVサンプル |
 | `examples/japanese_history.tdsl` | 日本史（奈良〜江戸）。複数lane・静的定義 |
@@ -244,18 +264,17 @@ map wd.han_dynasty to span {
 
 ### VS Code 構文ハイライト
 
-`editors/vscode/` に VS Code 拡張があります。`.tdsl` ファイルのキーワード・文字列・コメント・QID などを色分けします。
+`editors/vscode/` に VS Code 拡張があります。`.tdsl` ファイルのキーワード・文字列・コメント・QIDなどを色分けします。
 
 **インストール方法（手動）:**
 
 ```bash
-# プロジェクトルートから
 cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 # VS Code を再起動
 ```
 
 ハイライト対象:
-- キーワード: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`
+- キーワード: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`, `color_map`
 - 文字列リテラル（ダブルクォート）
 - コメント（`//` と `/* */`）
 - Wikidata QID（`Q123`）・プロパティID（`P569`）・参照（`wd:Q123`）
@@ -265,7 +284,7 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 
 `tdsl lint <file> [--fix] [--format text|json]`
 
-- 初期ルール: 未定義lane参照 / 重複id / `start > end` / 空label / タグの空要素・重複
+- 検出ルール: 未定義lane参照 / 重複id / `start > end` / 空label / タグの空要素・重複
 - `--fix` 対応: タグ重複除去・空タグ除去 / `start,end` 入れ替え / `id` 未設定時の安定ID生成
 - `--format json` はCI連携向けに issue 一覧と `ok` フラグを出力
 
@@ -276,6 +295,7 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 - [スタイルカスタマイズガイド](docs/styling.md) — `--theme` / `--custom-css` によるCSSカスタマイズのリファレンス
 - [エラーコードカタログ](docs/error-catalog.md) — エラーメッセージの原因と修正方法
 - [v0→v1 移行ガイド](docs/migration-v0-to-v1.md) — バージョンアップ時の変更点
+- [WebUI 技術選定](docs/webui-design.md) — WASM + 静的サイト構成の設計記録
 
 ## アーキテクチャ
 
@@ -283,19 +303,22 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 .tdsl ファイル
     |
     v
-[tdsl-parser]  PEG文法(pest) → AST
+[tdsl-parser]   PEG文法(pest) → AST
     |
     v
-[tdsl-core]    AST → IR変換（4パスパイプライン）
+[tdsl-core]     AST → IR変換（4パスパイプライン）
     |               Pass 1: timeline/lane 宣言の収集
     |               Pass 2: 静的アイテムの変換
     |               Pass 3: Wikidataインポート解決
     |               Pass 4: mapブロックの適用
-    v
-[tdsl-wikidata] Wikidata APIクライアント
+    |
+[tdsl-wikidata] Wikidata APIクライアント（キャッシュ付き）
     |
     v
 JSON IR 出力
+    |
+    +--[tdsl-render]--> HTML / SVG
+    +--[tdsl-wasm]  --> WebUI (WASM facade)
 ```
 
 ### クレート構成
@@ -303,10 +326,11 @@ JSON IR 出力
 | クレート | 役割 |
 |---|---|
 | `tdsl-parser` | PEG文法定義とAST構築 |
-| `tdsl-core` | IR変換（lowering）・バリデーション |
-| `tdsl-wikidata` | Wikidata HTTPクライアント・エンティティモデル |
-| `tdsl-render` | IR → スタンドアロンHTML（インラインSVG）レンダラ |
-| `tdsl-cli` | CLIバイナリ（build / check / ast / fetch / search / inspect / resolve / scaffold / init / import-csv / render / lint） |
+| `tdsl-core` | IR変換（lowering）・バリデーション・逆コンパイル |
+| `tdsl-wikidata` | Wikidata HTTPクライアント・エンティティモデル・キャッシュ |
+| `tdsl-render` | IR → HTML（静的・インタラクティブ）/ SVG レンダラ |
+| `tdsl-wasm` | WebUI向けWASM facade（`wasm-bindgen`） |
+| `tdsl-cli` | CLIバイナリ（全サブコマンド） |
 
 ## IR (中間表現) の構造
 
@@ -318,7 +342,8 @@ JSON IR 出力
     "title": "中国王朝年表",
     "unit": "year",
     "range": [-500, 2000],
-    "calendar": "proleptic_gregorian"
+    "calendar": "proleptic_gregorian",
+    "color_map": { "dynasty": "#3366cc", "war": "#cc0000" }
   },
   "lanes": [
     {"id": "han", "label": "漢", "kind": "dynasty", "order": 20}
@@ -355,6 +380,9 @@ cargo test --workspace
 
 # E2Eスモーク（CIと同じ）
 bash scripts/e2e-smoke.sh
+
+# ベンチマーク
+cargo bench --workspace
 ```
 
 ## ライセンス
