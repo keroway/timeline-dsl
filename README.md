@@ -5,7 +5,7 @@
 
 年表特化のドメイン固有言語（DSL）コンパイラ。テキストベースで年表を定義し、WikidataからデータをインポートしてHTML/SVGで可視化できる。
 
-**[WebUI で今すぐ試す →](https://keroway.github.io/timeline-dsl/)**
+**[ランディングページ →](https://timeline-dsl-lp.pages.dev/)** | **[WebUI で今すぐ試す →](https://keroway.github.io/timeline-dsl/)**
 
 ## 特徴
 
