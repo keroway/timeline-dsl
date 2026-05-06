@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, type CSSProperties, type MouseEvent } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -9,6 +9,8 @@ import './App.css'
 
 const DEBOUNCE_MS = 500
 
+type ColorScheme = 'dark' | 'light'
+
 function App() {
   const [source, setSource] = useState<string>(EXAMPLES[0].source)
   const [svgContent, setSvgContent] = useState<string>('')
@@ -16,6 +18,8 @@ function App() {
   const [wasmReady, setWasmReady] = useState(false)
   const [wasmError, setWasmError] = useState<string | null>(null)
   const [selectedExample, setSelectedExample] = useState<number>(0)
+  const [fontSize, setFontSize] = useState<number>(14)
+  const [colorScheme, setColorScheme] = useState<ColorScheme>('dark')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
@@ -43,7 +47,6 @@ function App() {
           const svg = renderSvg(src)
           setSvgContent(svg)
         } catch (e: unknown) {
-          // SVG rendering failed — keep previous preview
           const msg = e instanceof Error ? e.message : String(e)
           setDiagnostics((prev) => [
             ...prev,
@@ -82,6 +85,14 @@ function App() {
     const idx = parseInt(e.target.value, 10)
     setSelectedExample(idx)
     setSource(EXAMPLES[idx].source)
+  }
+
+  function handleFontSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setFontSize(parseInt(e.target.value, 10))
+  }
+
+  function toggleColorScheme() {
+    setColorScheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
   }
 
   function downloadTdsl() {
@@ -155,14 +166,18 @@ function App() {
   const errorCount = diagnostics.filter((d) => d.severity === 'error').length
   const warnCount = diagnostics.filter((d) => d.severity === 'warning').length
 
+  const appStyle: CSSProperties = {
+    '--editor-font-size': `${fontSize}px`,
+  } as CSSProperties
+
   return (
-    <div className="app">
+    <div className="app" data-theme={colorScheme} style={appStyle}>
       {/* Header / Toolbar */}
       <header className="toolbar">
         <div className="toolbar-left">
           <span className="app-title">Timeline DSL Editor</span>
           <select
-            className="example-select"
+            className="toolbar-select"
             value={selectedExample}
             onChange={handleExampleChange}
           >
@@ -172,6 +187,26 @@ function App() {
               </option>
             ))}
           </select>
+          <div className="toolbar-divider" />
+          <select
+            className="toolbar-select"
+            value={fontSize}
+            onChange={handleFontSizeChange}
+            title="フォントサイズ"
+          >
+            <option value={12}>12px</option>
+            <option value={13}>13px</option>
+            <option value={14}>14px</option>
+            <option value={16}>16px</option>
+            <option value={18}>18px</option>
+          </select>
+          <button
+            className="btn btn-theme"
+            onClick={toggleColorScheme}
+            title={colorScheme === 'dark' ? 'ライトモードに切替' : 'ダークモードに切替'}
+          >
+            {colorScheme === 'dark' ? 'ライト' : 'ダーク'}
+          </button>
         </div>
         <div className="toolbar-right">
           <a
@@ -247,7 +282,7 @@ function App() {
           <CodeMirror
             value={source}
             height="100%"
-            theme={oneDark}
+            theme={colorScheme === 'dark' ? oneDark : 'light'}
             extensions={[markdown()]}
             onChange={handleEditorChange}
             basicSetup={{
