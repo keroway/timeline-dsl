@@ -3,7 +3,14 @@
 
 /**
  * Check TDSL source and return diagnostics as JSON.
- * Returns a JSON array of diagnostic objects with `severity`, `message`, `line`, `col`.
+ *
+ * Returns a JSON array of diagnostic objects: `[{severity, message, line, col}]`.
+ * `severity` is `"error"` or `"warning"`. `line`/`col` are 0-indexed.
+ *
+ * **Note on `import` blocks**: `import wikidata` blocks are not resolved in the browser
+ * (no network access). Unresolved imports are **silently skipped** — they produce no
+ * diagnostics, but the resulting IR / SVG will omit those items. Use static `span`,
+ * `event`, and `event_range` statements for content that must render in the browser.
  */
 export function check_source(source: string): string;
 
@@ -26,9 +33,11 @@ export function render_html_from_source(source: string): string;
 
 /**
  * Render SVG from TDSL source (static items only).
+ * `scale` controls pixels-per-year. Pass `0.0` (or negative) to auto-calculate
+ * from the IR's `meta.range` (clamped to `0.5..=8.0`).
  * Returns Ok(svg_string) or Err(error_message).
  */
-export function render_svg_from_source(source: string): string;
+export function render_svg_from_source(source: string, scale: number): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -37,7 +46,7 @@ export interface InitOutput {
     readonly check_source: (a: number, b: number, c: number) => void;
     readonly compile_to_ir: (a: number, b: number, c: number) => void;
     readonly render_html_from_source: (a: number, b: number, c: number) => void;
-    readonly render_svg_from_source: (a: number, b: number, c: number) => void;
+    readonly render_svg_from_source: (a: number, b: number, c: number, d: number) => void;
     readonly main: () => void;
     readonly __wbindgen_export: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export2: (a: number, b: number) => number;

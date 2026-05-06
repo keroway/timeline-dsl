@@ -24,15 +24,25 @@ pub fn compile_to_ir(source: &str) -> Result<String, JsValue> {
 }
 
 /// Render SVG from TDSL source (static items only).
+/// `scale` controls pixels-per-year. Pass `0.0` (or negative) to auto-calculate
+/// from the IR's `meta.range` (clamped to `0.5..=8.0`).
 /// Returns Ok(svg_string) or Err(error_message).
 #[wasm_bindgen]
-pub fn render_svg_from_source(source: &str) -> Result<String, JsValue> {
+pub fn render_svg_from_source(source: &str, scale: f64) -> Result<String, JsValue> {
     let file = tdsl_parser::parse(source).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let ir = lower_static(&file).map_err(|errors| {
         let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
         JsValue::from_str(&msgs.join("\n"))
     })?;
-    let svg = render_svg_only(&ir, RenderOptions::default());
+    let computed_scale = if scale > 0.0 {
+        scale
+    } else {
+        let range = ir.meta.range;
+        let span = (range.1 - range.0).unsigned_abs().max(1) as f64;
+        let auto_scale = 1000.0 / span;
+        auto_scale.clamp(0.5, 8.0)
+    };
+    let svg = render_svg_only(&ir, RenderOptions { scale: computed_scale, ..RenderOptions::default() });
     Ok(svg)
 }
 
