@@ -15,7 +15,7 @@
 - **SVG出力** — ベクター形式で書き出し。論文・スライドへの組み込みに
 - **カラーマッピング** — タグ→色の対応を DSL 内または CLI フラグで指定
 - **逆コンパイル** — JSON IRから`.tdsl`ソースを再生成
-- **WebUI** — ブラウザ上でリアルタイム編集・プレビュー（WASM駆動）
+- **WebUI** — ブラウザ上でリアルタイム編集・プレビュー（WASM駆動）。フォントサイズ・ライト/ダークテーマ選択対応
 - **レーン構造** — 王朝・人物・国などをレーン（縦軸カテゴリ）で整理
 - **3種の時間要素** — `span`（存続期間）、`event`（点イベント）、`event_range`（期間イベント）
 - **ライセンス追跡** — Wikidataデータ（CC0）の出典を自動記録
@@ -95,6 +95,12 @@ tdsl resolve "https://ja.wikipedia.org/wiki/漢" --lang ja,en
 
 # JSON IRから.tdslソースを逆コンパイル
 tdsl decompile output.json --output restored.tdsl
+
+# 複数ファイルをまとめてコンパイル（ファイル順にマージ）
+tdsl build part1.tdsl part2.tdsl --pretty
+
+# 複数ファイルを専用マージコマンドで結合
+tdsl merge base.tdsl extensions.tdsl --output merged.json --pretty
 
 # キャッシュの状態を確認
 tdsl cache status
@@ -290,6 +296,20 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 - Wikidata QID（`Q123`）・プロパティID（`P569`）・参照（`wd:Q123`）
 - `claim(P571).year` 式、`label@ja` 式
 
+## ファイルのマージ
+
+複数の `.tdsl` ファイルを 1 つの IR に統合できます。
+
+```bash
+# tdsl build で複数ファイルを指定（ファイル順にマージ）
+tdsl build base.tdsl additions.tdsl --pretty
+
+# tdsl merge コマンドで明示的にマージ
+tdsl merge base.tdsl additions.tdsl --output merged.json --pretty
+```
+
+最初のファイルの `timeline` メタ（title / range / calendar）が優先されます。`lane` は全ファイルから収集され、`item` は重複 ID を検出しながら順に追加されます。
+
 ## Lint
 
 `tdsl lint <file> [--fix] [--format text|json]`
@@ -297,6 +317,24 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 - 検出ルール: 未定義lane参照 / 重複id / `start > end` / 空label / タグの空要素・重複
 - `--fix` 対応: タグ重複除去・空タグ除去 / `start,end` 入れ替え / `id` 未設定時の安定ID生成
 - `--format json` はCI連携向けに issue 一覧と `ok` フラグを出力
+
+## WebUI
+
+**[今すぐブラウザで試す →](https://keroway.github.io/timeline-dsl/)**
+
+WASM 駆動のブラウザ内エディタです。インストール不要でタイムラインの作成・プレビューができます。
+
+### 主な機能
+
+- **リアルタイムプレビュー**: `.tdsl` を編集するたびに SVG が即時更新される（500ms debounce）
+- **診断パネル**: 構文エラー・意味エラーを行番号付きで表示
+- **フォントサイズ選択**: エディタのフォントサイズを 12px〜18px から選択
+- **ライト/ダークテーマ**: エディタとUIのカラースキームをワンクリックで切替
+- **ファイル操作**: ローカルの `.tdsl` ファイルを開く / `.tdsl` ・ SVG ・ スタンドアロン HTML としてダウンロード
+- **サンプル切替**: 複数の例文を選択して即試せる
+- **ツールチップ**: SVG上にマウスを重ねるとアイテム詳細を表示
+
+> **制限**: ブラウザ内では Wikidata インポート（`import wikidata`）は解決されません。静的な `span`・`event`・`event_range` のみプレビューされます。
 
 ## ドキュメント
 
