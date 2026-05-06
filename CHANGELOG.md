@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-05-06
+
+### Added
+
+- **VS Code 拡張機能の README / CHANGELOG**: Marketplace ページに説明・コード例・各種リンク（LP / WebUI / GitHub）を表示するため `editors/vscode/README.md` および `editors/vscode/CHANGELOG.md` を追加（#120）
+
+## [1.2.1] - 2026-05-06
+
+### Changed
+
+- **GitHub Actions**: `vscode-publish` ワークフローを Node.js 24 / `actions/setup-node@v5` に更新（#126）
+
+## [1.2.0] - 2026-05-06
+
+### Added
+
+- **VS Code Marketplace 公開**: `editors/vscode/` 拡張機能を VS Code Marketplace に公開（#120, #125）。`ext install keroway.timeline-dsl` でインストール可能
+- **vscode-publish ワークフロー**: タグプッシュ時に Marketplace へ自動公開する GitHub Actions を追加。VSIX を GitHub Release にも添付
+
 ## [1.1.0] - 2026-05-06
 
 ### Added
