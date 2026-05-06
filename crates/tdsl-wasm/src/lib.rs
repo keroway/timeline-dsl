@@ -66,7 +66,14 @@ struct Diagnostic {
 }
 
 /// Check TDSL source and return diagnostics as JSON.
-/// Returns a JSON array of diagnostic objects with `severity`, `message`, `line`, `col`.
+///
+/// Returns a JSON array of diagnostic objects: `[{severity, message, line, col}]`.
+/// `severity` is `"error"` or `"warning"`. `line`/`col` are 0-indexed.
+///
+/// **Note on `import` blocks**: `import wikidata` blocks are not resolved in the browser
+/// (no network access). Unresolved imports are **silently skipped** — they produce no
+/// diagnostics, but the resulting IR / SVG will omit those items. Use static `span`,
+/// `event`, and `event_range` statements for content that must render in the browser.
 #[wasm_bindgen]
 pub fn check_source(source: &str) -> String {
     let mut diagnostics: Vec<Diagnostic> = Vec::new();

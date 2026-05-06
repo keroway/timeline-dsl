@@ -66,6 +66,36 @@ jobs:
       - name: Compile benchmarks
         run: cargo bench --no-run
 
+  build-wasm-check:
+    name: WASM build check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm-check
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM
+        run: wasm-pack build crates/tdsl-wasm --target web
+
+      - name: Verify exports
+        run: |
+          node -e "
+          const js = require('fs').readFileSync('crates/tdsl-wasm/pkg/tdsl_wasm.js', 'utf8');
+          ['compile_to_ir', 'render_svg_from_source', 'render_html_from_source', 'check_source']
+            .forEach(fn => { if (!js.includes(fn)) throw new Error('Missing export: ' + fn); });
+          console.log('All expected exports found');
+          "
+
   test-windows:
     name: Test (Windows)
     runs-on: windows-latest

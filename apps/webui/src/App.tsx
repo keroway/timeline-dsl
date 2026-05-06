@@ -174,6 +174,24 @@ function App() {
           </select>
         </div>
         <div className="toolbar-right">
+          <a
+            className="btn"
+            href="https://timeline-dsl-lp.pages.dev/"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="ランディングページ・ドキュメント"
+          >
+            About
+          </a>
+          <a
+            className="btn"
+            href="https://github.com/keroway/timeline-dsl"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="GitHub リポジトリ"
+          >
+            GitHub
+          </a>
           <button className="btn" onClick={openFile} title=".tdsl ファイルを開く">
             ファイルを開く
           </button>
