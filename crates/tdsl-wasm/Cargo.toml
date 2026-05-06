@@ -3,6 +3,10 @@ name = "tdsl-wasm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "WebAssembly bindings for the Timeline DSL compiler (static compile + SVG/HTML render)"
+repository = "https://github.com/keroway/timeline-dsl"
+homepage = "https://github.com/keroway/timeline-dsl"
+keywords = ["timeline", "wasm", "dsl", "svg", "visualization"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -83,9 +83,64 @@ jobs:
           name: ${{ matrix.archive }}
           path: ${{ matrix.archive }}
 
+  build-wasm:
+    name: Build WASM package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM (web target)
+        run: wasm-pack build crates/tdsl-wasm --target web --release
+
+      - name: Smoke test — check_source returns JSON array
+        run: |
+          node -e "
+          const {readFileSync} = require('fs');
+          // Minimal smoke: ensure the generated JS module exports the expected symbols
+          const js = readFileSync('crates/tdsl-wasm/pkg/tdsl_wasm.js', 'utf8');
+          ['compile_to_ir', 'render_svg_from_source', 'render_html_from_source', 'check_source']
+            .forEach(fn => { if (!js.includes(fn)) throw new Error('Missing export: ' + fn); });
+          console.log('WASM smoke test passed');
+          "
+
+      - name: Package WASM bundle
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          cd crates/tdsl-wasm/pkg
+          # Inject version into package.json
+          node -e "
+          const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
+          pkg.version = '${VERSION}'.replace(/^v/, '');
+          require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          tar czf "../../../tdsl-wasm-${VERSION}.tar.gz" \
+            tdsl_wasm.js \
+            tdsl_wasm.d.ts \
+            tdsl_wasm_bg.wasm \
+            tdsl_wasm_bg.wasm.d.ts \
+            package.json
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: tdsl-wasm-${{ github.ref_name }}.tar.gz
+          path: tdsl-wasm-${{ github.ref_name }}.tar.gz
+
   release:
     name: GitHub Release
-    needs: build
+    needs: [build, build-wasm]
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
@@ -101,6 +156,7 @@ jobs:
             tdsl-macos-x86_64.tar.gz
             tdsl-macos-aarch64.tar.gz
             tdsl-windows-x86_64.zip
+            tdsl-wasm-${{ github.ref_name }}.tar.gz
           generate_release_notes: true
 
   update-homebrew-formula:
