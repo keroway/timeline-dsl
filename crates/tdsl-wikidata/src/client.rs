@@ -121,7 +121,10 @@ impl HttpWikidataClient {
                         attempt += 1;
                         continue;
                     }
-                    return Err(WikidataError::Http(resp.error_for_status().unwrap_err()));
+                    return match resp.error_for_status() {
+                        Err(e) => Err(WikidataError::Http(e)),
+                        Ok(_) => unreachable!("non-success status should be an error"),
+                    };
                 }
             }
         }
