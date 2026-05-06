@@ -361,17 +361,17 @@ impl LoweringContext {
                     continue;
                 }
 
-                if let Some(entity_groups) = self.import_groups.get(import_alias) {
-                    if let Some(keys) = entity_groups.get(entity_key) {
-                        let mapped_entities: Vec<WikidataEntity> = keys
-                            .iter()
-                            .filter_map(|k| entities.get(k).cloned())
-                            .collect();
-                        for entity in &mapped_entities {
-                            self.apply_map_to_entity(m, entity, policy);
-                        }
-                        continue;
+                if let Some(entity_groups) = self.import_groups.get(import_alias)
+                    && let Some(keys) = entity_groups.get(entity_key)
+                {
+                    let mapped_entities: Vec<WikidataEntity> = keys
+                        .iter()
+                        .filter_map(|k| entities.get(k).cloned())
+                        .collect();
+                    for entity in &mapped_entities {
+                        self.apply_map_to_entity(m, entity, policy);
                     }
+                    continue;
                 }
 
                 self.errors.push(LoweringError::UnresolvedEntity(format!(
@@ -417,21 +417,10 @@ impl LoweringContext {
             props: merged_props,
         };
 
-        // Apply to every entity in the import
+        // Apply to every entity in the import (both direct entity and query results are
+        // stored in import_entities, so a single pass is sufficient).
         for entity in entities.values() {
             self.apply_map_to_entity(&synthetic_map, entity, policy);
-        }
-
-        // Also apply to query groups (apply all entities in each group)
-        if let Some(groups) = self.import_groups.get(&apply.import_alias).cloned() {
-            let all_entities = self.import_entities[&apply.import_alias].clone();
-            for keys in groups.values() {
-                for key in keys {
-                    if let Some(entity) = all_entities.get(key) {
-                        self.apply_map_to_entity(&synthetic_map, entity, policy);
-                    }
-                }
-            }
         }
     }
 
@@ -549,8 +538,12 @@ impl LoweringContext {
         let mut seen = std::collections::HashSet::new();
         self.sources.retain(|s| seen.insert(s.id.clone()));
 
+        let meta = self
+            .meta
+            .ok_or_else(|| vec![LoweringError::NoTimeline])?;
+
         Ok(TimelineIr {
-            meta: self.meta.unwrap(),
+            meta,
             lanes,
             items: self.items,
             imports: self.imports,
@@ -721,12 +714,12 @@ fn lane_suggestion_hint(unknown: &str, available: &[String]) -> String {
 
     // Find candidates that share a common prefix (>=2 chars), or contain/are contained by unknown
     let u_lower = unknown.to_lowercase();
+    let u_prefix: String = u_lower.chars().take(2).collect();
     let similar: Vec<&str> = available
         .iter()
         .filter(|candidate| {
             let c = candidate.to_lowercase();
-            let prefix_len = u_lower.len().min(2);
-            c.starts_with(&u_lower[..prefix_len]) || c.contains(&u_lower) || u_lower.contains(c.as_str())
+            c.starts_with(u_prefix.as_str()) || c.contains(&u_lower) || u_lower.contains(c.as_str())
         })
         .map(|s| s.as_str())
         .collect();
