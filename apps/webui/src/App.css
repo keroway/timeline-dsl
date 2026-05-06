@@ -72,6 +72,21 @@ body,
   border-color: #cba6f7;
 }
 
+.scale-select {
+  background: #313244;
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+}
+
+.scale-select:hover {
+  border-color: #cba6f7;
+}
+
 /* Buttons */
 .btn {
   background: #313244;

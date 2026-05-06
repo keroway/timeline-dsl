@@ -19,8 +19,8 @@ export function compileToIr(source: string): string {
   return compile_to_ir(source)
 }
 
-export function renderSvg(source: string): string {
-  return render_svg_from_source(source)
+export function renderSvg(source: string, scale: number = 0): string {
+  return render_svg_from_source(source, scale)
 }
 
 export function renderHtml(source: string): string {
