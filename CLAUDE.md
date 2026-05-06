@@ -103,7 +103,7 @@ crates/
 - PEG文法 + パーサ（7種のstatement: timeline, lane, span, event, event_range, import, map）
 - AST → IR変換（静的 / Wikidata連携 両方）
 - Wikidata HTTPクライアント（wbgetentities API, wbsearchentities, SPARQL）
-- CLI 12サブコマンド（build / check / ast / fetch / search / inspect / resolve / scaffold / render / init / import-csv / lint）
+- CLI サブコマンド: `build` / `check` / `ast` / `fetch` / `search` / `inspect` / `resolve` / `scaffold` / `render` / `init` / `import-csv` / `lint` / `decompile` / `merge` / `cache`
 - JSON IR出力（`origin` フィールドを含む）
 - コメント（行 `//` / ブロック `/* */`）
 - `map` の `target_type` は enum 型（span / event / event_range のみ許可）
@@ -113,19 +113,37 @@ crates/
 - 再インポートポリシー（merge_by_source / overwrite_imported / keep_manual）を lowering で実装済み
 - `query "SPARQL" as alias` による複数エンティティの一括インポートを実装済み
 - HTMLレンダリング（`tdsl-render` クレート、インラインSVG）
+- `tdsl render --interactive` によるズーム・パン・検索・凡例・詳細パネル付きインタラクティブHTML
+- `tdsl render --format svg` によるスタンドアロンSVG出力
 - `tdsl lint` による品質チェックと自動修正（`--fix`）
+- `template` / `apply` 構文（共通フォーマットのテンプレート再利用）
+- `color_map` ブロック（タグ→色マッピングの宣言的定義）
+- `tdsl decompile`（JSON IR → `.tdsl` 逆変換）
+- Wikidata取得キャッシュ（TTL管理、`~/.cache/tdsl/` に保存）
+- Wikidata APIリトライ（HTTP 429・5xx に対するexponential backoff、最大3回）
+- `tdsl cache status` / `tdsl cache clear` によるキャッシュ管理
+- フィールド別インポート優先度（`policy field_priority { ... }`）
+- WebUI（WASM + Vite/React）: CodeMirror 6 シンタックスハイライト・SVGプレビュー・スケール制御・診断パネル
+- VS Code 拡張（TextMate grammar ベース構文ハイライト、Marketplace 公開済み）
+- Homebrew formula（`brew tap keroway/tap && brew install tdsl`）
+- Windows バイナリ対応
+- Criterion ベンチマーク（パーサ・lowering・レンダリング）
+- `tdsl merge`（複数 `.tdsl` ファイルのIRマージ）
 
 ### 未実装（今後の拡張）
 
-- `template` / `apply` 構文（パーサ未実装）
 - CSV/スプレッドシート変換（手動フロー以外の高度な取り込み）
-- Web UIエディタ
-- Wikidata取得キャッシュ（TTL / オフライン連携）
 
 ## サンプルファイル
 
 - `examples/china_dynasties.tdsl` -- 静的定義のみ（インポートなし）
 - `examples/china_with_import.tdsl` -- Wikidata連携つき
+- `examples/japanese_history.tdsl` -- 日本史
+- `examples/samurai_wikidata.tdsl` -- 武将（Wikidata連携）
+- `examples/world_wars.tdsl` -- 世界大戦
+- `examples/sci_tech_timeline.tdsl` -- 科学技術史
+- `examples/fictional_empire.tdsl` -- 架空の帝国（CSV連携例付き）
+- `examples/template_apply_example.tdsl` -- `template` / `apply` 構文の使用例
 
 ## 注意点
 
