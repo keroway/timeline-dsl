@@ -1,19 +1,35 @@
 {
   "name": "timeline-dsl",
   "displayName": "Timeline DSL",
-  "description": "Syntax highlighting for Timeline DSL (.tdsl) files",
+  "description": "Syntax highlighting for Timeline DSL (.tdsl) files — a DSL for building timelines with Wikidata integration",
   "version": "0.1.0",
   "publisher": "keroway",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
     "Programming Languages"
   ],
+  "keywords": [
+    "timeline",
+    "dsl",
+    "wikidata",
+    "history",
+    "tdsl"
+  ],
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/keroway/timeline-dsl"
   },
+  "bugs": {
+    "url": "https://github.com/keroway/timeline-dsl/issues"
+  },
+  "homepage": "https://github.com/keroway/timeline-dsl#readme",
   "contributes": {
     "languages": [
       {
