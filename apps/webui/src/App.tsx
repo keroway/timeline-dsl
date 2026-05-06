@@ -19,6 +19,7 @@ function App() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [scale, setScale] = useState<number>(0) // 0 = Auto
 
   // Initialize WASM on mount
   useEffect(() => {
@@ -40,7 +41,7 @@ function App() {
       const hasErrors = diags.some((d) => d.severity === 'error')
       if (!hasErrors) {
         try {
-          const svg = renderSvg(src)
+          const svg = renderSvg(src, scale)
           setSvgContent(svg)
         } catch (e: unknown) {
           // SVG rendering failed — keep previous preview
@@ -52,7 +53,7 @@ function App() {
         }
       }
     },
-    [wasmReady]
+    [wasmReady, scale]
   )
 
   useEffect(() => {
@@ -64,7 +65,7 @@ function App() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [source, wasmReady, compileAndCheck])
+  }, [source, wasmReady, scale, compileAndCheck])
 
   // Initial compile when WASM becomes ready
   useEffect(() => {
@@ -192,6 +193,19 @@ function App() {
           >
             GitHub
           </a>
+          <select
+            className="scale-select"
+            value={scale}
+            onChange={(e) => setScale(Number(e.target.value))}
+            title="プレビューのスケール（ピクセル/年）"
+          >
+            <option value={0}>スケール: Auto</option>
+            <option value={0.5}>0.5×</option>
+            <option value={1}>1×</option>
+            <option value={2}>2×</option>
+            <option value={4}>4×</option>
+            <option value={8}>8×</option>
+          </select>
           <button className="btn" onClick={openFile} title=".tdsl ファイルを開く">
             ファイルを開く
           </button>

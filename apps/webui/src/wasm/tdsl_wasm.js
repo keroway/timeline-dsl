@@ -2,7 +2,14 @@
 
 /**
  * Check TDSL source and return diagnostics as JSON.
- * Returns a JSON array of diagnostic objects with `severity`, `message`, `line`, `col`.
+ *
+ * Returns a JSON array of diagnostic objects: `[{severity, message, line, col}]`.
+ * `severity` is `"error"` or `"warning"`. `line`/`col` are 0-indexed.
+ *
+ * **Note on `import` blocks**: `import wikidata` blocks are not resolved in the browser
+ * (no network access). Unresolved imports are **silently skipped** — they produce no
+ * diagnostics, but the resulting IR / SVG will omit those items. Use static `span`,
+ * `event`, and `event_range` statements for content that must render in the browser.
  * @param {string} source
  * @returns {string}
  */
@@ -100,18 +107,21 @@ export function render_html_from_source(source) {
 
 /**
  * Render SVG from TDSL source (static items only).
+ * `scale` controls pixels-per-year. Pass `0.0` (or negative) to auto-calculate
+ * from the IR's `meta.range` (clamped to `0.5..=8.0`).
  * Returns Ok(svg_string) or Err(error_message).
  * @param {string} source
+ * @param {number} scale
  * @returns {string}
  */
-export function render_svg_from_source(source) {
+export function render_svg_from_source(source, scale) {
     let deferred3_0;
     let deferred3_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         const ptr0 = passStringToWasm0(source, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
         const len0 = WASM_VECTOR_LEN;
-        wasm.render_svg_from_source(retptr, ptr0, len0);
+        wasm.render_svg_from_source(retptr, ptr0, len0, scale);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
