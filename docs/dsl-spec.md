@@ -25,6 +25,7 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
                  | "unit" <identifier> ";"
                  | "range" <number> ".." <number> ";"
                  | "calendar" <identifier> ";"
+                 | "color_map" "{" { <identifier> ":" <string> ";" } "}"
 
 <lane>         ::= "lane" <string> ["as" <identifier>] "{" { <lane_prop> } "}"
 <lane_prop>    ::= "kind" <identifier> ";"
@@ -48,6 +49,8 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <import_stmt>  ::= "entity" <qid> ["as" <identifier>] ";"
                  | "query" <string> ["as" <identifier>] ";"
                  | "policy" <policy_name> ";"
+                 | "policy" "field_priority" "{" { <field_strategy> } "}"
+<field_strategy> ::= ("label" | "time" | "tags") ":" ("manual" | "wikidata" | "merge") ";"
 
 <map_block>    ::= "map" <import_ref> "to" <mapping_target>
                    "{" { <mapping_rule> } "}"
@@ -90,6 +93,10 @@ timeline "中国王朝年表" {
     unit year;
     range -500..2000;
     calendar proleptic_gregorian;
+    color_map {
+        dynasty: "#3366cc";
+        war:     "#cc0000";
+    }
 }
 ```
 
@@ -99,6 +106,9 @@ timeline "中国王朝年表" {
 | `unit` | 任意 | 時間単位（`year`） |
 | `range` | 任意 | 表示範囲。`開始..終了` の形式。負の値は紀元前 |
 | `calendar` | 任意 | 暦法。`proleptic_gregorian` 等 |
+| `color_map` | 任意 | タグ→色のマッピング。`タグ名: "#16進数カラーコード";` の形式で複数定義可能 |
+
+`color_map` で定義した色は `tdsl render` 時に自動適用される。`--color-map "war=#cc0000"` CLIフラグで上書きも可能。
 
 ### lane
 
@@ -171,6 +181,11 @@ import wikidata as wd {
     entity Q7209 as han_dynasty;
     query "SELECT ?item WHERE { ... }" as samurai;
     policy merge_by_source;
+    policy field_priority {
+        label: manual;    // ラベルは手動定義を優先
+        time:  wikidata;  // 時刻はWikidataを優先
+        tags:  merge;     // タグは両方をマージ
+    }
 }
 ```
 
@@ -179,6 +194,7 @@ import wikidata as wd {
 | `entity <QID>` | 特定のWikidataエンティティを指定 |
 | `query <SPARQL>` | SPARQLクエリで複数エンティティを取得 |
 | `policy <name>` | 再インポート時のマージ戦略 |
+| `policy field_priority { ... }` | フィールド単位のマージ戦略 |
 | `as <alias>` | インポートブロック/エンティティの別名 |
 
 #### 再インポートポリシー
@@ -188,6 +204,16 @@ import wikidata as wd {
 | `merge_by_source` | ID衝突をエラーとして扱う（デフォルト） |
 | `overwrite_imported` | 既存のインポート済み項目のみ上書き。手動定義との衝突はエラー |
 | `keep_manual` | ID衝突時はインポート側をスキップして既存項目を保持 |
+
+#### フィールド優先度ポリシー（field_priority）
+
+`merge_by_source` 等の全体ポリシーよりも細かく、フィールドごとにマージ戦略を指定できる。
+
+| フィールド | 値 | 動作 |
+|---|---|---|
+| `label` / `time` / `tags` | `manual` | 既存の手動定義を優先（Wikidata側を無視） |
+| `label` / `time` / `tags` | `wikidata` | Wikidata側を優先（手動定義を上書き） |
+| `label` / `time` / `tags` | `merge` | 両方を保持（`tags` では和集合、`label`/`time`はWikidata側を採用） |
 
 ### map
 
@@ -286,7 +312,8 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 | `tdsl build <file>` | `.tdsl` をJSON IRに変換 |
 | `tdsl check <file>` | 構文・意味チェック |
 | `tdsl ast <file>` | ASTダンプ |
-| `tdsl render <file>` | スタンドアロンHTMLを生成 |
+| `tdsl render <file>` | HTML / SVG を生成（`--format html\|svg`、`--interactive`） |
+| `tdsl decompile <json>` | JSON IRを `.tdsl` ソースに逆変換 |
 | `tdsl fetch <QID>` | Wikidataエンティティ確認 |
 | `tdsl search <query>` | Wikidata候補検索 |
 | `tdsl inspect <QID>` | 年表化適性の診断 |
@@ -295,6 +322,8 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 | `tdsl init ...` | 手作業向け `.tdsl` テンプレ生成 |
 | `tdsl import-csv <csv>` | CSVから `span/event/event_range` 生成 |
 | `tdsl lint <file> [--fix]` | 品質チェックと安全な自動補正 |
+| `tdsl cache status` | ローカルキャッシュの状態を表示 |
+| `tdsl cache clear [--older-than <days>]` | キャッシュエントリを削除 |
 
 ### 最短フロー（Wikidata起点）
 
