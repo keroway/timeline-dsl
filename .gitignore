@@ -5,3 +5,6 @@ CLAUDE.md.bak
 # Playwright テスト成果物
 .playwright-mcp/
 webui-*.png
+
+# VS Code 拡張パッケージ
+*.vsix

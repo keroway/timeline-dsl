@@ -1,0 +1,51 @@
+name: Publish VS Code Extension
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish to VS Code Marketplace
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+
+      - name: Set version from tag
+        working-directory: editors/vscode
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          pkg.version = '${VERSION}';
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Package extension
+        working-directory: editors/vscode
+        run: vsce package
+
+      - name: Upload VSIX to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: editors/vscode/*.vsix
+
+      - name: Publish to Marketplace
+        working-directory: editors/vscode
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: vsce publish --pat "$VSCE_PAT"
