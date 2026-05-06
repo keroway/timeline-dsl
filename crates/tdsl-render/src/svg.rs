@@ -317,7 +317,7 @@ fn item_tooltip(item: &Item) -> String {
             id,
             ..
         } => {
-            lines.push(format!("{label}"));
+            lines.push(label.to_string());
             lines.push(format!("{}〜{}", format_year(*start), format_year(*end)));
             push_common(&mut lines, tags, source, origin, id);
         }
@@ -330,7 +330,7 @@ fn item_tooltip(item: &Item) -> String {
             id,
             ..
         } => {
-            lines.push(format!("{label}"));
+            lines.push(label.to_string());
             lines.push(format_year(*time));
             push_common(&mut lines, tags, source, origin, id);
         }
@@ -344,7 +344,7 @@ fn item_tooltip(item: &Item) -> String {
             id,
             ..
         } => {
-            lines.push(format!("{label}"));
+            lines.push(label.to_string());
             lines.push(format!("{}〜{}", format_year(*start), format_year(*end)));
             push_common(&mut lines, tags, source, origin, id);
         }

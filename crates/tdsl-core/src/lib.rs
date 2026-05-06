@@ -877,6 +877,45 @@ mod tests {
         assert!(errors.iter().any(|e| matches!(e, error::LoweringError::UnknownTemplate(_))));
     }
 
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn lower_apply_with_sparql_query_no_duplicates() {
+        // Regression test: apply block with a SPARQL query import must not create duplicate items.
+        // Previously, query entities were processed twice — once from import_entities and once from
+        // import_groups — causing DuplicateItemId errors under merge_by_source policy.
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            template "スパンテンプレート" as tpl
+                to span {
+                    lane dynasty;
+                    start claim(P571).year;
+                    end claim(P576).year;
+                    label label@ja ?? label@en;
+                }
+
+            import wikidata as wd {
+                query "SELECT ?item WHERE { ?item wdt:P31 wd:Q783794 }" as dynasties;
+            }
+
+            apply tpl to wd {}
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        entities.insert("Q7183".to_string(), make_entity("Q7183", "秦", -221, -206));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec!["Q7209".to_string(), "Q7183".to_string()],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        // Must produce exactly 2 items (one per entity), not 4.
+        assert_eq!(ir.items.len(), 2);
+    }
+
     #[test]
     fn lower_static_duplicate_template_is_error() {
         let src = r#"
