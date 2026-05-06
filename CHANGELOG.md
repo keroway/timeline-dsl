@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-05-06
+
+### Added
+
+- **color_map ブロック**: `timeline` ブロック内でタグ→色マッピングを宣言的に定義できる DSL 構文を追加（#67）。`tdsl render --color-map` フラグでも上書き可能
+- **decompile コマンド**: JSON IR を `.tdsl` ソースに逆変換する `tdsl decompile` コマンドを追加（#68）
+- **WebUI MVP**: WASM + Vite/React によるブラウザ上エディタを追加（#62）。CodeMirror 6 によるシンタックスハイライト・リアルタイム SVG プレビュー・診断パネル・SVG ダウンロードを搭載。GitHub Pages にデプロイ（#105）
+- **インタラクティブHTML出力**: `tdsl render --interactive` でズーム・パン・アイテム検索・凡例・詳細パネルを搭載したインタラクティブ HTML を生成（#49）
+- **SVG 直接出力**: `tdsl render --format svg` でスタンドアロン SVG ファイルを出力（#50）
+- **Windows バイナリ対応**: CI・リリースワークフローに Windows ターゲットを追加（#58）
+- **キャッシュ管理 CLI**: `tdsl cache status` / `tdsl cache clear [--older-than <days>]` でローカル Wikidata キャッシュを管理（#45, #46）
+- **フィールド別インポート優先度**: `import` ブロック内で `policy field_priority { label: manual; time: wikidata; tags: merge; }` によりフィールド単位のマージ戦略を指定可能（#47）
+- **Criterion ベンチマーク**: パーサ・lowering・レンダリングのパフォーマンスを計測する benchmark suite を追加（#60）
+- **CONTRIBUTING.md・Issue テンプレート**: コントリビューション手順と Bug/Feature Issue テンプレートを追加（#78, #79）
+
+### Fixed
+
+- `tdsl render` のインタラクティブモードにホイールズーム機能を追加
+- WebUI プレビューの UX 改善（ツールチップ・スクロール対応・サンプルラベル修正）
+- Clippy の全警告を修正（`fix/v1.1.0-quality-improvements`）
+- セキュリティ: rustls-webpki を 0.103.13 に更新（DoS 脆弱性 GHSA-82j2-j2ch-gfr8 対応）
+
 ## [1.0.0] - 2026-05-04
 
 ### Added
@@ -49,5 +71,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.1.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/keroway/timeline-dsl/releases/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/keroway/timeline-dsl/releases/tag/v0.1.0
