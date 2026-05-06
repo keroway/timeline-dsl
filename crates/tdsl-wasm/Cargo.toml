@@ -26,4 +26,6 @@ console_error_panic_hook = { version = "0.1", optional = true }
 getrandom = { version = "0.2", features = ["js"] }
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-O4"]
+# wasm-opt is disabled: wasm-pack's bundled binary fails on some CI runners.
+# The Rust compiler already applies lto + opt-level=3 via the workspace profile.
+wasm-opt = false
