@@ -266,6 +266,16 @@ apply dynasty_span to wd {
 
 `editors/vscode/` に VS Code 拡張があります。`.tdsl` ファイルのキーワード・文字列・コメント・QIDなどを色分けします。
 
+**インストール方法（Marketplace）:**
+
+VS Code 上で `Ctrl+P`（macOS: `Cmd+P`）を押して以下を実行:
+
+```
+ext install keroway.timeline-dsl
+```
+
+または [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=keroway.timeline-dsl) から直接インストール。
+
 **インストール方法（手動）:**
 
 ```bash
