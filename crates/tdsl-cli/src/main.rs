@@ -16,11 +16,38 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Compile a .tdsl file to IR JSON
+    /// Compile one or more .tdsl files to IR JSON (multiple files are merged)
     Build {
-        /// Input .tdsl file path
-        #[arg(value_name = "FILE")]
-        input: PathBuf,
+        /// Input .tdsl file path(s); when multiple are given they are merged in order
+        #[arg(value_name = "FILE", required = true, num_args = 1..)]
+        inputs: Vec<PathBuf>,
+
+        /// Output JSON file path (default: stdout)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Pretty-print JSON output
+        #[arg(long, default_value_t = false)]
+        pretty: bool,
+
+        /// Skip Wikidata fetching (only process static items)
+        #[arg(long, default_value_t = false)]
+        offline: bool,
+
+        /// Bypass the local Wikidata cache and force a fresh API request
+        #[arg(long, default_value_t = false)]
+        no_cache: bool,
+
+        /// Cache time-to-live in seconds (0 disables caching, default: 86400 = 24h)
+        #[arg(long, default_value_t = 86400u64)]
+        cache_ttl: u64,
+    },
+
+    /// Merge multiple .tdsl files into a single IR JSON
+    Merge {
+        /// Input .tdsl file paths (merged in order; first file's meta takes precedence)
+        #[arg(value_name = "FILE", required = true, num_args = 2..)]
+        inputs: Vec<PathBuf>,
 
         /// Output JSON file path (default: stdout)
         #[arg(short, long)]
@@ -348,14 +375,31 @@ fn main() {
 
     let result = match cli.command {
         Commands::Build {
-            input,
+            inputs,
             output,
             pretty,
             offline,
             no_cache,
             cache_ttl,
         } => cmd_build(
-            &input,
+            &inputs,
+            output.as_deref(),
+            pretty,
+            offline,
+            tdsl_wikidata::CacheOptions {
+                no_cache,
+                ttl: std::time::Duration::from_secs(cache_ttl),
+            },
+        ),
+        Commands::Merge {
+            inputs,
+            output,
+            pretty,
+            offline,
+            no_cache,
+            cache_ttl,
+        } => cmd_build(
+            &inputs,
             output.as_deref(),
             pretty,
             offline,
@@ -488,13 +532,25 @@ fn load_ir(
 }
 
 fn cmd_build(
-    input: &std::path::Path,
+    inputs: &[PathBuf],
     output: Option<&std::path::Path>,
     pretty: bool,
     offline: bool,
     cache_opts: tdsl_wikidata::CacheOptions,
 ) -> Result<(), String> {
-    let ir = load_ir(input, offline, cache_opts)?;
+    let ir = if inputs.len() == 1 {
+        load_ir(&inputs[0], offline, cache_opts)?
+    } else {
+        let mut irs = Vec::with_capacity(inputs.len());
+        for path in inputs {
+            irs.push(load_ir(path, offline, cache_opts.clone())?);
+        }
+        let (merged, warnings) = tdsl_core::merge::merge_irs(irs);
+        for w in &warnings {
+            eprintln!("Warning: {w}");
+        }
+        merged
+    };
 
     let json = if pretty {
         serde_json::to_string_pretty(&ir).unwrap()
