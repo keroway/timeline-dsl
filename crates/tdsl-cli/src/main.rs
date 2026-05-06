@@ -1143,11 +1143,7 @@ fn estimate_range(rows: &[ScaffoldRow]) -> (i64, i64) {
     }
     let min = years.iter().min().copied().unwrap();
     let max = years.iter().max().copied().unwrap();
-    if min == max {
-        (min - 20, max + 20)
-    } else {
-        (min - 20, max + 20)
-    }
+    (min - 20, max + 20)
 }
 
 fn claim_year(entity: &WikidataEntity, pid: &str) -> Option<i64> {
@@ -1230,6 +1226,7 @@ fn parse_color_map(raw: &str) -> Result<std::collections::HashMap<String, String
     Ok(map)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_render(
     input: &std::path::Path,
     output: Option<&std::path::Path>,
@@ -1401,7 +1398,7 @@ fn parse_lane_specs(input: &str) -> Result<Vec<InitLaneSpec>, String> {
         }
 
         let alias = match alias_raw {
-            Some(a) if a.is_empty() => return Err("lane alias must not be empty".to_string()),
+            Some("") => return Err("lane alias must not be empty".to_string()),
             Some(a) => {
                 if !is_valid_ident(a) {
                     return Err(format!(
