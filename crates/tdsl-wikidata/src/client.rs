@@ -60,9 +60,13 @@ pub struct HttpWikidataClient {
 
 impl HttpWikidataClient {
     pub fn new() -> Self {
+        Self::with_timeout(std::time::Duration::from_secs(30))
+    }
+
+    pub fn with_timeout(timeout: std::time::Duration) -> Self {
         let http = reqwest::Client::builder()
             .user_agent("tdsl/0.1.0 (https://github.com/keroway/timeline-dsl)")
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(timeout)
             .build()
             .expect("failed to create HTTP client");
         Self { http }
