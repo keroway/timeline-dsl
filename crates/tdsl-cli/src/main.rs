@@ -10,6 +10,10 @@ use tdsl_wikidata::{WikidataClient, WikidataEntity, parse_wikipedia_url};
 #[derive(Parser)]
 #[command(name = "tdsl", version, about = "Timeline DSL compiler")]
 struct Cli {
+    /// Wikidata HTTP request timeout in seconds (default: 30)
+    #[arg(long, global = true, default_value_t = 30u64, value_name = "SECONDS")]
+    wikidata_timeout: u64,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -372,6 +376,7 @@ impl ThemeArg {
 
 fn main() {
     let cli = Cli::parse();
+    let wikidata_timeout = std::time::Duration::from_secs(cli.wikidata_timeout);
 
     let result = match cli.command {
         Commands::Build {
@@ -390,6 +395,7 @@ fn main() {
                 no_cache,
                 ttl: std::time::Duration::from_secs(cache_ttl),
             },
+            wikidata_timeout,
         ),
         Commands::Merge {
             inputs,
@@ -407,18 +413,19 @@ fn main() {
                 no_cache,
                 ttl: std::time::Duration::from_secs(cache_ttl),
             },
+            wikidata_timeout,
         ),
         Commands::Check { input } => cmd_check(&input),
         Commands::Ast { input } => cmd_ast(&input),
-        Commands::Fetch { qid, lang } => cmd_fetch(&qid, &lang),
+        Commands::Fetch { qid, lang } => cmd_fetch(&qid, &lang, wikidata_timeout),
         Commands::Search {
             query,
             lang,
             limit,
             json,
-        } => cmd_search(&query, &lang, limit, json),
-        Commands::Inspect { qid, lang, json } => cmd_inspect(&qid, &lang, json),
-        Commands::Resolve { url, lang, json } => cmd_resolve(&url, &lang, json),
+        } => cmd_search(&query, &lang, limit, json, wikidata_timeout),
+        Commands::Inspect { qid, lang, json } => cmd_inspect(&qid, &lang, json, wikidata_timeout),
+        Commands::Resolve { url, lang, json } => cmd_resolve(&url, &lang, json, wikidata_timeout),
         Commands::Scaffold { target } => match target {
             ScaffoldTarget::Wikidata {
                 qids,
@@ -436,6 +443,7 @@ fn main() {
                 target,
                 lane_mode,
                 &single_lane_label,
+                wikidata_timeout,
             ),
         },
         Commands::Render {
@@ -470,6 +478,7 @@ fn main() {
                 ttl: std::time::Duration::from_secs(cache_ttl),
             },
             color_map.as_deref(),
+            wikidata_timeout,
         ),
         Commands::Init {
             output,
@@ -503,6 +512,7 @@ fn load_ir(
     input: &std::path::Path,
     offline: bool,
     cache_opts: tdsl_wikidata::CacheOptions,
+    wikidata_timeout: std::time::Duration,
 ) -> Result<tdsl_core::ir::TimelineIr, String> {
     let source = read_source(input)?;
     let file = tdsl_parser::parse(&source).map_err(|e| e.to_string())?;
@@ -511,7 +521,7 @@ fn load_ir(
         tdsl_core::lower::lower_static(&file)
     } else {
         let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-        let http_client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let http_client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
         let client = tdsl_wikidata::CachedWikidataClient::new(http_client, cache_opts);
         rt.block_on(tdsl_core::lower::lower_with_wikidata(&file, &client))
     };
@@ -537,13 +547,14 @@ fn cmd_build(
     pretty: bool,
     offline: bool,
     cache_opts: tdsl_wikidata::CacheOptions,
+    wikidata_timeout: std::time::Duration,
 ) -> Result<(), String> {
     let ir = if inputs.len() == 1 {
-        load_ir(&inputs[0], offline, cache_opts)?
+        load_ir(&inputs[0], offline, cache_opts, wikidata_timeout)?
     } else {
         let mut irs = Vec::with_capacity(inputs.len());
         for path in inputs {
-            irs.push(load_ir(path, offline, cache_opts.clone())?);
+            irs.push(load_ir(path, offline, cache_opts.clone(), wikidata_timeout)?);
         }
         let (merged, warnings) = tdsl_core::merge::merge_irs(irs);
         for w in &warnings {
@@ -627,10 +638,10 @@ fn cmd_ast(input: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_fetch(qid: &str, lang: &str) -> Result<(), String> {
+fn cmd_fetch(qid: &str, lang: &str, wikidata_timeout: std::time::Duration) -> Result<(), String> {
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     rt.block_on(async {
-        let client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
         let langs_owned = parse_langs(lang);
         let langs: Vec<&str> = langs_owned.iter().map(String::as_str).collect();
         let entity = WikidataClient::get_entity(&client, qid, &langs)
@@ -675,7 +686,7 @@ fn cmd_fetch(qid: &str, lang: &str) -> Result<(), String> {
     })
 }
 
-fn cmd_search(query: &str, lang: &str, limit: usize, json: bool) -> Result<(), String> {
+fn cmd_search(query: &str, lang: &str, limit: usize, json: bool, wikidata_timeout: std::time::Duration) -> Result<(), String> {
     let query = query.trim();
     if query.is_empty() {
         return Err("search query must not be empty".to_string());
@@ -683,7 +694,7 @@ fn cmd_search(query: &str, lang: &str, limit: usize, json: bool) -> Result<(), S
 
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     rt.block_on(async {
-        let client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
         let hits = WikidataClient::search_entities(&client, query, lang.trim(), limit)
             .await
             .map_err(|e| e.to_string())?;
@@ -716,10 +727,10 @@ fn cmd_search(query: &str, lang: &str, limit: usize, json: bool) -> Result<(), S
     })
 }
 
-fn cmd_inspect(qid: &str, lang: &str, json: bool) -> Result<(), String> {
+fn cmd_inspect(qid: &str, lang: &str, json: bool, wikidata_timeout: std::time::Duration) -> Result<(), String> {
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     rt.block_on(async {
-        let client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
         let langs_owned = parse_langs(lang);
         let langs: Vec<&str> = langs_owned.iter().map(String::as_str).collect();
         let entity = WikidataClient::get_entity(&client, qid, &langs)
@@ -745,12 +756,12 @@ struct ResolveReport {
     labels: Vec<InspectLabel>,
 }
 
-fn cmd_resolve(url: &str, lang: &str, json: bool) -> Result<(), String> {
+fn cmd_resolve(url: &str, lang: &str, json: bool, wikidata_timeout: std::time::Duration) -> Result<(), String> {
     let page = parse_wikipedia_url(url).map_err(|e| e.to_string())?;
     let langs_owned = parse_langs(lang);
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let report = rt.block_on(async {
-        let client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
         let langs: Vec<&str> = langs_owned.iter().map(String::as_str).collect();
         let entity =
             WikidataClient::get_entity_by_sitelink(&client, &page.site, &page.title, &langs)
@@ -812,6 +823,7 @@ fn cmd_scaffold_wikidata(
     target: ScaffoldTargetType,
     lane_mode: ScaffoldLaneMode,
     single_lane_label: &str,
+    wikidata_timeout: std::time::Duration,
 ) -> Result<(), String> {
     let qids = parse_qids(qids)?;
     let langs = parse_langs(lang);
@@ -822,7 +834,7 @@ fn cmd_scaffold_wikidata(
 
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let doc = rt.block_on(async {
-        let client = tdsl_wikidata::client::HttpWikidataClient::new();
+        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
         let mut entities = Vec::new();
         let langs_ref: Vec<&str> = langs.iter().map(String::as_str).collect();
         for qid in &qids {
@@ -1297,8 +1309,9 @@ fn cmd_render(
     offline: bool,
     cache_opts: tdsl_wikidata::CacheOptions,
     color_map_raw: Option<&str>,
+    wikidata_timeout: std::time::Duration,
 ) -> Result<(), String> {
-    let ir = load_ir(input, offline, cache_opts)?;
+    let ir = load_ir(input, offline, cache_opts, wikidata_timeout)?;
 
     let custom_css = match custom_css_path {
         Some(path) => {
