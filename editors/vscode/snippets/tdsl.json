@@ -1,0 +1,72 @@
+{
+  "Timeline block": {
+    "prefix": "tl",
+    "body": [
+      "timeline \"${1:タイトル}\" {",
+      "\tunit year",
+      "\trange ${2:1900} to ${3:2000}",
+      "",
+      "\tlane \"${4:レーン名}\" as ${5:lane_id} {}",
+      "}"
+    ],
+    "description": "timeline ブロック基本形"
+  },
+  "Lane definition": {
+    "prefix": "lane",
+    "body": [
+      "lane \"${1:レーン名}\" as ${2:lane_id} {}"
+    ],
+    "description": "lane 定義"
+  },
+  "Span item": {
+    "prefix": "span",
+    "body": [
+      "span \"${1:タイトル}\" {",
+      "\tlane ${2:lane_id}",
+      "\tstart ${3:1900}",
+      "\tend ${4:1950}",
+      "}"
+    ],
+    "description": "span アイテム"
+  },
+  "Event item": {
+    "prefix": "event",
+    "body": [
+      "event \"${1:タイトル}\" {",
+      "\tlane ${2:lane_id}",
+      "\tat ${3:1945}",
+      "}"
+    ],
+    "description": "event アイテム"
+  },
+  "Import block": {
+    "prefix": "import",
+    "body": [
+      "import {",
+      "\twd ${1:Q12345} as ${2:entity_key}",
+      "}"
+    ],
+    "description": "Wikidata import ブロック"
+  },
+  "Map block": {
+    "prefix": "map",
+    "body": [
+      "map ${1:entity_key} to wd {",
+      "\ttarget_type ${2|span,event,event_range|}",
+      "\tlabel wd.${1}.label",
+      "\tstart claim(${3:P571}).year",
+      "\tend claim(${4:P576}).year",
+      "}"
+    ],
+    "description": "map ブロック"
+  },
+  "Template definition": {
+    "prefix": "template",
+    "body": [
+      "template ${1:mytemplate} {",
+      "\tformat \"${2:{label} ({start}〜{end})}\"",
+      "}"
+    ],
+    "description": "template 定義"
+  }
+}

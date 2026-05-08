@@ -50,6 +50,12 @@
         "scopeName": "source.tdsl",
         "path": "./syntaxes/tdsl.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "tdsl",
+        "path": "./snippets/tdsl.json"
+      }
     ]
   }
 }
