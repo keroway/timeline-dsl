@@ -564,9 +564,9 @@ fn cmd_build(
     };
 
     let json = if pretty {
-        serde_json::to_string_pretty(&ir).unwrap()
+        serde_json::to_string_pretty(&ir).map_err(|e| e.to_string())?
     } else {
-        serde_json::to_string(&ir).unwrap()
+        serde_json::to_string(&ir).map_err(|e| e.to_string())?
     };
 
     if let Some(out_path) = output {
@@ -700,7 +700,7 @@ fn cmd_search(query: &str, lang: &str, limit: usize, json: bool, wikidata_timeou
             .map_err(|e| e.to_string())?;
 
         if json {
-            println!("{}", serde_json::to_string_pretty(&hits).unwrap());
+            println!("{}", serde_json::to_string_pretty(&hits).map_err(|e| e.to_string())?);
             return Ok(());
         }
 
@@ -739,7 +739,7 @@ fn cmd_inspect(qid: &str, lang: &str, json: bool, wikidata_timeout: std::time::D
 
         let report = build_inspect_report(&entity, &langs_owned);
         if json {
-            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            println!("{}", serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?);
             return Ok(());
         }
 
@@ -798,7 +798,7 @@ fn cmd_resolve(url: &str, lang: &str, json: bool, wikidata_timeout: std::time::D
     })?;
 
     if json {
-        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        println!("{}", serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?);
         return Ok(());
     }
 
@@ -1801,7 +1801,7 @@ fn cmd_lint(input: &std::path::Path, fix: bool, format: LintOutputFormat) -> Res
                 ok: issues.is_empty(),
                 issues,
             };
-            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            println!("{}", serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?);
         }
     }
 
