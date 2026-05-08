@@ -1,5 +1,6 @@
 /target/
 .claude/
+.serena/
 CLAUDE.md.bak
 
 # Playwright テスト成果物
