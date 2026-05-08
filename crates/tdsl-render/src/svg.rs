@@ -31,6 +31,13 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     )
     .unwrap();
 
+    // Embed font-family for standalone SVG viewers (no CDN dependency).
+    writeln!(
+        s,
+        r#"  <style>text {{ font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; }}</style>"#
+    )
+    .unwrap();
+
     // Build lane_id → palette color map from ordered lane list.
     let lane_color: HashMap<&str, &str> = layout
         .lanes_ordered

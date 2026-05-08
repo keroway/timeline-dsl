@@ -21,6 +21,9 @@ pub fn wrap_html(svg_body: &str, title: &str, opts: &crate::layout::RenderOption
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 <style>
 {css}
 {theme_css}</style>{custom_css_block}
@@ -47,8 +50,8 @@ pub fn wrap_html(svg_body: &str, title: &str, opts: &crate::layout::RenderOption
 }
 
 const EMBEDDED_CSS: &str = r#"body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans",
-    "Yu Gothic UI", sans-serif;
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI",
+    "Yu Gothic", "Meiryo", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   margin: 24px;
   color: #222;
   background: #fafafa;
@@ -335,6 +338,9 @@ pub fn wrap_html_interactive(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 <style>
 {css}
 {theme_css}{interactive_css}</style>{custom_css_block}
