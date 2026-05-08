@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
 use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
 use tdsl_render::RenderOptions;
 
