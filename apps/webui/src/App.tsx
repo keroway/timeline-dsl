@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, type CSSProperties, type Mous
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { oneDark } from '@codemirror/theme-one-dark'
+import type { EditorView } from '@codemirror/view'
 import { initWasm, renderSvg, renderHtml, checkSource } from './wasmLoader'
 import type { Diagnostic } from './wasmLoader'
 import { EXAMPLES } from './examples'
@@ -22,6 +23,7 @@ function App() {
   const [colorScheme, setColorScheme] = useState<ColorScheme>('dark')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const editorViewRef = useRef<EditorView | null>(null)
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
   const [scale, setScale] = useState<number>(0) // 0 = Auto
 
@@ -149,6 +151,19 @@ function App() {
 
   function handlePreviewMouseLeave() {
     setTooltip(null)
+  }
+
+  function handleDiagClick(diag: Diagnostic) {
+    const view = editorViewRef.current
+    if (!view || diag.line <= 0) return
+    try {
+      const lineInfo = view.state.doc.line(diag.line)
+      const pos = lineInfo.from + Math.max(0, diag.col - 1)
+      view.dispatch({ selection: { anchor: pos }, scrollIntoView: true })
+      view.focus()
+    } catch {
+      // line out of range — ignore
+    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -299,6 +314,7 @@ function App() {
             theme={colorScheme === 'dark' ? oneDark : 'light'}
             extensions={[markdown()]}
             onChange={handleEditorChange}
+            onCreateEditor={(view) => { editorViewRef.current = view }}
             basicSetup={{
               lineNumbers: true,
               foldGutter: false,
@@ -332,7 +348,14 @@ function App() {
           <div className="diagnostics-header">診断結果</div>
           <ul className="diagnostics-list">
             {diagnostics.map((d, i) => (
-              <li key={i} className={`diagnostic-item ${d.severity}`}>
+              <li
+                key={i}
+                className={`diagnostic-item ${d.severity}${d.line > 0 ? ' clickable' : ''}`}
+                onClick={() => handleDiagClick(d)}
+                role={d.line > 0 ? 'button' : undefined}
+                tabIndex={d.line > 0 ? 0 : undefined}
+                onKeyDown={d.line > 0 ? (e) => e.key === 'Enter' && handleDiagClick(d) : undefined}
+              >
                 <span className="diag-severity">
                   {d.severity === 'error' ? 'ERROR' : 'WARN'}
                 </span>
