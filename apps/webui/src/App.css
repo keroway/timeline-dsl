@@ -418,6 +418,14 @@ body,
   word-break: break-word;
 }
 
+.diagnostic-item.clickable {
+  cursor: pointer;
+}
+
+.diagnostic-item.clickable:hover {
+  filter: brightness(1.08);
+}
+
 /* Tooltip */
 .tdsl-tooltip {
   position: fixed;
