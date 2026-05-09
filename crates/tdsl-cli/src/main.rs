@@ -523,7 +523,17 @@ fn load_ir(
         let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
         let http_client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
         let client = tdsl_wikidata::CachedWikidataClient::new(http_client, cache_opts);
-        rt.block_on(tdsl_core::lower::lower_with_wikidata(&file, &client))
+        let spinner = indicatif::ProgressBar::new_spinner();
+        spinner.set_style(
+            indicatif::ProgressStyle::with_template("{spinner} {msg}")
+                .unwrap()
+                .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
+        );
+        spinner.set_message("Wikidata からエンティティを取得中...");
+        spinner.enable_steady_tick(std::time::Duration::from_millis(80));
+        let result = rt.block_on(tdsl_core::lower::lower_with_wikidata(&file, &client));
+        spinner.finish_and_clear();
+        result
     };
 
     let ir = ir.map_err(|errs| {
