@@ -53,9 +53,13 @@ pub struct SearchResult {
     pub aliases: Vec<String>,
 }
 
+/// Default maximum number of retry attempts for transient errors.
+pub const DEFAULT_MAX_RETRIES: u32 = 5;
+
 /// HTTP-based Wikidata client using the public API.
 pub struct HttpWikidataClient {
     http: reqwest::Client,
+    max_retries: u32,
 }
 
 impl HttpWikidataClient {
@@ -64,12 +68,16 @@ impl HttpWikidataClient {
     }
 
     pub fn with_timeout(timeout: std::time::Duration) -> Self {
+        Self::with_options(timeout, DEFAULT_MAX_RETRIES)
+    }
+
+    pub fn with_options(timeout: std::time::Duration, max_retries: u32) -> Self {
         let http = reqwest::Client::builder()
             .user_agent("tdsl/0.1.0 (https://github.com/keroway/timeline-dsl)")
             .timeout(timeout)
             .build()
             .expect("failed to create HTTP client");
-        Self { http }
+        Self { http, max_retries }
     }
 }
 
@@ -78,8 +86,6 @@ impl Default for HttpWikidataClient {
         Self::new()
     }
 }
-
-const MAX_RETRIES: u32 = 3;
 
 impl HttpWikidataClient {
     /// Send an HTTP GET request with exponential backoff retry on 429 and 5xx errors.
@@ -94,7 +100,7 @@ impl HttpWikidataClient {
                     if e.is_timeout() {
                         return Err(WikidataError::Timeout);
                     }
-                    if attempt < MAX_RETRIES && e.is_connect() {
+                    if attempt < self.max_retries && e.is_connect() {
                         tokio::time::sleep(Duration::from_secs(1u64 << attempt)).await;
                         attempt += 1;
                         continue;
@@ -107,7 +113,7 @@ impl HttpWikidataClient {
                         return Ok(resp);
                     }
                     if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                        if attempt >= MAX_RETRIES {
+                        if attempt >= self.max_retries {
                             return Err(WikidataError::RateLimit);
                         }
                         let wait = resp
@@ -120,7 +126,7 @@ impl HttpWikidataClient {
                         attempt += 1;
                         continue;
                     }
-                    if status.is_server_error() && attempt < MAX_RETRIES {
+                    if status.is_server_error() && attempt < self.max_retries {
                         tokio::time::sleep(Duration::from_secs(1u64 << attempt)).await;
                         attempt += 1;
                         continue;
@@ -525,7 +531,7 @@ mod tests {
             .user_agent("tdsl-test")
             .build()
             .unwrap();
-        let client = HttpWikidataClient { http };
+        let client = HttpWikidataClient { http, max_retries: DEFAULT_MAX_RETRIES };
         let base = format!("{}/w/api.php", server.uri());
 
         let result = client
@@ -553,7 +559,7 @@ mod tests {
             .user_agent("tdsl-test")
             .build()
             .unwrap();
-        let client = HttpWikidataClient { http };
+        let client = HttpWikidataClient { http, max_retries: DEFAULT_MAX_RETRIES };
         let base = format!("{}/w/api.php", server.uri());
 
         let result = client
@@ -592,7 +598,7 @@ mod tests {
             .user_agent("tdsl-test")
             .build()
             .unwrap();
-        let client = HttpWikidataClient { http };
+        let client = HttpWikidataClient { http, max_retries: DEFAULT_MAX_RETRIES };
         let base = format!("{}/w/api.php", server.uri());
 
         let result = client
