@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-05-10
+
+### Added
+
+- **WebUI CodeMirror 言語拡張**: `@codemirror/lang-markdown` 流用を廃止し、TDSL 専用の StreamParser ベース言語拡張を実装（#136）。キーワード・QID・PID・`claim()` 式・文字列・コメントをダーク／ライト両テーマで色分け
+- **WebUI 診断行クリックジャンプ**: 診断パネルのエラー行をクリックするとエディタの該当行へスクロール・フォーカスする機能を追加（#139）
+- **Wikidata fetch プログレス表示**: `indicatif` クレートを導入し、Wikidata fetch 中にスピナーと進捗バーを表示（#135）
+- **Wikidata Retry-After 対応**: HTTP 429 レスポンスの `Retry-After` ヘッダを尊重してリトライ待機。デフォルトリトライ回数を 5 回に引き上げ、`--wikidata-retries` で設定可能（#140）
+- **`--wikidata-timeout` CLI オプション**: Wikidata API リクエストのタイムアウト秒数を指定できる `--wikidata-timeout` オプションを追加（#134）
+- **VS Code スニペット**: `timeline` / `lane` / `span` のスニペットテンプレートを追加（#137）
+
+### Changed
+
+- **CJK フォントスタック改善**: SVG レンダリング時のフォント指定に Noto Sans JP を優先し、CJK 文字の表示品質を改善（#138）
+- **エラーチェーン統一**: `serde_json::to_string*().unwrap()` を `?` によるエラーチェーンに統一（#131）
+- **ベンチマーク**: `criterion::black_box` を `std::hint::black_box` に移行（#154）
+
 ## [1.3.0] - 2026-05-06
 
 ### Added
@@ -96,6 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.4.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/keroway/timeline-dsl/releases/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/keroway/timeline-dsl/releases/compare/v1.2.0...v1.2.1
