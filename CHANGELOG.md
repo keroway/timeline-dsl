@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **時間値フォールバック演算子（`??`）の map expr 対応**: `map` ブロックの `start` / `end` / `time` でも `??` 演算子をサポートし、複数の Wikidata プロパティから最初の有効値を取得できるようにした（#143）。例: `start claim(P580).year ?? claim(P571).year`。既存の単項式（`start claim(P571).year`）は完全互換
 - **ARM Linux (aarch64) バイナリ配布**: `aarch64-unknown-linux-musl` ターゲットをリリース CI のビルドマトリクスに追加し、`tdsl-linux-aarch64.tar.gz` を GitHub Release に同梱（#145）。Homebrew formula も Linux ARM 環境を判定して適切なバイナリを取得するように更新
 
 ## [1.4.0] - 2026-05-10

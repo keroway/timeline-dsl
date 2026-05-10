@@ -426,12 +426,20 @@ fn build_map_prop(item: Pair<'_, Rule>, props: &mut Vec<MapProp>) -> Result<()> 
 }
 
 fn build_map_expr(pair: Pair<'_, Rule>) -> Result<MapExpr> {
+    let fallbacks = pair
+        .into_inner()
+        .map(build_claim_expr)
+        .collect::<Result<Vec<_>>>()?;
+    Ok(MapExpr { fallbacks })
+}
+
+fn build_claim_expr(pair: Pair<'_, Rule>) -> Result<ClaimExpr> {
     let mut inner = pair.into_inner();
     let claim_pair = inner.next().unwrap();
     let property = claim_pair.into_inner().next().unwrap().as_str().to_string();
     let accessor = inner.next().map(|p| p.as_str().to_string());
 
-    Ok(MapExpr {
+    Ok(ClaimExpr {
         claim: ClaimCall { property },
         accessor,
     })

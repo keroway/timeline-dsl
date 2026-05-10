@@ -178,6 +178,106 @@ mod tests {
     }
 
     #[test]
+    fn parse_map_expr_with_fallback() {
+        let src = r#"
+            map wd.han to span {
+                lane han;
+                start claim(P580).year ?? claim(P571).year;
+                end claim(P582).year ?? claim(P576).year;
+                label label@ja ?? label@en;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let start = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::Start(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("start present");
+                assert_eq!(start.fallbacks.len(), 2);
+                assert_eq!(start.fallbacks[0].claim.property, "P580");
+                assert_eq!(start.fallbacks[0].accessor.as_deref(), Some("year"));
+                assert_eq!(start.fallbacks[1].claim.property, "P571");
+                assert_eq!(start.fallbacks[1].accessor.as_deref(), Some("year"));
+
+                let end = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::End(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("end present");
+                assert_eq!(end.fallbacks.len(), 2);
+                assert_eq!(end.fallbacks[0].claim.property, "P582");
+                assert_eq!(end.fallbacks[1].claim.property, "P576");
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
+    fn parse_map_expr_single_claim_still_works() {
+        let src = r#"
+            map wd.x to event {
+                lane a;
+                time claim(P571).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let time = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::Time(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("time present");
+                assert_eq!(time.fallbacks.len(), 1);
+                assert_eq!(time.fallbacks[0].claim.property, "P571");
+                assert_eq!(time.fallbacks[0].accessor.as_deref(), Some("year"));
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
+    fn parse_map_expr_three_fallbacks() {
+        let src = r#"
+            map wd.x to event {
+                lane a;
+                time claim(P580).year ?? claim(P571).year ?? claim(P569).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let time = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::Time(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("time present");
+                assert_eq!(time.fallbacks.len(), 3);
+                assert_eq!(time.fallbacks[0].claim.property, "P580");
+                assert_eq!(time.fallbacks[1].claim.property, "P571");
+                assert_eq!(time.fallbacks[2].claim.property, "P569");
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
     fn parse_comments() {
         let src = r#"
             // This is a comment

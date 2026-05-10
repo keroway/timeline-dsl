@@ -203,6 +203,11 @@ pub enum MapProp {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MapExpr {
+    pub fallbacks: Vec<ClaimExpr>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClaimExpr {
     pub claim: ClaimCall,
     pub accessor: Option<String>,
 }
