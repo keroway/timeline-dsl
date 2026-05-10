@@ -15,8 +15,13 @@ class Tdsl < Formula
   end
 
   on_linux do
-    url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-linux-x86_64.tar.gz"
-    sha256 "PLACEHOLDER_LINUX_X86_64_SHA256"
+    if Hardware::CPU.arm?
+      url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-linux-aarch64.tar.gz"
+      sha256 "PLACEHOLDER_LINUX_AARCH64_SHA256"
+    else
+      url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-linux-x86_64.tar.gz"
+      sha256 "PLACEHOLDER_LINUX_X86_64_SHA256"
+    end
   end
 
   def install
