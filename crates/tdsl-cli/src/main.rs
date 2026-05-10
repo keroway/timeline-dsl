@@ -2512,6 +2512,14 @@ fn render_item_props(props: &tdsl_parser::ast::ItemProps) -> String {
 }
 
 fn render_map_expr(expr: &tdsl_parser::ast::MapExpr) -> String {
+    expr.fallbacks
+        .iter()
+        .map(render_claim_expr)
+        .collect::<Vec<_>>()
+        .join(" ?? ")
+}
+
+fn render_claim_expr(expr: &tdsl_parser::ast::ClaimExpr) -> String {
     if let Some(accessor) = &expr.accessor {
         format!("claim({}).{}", expr.claim.property, accessor)
     } else {
