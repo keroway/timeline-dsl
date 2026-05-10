@@ -975,4 +975,124 @@ mod tests {
         // start が None になるためアイテムは生成されない
         assert_eq!(ir.items.len(), 0);
     }
+
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn eval_map_expr_falls_back_when_first_missing() {
+        // P580/P582 が無い → P571/P576 にフォールバック
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            map wd.han to span {
+                lane dynasty;
+                start claim(P580).year ?? claim(P571).year;
+                end claim(P582).year ?? claim(P576).year;
+                label label@ja;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        // make_entity は P571=-206, P576=220 のみ設定（P580/P582 は無し）
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 1);
+        match &ir.items[0] {
+            ir::Item::Span { start, end, .. } => {
+                assert_eq!(*start, -206); // P580 無し → P571 採用
+                assert_eq!(*end, 220); // P582 無し → P576 採用
+            }
+            _ => panic!("expected Span"),
+        }
+    }
+
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn eval_map_expr_uses_first_when_present() {
+        // P580/P582 と P571/P576 両方ある → 短絡評価で P580/P582 採用
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q1 as e;
+            }
+
+            map wd.e to span {
+                lane dynasty;
+                start claim(P580).year ?? claim(P571).year;
+                end claim(P582).year ?? claim(P576).year;
+                label label@ja;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entity = make_entity("Q1", "test", -206, 220);
+        // P580=100, P582=300 を追加で仕込む
+        entity
+            .claims
+            .insert("P580".to_string(), vec![make_time_statement("P580", 100)]);
+        entity
+            .claims
+            .insert("P582".to_string(), vec![make_time_statement("P582", 300)]);
+        let mut entities = HashMap::new();
+        entities.insert("Q1".to_string(), entity);
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 1);
+        match &ir.items[0] {
+            ir::Item::Span { start, end, .. } => {
+                assert_eq!(*start, 100); // P580 が存在するため採用（P571 は使わない）
+                assert_eq!(*end, 300); // P582 が存在するため採用（P576 は使わない）
+            }
+            _ => panic!("expected Span"),
+        }
+    }
+
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn eval_map_expr_all_missing_skips_item() {
+        // 全 fallback とも空 → アイテム生成されない
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            map wd.han to span {
+                lane dynasty;
+                start claim(P580).year ?? claim(P9999).year;
+                end claim(P582).year ?? claim(P576).year;
+                label label@ja;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        // start のフォールバック両方とも None → アイテムスキップ
+        assert_eq!(ir.items.len(), 0);
+    }
 }
