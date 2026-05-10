@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties, type MouseEvent } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
-import { markdown } from '@codemirror/lang-markdown'
+import { tdsl } from './lang-tdsl'
 import { oneDark } from '@codemirror/theme-one-dark'
 import type { EditorView } from '@codemirror/view'
 import { initWasm, renderSvg, renderHtml, checkSource } from './wasmLoader'
@@ -312,7 +312,7 @@ function App() {
             value={source}
             height="100%"
             theme={colorScheme === 'dark' ? oneDark : 'light'}
-            extensions={[markdown()]}
+            extensions={[tdsl()]}
             onChange={handleEditorChange}
             onCreateEditor={(view) => { editorViewRef.current = view }}
             basicSetup={{
