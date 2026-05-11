@@ -58,6 +58,36 @@ const DEBOUNCE_MS = 500
 
 type ColorScheme = 'dark' | 'light'
 
+type LegendItem = { lane: string; label: string; color: string }
+
+type SelectedItem = {
+  label: string
+  type: string
+  lane: string
+  source: string
+  tooltip: string
+}
+
+function extractLegend(container: Element): LegendItem[] {
+  const colorMap = new Map<string, string>()
+  container.querySelectorAll<Element>('[data-lane]').forEach((el) => {
+    const lane = el.getAttribute('data-lane') || ''
+    if (!colorMap.has(lane)) {
+      const fillEl = el.querySelector('.tdsl-span, .tdsl-event-range, .tdsl-event-dot')
+      const style = fillEl?.getAttribute('style') || ''
+      const m = style.match(/fill:([^;]+)/)
+      if (m) colorMap.set(lane, m[1].trim())
+    }
+  })
+  const result: LegendItem[] = []
+  container.querySelectorAll<Element>('.tdsl-lane-label[data-lane]').forEach((el) => {
+    const lane = el.getAttribute('data-lane') || ''
+    const label = el.textContent || lane
+    result.push({ lane, label, color: colorMap.get(lane) || '#888' })
+  })
+  return result
+}
+
 function App() {
   const [source, setSource] = useState<string>(EXAMPLES[0].source)
   const [svgContent, setSvgContent] = useState<string>('')
@@ -75,6 +105,30 @@ function App() {
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
+
+  // Pan/zoom (direct DOM manipulation avoids React re-renders during drag)
+  const panZoomRef = useRef({ x: 0, y: 0, s: 1 })
+  const [cursorGrab, setCursorGrab] = useState(false)
+  const previewRef = useRef<HTMLDivElement>(null)
+  const svgContainerRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ mx: number; my: number; px: number; py: number } | null>(null)
+  const didDragRef = useRef(false)
+
+  // Legend & detail panel
+  const [showLegend, setShowLegend] = useState(false)
+  const [legendItems, setLegendItems] = useState<LegendItem[]>([])
+  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
+
+  function applyTransform(t: { x: number; y: number; s: number }) {
+    panZoomRef.current = t
+    if (svgContainerRef.current) {
+      svgContainerRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.s})`
+    }
+  }
+
+  function resetPanZoom() {
+    applyTransform({ x: 0, y: 0, s: 1 })
+  }
 
   // Initialize WASM on mount
   useEffect(() => {
@@ -145,6 +199,35 @@ function App() {
     setCopyFeedback(msg)
     setTimeout(() => setCopyFeedback(null), 2000)
   }
+
+  // Wheel zoom (passive:false required to call preventDefault)
+  useEffect(() => {
+    const preview = previewRef.current
+    if (!preview) return
+    function onWheel(e: WheelEvent) {
+      e.preventDefault()
+      const rect = preview!.getBoundingClientRect()
+      const cx = e.clientX - rect.left
+      const cy = e.clientY - rect.top
+      const factor = e.deltaY < 0 ? 1.1 : 0.9
+      const pz = panZoomRef.current
+      const newS = Math.max(0.1, Math.min(10, pz.s * factor))
+      const ratio = newS / pz.s
+      applyTransform({ s: newS, x: cx - (cx - pz.x) * ratio, y: cy - (cy - pz.y) * ratio })
+    }
+    preview.addEventListener('wheel', onWheel, { passive: false })
+    return () => preview.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // Extract legend after SVG renders into DOM
+  useEffect(() => {
+    if (!svgContent) { setLegendItems([]); return }
+    requestAnimationFrame(() => {
+      if (svgContainerRef.current) {
+        setLegendItems(extractLegend(svgContainerRef.current))
+      }
+    })
+  }, [svgContent])
 
   function handleEditorChange(value: string) {
     setSource(value)
@@ -239,7 +322,25 @@ function App() {
     fileInputRef.current?.click()
   }
 
+  // Preview mouse handlers (drag pan + tooltip + item selection)
+  function handlePreviewMouseDown(e: MouseEvent<HTMLDivElement>) {
+    if (e.button !== 0) return
+    const pz = panZoomRef.current
+    dragRef.current = { mx: e.clientX, my: e.clientY, px: pz.x, py: pz.y }
+    didDragRef.current = false
+    setCursorGrab(true)
+  }
+
   function handlePreviewMouseMove(e: MouseEvent<HTMLDivElement>) {
+    if (dragRef.current) {
+      const dx = e.clientX - dragRef.current.mx
+      const dy = e.clientY - dragRef.current.my
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDragRef.current = true
+      const pz = panZoomRef.current
+      applyTransform({ s: pz.s, x: dragRef.current.px + dx, y: dragRef.current.py + dy })
+      setTooltip(null)
+      return
+    }
     const target = (e.target as Element).closest<HTMLElement>('[data-tdsl-tooltip]')
     if (target) {
       const text = target.dataset.tdslTooltip ?? ''
@@ -249,8 +350,35 @@ function App() {
     }
   }
 
+  function handlePreviewMouseUp() {
+    dragRef.current = null
+    setCursorGrab(false)
+  }
+
   function handlePreviewMouseLeave() {
+    dragRef.current = null
+    setCursorGrab(false)
     setTooltip(null)
+  }
+
+  function handlePreviewDblClick() {
+    resetPanZoom()
+  }
+
+  function handlePreviewClick(e: MouseEvent<HTMLDivElement>) {
+    if (didDragRef.current) { didDragRef.current = false; return }
+    const target = (e.target as Element).closest<HTMLElement>('[data-label]')
+    if (target) {
+      setSelectedItem({
+        label: target.dataset.label || '',
+        type: target.dataset.type || '',
+        lane: target.dataset.lane || '',
+        source: target.dataset.source || '',
+        tooltip: target.dataset.tdslTooltip || '',
+      })
+    } else {
+      setSelectedItem(null)
+    }
   }
 
   function handleDiagClick(diag: Diagnostic) {
@@ -447,21 +575,78 @@ function App() {
             }}
           />
         </div>
-        <div
-          className="preview-pane"
-          onMouseMove={handlePreviewMouseMove}
-          onMouseLeave={handlePreviewMouseLeave}
-        >
-          {svgContent ? (
-            <div
-              className="svg-container"
-              dangerouslySetInnerHTML={{ __html: svgContent }}
-            />
-          ) : (
-            <div className="preview-placeholder">
-              {wasmReady ? 'プレビューなし（エラーを確認してください）' : '読み込み中...'}
+        <div className="preview-area">
+          {/* Preview controls overlay */}
+          {svgContent && (
+            <div className="preview-controls">
+              <button
+                className="btn btn-preview-ctrl"
+                onClick={resetPanZoom}
+                title="ビューをリセット（ダブルクリックでも可）"
+              >
+                リセット
+              </button>
+              <button
+                className="btn btn-preview-ctrl"
+                onClick={() => setShowLegend((v) => !v)}
+                title="凡例を表示/非表示"
+              >
+                {showLegend ? '凡例 ✕' : '凡例'}
+              </button>
             </div>
           )}
+          {/* Legend panel */}
+          {showLegend && legendItems.length > 0 && (
+            <div className="legend-panel">
+              <div className="legend-header">凡例</div>
+              {legendItems.map((item) => (
+                <div key={item.lane} className="legend-item">
+                  <span className="legend-swatch" style={{ background: item.color }} />
+                  <span className="legend-label">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Selected item detail panel */}
+          {selectedItem && (
+            <div className="detail-panel">
+              <div className="detail-header">
+                <span>詳細</span>
+                <button className="detail-close" onClick={() => setSelectedItem(null)}>✕</button>
+              </div>
+              <dl className="detail-list">
+                <dt>名前</dt><dd>{selectedItem.label || '—'}</dd>
+                <dt>種類</dt><dd>{selectedItem.type || '—'}</dd>
+                <dt>レーン</dt><dd>{selectedItem.lane || '—'}</dd>
+                {selectedItem.source && <><dt>出典</dt><dd>{selectedItem.source}</dd></>}
+                {selectedItem.tooltip && (
+                  <><dt>情報</dt><dd className="detail-tooltip">{selectedItem.tooltip}</dd></>
+                )}
+              </dl>
+            </div>
+          )}
+          <div
+            ref={previewRef}
+            className={`preview-pane${cursorGrab ? ' grabbing' : ''}`}
+            onMouseDown={handlePreviewMouseDown}
+            onMouseMove={handlePreviewMouseMove}
+            onMouseUp={handlePreviewMouseUp}
+            onMouseLeave={handlePreviewMouseLeave}
+            onDoubleClick={handlePreviewDblClick}
+            onClick={handlePreviewClick}
+          >
+            {svgContent ? (
+              <div
+                ref={svgContainerRef}
+                className="svg-container"
+                dangerouslySetInnerHTML={{ __html: svgContent }}
+              />
+            ) : (
+              <div className="preview-placeholder">
+                {wasmReady ? 'プレビューなし（エラーを確認してください）' : '読み込み中...'}
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
