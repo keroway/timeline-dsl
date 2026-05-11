@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   render-preview:
@@ -26,24 +27,138 @@ jobs:
       - name: Build tdsl CLI
         run: cargo build --release -p tdsl-cli
 
-      - name: Render changed .tdsl files
+      - name: Render changed .tdsl files and collect IR summary
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
           mkdir -p preview
-          git diff --name-only "origin/${BASE_REF}...HEAD" \
-            | grep '\.tdsl$' \
-            | while IFS= read -r file; do
-                [ -f "$file" ] || continue
-                name=$(basename "$file" .tdsl)
-                echo "Rendering: $file -> preview/${name}.svg"
-                ./target/release/tdsl render --format svg --offline \
-                  -o "preview/${name}.svg" "$file" \
-                  || echo "WARNING: failed to render $file"
-              done
+
+          changed_files=$(git diff --name-only "origin/${BASE_REF}...HEAD" | grep '\.tdsl$' || true)
+
+          summary_entries='[]'
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            [ -f "$file" ] || continue
+
+            name=$(basename "$file" .tdsl)
+            echo "Rendering: $file -> preview/${name}.svg"
+            ./target/release/tdsl render --format svg --offline \
+              -o "preview/${name}.svg" "$file" \
+              || echo "WARNING: failed to render $file"
+
+            echo "Building IR for: $file"
+            ir_json=$(./target/release/tdsl build --pretty --offline "$file" 2>/dev/null || echo '{}')
+
+            items=$(echo "$ir_json" | jq '.items | length // 0')
+            lanes=$(echo "$ir_json" | jq '.lanes | length // 0')
+            range_start=$(echo "$ir_json" | jq '.meta.range[0] // "N/A"')
+            range_end=$(echo "$ir_json" | jq '.meta.range[1] // "N/A"')
+
+            entry=$(jq -n \
+              --arg file "$file" \
+              --arg name "$name" \
+              --argjson items "$items" \
+              --argjson lanes "$lanes" \
+              --argjson range_start "$range_start" \
+              --argjson range_end "$range_end" \
+              '{file: $file, name: $name, items: $items, lanes: $lanes, range_start: $range_start, range_end: $range_end}')
+
+            summary_entries=$(echo "$summary_entries" | jq --argjson entry "$entry" '. + [$entry]')
+          done <<< "$changed_files"
+
+          echo "$summary_entries" > preview/summary.json
+          echo "Summary written to preview/summary.json"
+          cat preview/summary.json
 
       - uses: actions/upload-artifact@v4
         with:
           name: tdsl-preview-svg
           path: preview/
           if-no-files-found: warn
+
+      - name: Post preview comment to PR
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const BOT_TAG = '<!-- tdsl-preview-bot -->';
+
+            // summary.json を読み込む
+            let summaryEntries = [];
+            try {
+              const raw = fs.readFileSync('preview/summary.json', 'utf8');
+              summaryEntries = JSON.parse(raw);
+            } catch (e) {
+              console.warn('Failed to read preview/summary.json:', e.message);
+            }
+
+            // 変更ファイル一覧
+            const changedFiles = summaryEntries.map(e => `- \`${e.file}\``).join('\n') || '_(変更された .tdsl ファイルなし)_';
+
+            // IR サマリテーブル
+            let summaryTable = '';
+            if (summaryEntries.length > 0) {
+              const rows = summaryEntries.map(e => {
+                const range = (typeof e.range_start === 'number' && typeof e.range_end === 'number')
+                  ? `${e.range_start} 〜 ${e.range_end}`
+                  : 'N/A';
+                return `| \`${e.file}\` | ${e.items} | ${e.lanes} | ${range} |`;
+              }).join('\n');
+              summaryTable = `| ファイル | アイテム数 | レーン数 | 期間 |\n|---|---|---|---|\n${rows}`;
+            } else {
+              summaryTable = '_(IR サマリなし)_';
+            }
+
+            // アーティファクト DL リンク
+            const artifactUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            // 最終更新日時 (UTC)
+            const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
+
+            const body = [
+              BOT_TAG,
+              '## TDSL プレビュー',
+              '',
+              '### 変更ファイル',
+              changedFiles,
+              '',
+              '### IR サマリ',
+              summaryTable,
+              '',
+              '### アーティファクト',
+              'SVG ファイルは以下のワークフロー実行ページからダウンロードできます:',
+              `[tdsl-preview-svg をダウンロード](${artifactUrl})`,
+              '',
+              '---',
+              `_最終更新: ${now}_`,
+            ].join('\n');
+
+            const prNumber = context.payload.pull_request.number;
+
+            // 既存コメントを検索
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const existing = comments.data.find(c => c.body && c.body.includes(BOT_TAG));
+
+            if (existing) {
+              console.log(`Updating existing comment #${existing.id}`);
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              console.log('Creating new comment');
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
