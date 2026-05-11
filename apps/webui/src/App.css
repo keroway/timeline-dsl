@@ -200,6 +200,12 @@ body,
   justify-content: center;
 }
 
+.btn-active {
+  background: var(--bg-hover);
+  border-color: var(--text-title);
+  color: var(--text-title);
+}
+
 /* Status bar */
 .status-bar {
   display: flex;
@@ -659,4 +665,80 @@ body,
   max-width: 280px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   white-space: pre-line;
+}
+
+/* Keyboard shortcut modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-btn);
+  border-radius: 12px;
+  min-width: 360px;
+  max-width: 480px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.modal-close:hover { color: var(--text); }
+
+.shortcuts-table {
+  border-collapse: collapse;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.shortcuts-table td {
+  padding: 7px 18px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.shortcuts-table td:first-child {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.shortcuts-table tr:hover td {
+  background: var(--bg-elevated);
+}
+
+.kbd {
+  display: inline-block;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-btn);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
 }

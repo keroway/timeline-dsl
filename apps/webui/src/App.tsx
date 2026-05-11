@@ -2,7 +2,10 @@ import { useState, useEffect, useRef, useCallback, type CSSProperties, type Mous
 import CodeMirror from '@uiw/react-codemirror'
 import { tdsl } from './lang-tdsl'
 import { oneDark } from '@codemirror/theme-one-dark'
-import type { EditorView } from '@codemirror/view'
+import { EditorView } from '@codemirror/view'
+import { autocompletion, snippetCompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
+import { bracketMatching } from '@codemirror/language'
+import { search } from '@codemirror/search'
 import { initWasm, renderSvg, renderHtml, checkSource } from './wasmLoader'
 import type { Diagnostic } from './wasmLoader'
 import { EXAMPLES } from './examples'
@@ -88,6 +91,87 @@ function extractLegend(container: Element): LegendItem[] {
   return result
 }
 
+// ─── TDSL keyword completions & snippets ─────────────────────────────────────
+
+const TDSL_SNIPPETS = [
+  snippetCompletion('timeline "${1:タイトル}" {\n  unit: year\n  range: ${2:1900} to ${3:2000}\n\n  ${0}\n}', {
+    label: 'timeline', detail: '年表ブロック', type: 'keyword', boost: 10,
+  }),
+  snippetCompletion('lane "${1:レーン名}" as ${2:id}', {
+    label: 'lane', detail: 'レーン定義', type: 'keyword', boost: 9,
+  }),
+  snippetCompletion('span "${1:名前}" {\n  lane: ${2:id}\n  start: ${3:1900}\n  end: ${4:1950}\n}', {
+    label: 'span', detail: 'スパン', type: 'keyword', boost: 8,
+  }),
+  snippetCompletion('event "${1:名前}" {\n  lane: ${2:id}\n  at: ${3:1900}\n}', {
+    label: 'event', detail: 'イベント', type: 'keyword', boost: 8,
+  }),
+  snippetCompletion('event_range "${1:名前}" {\n  lane: ${2:id}\n  start: ${3:1900}\n  end: ${4:1950}\n}', {
+    label: 'event_range', detail: 'イベント範囲', type: 'keyword', boost: 7,
+  }),
+  snippetCompletion('import "${1:Q12345}" as ${2:alias} {\n  lang: ja, en\n}', {
+    label: 'import', detail: 'Wikidataインポート', type: 'keyword', boost: 7,
+  }),
+  snippetCompletion('map ${1:alias} {\n  target_type: span\n  lane: ${2:id}\n  label: wd.${3:label}\n  start: wd.${4:start}\n  end: wd.${5:end}\n}', {
+    label: 'map', detail: 'マッピング', type: 'keyword', boost: 6,
+  }),
+  snippetCompletion('query "${1:SPARQL}" as ${2:alias}', {
+    label: 'query', detail: 'SPARQLクエリ', type: 'keyword', boost: 5,
+  }),
+  snippetCompletion('color_map {\n  "${1:タグ}": "${2:#4682B4}"\n}', {
+    label: 'color_map', detail: 'タグ→色マッピング', type: 'keyword', boost: 5,
+  }),
+]
+
+const STATIC_KEYWORDS = [
+  { label: 'unit', type: 'keyword' as const },
+  { label: 'range', type: 'keyword' as const },
+  { label: 'calendar', type: 'keyword' as const },
+  { label: 'meta', type: 'keyword' as const },
+  { label: 'target_type', type: 'keyword' as const },
+  { label: 'year', type: 'keyword' as const },
+  { label: 'lang', type: 'keyword' as const },
+  { label: 'label', type: 'property' as const },
+  { label: 'start', type: 'property' as const },
+  { label: 'end', type: 'property' as const },
+  { label: 'at', type: 'property' as const },
+  { label: 'source', type: 'property' as const },
+  { label: 'tags', type: 'property' as const },
+  { label: 'order', type: 'property' as const },
+]
+
+function makeTdslCompletionSource(getSource: () => string) {
+  return function tdslCompletions(context: CompletionContext): CompletionResult | null {
+    const word = context.matchBefore(/[\w.]+/)
+    if (!word || (word.from === word.to && !context.explicit)) return null
+    const src = getSource()
+    const laneIds = [...src.matchAll(/\blane\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
+      label: m[1], type: 'variable' as const, detail: 'lane id',
+    }))
+    const importAliases = [...src.matchAll(/\bimport\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
+      label: m[1], type: 'variable' as const, detail: 'import alias',
+    }))
+    return {
+      from: word.from,
+      options: [...TDSL_SNIPPETS, ...STATIC_KEYWORDS, ...laneIds, ...importAliases],
+    }
+  }
+}
+
+// ─── Keyboard shortcut reference ─────────────────────────────────────────────
+
+const SHORTCUTS = [
+  { key: 'Ctrl/Cmd + F', desc: '検索・置換パネルを開く' },
+  { key: 'Escape', desc: '検索パネルを閉じる' },
+  { key: 'Ctrl/Cmd + Enter', desc: '次の候補へ' },
+  { key: 'Ctrl/Cmd + G', desc: '次の一致へ' },
+  { key: 'Ctrl/Cmd + Z', desc: '元に戻す' },
+  { key: 'Ctrl/Cmd + Shift + Z', desc: 'やり直す' },
+  { key: 'Tab / Space', desc: 'スニペット候補を選択' },
+  { key: 'Ctrl/Cmd + Space', desc: '補完候補を表示' },
+  { key: '? (エディタ外)', desc: 'ショートカット一覧を開く' },
+]
+
 function App() {
   const [source, setSource] = useState<string>(EXAMPLES[0].source)
   const [svgContent, setSvgContent] = useState<string>('')
@@ -105,6 +189,8 @@ function App() {
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [lineWrap, setLineWrap] = useState(false)
 
   // Pan/zoom (direct DOM manipulation avoids React re-renders during drag)
   const panZoomRef = useRef({ x: 0, y: 0, s: 1 })
@@ -229,6 +315,18 @@ function App() {
     })
   }, [svgContent])
 
+  // Global `?` key to toggle shortcut modal (only when editor doesn't have focus)
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === '?' && !(e.target instanceof HTMLTextAreaElement) && !editorViewRef.current?.hasFocus) {
+        e.preventDefault()
+        setShowShortcuts((v) => !v)
+      }
+      if (e.key === 'Escape') setShowShortcuts(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
   function handleEditorChange(value: string) {
     setSource(value)
   }
@@ -451,6 +549,20 @@ function App() {
           >
             {colorScheme === 'dark' ? 'ライト' : 'ダーク'}
           </button>
+          <button
+            className={`btn${lineWrap ? ' btn-active' : ''}`}
+            onClick={() => setLineWrap((v) => !v)}
+            title="行折り返しの切替"
+          >
+            折り返し
+          </button>
+          <button
+            className="btn"
+            onClick={() => setShowShortcuts(true)}
+            title="キーボードショートカット一覧 (?)"
+          >
+            ?
+          </button>
         </div>
         <div className="toolbar-right">
           <a
@@ -563,7 +675,13 @@ function App() {
             value={source}
             height="100%"
             theme={colorScheme === 'dark' ? oneDark : 'light'}
-            extensions={[tdsl()]}
+            extensions={[
+              tdsl(),
+              search({ top: true }),
+              bracketMatching(),
+              autocompletion({ override: [makeTdslCompletionSource(() => source)] }),
+              ...(lineWrap ? [EditorView.lineWrapping] : []),
+            ]}
             onChange={handleEditorChange}
             onCreateEditor={(view) => { editorViewRef.current = view }}
             basicSetup={{
@@ -686,6 +804,27 @@ function App() {
           {tooltip.text.split('\n').map((line, i) => (
             <div key={i}>{line}</div>
           ))}
+        </div>
+      )}
+      {/* Keyboard shortcuts modal */}
+      {showShortcuts && (
+        <div className="modal-overlay" onClick={() => setShowShortcuts(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span>キーボードショートカット</span>
+              <button className="modal-close" onClick={() => setShowShortcuts(false)}>✕</button>
+            </div>
+            <table className="shortcuts-table">
+              <tbody>
+                {SHORTCUTS.map(({ key, desc }) => (
+                  <tr key={key}>
+                    <td><kbd className="kbd">{key}</kbd></td>
+                    <td>{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
