@@ -438,6 +438,15 @@ impl LoweringContext {
         let mut label = String::new();
         let mut tags = Vec::new();
 
+        // First pass: evaluate filters; skip this entity if any filter is false.
+        for prop in &map.props {
+            if let ast::MapProp::Filter(expr) = prop
+                && !eval_filter_expr(expr, entity)
+            {
+                return;
+            }
+        }
+
         for prop in &map.props {
             match prop {
                 ast::MapProp::Lane(l) => lane_ref = l.clone(),
@@ -448,6 +457,7 @@ impl LoweringContext {
                     label = eval_label_expr(lexpr, entity).unwrap_or_default();
                 }
                 ast::MapProp::Tags(t) => tags = t.clone(),
+                ast::MapProp::Filter(_) => {} // evaluated in the first pass above
             }
         }
 
@@ -681,6 +691,53 @@ fn eval_claim_expr(expr: &ast::ClaimExpr, entity: &WikidataEntity) -> Option<i64
 fn eval_label_expr(expr: &ast::LabelExpr, entity: &WikidataEntity) -> Option<String> {
     let langs: Vec<&str> = expr.fallbacks.iter().map(|lr| lr.lang.as_str()).collect();
     entity.label_with_fallback(&langs).map(|s| s.to_string())
+}
+
+/// Evaluate a filter expression against an entity. Returns `true` if the entity passes.
+#[cfg(feature = "wikidata")]
+fn eval_filter_expr(expr: &ast::FilterExpr, entity: &WikidataEntity) -> bool {
+    match expr {
+        ast::FilterExpr::And(a, b) => eval_filter_expr(a, entity) && eval_filter_expr(b, entity),
+        ast::FilterExpr::Or(a, b) => eval_filter_expr(a, entity) || eval_filter_expr(b, entity),
+        ast::FilterExpr::Not(a) => !eval_filter_expr(a, entity),
+        ast::FilterExpr::Compare { lhs, op, rhs } => eval_filter_compare(lhs, *op, rhs, entity),
+    }
+}
+
+#[cfg(feature = "wikidata")]
+fn eval_filter_compare(
+    lhs: &ast::FilterOperand,
+    op: ast::CompareOp,
+    rhs: &ast::FilterOperand,
+    entity: &WikidataEntity,
+) -> bool {
+    let lv = resolve_filter_operand(lhs, entity);
+    let rv = resolve_filter_operand(rhs, entity);
+    match (lv, rv) {
+        // null-vs-null
+        (None, None) => matches!(op, ast::CompareOp::Eq),
+        // null-vs-value: only Eq/NotEq are meaningful; order comparisons are false.
+        (None, Some(_)) | (Some(_), None) => matches!(op, ast::CompareOp::NotEq),
+        (Some(a), Some(b)) => match op {
+            ast::CompareOp::Eq => a == b,
+            ast::CompareOp::NotEq => a != b,
+            ast::CompareOp::Lt => a < b,
+            ast::CompareOp::Le => a <= b,
+            ast::CompareOp::Gt => a > b,
+            ast::CompareOp::Ge => a >= b,
+        },
+    }
+}
+
+/// Resolve a filter operand to an optional integer value.
+/// `null` and unevaluable claim expressions both yield `None`.
+#[cfg(feature = "wikidata")]
+fn resolve_filter_operand(op: &ast::FilterOperand, entity: &WikidataEntity) -> Option<i64> {
+    match op {
+        ast::FilterOperand::Int(n) => Some(*n),
+        ast::FilterOperand::Null => None,
+        ast::FilterOperand::Claim(ce) => eval_claim_expr(ce, entity),
+    }
 }
 
 // ─── Helpers ────────────────────────────────────────────────
