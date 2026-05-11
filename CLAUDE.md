@@ -129,6 +129,7 @@ crates/
 - Windows バイナリ対応
 - Criterion ベンチマーク（パーサ・lowering・レンダリング）
 - `tdsl merge`（複数 `.tdsl` ファイルのIRマージ）
+- GitHub Actions composite action（`action.yml`）: `uses: keroway/timeline-dsl@v1` で `.tdsl` → SVG/HTML レンダリングを CI から呼び出せる（詳細: `docs/ci-integration.md`）
 
 ### 未実装（今後の拡張）
 
