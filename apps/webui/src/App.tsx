@@ -8,6 +8,52 @@ import type { Diagnostic } from './wasmLoader'
 import { EXAMPLES } from './examples'
 import './App.css'
 
+const SVG_EMBEDDED_CSS = `
+  .tdsl-lane-band-even { fill: #ffffff; }
+  .tdsl-lane-band-odd  { fill: #f5f5f7; }
+  .tdsl-axis-baseline  { stroke: #888888; stroke-width: 1; }
+  .tdsl-axis-tick      { stroke: #e0e0e0; stroke-width: 1; }
+  .tdsl-axis-text      { font-size: 11px; fill: #666666; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .tdsl-lane-label     { font-size: 13px; fill: #333333; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .tdsl-item-label     { font-size: 11px; fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .tdsl-event-stem     { stroke: #666666; stroke-width: 1.5; }
+  .tdsl-event-hit      { fill: transparent; }
+  .tdsl-span           { fill-opacity: 0.78; }
+  .tdsl-event-range    { fill-opacity: 0.75; }
+  .tdsl-event-dot      { stroke: #ffffff; stroke-width: 1; }
+`
+
+function svgWithEmbeddedStyles(svg: string): string {
+  return svg.replace('</style>', SVG_EMBEDDED_CSS + '</style>')
+}
+
+function svgToPngBlob(svg: string, whiteBg: boolean): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const enriched = svgWithEmbeddedStyles(svg)
+    const blob = new Blob([enriched], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth || img.width || 800
+      canvas.height = img.naturalHeight || img.height || 400
+      const ctx = canvas.getContext('2d')!
+      if (whiteBg) {
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      }
+      ctx.drawImage(img, 0, 0)
+      URL.revokeObjectURL(url)
+      canvas.toBlob((b) => {
+        if (b) resolve(b)
+        else reject(new Error('canvas.toBlob failed'))
+      }, 'image/png')
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG load failed')) }
+    img.src = url
+  })
+}
+
 const DEBOUNCE_MS = 500
 
 type ColorScheme = 'dark' | 'light'
@@ -26,6 +72,9 @@ function App() {
   const editorViewRef = useRef<EditorView | null>(null)
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
   const [scale, setScale] = useState<number>(0) // 0 = Auto
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   // Initialize WASM on mount
   useEffect(() => {
@@ -80,6 +129,23 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wasmReady])
 
+  // Close export menu on outside click
+  useEffect(() => {
+    if (!exportMenuOpen) return
+    function onOutside(e: globalThis.MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [exportMenuOpen])
+
+  function showCopyFeedback(msg: string) {
+    setCopyFeedback(msg)
+    setTimeout(() => setCopyFeedback(null), 2000)
+  }
+
   function handleEditorChange(value: string) {
     setSource(value)
   }
@@ -117,6 +183,40 @@ function App() {
     a.download = 'timeline.svg'
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  function downloadPng(whiteBg: boolean = true) {
+    if (!svgContent) return
+    svgToPngBlob(svgContent, whiteBg).then((blob) => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'timeline.png'
+      a.click()
+      URL.revokeObjectURL(url)
+    }).catch(() => {/* silently ignore */})
+  }
+
+  function copySvg() {
+    if (!svgContent) return
+    navigator.clipboard.writeText(svgContent)
+      .then(() => showCopyFeedback('SVG をコピーしました'))
+      .catch(() => {/* silently ignore */})
+  }
+
+  function copyPng() {
+    if (!svgContent) return
+    svgToPngBlob(svgContent, true).then((blob) => {
+      return navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    }).then(() => showCopyFeedback('PNG をコピーしました'))
+      .catch(() => {/* silently ignore */})
+  }
+
+  function copyMarkdown() {
+    const md = '```tdsl\n' + source + '\n```'
+    navigator.clipboard.writeText(md)
+      .then(() => showCopyFeedback('Markdown をコピーしました'))
+      .catch(() => {/* silently ignore */})
   }
 
   function downloadHtml() {
@@ -259,25 +359,48 @@ function App() {
           <button className="btn" onClick={openFile} title=".tdsl ファイルを開く">
             ファイルを開く
           </button>
-          <button className="btn" onClick={downloadTdsl} title=".tdsl をダウンロード">
-            .tdsl 保存
-          </button>
-          <button
-            className="btn"
-            onClick={downloadSvg}
-            disabled={!svgContent}
-            title="SVG をダウンロード"
-          >
-            SVG 保存
-          </button>
-          <button
-            className="btn"
-            onClick={downloadHtml}
-            disabled={!svgContent}
-            title="スタンドアロン HTML をダウンロード"
-          >
-            HTML 保存
-          </button>
+          <div className="export-menu-wrapper" ref={exportMenuRef}>
+            <button
+              className="btn"
+              onClick={() => setExportMenuOpen((v) => !v)}
+              title="エクスポート"
+            >
+              エクスポート ▾
+            </button>
+            {exportMenuOpen && (
+              <div className="export-menu">
+                <div className="export-menu-section">ダウンロード</div>
+                <button className="export-menu-item" onClick={() => { downloadTdsl(); setExportMenuOpen(false) }}>
+                  .tdsl 保存
+                </button>
+                <button className="export-menu-item" onClick={() => { downloadSvg(); setExportMenuOpen(false) }} disabled={!svgContent}>
+                  SVG 保存
+                </button>
+                <button className="export-menu-item" onClick={() => { downloadHtml(); setExportMenuOpen(false) }} disabled={!svgContent}>
+                  HTML 保存
+                </button>
+                <button className="export-menu-item" onClick={() => { downloadPng(true); setExportMenuOpen(false) }} disabled={!svgContent}>
+                  PNG 保存（白背景）
+                </button>
+                <button className="export-menu-item" onClick={() => { downloadPng(false); setExportMenuOpen(false) }} disabled={!svgContent}>
+                  PNG 保存（透過）
+                </button>
+                <div className="export-menu-section">クリップボードへコピー</div>
+                <button className="export-menu-item" onClick={() => { copySvg(); setExportMenuOpen(false) }} disabled={!svgContent}>
+                  SVG をコピー
+                </button>
+                <button className="export-menu-item" onClick={() => { copyPng(); setExportMenuOpen(false) }} disabled={!svgContent}>
+                  PNG をコピー
+                </button>
+                <button className="export-menu-item" onClick={() => { copyMarkdown(); setExportMenuOpen(false) }}>
+                  Markdown をコピー
+                </button>
+              </div>
+            )}
+          </div>
+          {copyFeedback && (
+            <span className="copy-feedback">{copyFeedback}</span>
+          )}
           <input
             ref={fileInputRef}
             type="file"
