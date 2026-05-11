@@ -1,0 +1,49 @@
+name: TDSL Preview
+
+on:
+  pull_request:
+    paths:
+      - "**/*.tdsl"
+
+permissions:
+  contents: read
+
+jobs:
+  render-preview:
+    name: Render SVG Preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: tdsl-preview
+
+      - name: Build tdsl CLI
+        run: cargo build --release -p tdsl-cli
+
+      - name: Render changed .tdsl files
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          mkdir -p preview
+          git diff --name-only "origin/${BASE_REF}...HEAD" \
+            | grep '\.tdsl$' \
+            | while IFS= read -r file; do
+                [ -f "$file" ] || continue
+                name=$(basename "$file" .tdsl)
+                echo "Rendering: $file -> preview/${name}.svg"
+                ./target/release/tdsl render --format svg --offline \
+                  -o "preview/${name}.svg" "$file" \
+                  || echo "WARNING: failed to render $file"
+              done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tdsl-preview-svg
+          path: preview/
+          if-no-files-found: warn
