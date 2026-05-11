@@ -1095,4 +1095,156 @@ mod tests {
         // start のフォールバック両方とも None → アイテムスキップ
         assert_eq!(ir.items.len(), 0);
     }
+
+    // ─── filter clause (issue #142) ─────────────────────────
+
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn filter_excludes_entity_when_false() {
+        // P571=500 の entity に対し `filter ... > 1000` → 除外
+        let src = r#"
+            timeline "Test" { unit year; range -500..2000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            map wd.han to span {
+                lane dynasty;
+                filter claim(P571).year > 1000;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", 500, 700));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 0);
+    }
+
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn filter_includes_entity_when_true() {
+        // P571=1500 の entity に対し `filter ... > 1000` → 含まれる
+        let src = r#"
+            timeline "Test" { unit year; range 0..2000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            map wd.han to span {
+                lane dynasty;
+                filter claim(P571).year > 1000;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", 1500, 1700));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 1);
+    }
+
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn filter_null_check_excludes_when_absent() {
+        // P576 を欠いた entity に `filter claim(P576).year != null;` → 除外
+        let src = r#"
+            timeline "Test" { unit year; range -500..2000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q1 as e;
+            }
+
+            map wd.e to span {
+                lane dynasty;
+                filter claim(P576).year != null;
+                start claim(P571).year;
+                end claim(P571).year;
+                label label@ja;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        // P571 のみ持つ entity を作る (P576 不在)
+        let mut labels = HashMap::new();
+        labels.insert(
+            "ja".to_string(),
+            LabelValue {
+                language: "ja".to_string(),
+                value: "現存王朝".to_string(),
+            },
+        );
+        let mut claims = HashMap::new();
+        claims.insert("P571".to_string(), vec![make_time_statement("P571", 100)]);
+        let entity = WikidataEntity {
+            id: "Q1".to_string(),
+            labels,
+            claims,
+        };
+        let mut entities = HashMap::new();
+        entities.insert("Q1".to_string(), entity);
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 0);
+    }
+
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn multiple_filters_are_anded() {
+        // 2 つの filter のうち片方が false → 除外
+        let src = r#"
+            timeline "Test" { unit year; range -500..2000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            map wd.han to span {
+                lane dynasty;
+                filter claim(P571).year > 0;
+                filter claim(P576).year > 999;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        // P571=100 > 0 (true), P576=500 > 999 (false) → 除外される
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "test", 100, 500));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 0);
+    }
 }
