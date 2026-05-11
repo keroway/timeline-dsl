@@ -1,0 +1,116 @@
+name: 'Timeline DSL'
+description: 'Compile and render .tdsl timeline files to SVG or HTML using Timeline DSL'
+author: 'keroway'
+branding:
+  icon: 'clock'
+  color: 'blue'
+
+inputs:
+  file:
+    description: 'Path to the .tdsl file to render'
+    required: true
+  format:
+    description: 'Output format: svg or html'
+    required: false
+    default: 'svg'
+  output:
+    description: 'Output file path (default: <file-basename>.<format>)'
+    required: false
+    default: ''
+  offline:
+    description: 'Run in offline mode — skip Wikidata fetching, use local cache only'
+    required: false
+    default: 'false'
+  interactive:
+    description: 'Enable interactive HTML output (zoom, pan, search, legend, detail panel). Only applies when format is html.'
+    required: false
+    default: 'false'
+  theme:
+    description: 'Rendering theme: default, dark, print, or pastel'
+    required: false
+    default: ''
+  scale:
+    description: 'Pixels per year on the horizontal axis'
+    required: false
+    default: ''
+  version:
+    description: 'tdsl release version to download (e.g. v1.5.0). Defaults to the latest release.'
+    required: false
+    default: 'latest'
+
+outputs:
+  output_path:
+    description: 'Absolute path to the generated output file'
+    value: ${{ steps.render.outputs.output_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install tdsl CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        OS="${{ runner.os }}"
+        ARCH="${{ runner.arch }}"
+        VERSION="${{ inputs.version }}"
+
+        case "$OS-$ARCH" in
+          Linux-ARM64)  ARCHIVE="tdsl-linux-aarch64.tar.gz" ;;
+          Linux-*)      ARCHIVE="tdsl-linux-x86_64.tar.gz" ;;
+          macOS-ARM64)  ARCHIVE="tdsl-macos-aarch64.tar.gz" ;;
+          macOS-*)      ARCHIVE="tdsl-macos-x86_64.tar.gz" ;;
+          Windows-*)    ARCHIVE="tdsl-windows-x86_64.zip" ;;
+          *)            echo "Unsupported platform: $OS-$ARCH"; exit 1 ;;
+        esac
+
+        if [ "$VERSION" = "latest" ]; then
+          URL="https://github.com/keroway/timeline-dsl/releases/latest/download/$ARCHIVE"
+        else
+          URL="https://github.com/keroway/timeline-dsl/releases/download/$VERSION/$ARCHIVE"
+        fi
+
+        INSTALL_DIR="$RUNNER_TEMP/tdsl-bin"
+        mkdir -p "$INSTALL_DIR"
+
+        echo "Downloading tdsl from $URL"
+        curl -sSfL "$URL" -o "$RUNNER_TEMP/$ARCHIVE"
+
+        if [[ "$ARCHIVE" == *.zip ]]; then
+          unzip -q "$RUNNER_TEMP/$ARCHIVE" -d "$INSTALL_DIR"
+        else
+          tar -xzf "$RUNNER_TEMP/$ARCHIVE" -C "$INSTALL_DIR"
+        fi
+
+        echo "$INSTALL_DIR" >> "$GITHUB_PATH"
+
+        # Verify installation (binary may be tdsl or tdsl.exe on Windows)
+        "$INSTALL_DIR/tdsl" --version 2>/dev/null \
+          || "$INSTALL_DIR/tdsl.exe" --version 2>/dev/null \
+          || { echo "ERROR: tdsl installation failed"; exit 1; }
+
+    - name: Render .tdsl file
+      id: render
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        FILE="${{ inputs.file }}"
+        FORMAT="${{ inputs.format }}"
+        OUTPUT="${{ inputs.output }}"
+
+        if [ -z "$OUTPUT" ]; then
+          OUTPUT="${FILE%.*}.${FORMAT}"
+        fi
+
+        ARGS=(render "$FILE" --format "$FORMAT" --output "$OUTPUT")
+
+        [[ "${{ inputs.offline }}"     == "true" ]] && ARGS+=(--offline)
+        [[ "${{ inputs.interactive }}" == "true" ]] && ARGS+=(--interactive)
+        [[ -n "${{ inputs.theme }}"               ]] && ARGS+=(--theme "${{ inputs.theme }}")
+        [[ -n "${{ inputs.scale }}"               ]] && ARGS+=(--scale "${{ inputs.scale }}")
+
+        echo "Running: tdsl ${ARGS[*]}"
+        tdsl "${ARGS[@]}"
+
+        echo "output_path=$(realpath "$OUTPUT")" >> "$GITHUB_OUTPUT"

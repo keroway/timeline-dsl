@@ -266,6 +266,35 @@ apply dynasty_span to wd {
 | `examples/world_wars.tdsl` | 近代戦争年表。event_range 中心の年表 |
 | `examples/sci_tech_timeline.tdsl` | 科学技術の発明・発見年表。event 中心の年表 |
 
+## GitHub Actions 連携
+
+`uses: keroway/timeline-dsl@v1` で `.tdsl` ファイルを SVG / HTML にレンダリングできます。
+
+```yaml
+- uses: keroway/timeline-dsl@v1
+  with:
+    file: examples/china_dynasties.tdsl
+    format: svg
+    output: china.svg
+    offline: 'true'
+```
+
+主なインプット:
+
+| インプット | デフォルト | 説明 |
+|---|---|---|
+| `file` | — | レンダリングする `.tdsl` ファイルのパス（必須） |
+| `format` | `svg` | 出力フォーマット: `svg` または `html` |
+| `output` | `<basename>.<format>` | 出力ファイルパス |
+| `offline` | `false` | Wikidata フェッチをスキップ（CI推奨） |
+| `interactive` | `false` | インタラクティブ HTML 出力（`format: html` 時） |
+| `theme` | — | テーマ: `default` / `dark` / `print` / `pastel` |
+| `version` | `latest` | 使用する tdsl バージョン（例: `v1.5.0`） |
+
+アウトプット `output_path` には生成ファイルの絶対パスが入ります。
+
+詳細な使い方は [docs/ci-integration.md](docs/ci-integration.md) を参照してください。
+
 ## エディタサポート
 
 ### VS Code 構文ハイライト
