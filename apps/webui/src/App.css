@@ -282,25 +282,179 @@ body,
   height: 100%;
 }
 
-/* Preview pane */
-.preview-pane {
+/* Preview area wrapper */
+.preview-area {
   width: 50%;
   min-width: 0;
-  overflow: auto;
-  background: #ffffff;
+  position: relative;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Preview pane */
+.preview-pane {
+  flex: 1;
+  overflow: hidden;
+  background: #ffffff;
+  cursor: grab;
+  user-select: none;
+  position: relative;
+}
+
+.preview-pane.grabbing {
+  cursor: grabbing;
 }
 
 .svg-container {
   padding: 16px;
   display: inline-block;
-  min-width: 100%;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 .svg-container svg {
   display: block;
+}
+
+/* Preview controls overlay */
+.preview-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+}
+
+.btn-preview-ctrl {
+  font-size: 11px;
+  padding: 3px 8px;
+  height: 24px;
+  background: rgba(30, 30, 46, 0.85);
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  backdrop-filter: blur(4px);
+}
+
+.btn-preview-ctrl:hover {
+  background: rgba(49, 50, 68, 0.9);
+  border-color: #7f849c;
+}
+
+/* Legend panel */
+.legend-panel {
+  position: absolute;
+  top: 40px;
+  right: 8px;
+  z-index: 10;
+  background: rgba(30, 30, 46, 0.92);
+  border: 1px solid #45475a;
+  border-radius: 8px;
+  padding: 8px 0;
+  min-width: 140px;
+  max-width: 200px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.legend-header {
+  padding: 4px 12px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7f849c;
+  border-bottom: 1px solid #313244;
+  margin-bottom: 4px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  font-size: 12px;
+  color: #cdd6f4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Detail panel */
+.detail-panel {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 10;
+  background: rgba(30, 30, 46, 0.95);
+  border: 1px solid #45475a;
+  border-radius: 8px;
+  min-width: 200px;
+  max-width: 260px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #313244;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7f849c;
+}
+
+.detail-close {
+  background: none;
+  border: none;
+  color: #7f849c;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.detail-close:hover { color: #cdd6f4; }
+
+.detail-list {
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  font-size: 12px;
+}
+
+.detail-list dt {
+  color: #7f849c;
+  white-space: nowrap;
+}
+
+.detail-list dd {
+  color: #cdd6f4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-tooltip {
+  white-space: pre-wrap !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
 }
 
 /* SVG timeline element styles (applied when SVG is embedded without its own stylesheet) */

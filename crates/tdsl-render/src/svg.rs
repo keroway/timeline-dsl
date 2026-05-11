@@ -122,7 +122,8 @@ fn render_lane_labels(s: &mut String, layout: &LayoutModel) {
         let y = layout.lane_y[&lane.id];
         writeln!(
             s,
-            r#"  <text class="tdsl-lane-label" x="{x}" y="{y}" text-anchor="end" dominant-baseline="middle">{label}</text>"#,
+            r#"  <text class="tdsl-lane-label" data-lane="{lane_id}" x="{x}" y="{y}" text-anchor="end" dominant-baseline="middle">{label}</text>"#,
+            lane_id = escape_xml_attr(&lane.id),
             x = fmt_f(layout.opts.left_gutter - 8.0),
             y = fmt_f(y),
             label = escape_xml(&lane.label),
