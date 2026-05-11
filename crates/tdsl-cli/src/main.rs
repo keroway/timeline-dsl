@@ -2417,6 +2417,9 @@ fn render_tdsl_file(file: &tdsl_parser::ast::File) -> String {
                                 .join(", ");
                             writeln!(out, "    tags [{joined}];").unwrap();
                         }
+                        tdsl_parser::ast::MapProp::Filter(expr) => {
+                            writeln!(out, "    filter {};", render_filter_expr(expr)).unwrap();
+                        }
                     }
                 }
                 write!(out, "}}").unwrap();
@@ -2481,6 +2484,72 @@ fn render_map_prop(out: &mut String, prop: &tdsl_parser::ast::MapProp) {
                 .join(", ");
             writeln!(out, "    tags [{joined}];").unwrap();
         }
+        tdsl_parser::ast::MapProp::Filter(expr) => {
+            writeln!(out, "    filter {};", render_filter_expr(expr)).unwrap();
+        }
+    }
+}
+
+fn render_filter_expr(expr: &tdsl_parser::ast::FilterExpr) -> String {
+    render_filter_or(expr)
+}
+
+fn render_filter_or(expr: &tdsl_parser::ast::FilterExpr) -> String {
+    match expr {
+        tdsl_parser::ast::FilterExpr::Or(a, b) => {
+            format!("{} || {}", render_filter_or(a), render_filter_and(b))
+        }
+        _ => render_filter_and(expr),
+    }
+}
+
+fn render_filter_and(expr: &tdsl_parser::ast::FilterExpr) -> String {
+    match expr {
+        tdsl_parser::ast::FilterExpr::And(a, b) => {
+            format!("{} && {}", render_filter_and(a), render_filter_unary(b))
+        }
+        _ => render_filter_unary(expr),
+    }
+}
+
+fn render_filter_unary(expr: &tdsl_parser::ast::FilterExpr) -> String {
+    match expr {
+        tdsl_parser::ast::FilterExpr::Not(inner) => format!("!{}", render_filter_atom(inner)),
+        _ => render_filter_atom(expr),
+    }
+}
+
+fn render_filter_atom(expr: &tdsl_parser::ast::FilterExpr) -> String {
+    match expr {
+        tdsl_parser::ast::FilterExpr::Compare { lhs, op, rhs } => {
+            format!(
+                "{} {} {}",
+                render_filter_operand(lhs),
+                render_compare_op(*op),
+                render_filter_operand(rhs)
+            )
+        }
+        // Or/And/Not need parentheses when nested as an atom.
+        other => format!("({})", render_filter_expr(other)),
+    }
+}
+
+fn render_filter_operand(op: &tdsl_parser::ast::FilterOperand) -> String {
+    match op {
+        tdsl_parser::ast::FilterOperand::Claim(c) => render_claim_expr(c),
+        tdsl_parser::ast::FilterOperand::Int(n) => n.to_string(),
+        tdsl_parser::ast::FilterOperand::Null => "null".to_string(),
+    }
+}
+
+fn render_compare_op(op: tdsl_parser::ast::CompareOp) -> &'static str {
+    match op {
+        tdsl_parser::ast::CompareOp::Eq => "==",
+        tdsl_parser::ast::CompareOp::NotEq => "!=",
+        tdsl_parser::ast::CompareOp::Lt => "<",
+        tdsl_parser::ast::CompareOp::Le => "<=",
+        tdsl_parser::ast::CompareOp::Gt => ">",
+        tdsl_parser::ast::CompareOp::Ge => ">=",
     }
 }
 

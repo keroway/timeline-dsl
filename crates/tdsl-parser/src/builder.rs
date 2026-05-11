@@ -420,9 +420,108 @@ fn build_map_prop(item: Pair<'_, Rule>, props: &mut Vec<MapProp>) -> Result<()> 
                 item.into_inner().next().unwrap(),
             )));
         }
+        Rule::map_filter => {
+            props.push(MapProp::Filter(build_filter_expr(
+                item.into_inner().next().unwrap(),
+            )?));
+        }
         _ => {}
     }
     Ok(())
+}
+
+// ─── Filter expressions ─────────────────────────────────────
+
+fn build_filter_expr(pair: Pair<'_, Rule>) -> Result<FilterExpr> {
+    // filter_expr wraps filter_or
+    let inner = pair.into_inner().next().unwrap();
+    build_filter_or(inner)
+}
+
+fn build_filter_or(pair: Pair<'_, Rule>) -> Result<FilterExpr> {
+    let mut iter = pair.into_inner();
+    let first = build_filter_and(iter.next().unwrap())?;
+    iter.try_fold(first, |acc, p| {
+        let rhs = build_filter_and(p)?;
+        Ok(FilterExpr::Or(Box::new(acc), Box::new(rhs)))
+    })
+}
+
+fn build_filter_and(pair: Pair<'_, Rule>) -> Result<FilterExpr> {
+    let mut iter = pair.into_inner();
+    let first = build_filter_not(iter.next().unwrap())?;
+    iter.try_fold(first, |acc, p| {
+        let rhs = build_filter_not(p)?;
+        Ok(FilterExpr::And(Box::new(acc), Box::new(rhs)))
+    })
+}
+
+fn build_filter_not(pair: Pair<'_, Rule>) -> Result<FilterExpr> {
+    let s = pair.as_str();
+    let inner = pair.into_inner().next().unwrap();
+    let atom = build_filter_atom(inner)?;
+    if s.trim_start().starts_with('!') {
+        Ok(FilterExpr::Not(Box::new(atom)))
+    } else {
+        Ok(atom)
+    }
+}
+
+fn build_filter_atom(pair: Pair<'_, Rule>) -> Result<FilterExpr> {
+    let location = pair_location_str(&pair);
+    match pair.as_rule() {
+        Rule::filter_paren => build_filter_expr(pair.into_inner().next().unwrap()),
+        Rule::filter_compare => build_filter_compare(pair),
+        other => Err(ParseError::UnexpectedRule {
+            rule: format!("filter_atom: {other:?}"),
+            location,
+        }),
+    }
+}
+
+fn build_filter_compare(pair: Pair<'_, Rule>) -> Result<FilterExpr> {
+    let mut iter = pair.into_inner();
+    let lhs = build_filter_operand(iter.next().unwrap())?;
+    let op_pair = iter.next().unwrap();
+    let op_location = pair_location_str(&op_pair);
+    let op = parse_compare_op(op_pair.as_str(), op_location)?;
+    let rhs = build_filter_operand(iter.next().unwrap())?;
+    Ok(FilterExpr::Compare { lhs, op, rhs })
+}
+
+fn build_filter_operand(pair: Pair<'_, Rule>) -> Result<FilterOperand> {
+    let location = pair_location_str(&pair);
+    match pair.as_rule() {
+        Rule::null_literal => Ok(FilterOperand::Null),
+        Rule::claim_expr => Ok(FilterOperand::Claim(build_claim_expr(pair)?)),
+        Rule::integer => {
+            let raw = pair.as_str().to_string();
+            let n: i64 = raw.parse().map_err(|_| ParseError::InvalidInt {
+                value: raw,
+                location,
+            })?;
+            Ok(FilterOperand::Int(n))
+        }
+        other => Err(ParseError::UnexpectedRule {
+            rule: format!("filter_operand: {other:?}"),
+            location,
+        }),
+    }
+}
+
+fn parse_compare_op(s: &str, location: String) -> Result<CompareOp> {
+    match s {
+        "==" => Ok(CompareOp::Eq),
+        "!=" => Ok(CompareOp::NotEq),
+        "<" => Ok(CompareOp::Lt),
+        "<=" => Ok(CompareOp::Le),
+        ">" => Ok(CompareOp::Gt),
+        ">=" => Ok(CompareOp::Ge),
+        other => Err(ParseError::UnexpectedRule {
+            rule: format!("compare_op: {other}"),
+            location,
+        }),
+    }
 }
 
 fn build_map_expr(pair: Pair<'_, Rule>) -> Result<MapExpr> {
@@ -519,4 +618,9 @@ fn pair_span(pair: &Pair<'_, Rule>) -> Span {
         start: s.start(),
         end: s.end(),
     }
+}
+
+fn pair_location_str(pair: &Pair<'_, Rule>) -> String {
+    let s = pair.as_span();
+    format!("{}:{}", s.start(), s.end())
 }

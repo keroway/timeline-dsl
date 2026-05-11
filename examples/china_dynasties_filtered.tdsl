@@ -1,0 +1,30 @@
+// 中国王朝年表 — filter 句で開始年が紀元前 300 年以降の王朝のみ抽出
+//
+// SPARQL クエリで取得した複数王朝のうち、特定の時代条件に合致するもの
+// だけをアイテム化するパターン。issue #142 で導入した `filter` 句のデモ。
+
+timeline "中国王朝年表（紀元前300年以降）" {
+    title "中国王朝年表（紀元前300年以降）";
+    unit year;
+    range -300..1950;
+    calendar proleptic_gregorian;
+}
+
+lane "中国王朝" as dynasty { kind dynasty; order 10; }
+
+import wikidata as wd {
+    query "SELECT ?item WHERE { ?item wdt:P31 wd:Q28171280 . }" as chinese_dynasties;
+    policy merge_by_source;
+}
+
+map wd.chinese_dynasties to span {
+    lane dynasty;
+    // 開始年 (P571) が紀元前 300 年以降のものだけ抽出。
+    // 終了年 (P576) が未設定 (= 現存) のものは除外する。
+    filter claim(P571).year >= -300;
+    filter claim(P576).year != null;
+    start claim(P571).year;
+    end   claim(P576).year;
+    label label@ja ?? label@en;
+    tags ["dynasty", "filtered"];
+}

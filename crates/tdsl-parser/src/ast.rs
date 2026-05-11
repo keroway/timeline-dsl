@@ -199,6 +199,7 @@ pub enum MapProp {
     Time(MapExpr),
     Label(LabelExpr),
     Tags(Vec<String>),
+    Filter(FilterExpr),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -225,4 +226,35 @@ pub struct LabelExpr {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LabelRef {
     pub lang: String,
+}
+
+// ─── Filter expressions (for map `filter` clause) ───────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FilterExpr {
+    And(Box<FilterExpr>, Box<FilterExpr>),
+    Or(Box<FilterExpr>, Box<FilterExpr>),
+    Not(Box<FilterExpr>),
+    Compare {
+        lhs: FilterOperand,
+        op: CompareOp,
+        rhs: FilterOperand,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompareOp {
+    Eq,
+    NotEq,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FilterOperand {
+    Claim(ClaimExpr),
+    Int(i64),
+    Null,
 }
