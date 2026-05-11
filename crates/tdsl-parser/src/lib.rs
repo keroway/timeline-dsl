@@ -277,6 +277,149 @@ mod tests {
         }
     }
 
+    fn extract_map_filters(file: &ast::File) -> Vec<ast::FilterExpr> {
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => m
+                .props
+                .iter()
+                .filter_map(|p| match p {
+                    ast::MapProp::Filter(e) => Some(e.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
+    fn parse_map_filter_basic_gt() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                filter claim(P580).year > 1000;
+                start claim(P580).year;
+                end claim(P582).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let filters = extract_map_filters(&file);
+        assert_eq!(filters.len(), 1);
+        match &filters[0] {
+            ast::FilterExpr::Compare { lhs, op, rhs } => {
+                assert!(matches!(lhs, ast::FilterOperand::Claim(_)));
+                assert_eq!(*op, ast::CompareOp::Gt);
+                assert!(matches!(rhs, ast::FilterOperand::Int(1000)));
+            }
+            other => panic!("expected Compare, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_map_filter_null_check() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                filter claim(P576).year != null;
+                start claim(P580).year;
+                end claim(P576).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let filters = extract_map_filters(&file);
+        assert_eq!(filters.len(), 1);
+        match &filters[0] {
+            ast::FilterExpr::Compare { lhs, op, rhs } => {
+                assert!(matches!(lhs, ast::FilterOperand::Claim(_)));
+                assert_eq!(*op, ast::CompareOp::NotEq);
+                assert!(matches!(rhs, ast::FilterOperand::Null));
+            }
+            other => panic!("expected Compare, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_map_filter_and_or() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                filter claim(P580).year > 1000 && claim(P582).year < 2000;
+                start claim(P580).year;
+                end claim(P582).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let filters = extract_map_filters(&file);
+        assert_eq!(filters.len(), 1);
+        assert!(matches!(&filters[0], ast::FilterExpr::And(_, _)));
+    }
+
+    #[test]
+    fn parse_map_filter_not() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                filter !(claim(P582).year == null);
+                start claim(P580).year;
+                end claim(P582).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let filters = extract_map_filters(&file);
+        assert_eq!(filters.len(), 1);
+        match &filters[0] {
+            ast::FilterExpr::Not(inner) => {
+                assert!(matches!(inner.as_ref(), ast::FilterExpr::Compare { .. }));
+            }
+            other => panic!("expected Not, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_map_multiple_filters() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                filter claim(P580).year > 1000;
+                filter claim(P576).year != null;
+                start claim(P580).year;
+                end claim(P576).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let filters = extract_map_filters(&file);
+        assert_eq!(filters.len(), 2);
+    }
+
+    #[test]
+    fn parse_map_filter_paren_precedence() {
+        // (a > 1) || (b < 0 && c > 2)
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                filter claim(P580).year > 1
+                    || (claim(P582).year < 0 && claim(P571).year > 2);
+                start claim(P580).year;
+                end claim(P582).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let filters = extract_map_filters(&file);
+        assert_eq!(filters.len(), 1);
+        // Top-level should be Or, with the right side being And.
+        match &filters[0] {
+            ast::FilterExpr::Or(_lhs, rhs) => {
+                assert!(matches!(rhs.as_ref(), ast::FilterExpr::And(_, _)));
+            }
+            other => panic!("expected Or at top, got {other:?}"),
+        }
+    }
+
     #[test]
     fn parse_comments() {
         let src = r#"

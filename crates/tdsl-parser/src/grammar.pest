@@ -96,7 +96,7 @@ map_block = {
 target_type = { ident }
 
 map_prop = _{
-    map_lane | map_start | map_end | map_time | map_label | map_tags
+    map_lane | map_start | map_end | map_time | map_label | map_tags | map_filter
 }
 map_lane   = { "lane" ~ ident ~ ";" }
 map_start  = { "start" ~ map_expr ~ ";" }
@@ -104,6 +104,21 @@ map_end    = { "end" ~ map_expr ~ ";" }
 map_time   = { "time" ~ map_expr ~ ";" }
 map_label  = { "label" ~ label_expr ~ ";" }
 map_tags   = { "tags" ~ "[" ~ string_list ~ "]" ~ ";" }
+map_filter = { "filter" ~ filter_expr ~ ";" }
+
+// ─── Filter Expressions (for `filter` clause in map blocks) ─
+// Precedence (low → high): || , && , ! , compare
+filter_expr    = { filter_or }
+filter_or      = { filter_and ~ ("||" ~ filter_and)* }
+filter_and     = { filter_not ~ ("&&" ~ filter_not)* }
+filter_not     = { ("!" ~ filter_atom) | filter_atom }
+filter_atom    = _{ filter_paren | filter_compare }
+filter_paren   = { "(" ~ filter_expr ~ ")" }
+filter_compare = { filter_operand ~ compare_op ~ filter_operand }
+// Longer operators must come first for PEG longest-match.
+compare_op     = { ">=" | "<=" | "==" | "!=" | ">" | "<" }
+filter_operand = _{ null_literal | claim_expr | integer }
+null_literal   = @{ "null" ~ !(ASCII_ALPHANUMERIC | "_") }
 
 // ─── Template Block ─────────────────────────────────────────
 template_block = {
