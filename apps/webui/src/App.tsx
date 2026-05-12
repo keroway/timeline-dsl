@@ -195,6 +195,11 @@ function App() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [lineWrap, setLineWrap] = useState(false)
 
+  // Split pane ratio (editor / preview)
+  const [splitRatio, setSplitRatio] = useState(0.4)
+  const splitDragRef = useRef<{ startX: number; startRatio: number; containerWidth: number } | null>(null)
+  const mainRef = useRef<HTMLElement>(null)
+
   // Pan/zoom (direct DOM manipulation avoids React re-renders during drag)
   const panZoomRef = useRef({ x: 0, y: 0, s: 1 })
   const [cursorGrab, setCursorGrab] = useState(false)
@@ -317,6 +322,36 @@ function App() {
       }
     })
   }, [svgContent])
+
+  // Split pane drag (document-level to prevent losing track when cursor leaves divider)
+  useEffect(() => {
+    function onMouseMove(e: globalThis.MouseEvent) {
+      if (!splitDragRef.current) return
+      const dx = e.clientX - splitDragRef.current.startX
+      const newRatio = Math.max(0.15, Math.min(0.85, splitDragRef.current.startRatio + dx / splitDragRef.current.containerWidth))
+      setSplitRatio(newRatio)
+    }
+    function onMouseUp() {
+      if (!splitDragRef.current) return
+      splitDragRef.current = null
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
+  function handleDividerMouseDown(e: MouseEvent<HTMLDivElement>) {
+    e.preventDefault()
+    const containerWidth = mainRef.current?.clientWidth ?? document.documentElement.clientWidth
+    splitDragRef.current = { startX: e.clientX, startRatio: splitRatio, containerWidth }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }
 
   // Global `?` key to toggle shortcut modal (only when editor doesn't have focus)
   useEffect(() => {
@@ -688,8 +723,11 @@ function App() {
       </div>
 
       {/* Main: Editor + Preview */}
-      <main className="main">
-        <div className={`editor-pane${mobileTab !== 'editor' ? ' mobile-hidden' : ''}`}>
+      <main className="main" ref={mainRef}>
+        <div
+          className={`editor-pane${mobileTab !== 'editor' ? ' mobile-hidden' : ''}`}
+          style={{ flex: `0 0 ${splitRatio * 100}%` }}
+        >
           <CodeMirror
             value={source}
             height="100%"
@@ -712,6 +750,11 @@ function App() {
             }}
           />
         </div>
+        <div
+          className="split-divider"
+          onMouseDown={handleDividerMouseDown}
+          title="ドラッグして分割幅を調整"
+        />
         <div className={`preview-area${mobileTab !== 'preview' ? ' mobile-hidden' : ''}`}>
           {/* Preview controls overlay */}
           {svgContent && (
