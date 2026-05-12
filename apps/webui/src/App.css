@@ -270,12 +270,25 @@ body,
 
 /* Editor pane */
 .editor-pane {
-  width: 50%;
+  flex: 0 0 50%;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
   overflow: hidden;
+}
+
+/* Draggable split divider */
+.split-divider {
+  flex: 0 0 4px;
+  background: var(--border);
+  cursor: col-resize;
+  transition: background 0.15s;
+  z-index: 1;
+}
+
+.split-divider:hover,
+.split-divider:active {
+  background: var(--text-title);
 }
 
 .editor-pane .cm-editor {
@@ -290,7 +303,7 @@ body,
 
 /* Preview area wrapper */
 .preview-area {
-  width: 50%;
+  flex: 1 1 0%;
   min-width: 0;
   position: relative;
   display: flex;
@@ -779,7 +792,12 @@ body,
     flex-direction: column;
   }
 
+  .split-divider {
+    display: none;
+  }
+
   .editor-pane {
+    flex: 0 0 50% !important;
     width: 100%;
     height: 50%;
     border-right: none;
@@ -787,6 +805,7 @@ body,
   }
 
   .preview-area {
+    flex: 0 0 50% !important;
     width: 100%;
     height: 50%;
   }
@@ -802,12 +821,17 @@ body,
     display: none !important;
   }
 
+  .split-divider {
+    display: none;
+  }
+
   .main {
     flex-direction: column;
   }
 
   .editor-pane,
   .preview-area {
+    flex: 0 0 100% !important;
     width: 100%;
     height: 100%;
     border-right: none;
