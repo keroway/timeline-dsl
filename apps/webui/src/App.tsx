@@ -172,6 +172,8 @@ const SHORTCUTS = [
   { key: '? (エディタ外)', desc: 'ショートカット一覧を開く' },
 ]
 
+type MobileTab = 'editor' | 'preview'
+
 function App() {
   const [source, setSource] = useState<string>(EXAMPLES[0].source)
   const [svgContent, setSvgContent] = useState<string>('')
@@ -181,6 +183,7 @@ function App() {
   const [selectedExample, setSelectedExample] = useState<number>(0)
   const [fontSize, setFontSize] = useState<number>(14)
   const [colorScheme, setColorScheme] = useState<ColorScheme>('dark')
+  const [mobileTab, setMobileTab] = useState<MobileTab>('editor')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
@@ -668,9 +671,25 @@ function App() {
         </div>
       )}
 
+      {/* Mobile tab bar */}
+      <div className="mobile-tab-bar">
+        <button
+          className={`mobile-tab${mobileTab === 'editor' ? ' mobile-tab-active' : ''}`}
+          onClick={() => setMobileTab('editor')}
+        >
+          エディタ
+        </button>
+        <button
+          className={`mobile-tab${mobileTab === 'preview' ? ' mobile-tab-active' : ''}`}
+          onClick={() => setMobileTab('preview')}
+        >
+          プレビュー
+        </button>
+      </div>
+
       {/* Main: Editor + Preview */}
       <main className="main">
-        <div className="editor-pane">
+        <div className={`editor-pane${mobileTab !== 'editor' ? ' mobile-hidden' : ''}`}>
           <CodeMirror
             value={source}
             height="100%"
@@ -693,7 +712,7 @@ function App() {
             }}
           />
         </div>
-        <div className="preview-area">
+        <div className={`preview-area${mobileTab !== 'preview' ? ' mobile-hidden' : ''}`}>
           {/* Preview controls overlay */}
           {svgContent && (
             <div className="preview-controls">
