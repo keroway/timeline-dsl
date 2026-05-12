@@ -3110,4 +3110,44 @@ a,event,,,abc,foo,,\n",
         std::fs::remove_file(path_bad_num).ok();
         assert!(err.contains("time must be an integer"));
     }
+
+    #[test]
+    fn parse_qids_empty_returns_error() {
+        assert!(parse_qids("").is_err());
+    }
+
+    #[test]
+    fn parse_qids_normalizes_lowercase_to_uppercase() {
+        let qids = parse_qids("q1, q2").unwrap();
+        assert_eq!(qids, vec!["Q1", "Q2"]);
+    }
+
+    #[test]
+    fn parse_qids_rejects_non_q_prefix() {
+        assert!(parse_qids("P569").is_err());
+        assert!(parse_qids("123").is_err());
+    }
+
+    #[test]
+    fn parse_langs_empty_defaults_to_en() {
+        // 空入力時は "en" にフォールバック
+        let langs = parse_langs("");
+        assert_eq!(langs, vec!["en"]);
+    }
+
+    #[test]
+    fn parse_langs_lowercases_and_deduplicates() {
+        let langs = parse_langs("JA,en,JA");
+        assert_eq!(langs, vec!["ja", "en"]);
+    }
+
+    #[test]
+    fn parse_lane_specs_label_only_has_no_alias() {
+        let lanes = parse_lane_specs("王国,事件").unwrap();
+        assert_eq!(lanes.len(), 2);
+        assert_eq!(lanes[0].label, "王国");
+        assert!(lanes[0].alias.is_none());
+        assert_eq!(lanes[1].label, "事件");
+        assert!(lanes[1].alias.is_none());
+    }
 }
