@@ -158,6 +158,71 @@ mod tests {
     }
 
     #[test]
+    fn parse_time_precision_century() {
+        // precision=7 (century) — year extraction still works
+        let tv = TimeValue {
+            time: "+1900-01-01T00:00:00Z".to_string(),
+            precision: 7,
+            calendarmodel: String::new(),
+        };
+        assert_eq!(time_value_to_year(&tv).unwrap(), 1900);
+    }
+
+    #[test]
+    fn parse_time_precision_decade() {
+        // precision=8 (decade)
+        let tv = TimeValue {
+            time: "+1940-01-01T00:00:00Z".to_string(),
+            precision: 8,
+            calendarmodel: String::new(),
+        };
+        assert_eq!(time_value_to_year(&tv).unwrap(), 1940);
+    }
+
+    #[test]
+    fn parse_time_precision_millennium() {
+        // precision=6 (millennium)
+        let tv = TimeValue {
+            time: "+1000-01-01T00:00:00Z".to_string(),
+            precision: 6,
+            calendarmodel: String::new(),
+        };
+        assert_eq!(time_value_to_year(&tv).unwrap(), 1000);
+    }
+
+    #[test]
+    fn parse_time_precision_day() {
+        // precision=11 (day)
+        let tv = TimeValue {
+            time: "+1868-01-03T00:00:00Z".to_string(),
+            precision: 11,
+            calendarmodel: String::new(),
+        };
+        assert_eq!(time_value_to_year(&tv).unwrap(), 1868);
+    }
+
+    #[test]
+    fn parse_time_without_sign_prefix() {
+        // 符号なし文字列は正の年として扱う
+        let tv = TimeValue {
+            time: "1868-01-01T00:00:00Z".to_string(),
+            precision: 9,
+            calendarmodel: String::new(),
+        };
+        assert_eq!(time_value_to_year(&tv).unwrap(), 1868);
+    }
+
+    #[test]
+    fn parse_time_invalid_returns_error() {
+        let tv = TimeValue {
+            time: "+not-a-year-01-01T00:00:00Z".to_string(),
+            precision: 9,
+            calendarmodel: String::new(),
+        };
+        assert!(time_value_to_year(&tv).is_err());
+    }
+
+    #[test]
     fn label_fallback() {
         let mut labels = HashMap::new();
         labels.insert(

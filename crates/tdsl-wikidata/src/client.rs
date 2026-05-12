@@ -432,6 +432,43 @@ mod tests {
         assert!(matches!(err, WikidataError::InvalidInput(_)));
     }
 
+    #[test]
+    fn parse_wikipedia_url_http_scheme_accepted() {
+        let page = parse_wikipedia_url("http://ja.wikipedia.org/wiki/%E6%BC%A2").unwrap();
+        assert_eq!(
+            page,
+            WikipediaPageRef {
+                site: "jawiki".to_string(),
+                title: "漢".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn parse_wikipedia_url_rejects_empty_string() {
+        let err = parse_wikipedia_url("").unwrap_err();
+        assert!(matches!(err, WikidataError::InvalidInput(_)));
+    }
+
+    #[test]
+    fn parse_wikipedia_url_rejects_unsupported_scheme() {
+        let err = parse_wikipedia_url("ftp://ja.wikipedia.org/wiki/漢").unwrap_err();
+        assert!(matches!(err, WikidataError::InvalidInput(_)));
+    }
+
+    #[test]
+    fn parse_wikipedia_url_with_underscored_title() {
+        let page =
+            parse_wikipedia_url("https://en.wikipedia.org/wiki/Han_dynasty").unwrap();
+        assert_eq!(
+            page,
+            WikipediaPageRef {
+                site: "enwiki".to_string(),
+                title: "Han_dynasty".to_string(),
+            }
+        );
+    }
+
     /// Helper: parse a SPARQL JSON response and extract QIDs using the same
     /// logic as `HttpWikidataClient::sparql_query`.
     fn extract_qids_from_sparql_json(payload: &str) -> Vec<String> {
@@ -569,6 +606,81 @@ mod tests {
         assert!(
             matches!(result, Err(WikidataError::RateLimit)),
             "expected RateLimit error, got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn retry_on_429_respects_retry_after_header() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        // First call returns 429 with Retry-After: 1
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(
+                ResponseTemplate::new(429).insert_header("Retry-After", "1"),
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw(r#"{"search":[]}"#, "application/json"),
+            )
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::builder()
+            .user_agent("tdsl-test")
+            .build()
+            .unwrap();
+        let client = HttpWikidataClient { http, max_retries: DEFAULT_MAX_RETRIES };
+        let base = format!("{}/w/api.php", server.uri());
+
+        let result = client
+            .send_with_retry(|| client.http.get(&base))
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "expected success after 429+Retry-After retry, got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn returns_server_error_after_max_retries() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        // Always returns 503.
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::builder()
+            .user_agent("tdsl-test")
+            .build()
+            .unwrap();
+        // max_retries=0 so the first 5xx triggers an immediate error.
+        let client = HttpWikidataClient { http, max_retries: 0 };
+        let base = format!("{}/w/api.php", server.uri());
+
+        let result = client
+            .send_with_retry(|| client.http.get(&base))
+            .await;
+
+        assert!(
+            matches!(result, Err(WikidataError::Http(_))),
+            "expected Http error after exhausting retries, got: {result:?}"
         );
     }
 
