@@ -34,7 +34,7 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     // Embed font-family and axis text size for standalone SVG viewers (no CDN dependency).
     writeln!(
         s,
-        r#"  <style>text {{ font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; }} .tdsl-axis-text {{ font-size: 11px; }}</style>"#
+        r#"  <style>text {{ font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }}</style>"#
     )
     .unwrap();
 
@@ -49,7 +49,13 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     render_lane_bands(&mut s, layout);
     render_axis(&mut s, layout);
     render_lane_labels(&mut s, layout);
-    render_items(&mut s, layout, &lane_color, &layout.opts.color_map, layout.opts.interactive);
+    render_items(
+        &mut s,
+        layout,
+        &lane_color,
+        &layout.opts.color_map,
+        layout.opts.interactive,
+    );
 
     writeln!(s, "</svg>").unwrap();
     s
@@ -115,6 +121,30 @@ fn render_axis(s: &mut String, layout: &LayoutModel) {
         )
         .unwrap();
     }
+
+    // Month minor ticks (unit=month only, hidden when scale too small).
+    let px_per_month = layout.opts.scale / 12.0;
+    for (year, month) in layout.month_ticks() {
+        let x = layout.frac_year_to_x(year, month);
+        writeln!(
+            s,
+            r#"  <line class="tdsl-axis-month-tick" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
+            x = fmt_f(x),
+            y1 = fmt_f(baseline_y - 3.0),
+            y2 = fmt_f(baseline_y),
+        )
+        .unwrap();
+        if px_per_month >= 20.0 {
+            let label = month_abbr(month);
+            writeln!(
+                s,
+                r#"  <text class="tdsl-axis-text tdsl-axis-month-text" x="{x}" y="{y}" text-anchor="middle">{label}</text>"#,
+                x = fmt_f(x),
+                y = fmt_f(baseline_y - 5.0),
+            )
+            .unwrap();
+        }
+    }
 }
 
 fn render_lane_labels(s: &mut String, layout: &LayoutModel) {
@@ -144,7 +174,11 @@ fn resolve_item_color(
             return color.clone();
         }
     }
-    lane_color.get(lane_fallback).copied().unwrap_or("#4682B4").to_string()
+    lane_color
+        .get(lane_fallback)
+        .copied()
+        .unwrap_or("#4682B4")
+        .to_string()
 }
 
 fn render_items(
@@ -323,10 +357,18 @@ fn item_tooltip(item: &Item) -> String {
             source,
             origin,
             id,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
             ..
         } => {
             lines.push(label.to_string());
-            lines.push(format!("{}〜{}", format_year(*start), format_year(*end)));
+            lines.push(format!(
+                "{}〜{}",
+                format_date(*start, *start_month, *start_day),
+                format_date(*end, *end_month, *end_day),
+            ));
             push_common(&mut lines, tags, source, origin, id);
         }
         Item::Event {
@@ -336,10 +378,12 @@ fn item_tooltip(item: &Item) -> String {
             source,
             origin,
             id,
+            time_month,
+            time_day,
             ..
         } => {
             lines.push(label.to_string());
-            lines.push(format_year(*time));
+            lines.push(format_date(*time, *time_month, *time_day));
             push_common(&mut lines, tags, source, origin, id);
         }
         Item::EventRange {
@@ -350,10 +394,18 @@ fn item_tooltip(item: &Item) -> String {
             source,
             origin,
             id,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
             ..
         } => {
             lines.push(label.to_string());
-            lines.push(format!("{}〜{}", format_year(*start), format_year(*end)));
+            lines.push(format!(
+                "{}〜{}",
+                format_date(*start, *start_month, *start_day),
+                format_date(*end, *end_month, *end_day),
+            ));
             push_common(&mut lines, tags, source, origin, id);
         }
     }
@@ -384,6 +436,33 @@ fn format_year(year: i64) -> String {
         format!("BC{}", -year)
     } else {
         format!("{year}")
+    }
+}
+
+fn month_abbr(m: u8) -> &'static str {
+    match m {
+        1 => "Jan",
+        2 => "Feb",
+        3 => "Mar",
+        4 => "Apr",
+        5 => "May",
+        6 => "Jun",
+        7 => "Jul",
+        8 => "Aug",
+        9 => "Sep",
+        10 => "Oct",
+        11 => "Nov",
+        12 => "Dec",
+        _ => "?",
+    }
+}
+
+fn format_date(year: i64, month: Option<u8>, day: Option<u8>) -> String {
+    let y = format_year(year);
+    match (month, day) {
+        (Some(m), Some(d)) => format!("{} {} {}", y, month_abbr(m), d),
+        (Some(m), None) => format!("{} {}", y, month_abbr(m)),
+        _ => y,
     }
 }
 
@@ -527,13 +606,57 @@ mod tests {
     }
 
     #[test]
+    fn format_date_includes_month_abbr() {
+        assert_eq!(format_date(1900, Some(2), None), "1900 Feb");
+        assert_eq!(format_date(-206, Some(3), Some(15)), "BC206 Mar 15");
+        assert_eq!(format_date(2000, None, None), "2000");
+    }
+
+    #[test]
+    fn tooltip_includes_month_for_precision_event() {
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "test".into(),
+                unit: "year".into(),
+                range: (-300, 300),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+            },
+            lanes: vec![Lane {
+                id: "han".into(),
+                label: "漢".into(),
+                kind: "dynasty".into(),
+                order: 10,
+            }],
+            items: vec![Item::Event {
+                id: "e1".into(),
+                lane: "han".into(),
+                time: -206,
+                label: "漢建国".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                time_month: Some(2),
+                time_day: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let svg = render_svg(&layout);
+        assert!(
+            svg.contains("BC206 Feb"),
+            "expected 'BC206 Feb' in tooltip, got:\n{svg}"
+        );
+    }
+
+    #[test]
     fn color_map_tag_overrides_lane_palette() {
         let ir = sample_ir();
-        let color_map: std::collections::HashMap<String, String> = [
-            ("dynasty".to_string(), "#cc0000".to_string()),
-        ]
-        .into_iter()
-        .collect();
+        let color_map: std::collections::HashMap<String, String> =
+            [("dynasty".to_string(), "#cc0000".to_string())]
+                .into_iter()
+                .collect();
         let opts = RenderOptions {
             color_map,
             ..RenderOptions::default()
@@ -541,6 +664,9 @@ mod tests {
         let layout = LayoutModel::compute(&ir, opts);
         let svg = render_svg(&layout);
         // The span item has tag "dynasty", so its fill must use the color_map color.
-        assert!(svg.contains("fill:#cc0000;"), "expected fill:#cc0000; in SVG, got:\n{svg}");
+        assert!(
+            svg.contains("fill:#cc0000;"),
+            "expected fill:#cc0000; in SVG, got:\n{svg}"
+        );
     }
 }

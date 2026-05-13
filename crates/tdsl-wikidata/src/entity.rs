@@ -138,7 +138,7 @@ pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::Wikid
         parts
             .next()
             .and_then(|m| m.parse::<u8>().ok())
-            .filter(|&m| m >= 1 && m <= 12)
+            .filter(|&m| (1..=12).contains(&m))
     } else {
         None
     };
@@ -148,7 +148,7 @@ pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::Wikid
             .next()
             .and_then(|d| d.split('T').next())
             .and_then(|d| d.parse::<u8>().ok())
-            .filter(|&d| d >= 1 && d <= 31)
+            .filter(|&d| (1..=31).contains(&d))
     } else {
         None
     };

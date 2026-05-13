@@ -73,9 +73,10 @@ h1 {
 }
 .tdsl-lane-band-even { fill: #fff; }
 .tdsl-lane-band-odd  { fill: #f5f5f7; }
-.tdsl-axis-baseline  { stroke: #888; stroke-width: 1; }
-.tdsl-axis-tick      { stroke: #e0e0e0; stroke-width: 1; }
-.tdsl-axis-text      { font-size: 11px; fill: #666; }
+.tdsl-axis-baseline       { stroke: #888; stroke-width: 1; }
+.tdsl-axis-tick           { stroke: #e0e0e0; stroke-width: 1; }
+.tdsl-axis-month-tick     { stroke: #ccc; stroke-width: 1; }
+.tdsl-axis-text           { font-size: 11px; fill: #666; }
 .tdsl-lane-label     { font-size: 13px; fill: #333; font-weight: 500; }
 .tdsl-span {
   fill: #4682B4;
@@ -148,9 +149,10 @@ h1 { color: #e0e0e0; }
 }
 .tdsl-lane-band-even { fill: #16213e; }
 .tdsl-lane-band-odd  { fill: #0f3460; }
-.tdsl-axis-baseline  { stroke: #555; }
-.tdsl-axis-tick      { stroke: #2a4a7f; }
-.tdsl-axis-text      { fill: #aaa; }
+.tdsl-axis-baseline       { stroke: #555; }
+.tdsl-axis-tick           { stroke: #2a4a7f; }
+.tdsl-axis-month-tick     { stroke: #1e3a5f; }
+.tdsl-axis-text           { fill: #aaa; }
 .tdsl-lane-label     { fill: #ccc; }
 .tdsl-item-label     { fill: #f0f0f0; }
 .tdsl-tooltip {
@@ -171,9 +173,10 @@ const PRINT_THEME_CSS: &str = r#"body {
 }
 .tdsl-lane-band-even { fill: #fff; }
 .tdsl-lane-band-odd  { fill: #eee; }
-.tdsl-axis-baseline  { stroke: #000; }
-.tdsl-axis-tick      { stroke: #bbb; }
-.tdsl-axis-text      { fill: #000; }
+.tdsl-axis-baseline       { stroke: #000; }
+.tdsl-axis-tick           { stroke: #bbb; }
+.tdsl-axis-month-tick     { stroke: #999; }
+.tdsl-axis-text           { fill: #000; }
 .tdsl-lane-label     { fill: #000; }
 .tdsl-span {
   fill: #333;
@@ -198,9 +201,10 @@ const PASTEL_THEME_CSS: &str = r#"body {
 }
 .tdsl-lane-band-even { fill: #fffdf7; }
 .tdsl-lane-band-odd  { fill: #fdf3e3; }
-.tdsl-axis-baseline  { stroke: #ccc; }
-.tdsl-axis-tick      { stroke: #e8dcc8; }
-.tdsl-axis-text      { fill: #888; }
+.tdsl-axis-baseline       { stroke: #ccc; }
+.tdsl-axis-tick           { stroke: #e8dcc8; }
+.tdsl-axis-month-tick     { stroke: #ddd; }
+.tdsl-axis-text           { fill: #888; }
 .tdsl-lane-label     { fill: #666; }
 .tdsl-span {
   fill: #b5d5f5;
@@ -709,7 +713,10 @@ mod tests {
 
     #[test]
     fn dark_theme_applies_dark_background() {
-        let opts = RenderOptions { theme: Theme::Dark, ..Default::default() };
+        let opts = RenderOptions {
+            theme: Theme::Dark,
+            ..Default::default()
+        };
         let html = wrap_html("<svg></svg>", "test", &opts);
         assert!(html.contains("1a1a2e"), "dark theme should include #1a1a2e");
     }

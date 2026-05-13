@@ -564,7 +564,12 @@ fn cmd_build(
     } else {
         let mut irs = Vec::with_capacity(inputs.len());
         for path in inputs {
-            irs.push(load_ir(path, offline, cache_opts.clone(), wikidata_timeout)?);
+            irs.push(load_ir(
+                path,
+                offline,
+                cache_opts.clone(),
+                wikidata_timeout,
+            )?);
         }
         let (merged, warnings) = tdsl_core::merge::merge_irs(irs);
         for w in &warnings {
@@ -696,7 +701,13 @@ fn cmd_fetch(qid: &str, lang: &str, wikidata_timeout: std::time::Duration) -> Re
     })
 }
 
-fn cmd_search(query: &str, lang: &str, limit: usize, json: bool, wikidata_timeout: std::time::Duration) -> Result<(), String> {
+fn cmd_search(
+    query: &str,
+    lang: &str,
+    limit: usize,
+    json: bool,
+    wikidata_timeout: std::time::Duration,
+) -> Result<(), String> {
     let query = query.trim();
     if query.is_empty() {
         return Err("search query must not be empty".to_string());
@@ -710,7 +721,10 @@ fn cmd_search(query: &str, lang: &str, limit: usize, json: bool, wikidata_timeou
             .map_err(|e| e.to_string())?;
 
         if json {
-            println!("{}", serde_json::to_string_pretty(&hits).map_err(|e| e.to_string())?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&hits).map_err(|e| e.to_string())?
+            );
             return Ok(());
         }
 
@@ -737,7 +751,12 @@ fn cmd_search(query: &str, lang: &str, limit: usize, json: bool, wikidata_timeou
     })
 }
 
-fn cmd_inspect(qid: &str, lang: &str, json: bool, wikidata_timeout: std::time::Duration) -> Result<(), String> {
+fn cmd_inspect(
+    qid: &str,
+    lang: &str,
+    json: bool,
+    wikidata_timeout: std::time::Duration,
+) -> Result<(), String> {
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     rt.block_on(async {
         let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
@@ -749,7 +768,10 @@ fn cmd_inspect(qid: &str, lang: &str, json: bool, wikidata_timeout: std::time::D
 
         let report = build_inspect_report(&entity, &langs_owned);
         if json {
-            println!("{}", serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
+            );
             return Ok(());
         }
 
@@ -766,7 +788,12 @@ struct ResolveReport {
     labels: Vec<InspectLabel>,
 }
 
-fn cmd_resolve(url: &str, lang: &str, json: bool, wikidata_timeout: std::time::Duration) -> Result<(), String> {
+fn cmd_resolve(
+    url: &str,
+    lang: &str,
+    json: bool,
+    wikidata_timeout: std::time::Duration,
+) -> Result<(), String> {
     let page = parse_wikipedia_url(url).map_err(|e| e.to_string())?;
     let langs_owned = parse_langs(lang);
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
@@ -808,7 +835,10 @@ fn cmd_resolve(url: &str, lang: &str, json: bool, wikidata_timeout: std::time::D
     })?;
 
     if json {
-        println!("{}", serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
+        );
         return Ok(());
     }
 
@@ -825,6 +855,7 @@ fn cmd_resolve(url: &str, lang: &str, json: bool, wikidata_timeout: std::time::D
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_scaffold_wikidata(
     qids: &str,
     timeline: &str,
@@ -1811,7 +1842,10 @@ fn cmd_lint(input: &std::path::Path, fix: bool, format: LintOutputFormat) -> Res
                 ok: issues.is_empty(),
                 issues,
             };
-            println!("{}", serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
+            );
         }
     }
 
@@ -1823,8 +1857,7 @@ fn cmd_cache(action: CacheAction) -> Result<(), String> {
 
     match action {
         CacheAction::Status => {
-            let status =
-                tdsl_wikidata::cache_status(&cache_dir).map_err(|e| e.to_string())?;
+            let status = tdsl_wikidata::cache_status(&cache_dir).map_err(|e| e.to_string())?;
 
             println!("Cache directory: {}", status.cache_dir.display());
 
@@ -1834,22 +1867,13 @@ fn cmd_cache(action: CacheAction) -> Result<(), String> {
             }
 
             println!("Files:      {}", status.file_count);
-            println!(
-                "Total size: {}",
-                human_bytes(status.total_bytes)
-            );
+            println!("Total size: {}", human_bytes(status.total_bytes));
 
             if let Some(oldest) = status.oldest {
-                println!(
-                    "Oldest:     {}",
-                    format_system_time(oldest)
-                );
+                println!("Oldest:     {}", format_system_time(oldest));
             }
             if let Some(newest) = status.newest {
-                println!(
-                    "Newest:     {}",
-                    format_system_time(newest)
-                );
+                println!("Newest:     {}", format_system_time(newest));
             }
 
             if status.file_count == 0 {
@@ -1858,13 +1882,11 @@ fn cmd_cache(action: CacheAction) -> Result<(), String> {
         }
 
         CacheAction::Clear { older_than } => {
-            let deleted = tdsl_wikidata::cache_clear(&cache_dir, older_than)
-                .map_err(|e| e.to_string())?;
+            let deleted =
+                tdsl_wikidata::cache_clear(&cache_dir, older_than).map_err(|e| e.to_string())?;
 
             match older_than {
-                Some(days) => println!(
-                    "Deleted {deleted} cache file(s) older than {days} day(s)."
-                ),
+                Some(days) => println!("Deleted {deleted} cache file(s) older than {days} day(s)."),
                 None => println!("Deleted {deleted} cache file(s)."),
             }
         }
