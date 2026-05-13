@@ -6,7 +6,7 @@ use tdsl_parser::ast::MapTargetType;
 #[cfg(feature = "wikidata")]
 use tdsl_wikidata::WikidataClient;
 #[cfg(feature = "wikidata")]
-use tdsl_wikidata::entity::{DataValue, WikidataEntity, time_value_to_year};
+use tdsl_wikidata::entity::{DataValue, TimePoint, WikidataEntity, time_value_to_timepoint};
 
 use crate::error::LoweringError;
 use crate::ir::*;
@@ -192,6 +192,10 @@ impl LoweringContext {
                         tags: s.props.tags.clone(),
                         source: source_str(&s.props.source),
                         origin: s.props.origin.clone(),
+                        start_month: None,
+                        start_day: None,
+                        end_month: None,
+                        end_day: None,
                     });
                 }
                 ast::Statement::Event(e) => {
@@ -217,6 +221,8 @@ impl LoweringContext {
                         tags: e.props.tags.clone(),
                         source: source_str(&e.props.source),
                         origin: e.props.origin.clone(),
+                        time_month: None,
+                        time_day: None,
                     });
                 }
                 ast::Statement::EventRange(er) => {
@@ -243,6 +249,10 @@ impl LoweringContext {
                         tags: er.props.tags.clone(),
                         source: source_str(&er.props.source),
                         origin: er.props.origin.clone(),
+                        start_month: None,
+                        start_day: None,
+                        end_month: None,
+                        end_day: None,
                     });
                 }
                 _ => {}
@@ -432,9 +442,9 @@ impl LoweringContext {
         policy: ast::ReimportPolicy,
     ) {
         let mut lane_ref = String::new();
-        let mut start: Option<i64> = None;
-        let mut end: Option<i64> = None;
-        let mut time: Option<i64> = None;
+        let mut start: Option<TimePoint> = None;
+        let mut end: Option<TimePoint> = None;
+        let mut time: Option<TimePoint> = None;
         let mut label = String::new();
         let mut tags = Vec::new();
 
@@ -485,47 +495,57 @@ impl LoweringContext {
         match map.target_type {
             MapTargetType::Span => {
                 if let (Some(s), Some(e)) = (start, end) {
-                    let id = format!("span:{}:{}", entity.id.to_lowercase(), s);
+                    let id = format!("span:{}:{}", entity.id.to_lowercase(), s.year);
                     let item = Item::Span {
                         id,
                         lane: lane_ref,
-                        start: s,
-                        end: e,
+                        start: s.year,
+                        end: e.year,
                         label,
                         tags,
                         source: item_source,
                         origin,
+                        start_month: s.month,
+                        start_day: s.day,
+                        end_month: e.month,
+                        end_day: e.day,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
                 }
             }
             MapTargetType::Event => {
                 if let Some(t) = time {
-                    let id = format!("event:{}:{}", entity.id.to_lowercase(), t);
+                    let id = format!("event:{}:{}", entity.id.to_lowercase(), t.year);
                     let item = Item::Event {
                         id,
                         lane: lane_ref,
-                        time: t,
+                        time: t.year,
                         label,
                         tags,
                         source: item_source,
                         origin,
+                        time_month: t.month,
+                        time_day: t.day,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
                 }
             }
             MapTargetType::EventRange => {
                 if let (Some(s), Some(e)) = (start, end) {
-                    let id = format!("event_range:{}:{}", entity.id.to_lowercase(), s);
+                    let id = format!("event_range:{}:{}", entity.id.to_lowercase(), s.year);
                     let item = Item::EventRange {
                         id,
                         lane: lane_ref,
-                        start: s,
-                        end: e,
+                        start: s.year,
+                        end: e.year,
                         label,
                         tags,
                         source: item_source,
                         origin,
+                        start_month: s.month,
+                        start_day: s.day,
+                        end_month: e.month,
+                        end_day: e.day,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
                 }
@@ -667,21 +687,39 @@ impl LoweringContext {
 /// Evaluate a map expression with `??` fallback (e.g. `claim(P580).year ?? claim(P571).year`).
 /// Returns the first `Some` from the fallback list.
 #[cfg(feature = "wikidata")]
-fn eval_map_expr(expr: &ast::MapExpr, entity: &WikidataEntity) -> Option<i64> {
+fn eval_map_expr(expr: &ast::MapExpr, entity: &WikidataEntity) -> Option<TimePoint> {
     expr.fallbacks
         .iter()
         .find_map(|ce| eval_claim_expr(ce, entity))
 }
 
 /// Evaluate a single claim expression (e.g. `claim(P571).year`) against a Wikidata entity.
+/// Returns a [`TimePoint`] with precision information based on the accessor:
+/// - `.year` or no accessor: year only
+/// - `.month`: year + month (if precision >= 10)
+/// - `.day`: year + month + day (if precision >= 11)
 #[cfg(feature = "wikidata")]
-fn eval_claim_expr(expr: &ast::ClaimExpr, entity: &WikidataEntity) -> Option<i64> {
+fn eval_claim_expr(expr: &ast::ClaimExpr, entity: &WikidataEntity) -> Option<TimePoint> {
     let dv = entity.claim(&expr.claim.property)?;
     match dv {
-        DataValue::Time { value } => match expr.accessor.as_deref() {
-            Some("year") | None => time_value_to_year(value).ok(),
-            _ => None,
-        },
+        DataValue::Time { value } => {
+            let tp = time_value_to_timepoint(value).ok()?;
+            match expr.accessor.as_deref() {
+                Some("month") => {
+                    tp.month.map(|_| tp)
+                }
+                Some("day") => {
+                    tp.day.map(|_| tp)
+                }
+                Some("year") | None => Some(TimePoint {
+                    year: tp.year,
+                    month: None,
+                    day: None,
+                    precision: tp.precision,
+                }),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }
@@ -736,7 +774,7 @@ fn resolve_filter_operand(op: &ast::FilterOperand, entity: &WikidataEntity) -> O
     match op {
         ast::FilterOperand::Int(n) => Some(*n),
         ast::FilterOperand::Null => None,
-        ast::FilterOperand::Claim(ce) => eval_claim_expr(ce, entity),
+        ast::FilterOperand::Claim(ce) => eval_claim_expr(ce, entity).map(|tp| tp.year),
     }
 }
 
@@ -864,12 +902,20 @@ fn merge_items_by_field_priority(
                 tags: ex_tags,
                 source,
                 origin,
+                start_month: ex_sm,
+                start_day: ex_sd,
+                end_month: ex_em,
+                end_day: ex_ed,
             },
             Item::Span {
                 start: in_start,
                 end: in_end,
                 label: in_label,
                 tags: in_tags,
+                start_month: in_sm,
+                start_day: in_sd,
+                end_month: in_em,
+                end_day: in_ed,
                 ..
             },
         ) => Item::Span {
@@ -881,6 +927,10 @@ fn merge_items_by_field_priority(
             tags: merge_tags(ex_tags, in_tags),
             source,
             origin,
+            start_month: in_sm.or(ex_sm),
+            start_day: in_sd.or(ex_sd),
+            end_month: in_em.or(ex_em),
+            end_day: in_ed.or(ex_ed),
         },
         (
             Item::Event {
@@ -891,11 +941,15 @@ fn merge_items_by_field_priority(
                 tags: ex_tags,
                 source,
                 origin,
+                time_month: ex_tm,
+                time_day: ex_td,
             },
             Item::Event {
                 time: in_time,
                 label: in_label,
                 tags: in_tags,
+                time_month: in_tm,
+                time_day: in_td,
                 ..
             },
         ) => Item::Event {
@@ -906,6 +960,8 @@ fn merge_items_by_field_priority(
             tags: merge_tags(ex_tags, in_tags),
             source,
             origin,
+            time_month: in_tm.or(ex_tm),
+            time_day: in_td.or(ex_td),
         },
         (
             Item::EventRange {
@@ -917,12 +973,20 @@ fn merge_items_by_field_priority(
                 tags: ex_tags,
                 source,
                 origin,
+                start_month: ex_sm,
+                start_day: ex_sd,
+                end_month: ex_em,
+                end_day: ex_ed,
             },
             Item::EventRange {
                 start: in_start,
                 end: in_end,
                 label: in_label,
                 tags: in_tags,
+                start_month: in_sm,
+                start_day: in_sd,
+                end_month: in_em,
+                end_day: in_ed,
                 ..
             },
         ) => Item::EventRange {
@@ -934,6 +998,10 @@ fn merge_items_by_field_priority(
             tags: merge_tags(ex_tags, in_tags),
             source,
             origin,
+            start_month: in_sm.or(ex_sm),
+            start_day: in_sd.or(ex_sd),
+            end_month: in_em.or(ex_em),
+            end_day: in_ed.or(ex_ed),
         },
         (_, incoming) => incoming,
     }
