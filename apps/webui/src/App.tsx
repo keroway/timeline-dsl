@@ -174,8 +174,13 @@ const SHORTCUTS = [
 
 type MobileTab = 'editor' | 'preview'
 
+function readInitialSource(): string {
+  const param = new URLSearchParams(location.search).get('source')
+  return param && param.length > 0 ? param : EXAMPLES[0].source
+}
+
 function App() {
-  const [source, setSource] = useState<string>(EXAMPLES[0].source)
+  const [source, setSource] = useState<string>(readInitialSource)
   const [svgContent, setSvgContent] = useState<string>('')
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
   const [wasmReady, setWasmReady] = useState(false)
