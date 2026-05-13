@@ -118,7 +118,7 @@ impl<'a> LayoutModel<'a> {
         let total_height =
             opts.top_margin + lanes_ordered.len() as f64 * opts.lane_height + opts.bottom_margin;
 
-        let tick_step = pick_tick_step(year_max - year_min);
+        let tick_step = pick_tick_step(year_max - year_min, opts.scale, AXIS_LABEL_PX);
 
         let mut items = Vec::new();
         for item in &ir.items {
@@ -213,6 +213,8 @@ impl<'a> LayoutModel<'a> {
 
 // --- sub-layout constants ---
 const SPAN_HALF_H: f64 = 12.0;
+/// Approximate rendered width (px) of the longest axis label ("BC9999" at 11 px font-size).
+const AXIS_LABEL_PX: f64 = 40.0;
 const EVENT_RANGE_Y_OFFSET: f64 = 14.0;
 const EVENT_RANGE_H: f64 = 10.0;
 const EVENT_STEM_H: f64 = 20.0;
@@ -272,17 +274,19 @@ fn derive_range_from_items(ir: &TimelineIr) -> Option<(i64, i64)> {
     }
 }
 
-/// Pick a tick step so that ~5-15 ticks fit in the range.
-fn pick_tick_step(range: i64) -> i64 {
+/// Pick a tick step so that labels do not visually overlap.
+/// `step * scale` must be at least `label_px + 8` px (minimum inter-label gap).
+fn pick_tick_step(range: i64, scale: f64, label_px: f64) -> i64 {
     if range <= 0 {
         return 1;
     }
+    let min_pitch = label_px + 8.0;
     const CANDIDATES: &[i64] = &[
         1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000,
     ];
-    for step in CANDIDATES {
-        if range / step <= 15 {
-            return *step;
+    for &step in CANDIDATES {
+        if (step as f64) * scale >= min_pitch {
+            return step;
         }
     }
     10000
@@ -329,10 +333,37 @@ mod tests {
     }
 
     #[test]
-    fn tick_step_picks_reasonable_interval() {
-        assert_eq!(pick_tick_step(20), 2);
-        assert_eq!(pick_tick_step(100), 10);
-        assert_eq!(pick_tick_step(2500), 200);
+    fn tick_step_no_overlap_for_various_scales() {
+        // scale=2.0, label_px=40.0 → min_pitch=48 → step=25 (25*2=50 ≥ 48)
+        assert_eq!(pick_tick_step(80, 2.0, 40.0), 25);
+        // range=79 previously jumped to step=5 (10px pitch) which caused overlap; now stays 25
+        assert_eq!(pick_tick_step(79, 2.0, 40.0), 25);
+        assert_eq!(pick_tick_step(20, 2.0, 40.0), 25);
+        assert_eq!(pick_tick_step(10, 2.0, 40.0), 25);
+        // scale=4.0 → step=20 (20*4=80 ≥ 48)
+        assert_eq!(pick_tick_step(80, 4.0, 40.0), 20);
+        // scale=1.0 → step=50 (50*1=50 ≥ 48)
+        assert_eq!(pick_tick_step(100, 1.0, 40.0), 50);
+        // scale=0.5 → step=100 (100*0.5=50 ≥ 48)
+        assert_eq!(pick_tick_step(2500, 0.5, 40.0), 100);
+    }
+
+    #[test]
+    fn tick_step_no_overlap_invariant() {
+        // Core invariant: step * scale >= label_px + min_gap for all representative combinations.
+        let label_px = 40.0_f64;
+        let min_gap = 8.0_f64;
+        for range in [10_i64, 20, 79, 80] {
+            for scale in [0.5_f64, 1.0, 2.0, 4.0] {
+                let step = pick_tick_step(range, scale, label_px);
+                let pitch = (step as f64) * scale;
+                assert!(
+                    pitch >= label_px + min_gap,
+                    "range={range}, scale={scale}: step={step}, pitch={pitch:.1} < min_pitch={min_pitch}",
+                    min_pitch = label_px + min_gap,
+                );
+            }
+        }
     }
 
     #[test]
