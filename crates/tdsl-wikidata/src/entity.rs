@@ -12,12 +12,14 @@ pub struct WikidataEntity {
     pub claims: HashMap<String, Vec<Statement>>,
 }
 
+/// Wikidata の言語付きラベル値。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LabelValue {
     pub language: String,
     pub value: String,
 }
 
+/// Wikidata のステートメント（主張）。プロパティ値と rank を持つ。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Statement {
     pub mainsnak: Snak,
@@ -27,6 +29,7 @@ pub struct Statement {
     pub qualifiers: HashMap<String, Vec<Snak>>,
 }
 
+/// Wikidata の Snak（値の主張単位）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Snak {
     pub snaktype: String,
@@ -35,6 +38,7 @@ pub struct Snak {
     pub datavalue: Option<DataValue>,
 }
 
+/// Wikidata のデータ値型（time / entity / string など）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum DataValue {
@@ -52,6 +56,7 @@ pub enum DataValue {
     GlobeCoordinate { value: serde_json::Value },
 }
 
+/// 単言語テキスト値（language + text）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MonolingualTextValue {
     pub text: String,

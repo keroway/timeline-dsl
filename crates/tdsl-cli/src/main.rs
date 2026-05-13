@@ -1889,7 +1889,7 @@ fn human_bytes(bytes: u64) -> String {
     }
 }
 
-/// [`SystemTime`] を `YYYY-MM-DD HH:MM:SS UTC` 形式の文字列に変換する。
+/// `SystemTime` を `YYYY-MM-DD HH:MM:SS UTC` 形式の文字列に変換する。
 fn format_system_time(t: std::time::SystemTime) -> String {
     use std::time::UNIX_EPOCH;
     let secs = t
