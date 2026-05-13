@@ -194,6 +194,7 @@ function App() {
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [lineWrap, setLineWrap] = useState(false)
+  const [isStalePreview, setIsStalePreview] = useState(false)
 
   // Split pane ratio (editor / preview)
   const [splitRatio, setSplitRatio] = useState(0.4)
@@ -246,13 +247,17 @@ function App() {
         try {
           const svg = renderSvg(src, scale)
           setSvgContent(svg)
+          setIsStalePreview(false)
         } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e)
           setDiagnostics((prev) => [
             ...prev,
             { severity: 'error', message: msg, line: 0, col: 0 },
           ])
+          setIsStalePreview(true)
         }
+      } else {
+        setIsStalePreview(true)
       }
     },
     [wasmReady, scale]
@@ -816,11 +821,16 @@ function App() {
             onClick={handlePreviewClick}
           >
             {svgContent ? (
-              <div
-                ref={svgContainerRef}
-                className="svg-container"
-                dangerouslySetInnerHTML={{ __html: svgContent }}
-              />
+              <>
+                {isStalePreview && (
+                  <div className="stale-preview-badge">直前の成功時プレビューを表示中</div>
+                )}
+                <div
+                  ref={svgContainerRef}
+                  className="svg-container"
+                  dangerouslySetInnerHTML={{ __html: svgContent }}
+                />
+              </>
             ) : (
               <div className="preview-placeholder">
                 {wasmReady ? 'プレビューなし（エラーを確認してください）' : '読み込み中...'}
