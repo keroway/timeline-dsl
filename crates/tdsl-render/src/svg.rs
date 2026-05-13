@@ -31,10 +31,10 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     )
     .unwrap();
 
-    // Embed font-family for standalone SVG viewers (no CDN dependency).
+    // Embed font-family and axis text size for standalone SVG viewers (no CDN dependency).
     writeln!(
         s,
-        r#"  <style>text {{ font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; }}</style>"#
+        r#"  <style>text {{ font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; }} .tdsl-axis-text {{ font-size: 11px; }}</style>"#
     )
     .unwrap();
 
