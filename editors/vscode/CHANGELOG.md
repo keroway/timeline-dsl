@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0] - 2026-05-13
+
+### Added
+
+- Sync extension version with timeline-dsl v1.5.0 release
+- Add VS Code snippets for `timeline`, `lane`, and `span` blocks
+
 ## [1.2.2] - 2026-05-06
 
 ### Changed
