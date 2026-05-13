@@ -9,6 +9,7 @@ import { search } from '@codemirror/search'
 import { initWasm, renderSvg, renderHtml, checkSource } from './wasmLoader'
 import type { Diagnostic } from './wasmLoader'
 import { EXAMPLES } from './examples'
+import { GALLERY_EXAMPLES } from './gallery-meta'
 import './App.css'
 
 const SVG_EMBEDDED_CSS = `
@@ -185,7 +186,6 @@ function App() {
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
   const [wasmReady, setWasmReady] = useState(false)
   const [wasmError, setWasmError] = useState<string | null>(null)
-  const [selectedExample, setSelectedExample] = useState<number>(0)
   const [fontSize, setFontSize] = useState<number>(14)
   const [colorScheme, setColorScheme] = useState<ColorScheme>('dark')
   const [mobileTab, setMobileTab] = useState<MobileTab>('editor')
@@ -198,6 +198,7 @@ function App() {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showGallery, setShowGallery] = useState(false)
   const [lineWrap, setLineWrap] = useState(false)
   const [isStalePreview, setIsStalePreview] = useState(false)
 
@@ -379,10 +380,9 @@ function App() {
     setSource(value)
   }
 
-  function handleExampleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const idx = parseInt(e.target.value, 10)
-    setSelectedExample(idx)
-    setSource(EXAMPLES[idx].source)
+  function handleGallerySelect(source: string) {
+    setSource(source)
+    setShowGallery(false)
   }
 
   function handleFontSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -566,17 +566,13 @@ function App() {
       <header className="toolbar">
         <div className="toolbar-left">
           <span className="app-title">Timeline DSL Editor</span>
-          <select
-            className="toolbar-select"
-            value={selectedExample}
-            onChange={handleExampleChange}
+          <button
+            className="btn"
+            onClick={() => setShowGallery(true)}
+            title="テンプレートギャラリーを開く"
           >
-            {EXAMPLES.map((ex, i) => (
-              <option key={i} value={i}>
-                {ex.label}
-              </option>
-            ))}
-          </select>
+            テンプレート
+          </button>
           <div className="toolbar-divider" />
           <select
             className="toolbar-select"
@@ -901,6 +897,30 @@ function App() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {/* Template gallery modal */}
+      {showGallery && (
+        <div className="modal-overlay" onClick={() => setShowGallery(false)}>
+          <div className="modal modal-gallery" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span>テンプレートギャラリー</span>
+              <button className="modal-close" onClick={() => setShowGallery(false)}>✕</button>
+            </div>
+            <ul className="gallery-list">
+              {GALLERY_EXAMPLES.map((ex) => (
+                <li key={ex.filename}>
+                  <button
+                    className="gallery-item"
+                    onClick={() => handleGallerySelect(ex.source)}
+                  >
+                    <span className="gallery-item-label">{ex.label}</span>
+                    <span className="gallery-item-desc">{ex.description}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
