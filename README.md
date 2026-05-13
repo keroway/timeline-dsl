@@ -3,169 +3,171 @@
 [![CI](https://github.com/keroway/timeline-dsl/actions/workflows/ci.yml/badge.svg)](https://github.com/keroway/timeline-dsl/actions/workflows/ci.yml)
 [![Release](https://github.com/keroway/timeline-dsl/actions/workflows/release.yml/badge.svg)](https://github.com/keroway/timeline-dsl/actions/workflows/release.yml)
 
-年表特化のドメイン固有言語（DSL）コンパイラ。テキストベースで年表を定義し、WikidataからデータをインポートしてHTML/SVGで可視化できる。
+A domain-specific language (DSL) compiler for timelines. Define timelines as text, import data from Wikidata, and visualize them as HTML/SVG.
 
-**[ランディングページ →](https://timeline-dsl-lp.pages.dev/)** | **[WebUI で今すぐ試す →](https://keroway.github.io/timeline-dsl/)**
+**[Landing Page →](https://timeline-dsl-lp.pages.dev/)** | **[Try it in the WebUI →](https://keroway.github.io/timeline-dsl/)**
 
-## 特徴
+> 日本語版: [README.ja.md](./README.ja.md)
 
-- **宣言型DSL** — C風の構文で年表をテキスト定義。Git管理・差分レビューに最適
-- **Wikidata連携** — QIDを指定するだけで歴史データを自動取得。ローカルキャッシュ（24時間TTL）でオフライン利用も可能
-- **インタラクティブHTML出力** — ズーム・パン・検索・凡例・詳細パネルを内蔵したスタンドアロンHTMLを生成
-- **SVG出力** — ベクター形式で書き出し。論文・スライドへの組み込みに
-- **カラーマッピング** — タグ→色の対応を DSL 内または CLI フラグで指定
-- **逆コンパイル** — JSON IRから`.tdsl`ソースを再生成
-- **WebUI** — ブラウザ上でリアルタイム編集・プレビュー（WASM駆動）。フォントサイズ・ライト/ダークテーマ選択対応
-- **レーン構造** — 王朝・人物・国などをレーン（縦軸カテゴリ）で整理
-- **3種の時間要素** — `span`（存続期間）、`event`（点イベント）、`event_range`（期間イベント）
-- **ライセンス追跡** — Wikidataデータ（CC0）の出典を自動記録
+## Features
 
-## インストール
+- **Declarative DSL** — Define timelines as text with a C-like syntax. Perfect for Git-based version control and diff reviews
+- **Wikidata integration** — Automatically fetch historical data by specifying a QID. Local cache (24-hour TTL) enables offline use
+- **Interactive HTML output** — Generate standalone HTML with built-in zoom, pan, search, legend, and detail panel
+- **SVG output** — Export as vector format for use in papers and slides
+- **Color mapping** — Declare tag-to-color mappings in the DSL or via CLI flags
+- **Decompiler** — Regenerate `.tdsl` source from a JSON IR
+- **WebUI** — Real-time editing and preview in the browser (WASM-powered), with font size and light/dark theme selection
+- **Lane structure** — Organize dynasties, people, nations, etc. into lanes (vertical categories)
+- **3 time element types** — `span` (duration), `event` (point event), `event_range` (range event)
+- **License tracking** — Automatically records the source of Wikidata data (CC0)
 
-### ワンラインインストール（macOS / Linux）
+## Installation
+
+### One-line install (macOS / Linux)
 
 ```sh
 curl -sSfL https://raw.githubusercontent.com/keroway/timeline-dsl/main/install.sh | sh
 ```
 
-### ワンラインインストール（Windows）
+### One-line install (Windows)
 
-PowerShell で実行します。
+Run in PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/keroway/timeline-dsl/main/install.ps1 | iex
 ```
 
-### Homebrew（macOS / Linux）
+### Homebrew (macOS / Linux)
 
 ```sh
 brew tap keroway/tap
 brew install tdsl
 ```
 
-### cargo-binstall（高速）
+### cargo-binstall (fast)
 
 ```sh
 cargo binstall tdsl-cli
 ```
 
-[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) を事前にインストールしておく必要があります。プリビルドバイナリを直接ダウンロードするため、ソースコンパイル不要です。
+Requires [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) to be installed first. Downloads pre-built binaries directly — no source compilation needed.
 
-### cargo でインストール
+### Install via cargo
 
 ```sh
 cargo install --git https://github.com/keroway/timeline-dsl tdsl-cli
 ```
 
-## クイックスタート
+## Quick Start
 
-### 基本的な使い方
+### Basic usage
 
 ```bash
-# DSLファイルをJSONにコンパイル
+# Compile a DSL file to JSON
 tdsl build examples/china_dynasties.tdsl --pretty
 
-# 構文・意味チェック
+# Syntax and semantic check
 tdsl check examples/china_dynasties.tdsl
 
-# スタンドアロンHTMLにレンダリング（ブラウザで開くだけ）
+# Render to standalone HTML (just open in a browser)
 tdsl render examples/china_dynasties.tdsl --output china.html
 open china.html
 
-# インタラクティブHTML（ズーム・パン・検索・詳細パネル付き）
+# Interactive HTML (with zoom, pan, search, detail panel)
 tdsl render examples/china_dynasties.tdsl --interactive --output china.html
 
-# SVG形式で出力
+# Output as SVG
 tdsl render examples/china_dynasties.tdsl --format svg --output china.svg
 
-# Wikidata連携つきコンパイル
+# Compile with Wikidata integration
 tdsl build examples/china_with_import.tdsl --pretty
 
-# オフラインモード（キャッシュのみ使用）
+# Offline mode (use cache only)
 tdsl build examples/china_with_import.tdsl --offline --pretty
 
-# ASTダンプ（デバッグ用）
+# AST dump (for debugging)
 tdsl ast examples/china_dynasties.tdsl
 
-# Wikidataエンティティの確認
+# Inspect a Wikidata entity
 tdsl fetch Q7209 --lang ja,en
 
-# Wikipedia URL から QID を解決
+# Resolve a Wikipedia URL to a QID
 tdsl resolve "https://ja.wikipedia.org/wiki/漢" --lang ja,en
 
-# JSON IRから.tdslソースを逆コンパイル
+# Decompile JSON IR back to .tdsl source
 tdsl decompile output.json --output restored.tdsl
 
-# 複数ファイルをまとめてコンパイル（ファイル順にマージ）
+# Compile multiple files (merged in order)
 tdsl build part1.tdsl part2.tdsl --pretty
 
-# 複数ファイルを専用マージコマンドで結合
+# Merge multiple files with the dedicated merge command
 tdsl merge base.tdsl extensions.tdsl --output merged.json --pretty
 
-# キャッシュの状態を確認
+# Check cache status
 tdsl cache status
 
-# 古いキャッシュエントリを削除（7日以上）
+# Clear old cache entries (older than 7 days)
 tdsl cache clear --older-than 7
 ```
 
-### 最短フロー（Wikidata起点）
+### Quickest workflow (starting from Wikidata)
 
 ```bash
-# 1) 候補を探す
-tdsl search "漢王朝" --lang ja -n 5
+# 1) Search for candidates
+tdsl search "Han dynasty" --lang en -n 5
 
-# (任意) Wikipedia URL からQIDを解決
-tdsl resolve "https://ja.wikipedia.org/wiki/漢"
+# (optional) Resolve a Wikipedia URL to a QID
+tdsl resolve "https://en.wikipedia.org/wiki/Han_dynasty"
 
-# 2) QIDの年表化適性を確認
+# 2) Verify timeline suitability
 tdsl inspect Q7209 --lang ja,en
 
-# 3) .tdsl 雛形を生成
+# 3) Generate a .tdsl template
 tdsl scaffold wikidata \
   --qids Q7183,Q7209 \
-  --timeline "中国王朝(生成)" \
+  --timeline "Chinese Dynasties (generated)" \
   --lang ja,en \
   --target auto \
   --lane-mode per-entity \
   --output /tmp/china_scaffold.tdsl
 
-# 4) HTMLに描画
+# 4) Render to HTML
 tdsl render /tmp/china_scaffold.tdsl --output /tmp/china_scaffold.html
 ```
 
-> `search / inspect / resolve / scaffold wikidata` はネットワーク接続が必要です。
+> `search / inspect / resolve / scaffold wikidata` require a network connection.
 
-### 最短フロー（手作業起点）
+### Quickest workflow (starting from scratch)
 
 ```bash
-# 1) 年表テンプレート生成
+# 1) Generate a timeline template
 tdsl init \
   --output /tmp/manual.tdsl \
-  --timeline "架空世界年表" \
+  --timeline "Fictional World Timeline" \
   --range-start 1000 \
   --range-end 1300 \
-  --lanes "王国:kingdom,事件:incidents"
+  --lanes "Kingdoms:kingdom,Events:incidents"
 
-# 2) CSVから項目を追記
+# 2) Append items from a CSV
 tdsl import-csv examples/fictional_empire_items.csv --append /tmp/manual.tdsl
 
-# 3) 品質補正
+# 3) Fix quality issues
 tdsl lint /tmp/manual.tdsl --fix
 
-# 4) HTMLに描画
+# 4) Render to HTML
 tdsl render /tmp/manual.tdsl --output /tmp/manual.html
 ```
 
-## DSL文法
+## DSL Syntax
 
-### timeline ブロック
+### timeline block
 
-タイトル・単位・表示範囲・暦法・カラーマッピングを宣言する。
+Declares the title, unit, display range, calendar, and color mapping.
 
 ```
-timeline "中国王朝年表" {
-    title "中国王朝年表";
+timeline "Chinese Dynasties" {
+    title "Chinese Dynasties";
     unit year;
     range -500..2000;
     calendar proleptic_gregorian;
@@ -176,67 +178,67 @@ timeline "中国王朝年表" {
 }
 ```
 
-### lane 宣言
+### lane declaration
 
-年表の縦軸カテゴリを定義する。`as` で内部IDを指定。
+Defines a vertical category on the timeline. Use `as` to specify the internal ID.
 
 ```
-lane "漢" as han { kind dynasty; order 20; }
+lane "Han" as han { kind dynasty; order 20; }
 ```
 
 ### span / event / event_range
 
-年表の時間要素。レーンに紐付ける。
+Time elements on the timeline, attached to a lane.
 
 ```
-// 存続期間
-span han -206..220 "漢" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };
+// Duration
+span han -206..220 "Han" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };
 
-// 点イベント
-event han -209 "陳勝・呉広の乱" {};
+// Point event
+event han -209 "Dazexiang Uprising" {};
 
-// 期間イベント（戦争・災害など）
-event_range han 184..204 "黄巾の乱" { tags ["war"]; };
+// Range event (wars, disasters, etc.)
+event_range han 184..204 "Yellow Turban Rebellion" { tags ["war"]; };
 ```
 
-### import ブロック
+### import block
 
-Wikidataからのデータ取り込みを宣言する。
+Declares data to be imported from Wikidata.
 
 ```
 import wikidata as wd {
     entity Q7183 as qin_dynasty;
     entity Q7209 as han_dynasty;
     policy merge_by_source;
-    // フィールド単位のマージ戦略（任意）
+    // Field-level merge strategy (optional)
     policy field_priority {
-        label: manual;    // ラベルは手動定義を優先
-        time:  wikidata;  // 時刻はWikidataを優先
-        tags:  merge;     // タグは両方をマージ
+        label: manual;    // prefer manually defined labels
+        time:  wikidata;  // prefer Wikidata times
+        tags:  merge;     // merge tags from both sources
     }
 }
 ```
 
-### map ブロック
+### map block
 
-インポートしたエンティティを年表要素に変換するルール。
+Rules for converting imported entities into timeline elements.
 
 ```
 map wd.han_dynasty to span {
     lane han;
     start claim(P571).year;      // inception
     end claim(P576).year;        // dissolved
-    label label@ja ?? label@en;  // 日本語優先、英語フォールバック
+    label label@ja ?? label@en;  // Japanese preferred, English fallback
     tags ["dynasty", "imported"];
 }
 ```
 
-### template / apply 構文
+### template / apply syntax
 
-共通のマッピングパターンをテンプレート化して複数のインポートに再利用できる。
+Reuse common mapping patterns across multiple imports.
 
 ```
-template "王朝スパン" as dynasty_span to span {
+template "Dynasty span" as dynasty_span to span {
     start claim(P571).year;
     end claim(P576).year;
     label label@ja ?? label@en;
@@ -247,28 +249,28 @@ apply dynasty_span to wd {
 }
 ```
 
-> `source` はインポートされたアイテムに `wd:<entity_id>` として自動付与されます。`map` ブロック内での明示指定は不要です。
-> `policy` はID衝突時の挙動を切り替えます:
-> `merge_by_source` は衝突をエラー扱い、`overwrite_imported` は既存のインポート済み項目のみ置換、
-> `keep_manual` は既存項目（手動定義）を優先してインポート側をスキップします。
+> `source` is automatically attached to imported items as `wd:<entity_id>`. Explicit specification inside a `map` block is not needed.
+> `policy` controls behavior on ID conflicts:
+> `merge_by_source` treats conflicts as errors; `overwrite_imported` replaces only existing imported items;
+> `keep_manual` skips the incoming item if an existing (manually defined) item is present.
 
-## サンプルファイル
+## Example Files
 
-| ファイル | 内容 |
+| File | Content |
 |---|---|
-| `examples/china_dynasties.tdsl` | 静的定義のみ。秦・漢・三国の年表 |
-| `examples/china_with_import.tdsl` | Wikidata連携つき。秦・漢をQIDからインポート |
-| `examples/template_apply_example.tdsl` | template / apply 構文のサンプル |
-| `examples/fictional_empire.tdsl` | 架空世界向けの手作業年表サンプル |
-| `examples/fictional_empire_items.csv` | `import-csv` 用の入力CSVサンプル |
-| `examples/japanese_history.tdsl` | 日本史（奈良〜江戸）。複数lane・静的定義 |
-| `examples/samurai_wikidata.tdsl` | 戦国武将の生没年。Wikidata連携（P569/P570）サンプル |
-| `examples/world_wars.tdsl` | 近代戦争年表。event_range 中心の年表 |
-| `examples/sci_tech_timeline.tdsl` | 科学技術の発明・発見年表。event 中心の年表 |
+| `examples/china_dynasties.tdsl` | Static definitions only — Qin, Han, and Three Kingdoms |
+| `examples/china_with_import.tdsl` | With Wikidata integration — imports Qin and Han from QIDs |
+| `examples/template_apply_example.tdsl` | Sample usage of template / apply syntax |
+| `examples/fictional_empire.tdsl` | Manual timeline for a fictional world |
+| `examples/fictional_empire_items.csv` | Sample CSV input for `import-csv` |
+| `examples/japanese_history.tdsl` | Japanese history (Nara–Edo). Multi-lane, static definitions |
+| `examples/samurai_wikidata.tdsl` | Birth/death years of feudal lords. Wikidata integration (P569/P570) |
+| `examples/world_wars.tdsl` | Modern wars timeline, centered on event_range |
+| `examples/sci_tech_timeline.tdsl` | Science and technology timeline, centered on event |
 
-## GitHub Actions 連携
+## GitHub Actions Integration
 
-`uses: keroway/timeline-dsl@v1` で `.tdsl` ファイルを SVG / HTML にレンダリングできます。
+Use `uses: keroway/timeline-dsl@v1` to render `.tdsl` files to SVG / HTML.
 
 ```yaml
 - uses: keroway/timeline-dsl@v1
@@ -279,154 +281,154 @@ apply dynasty_span to wd {
     offline: 'true'
 ```
 
-主なインプット:
+Key inputs:
 
-| インプット | デフォルト | 説明 |
+| Input | Default | Description |
 |---|---|---|
-| `file` | — | レンダリングする `.tdsl` ファイルのパス（必須） |
-| `format` | `svg` | 出力フォーマット: `svg` または `html` |
-| `output` | `<basename>.<format>` | 出力ファイルパス |
-| `offline` | `false` | Wikidata フェッチをスキップ（CI推奨） |
-| `interactive` | `false` | インタラクティブ HTML 出力（`format: html` 時） |
-| `theme` | — | テーマ: `default` / `dark` / `print` / `pastel` |
-| `version` | `latest` | 使用する tdsl バージョン（例: `v1.5.0`） |
+| `file` | — | Path to the `.tdsl` file to render (required) |
+| `format` | `svg` | Output format: `svg` or `html` |
+| `output` | `<basename>.<format>` | Output file path |
+| `offline` | `false` | Skip Wikidata fetching (recommended for CI) |
+| `interactive` | `false` | Interactive HTML output (when `format: html`) |
+| `theme` | — | Theme: `default` / `dark` / `print` / `pastel` |
+| `version` | `latest` | tdsl version to use (e.g. `v1.5.0`) |
 
-アウトプット `output_path` には生成ファイルの絶対パスが入ります。
+The `output_path` output contains the absolute path to the generated file.
 
-詳細な使い方は [docs/ci-integration.md](docs/ci-integration.md) を参照してください。
+See [docs/ci-integration.md](docs/ci-integration.md) for full usage details.
 
-## エディタサポート
+## Editor Support
 
-### VS Code 構文ハイライト
+### VS Code Syntax Highlighting
 
-`editors/vscode/` に VS Code 拡張があります。`.tdsl` ファイルのキーワード・文字列・コメント・QIDなどを色分けします。
+An extension is available under `editors/vscode/`. It color-codes keywords, strings, comments, QIDs, and more in `.tdsl` files.
 
-**インストール方法（Marketplace）:**
+**Install from Marketplace:**
 
-VS Code 上で `Ctrl+P`（macOS: `Cmd+P`）を押して以下を実行:
+Press `Ctrl+P` (macOS: `Cmd+P`) in VS Code and run:
 
 ```
 ext install keroway.timeline-dsl
 ```
 
-または [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=keroway.timeline-dsl) から直接インストール。
+Or install directly from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=keroway.timeline-dsl).
 
-**インストール方法（手動）:**
+**Manual install:**
 
 ```bash
 cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
-# VS Code を再起動
+# Restart VS Code
 ```
 
-ハイライト対象:
-- キーワード: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`, `color_map`
-- 文字列リテラル（ダブルクォート）
-- コメント（`//` と `/* */`）
-- Wikidata QID（`Q123`）・プロパティID（`P569`）・参照（`wd:Q123`）
-- `claim(P571).year` 式、`label@ja` 式
+Highlighted elements:
+- Keywords: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`, `color_map`
+- String literals (double-quoted)
+- Comments (`//` and `/* */`)
+- Wikidata QIDs (`Q123`), property IDs (`P569`), references (`wd:Q123`)
+- `claim(P571).year` expressions, `label@ja` expressions
 
-## ファイルのマージ
+## Merging Files
 
-複数の `.tdsl` ファイルを 1 つの IR に統合できます。
+Combine multiple `.tdsl` files into a single IR.
 
 ```bash
-# tdsl build で複数ファイルを指定（ファイル順にマージ）
+# Specify multiple files with tdsl build (merged in order)
 tdsl build base.tdsl additions.tdsl --pretty
 
-# tdsl merge コマンドで明示的にマージ
+# Use tdsl merge for explicit merging
 tdsl merge base.tdsl additions.tdsl --output merged.json --pretty
 ```
 
-最初のファイルの `timeline` メタ（title / range / calendar）が優先されます。`lane` は全ファイルから収集され、`item` は重複 ID を検出しながら順に追加されます。
+The `timeline` metadata (title / range / calendar) from the first file takes precedence. `lane` entries are collected from all files, and `item` entries are appended in order with duplicate ID detection.
 
 ## Lint
 
 `tdsl lint <file> [--fix] [--format text|json]`
 
-- 検出ルール: 未定義lane参照 / 重複id / `start > end` / 空label / タグの空要素・重複
-- `--fix` 対応: タグ重複除去・空タグ除去 / `start,end` 入れ替え / `id` 未設定時の安定ID生成
-- `--format json` はCI連携向けに issue 一覧と `ok` フラグを出力
+- Rules: undefined lane reference / duplicate ID / `start > end` / empty label / empty or duplicate tags
+- `--fix`: removes duplicate/empty tags, swaps `start`/`end`, generates stable IDs for items without one
+- `--format json`: outputs an issue list and an `ok` flag for CI integration
 
 ## WebUI
 
-**[今すぐブラウザで試す →](https://keroway.github.io/timeline-dsl/)**
+**[Try it in your browser →](https://keroway.github.io/timeline-dsl/)**
 
-WASM 駆動のブラウザ内エディタです。インストール不要でタイムラインの作成・プレビューができます。
+A browser-based editor powered by WASM. Create and preview timelines without installing anything.
 
-### 主な機能
+### Key features
 
-- **リアルタイムプレビュー**: `.tdsl` を編集するたびに SVG が即時更新される（500ms debounce）
-- **診断パネル**: 構文エラー・意味エラーを行番号付きで表示
-- **フォントサイズ選択**: エディタのフォントサイズを 12px〜18px から選択
-- **ライト/ダークテーマ**: エディタとUIのカラースキームをワンクリックで切替
-- **ファイル操作**: ローカルの `.tdsl` ファイルを開く / `.tdsl` ・ SVG ・ スタンドアロン HTML としてダウンロード
-- **サンプル切替**: 複数の例文を選択して即試せる
-- **ツールチップ**: SVG上にマウスを重ねるとアイテム詳細を表示
+- **Live preview**: SVG updates instantly as you edit (500ms debounce)
+- **Diagnostics panel**: Syntax and semantic errors displayed with line numbers
+- **Font size selector**: Choose editor font size from 12px to 18px
+- **Light/dark theme**: Switch color schemes with one click
+- **File operations**: Open a local `.tdsl` file / download as `.tdsl`, SVG, or standalone HTML
+- **Sample switcher**: Select from multiple examples to try immediately
+- **Tooltips**: Hover over SVG items to see item details
 
-> **制限**: ブラウザ内では Wikidata インポート（`import wikidata`）は解決されません。静的な `span`・`event`・`event_range` のみプレビューされます。
+> **Limitation**: Wikidata imports (`import wikidata`) are not resolved in the browser. Only static `span`, `event`, and `event_range` items are previewed.
 
-## ドキュメント
+## Documentation
 
-- [Getting Started チュートリアル](docs/tutorial.md) — ステップバイステップのハンズオン
-- [DSL 言語仕様](docs/dsl-spec.md) — 文法リファレンス
-- [スタイルカスタマイズガイド](docs/styling.md) — `--theme` / `--custom-css` によるCSSカスタマイズのリファレンス
-- [エラーコードカタログ](docs/error-catalog.md) — エラーメッセージの原因と修正方法
-- [v0→v1 移行ガイド](docs/migration-v0-to-v1.md) — バージョンアップ時の変更点
-- [WebUI 技術選定](docs/webui-design.md) — WASM + 静的サイト構成の設計記録
+- [Getting Started Tutorial](docs/tutorial.md) — Step-by-step hands-on guide
+- [DSL Language Reference](docs/dsl-spec.md) — Grammar reference
+- [Styling Customization Guide](docs/styling.md) — CSS customization via `--theme` / `--custom-css`
+- [Error Code Catalog](docs/error-catalog.md) — Causes and fixes for error messages
+- [v0 to v1 Migration Guide](docs/migration-v0-to-v1.md) — Changes when upgrading
+- [WebUI Design](docs/webui-design.md) — Design notes for the WASM + static site architecture
 
-## アーキテクチャ
+## Architecture
 
 ```
-.tdsl ファイル
+.tdsl file
     |
     v
-[tdsl-parser]   PEG文法(pest) → AST
+[tdsl-parser]   PEG grammar (pest) → AST
     |
     v
-[tdsl-core]     AST → IR変換（4パスパイプライン）
-    |               Pass 1: timeline/lane 宣言の収集
-    |               Pass 2: 静的アイテムの変換
-    |               Pass 3: Wikidataインポート解決
-    |               Pass 4: mapブロックの適用
+[tdsl-core]     AST → IR conversion (4-pass pipeline)
+    |               Pass 1: collect timeline/lane declarations
+    |               Pass 2: convert static items
+    |               Pass 3: resolve Wikidata imports
+    |               Pass 4: apply map blocks
     |
-[tdsl-wikidata] Wikidata APIクライアント（キャッシュ付き）
+[tdsl-wikidata] Wikidata API client (with cache)
     |
     v
-JSON IR 出力
+JSON IR output
     |
     +--[tdsl-render]--> HTML / SVG
     +--[tdsl-wasm]  --> WebUI (WASM facade)
 ```
 
-### クレート構成
+### Crate overview
 
-| クレート | 役割 |
+| Crate | Role |
 |---|---|
-| `tdsl-parser` | PEG文法定義とAST構築 |
-| `tdsl-core` | IR変換（lowering）・バリデーション・逆コンパイル |
-| `tdsl-wikidata` | Wikidata HTTPクライアント・エンティティモデル・キャッシュ |
-| `tdsl-render` | IR → HTML（静的・インタラクティブ）/ SVG レンダラ |
-| `tdsl-wasm` | WebUI向けWASM facade（`wasm-bindgen`） |
-| `tdsl-cli` | CLIバイナリ（全サブコマンド） |
+| `tdsl-parser` | PEG grammar definition and AST construction |
+| `tdsl-core` | IR conversion (lowering), validation, decompiler |
+| `tdsl-wikidata` | Wikidata HTTP client, entity model, cache |
+| `tdsl-render` | IR → HTML (static / interactive) / SVG renderer |
+| `tdsl-wasm` | WASM facade for the WebUI (`wasm-bindgen`) |
+| `tdsl-cli` | CLI binary (all subcommands) |
 
-## IR (中間表現) の構造
+## IR (Intermediate Representation) Structure
 
-コンパイル結果のJSON IRは以下の構造を持つ。
+The compiled JSON IR has the following structure:
 
 ```json
 {
   "meta": {
-    "title": "中国王朝年表",
+    "title": "Chinese Dynasties",
     "unit": "year",
     "range": [-500, 2000],
     "calendar": "proleptic_gregorian",
     "color_map": { "dynasty": "#3366cc", "war": "#cc0000" }
   },
   "lanes": [
-    {"id": "han", "label": "漢", "kind": "dynasty", "order": 20}
+    {"id": "han", "label": "Han", "kind": "dynasty", "order": 20}
   ],
   "items": [
-    {"type": "span", "id": "span:han", "lane": "han", "start": -206, "end": 220, "label": "漢", "tags": ["dynasty"], "source": "wd:Q7209", "origin": "wikidata"}
+    {"type": "span", "id": "span:han", "lane": "han", "start": -206, "end": 220, "label": "Han", "tags": ["dynasty"], "source": "wd:Q7209", "origin": "wikidata"}
   ],
   "imports": [
     {"source": "wikidata", "qid": "Q7209", "mapped_to": "span:han"}
@@ -437,39 +439,37 @@ JSON IR 出力
 }
 ```
 
-## Wikidataプロパティ
+## Wikidata Properties
 
-年表構築で頻用するプロパティ:
+Frequently used properties for building timelines:
 
-| プロパティ | 用途 | DSLでの使い方 |
+| Property | Usage | DSL syntax |
 |---|---|---|
-| P569 | 人物の誕生年 | `claim(P569).year` |
-| P570 | 人物の死亡年 | `claim(P570).year` |
-| P571 | 組織・国の成立年 | `claim(P571).year` |
-| P576 | 組織・国の消滅年 | `claim(P576).year` |
-| P580 | 開始時点 | `claim(P580).year` |
-| P582 | 終了時点 | `claim(P582).year` |
+| P569 | Birth year of a person | `claim(P569).year` |
+| P570 | Death year of a person | `claim(P570).year` |
+| P571 | Inception year of an organization or country | `claim(P571).year` |
+| P576 | Dissolution year of an organization or country | `claim(P576).year` |
+| P580 | Start time | `claim(P580).year` |
+| P582 | End time | `claim(P582).year` |
 
-## テスト
+## Testing
 
 ```bash
 cargo test --workspace
 
-# E2Eスモーク（CIと同じ）
+# E2E smoke test (same as CI)
 bash scripts/e2e-smoke.sh
 
-# ベンチマーク
+# Benchmarks
 cargo bench --workspace
 ```
 
-## ライセンス
+## License
 
-### このソフトウェア
+### This software
 
-MIT License — 詳細は [LICENSE](./LICENSE) を参照。
+MIT License — see [LICENSE](./LICENSE) for details.
 
-### Wikidataから取得したデータ
+### Data imported from Wikidata
 
-Wikidataの構造化データは [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) で提供されます。
-`tdsl` でWikidataデータをインポートした場合、そのデータ自体は出典表示なしで自由に利用できます。
-これはこのソフトウェア（MIT）とは独立した条件です。
+Structured data from Wikidata is provided under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). Data imported with `tdsl` can be used freely without attribution. This is independent of the license for this software (MIT).
