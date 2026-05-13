@@ -7,10 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-05-13
+
 ### Added
 
 - **時間値フォールバック演算子（`??`）の map expr 対応**: `map` ブロックの `start` / `end` / `time` でも `??` 演算子をサポートし、複数の Wikidata プロパティから最初の有効値を取得できるようにした（#143）。例: `start claim(P580).year ?? claim(P571).year`。既存の単項式（`start claim(P571).year`）は完全互換
 - **ARM Linux (aarch64) バイナリ配布**: `aarch64-unknown-linux-musl` ターゲットをリリース CI のビルドマトリクスに追加し、`tdsl-linux-aarch64.tar.gz` を GitHub Release に同梱（#145）。Homebrew formula も Linux ARM 環境を判定して適切なバイナリを取得するように更新
+- **`map` フィルター句**: `map` ブロックに `filter <expr>;` 句を導入し、インポートしたエンティティから条件に合うものだけをアイテム化できるようにした（#142）。`==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, `||`, `!`, `null`, `claim()` をサポート。複数の `filter` は AND 結合
+- **WebUI モバイル対応**: WebUI でモバイル（≤768px）時にエディタ/プレビューをタブ切り替え、タブレット（769px〜1024px）時に上下2段レイアウトに自動切り替えする対応を追加（#141）。タッチ操作向けにボタン高さを 36px 以上に拡大
+- **WebUI ドラッグ分割幅調整**: エディタとプレビューの間にドラッグ可能な 4px 幅のディバイダーを追加し、分割比率を 15%〜85% の範囲で変更できるようにした（#150）。デフォルト比率は 40% / 60%（エディタ / プレビュー）
+- **CI: `.tdsl` 変更時 SVG プレビュー自動生成**: `.tdsl` ファイルが変更された PR でのみ `tdsl-preview` ジョブが起動し、SVG をレンダリングしてアーティファクトとして保存するワークフローを追加（#171）
+- **CI: PR へのプレビューコメント自動投稿**: `tdsl-preview` ワークフローから PR に IR サマリ（アイテム数・レーン数・期間）を含むプレビューコメントを自動 upsert するようにした（#172）
+- **GitHub Actions composite action**: `uses: keroway/timeline-dsl@v1` で `.tdsl` → SVG / HTML レンダリングを CI から呼び出せる composite action を公開。`docs/ci-integration.md` にユースケース別レシピを追記（#173）
+- **テストカバレッジ強化**: `tdsl-wikidata` に precision バリエーション（世紀・十年・千年・日）のテストを追加、`tdsl-cli` に `build`・`check`・`ast` サブコマンドのユニットテストを追加（#132）
+
+### Fixed
+
+- **WebUI Auto スケール時の年ラベル重なり解消**: `render_svg_from_source` の Auto scale クランプ上限を `8.0 → 50.0 px/yr` に引き上げ、短期間レンジ（例: `range 2018..2030`）で年ラベルが重なる問題を解消（#194）
+
+### Changed
+
+- **CI: `in-progress` ラベル自動剥離**: issue または PR が close されると `in-progress` ラベルを自動剥離するワークフローを追加（#162）
 
 ## [1.4.0] - 2026-05-10
 
@@ -120,6 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.5.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/keroway/timeline-dsl/releases/compare/v1.2.1...v1.2.2
