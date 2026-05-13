@@ -18,6 +18,7 @@ pub struct File {
     pub statements: Vec<Spanned<Statement>>,
 }
 
+/// DSL の各トップレベル文（statement）に対応する enum。
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Timeline(TimelineBlock),
@@ -33,6 +34,7 @@ pub enum Statement {
 
 // ─── Timeline ───────────────────────────────────────────────
 
+/// `timeline "名前" { ... }` ブロックのAST表現。
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimelineBlock {
     pub name: String,
@@ -43,6 +45,7 @@ pub struct TimelineBlock {
     pub color_map: Vec<(String, String)>,
 }
 
+/// `start..end` 形式の時間範囲式。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RangeExpr {
     pub start: i64,
@@ -51,6 +54,7 @@ pub struct RangeExpr {
 
 // ─── Lane ───────────────────────────────────────────────────
 
+/// `lane "ラベル" as id { ... }` 宣言のAST表現。
 #[derive(Debug, Clone, PartialEq)]
 pub struct LaneDecl {
     pub label: String,
@@ -61,6 +65,7 @@ pub struct LaneDecl {
 
 // ─── Items ──────────────────────────────────────────────────
 
+/// `span <lane> <start>..<end> "ラベル" { ... }` 宣言のAST表現。
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpanDecl {
     pub lane_ref: String,
@@ -70,6 +75,7 @@ pub struct SpanDecl {
     pub props: ItemProps,
 }
 
+/// `event <lane> <time> "ラベル" { ... }` 宣言のAST表現。
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventDecl {
     pub lane_ref: String,
@@ -78,6 +84,7 @@ pub struct EventDecl {
     pub props: ItemProps,
 }
 
+/// `event_range <lane> <start>..<end> "ラベル" { ... }` 宣言のAST表現。
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventRangeDecl {
     pub lane_ref: String,
@@ -87,6 +94,7 @@ pub struct EventRangeDecl {
     pub props: ItemProps,
 }
 
+/// アイテム共通の省略可能プロパティ（`tags`, `source`, `id`, `origin`）。
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ItemProps {
     pub tags: Vec<String>,
@@ -95,6 +103,7 @@ pub struct ItemProps {
     pub origin: Option<String>,
 }
 
+/// `source <prefix>:<qid>` 形式の出典参照（例: `source wd:Q7209`）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceRef {
     pub prefix: String,
@@ -103,6 +112,7 @@ pub struct SourceRef {
 
 // ─── Import ─────────────────────────────────────────────────
 
+/// `import <source_type> as <alias> { ... }` ブロックのAST表現。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImportBlock {
     pub source_type: String,
@@ -111,25 +121,33 @@ pub struct ImportBlock {
     pub policy: Option<ReimportPolicy>,
 }
 
+/// `import` ブロック内の個別エントリ（`entity` または `query`）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum ImportItem {
+    /// `entity QXXX as alias` — 単一エンティティのインポート。
     Entity {
         qid: String,
         alias: Option<String>,
     },
+    /// `query "SPARQL" as alias` — SPARQL クエリで複数エンティティを一括インポート。
     Query {
         query: String,
         alias: Option<String>,
     },
 }
 
+/// フィールド別インポート優先度戦略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldStrategy {
+    /// 手動設定値を優先する。
     Manual,
+    /// Wikidata 取得値を優先する。
     Wikidata,
+    /// 両方をマージする。
     Merge,
 }
 
+/// `policy field_priority { ... }` ブロックのAST表現。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FieldPriorityConfig {
     pub label: FieldStrategy,
