@@ -16,6 +16,10 @@ fn make_ir(n: usize) -> TimelineIr {
             tags: vec!["t".into()],
             source: None,
             origin: None,
+            start_month: None,
+            start_day: None,
+            end_month: None,
+            end_day: None,
         });
     }
     TimelineIr {

@@ -99,9 +99,25 @@ impl WikidataEntity {
     }
 }
 
+/// Parsed time value with optional month/day precision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TimePoint {
+    pub year: i64,
+    /// `Some` when precision >= 10 (month).
+    pub month: Option<u8>,
+    /// `Some` when precision >= 11 (day).
+    pub day: Option<u8>,
+    pub precision: u8,
+}
+
 /// Parse a Wikidata time string (e.g. `"+1868-01-01T00:00:00Z"` or `"-0206-01-01T00:00:00Z"`)
 /// into a year integer.
 pub fn time_value_to_year(tv: &TimeValue) -> Result<i64, crate::WikidataError> {
+    Ok(time_value_to_timepoint(tv)?.year)
+}
+
+/// Parse a Wikidata time value into a [`TimePoint`], preserving month/day when precision allows.
+pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::WikidataError> {
     let s = &tv.time;
     // Format: +/-YYYY-MM-DDThh:mm:ssZ
     let (sign, rest) = if let Some(stripped) = s.strip_prefix('+') {
@@ -112,12 +128,37 @@ pub fn time_value_to_year(tv: &TimeValue) -> Result<i64, crate::WikidataError> {
         (1i64, s.as_str())
     };
 
-    let year_str = rest.split('-').next().unwrap_or("");
+    let mut parts = rest.splitn(3, '-');
+    let year_str = parts.next().unwrap_or("");
     let year: i64 = year_str
         .parse()
         .map_err(|_| crate::WikidataError::TimeParseError(s.clone()))?;
 
-    Ok(sign * year)
+    let month = if tv.precision >= 10 {
+        parts
+            .next()
+            .and_then(|m| m.parse::<u8>().ok())
+            .filter(|&m| m >= 1 && m <= 12)
+    } else {
+        None
+    };
+
+    let day = if tv.precision >= 11 {
+        parts
+            .next()
+            .and_then(|d| d.split('T').next())
+            .and_then(|d| d.parse::<u8>().ok())
+            .filter(|&d| d >= 1 && d <= 31)
+    } else {
+        None
+    };
+
+    Ok(TimePoint {
+        year: sign * year,
+        month,
+        day,
+        precision: tv.precision,
+    })
 }
 
 #[cfg(test)]

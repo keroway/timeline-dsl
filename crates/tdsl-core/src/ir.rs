@@ -63,6 +63,15 @@ pub enum Item {
         source: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         origin: Option<String>,
+        // Precision fields (month/day only when precision >= 10/11)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        start_month: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        start_day: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        end_month: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        end_day: Option<u8>,
     },
     Event {
         id: String,
@@ -75,6 +84,11 @@ pub enum Item {
         source: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         origin: Option<String>,
+        // Precision fields
+        #[serde(skip_serializing_if = "Option::is_none")]
+        time_month: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        time_day: Option<u8>,
     },
     EventRange {
         id: String,
@@ -88,6 +102,15 @@ pub enum Item {
         source: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         origin: Option<String>,
+        // Precision fields
+        #[serde(skip_serializing_if = "Option::is_none")]
+        start_month: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        start_day: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        end_month: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        end_day: Option<u8>,
     },
 }
 
