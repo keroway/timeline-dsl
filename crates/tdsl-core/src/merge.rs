@@ -124,6 +124,10 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             tags,
             source,
             origin,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
             ..
         } => Item::Span {
             id: new_id,
@@ -134,6 +138,10 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             tags,
             source,
             origin,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
         },
         Item::Event {
             lane,
@@ -142,6 +150,8 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             tags,
             source,
             origin,
+            time_month,
+            time_day,
             ..
         } => Item::Event {
             id: new_id,
@@ -151,6 +161,8 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             tags,
             source,
             origin,
+            time_month,
+            time_day,
         },
         Item::EventRange {
             lane,
@@ -160,6 +172,10 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             tags,
             source,
             origin,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
             ..
         } => Item::EventRange {
             id: new_id,
@@ -170,6 +186,10 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             tags,
             source,
             origin,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
         },
     }
 }
@@ -216,6 +236,10 @@ mod tests {
             tags: vec![],
             source: None,
             origin: None,
+            start_month: None,
+            start_day: None,
+            end_month: None,
+            end_day: None,
         }
     }
 

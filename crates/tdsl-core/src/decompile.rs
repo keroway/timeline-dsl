@@ -50,6 +50,7 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 source,
                 origin,
                 id,
+                ..
             } => {
                 let props = render_props(id, tags, source, origin);
                 writeln!(
@@ -67,6 +68,7 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 source,
                 origin,
                 id,
+                ..
             } => {
                 let props = render_props(id, tags, source, origin);
                 writeln!(out, r#"event {lane} {time} "{}" {props};"#, escape(label)).unwrap();
@@ -80,6 +82,7 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 source,
                 origin,
                 id,
+                ..
             } => {
                 let props = render_props(id, tags, source, origin);
                 writeln!(
@@ -153,6 +156,10 @@ mod tests {
                     tags: vec!["tag1".to_string()],
                     source: None,
                     origin: None,
+                    start_month: None,
+                    start_day: None,
+                    end_month: None,
+                    end_day: None,
                 },
                 Item::Event {
                     id: "event:a:100".to_string(),
@@ -162,6 +169,8 @@ mod tests {
                     tags: vec![],
                     source: Some("wd:Q1".to_string()),
                     origin: Some("imported".to_string()),
+                    time_month: None,
+                    time_day: None,
                 },
                 Item::EventRange {
                     id: "event_range:a:50".to_string(),
@@ -172,6 +181,10 @@ mod tests {
                     tags: vec!["war".to_string(), "conflict".to_string()],
                     source: None,
                     origin: None,
+                    start_month: None,
+                    start_day: None,
+                    end_month: None,
+                    end_day: None,
                 },
             ],
             imports: vec![],

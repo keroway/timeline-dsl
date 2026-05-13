@@ -444,6 +444,8 @@ mod tests {
                 tags: vec![],
                 source: None,
                 origin: None,
+                time_month: None,
+                time_day: None,
             }],
             imports: vec![],
             sources: vec![],
