@@ -1,7 +1,7 @@
 //! Timeline DSL renderer: `TimelineIr` → standalone HTML with inline SVG.
 //!
 //! The public entry point is [`render_html`]. Internally it:
-//! 1. Computes a [`LayoutModel`](layout::LayoutModel) from the IR.
+//! 1. Computes a [`layout::LayoutModel`] from the IR.
 //! 2. Serializes it to an SVG string.
 //! 3. Wraps the SVG in an HTML document with embedded CSS (hover tooltips only, no JS).
 
