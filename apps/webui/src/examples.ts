@@ -47,4 +47,73 @@ event world 1905 "アインシュタイン 相対性理論" {};
 event world 1969 "アポロ11号 月面着陸" {};
 `,
   },
+  {
+    label: 'DSL 基本文法（最小構成）',
+    source: `// span / event / event_range の最小構成サンプル
+
+timeline "DSL 基本文法" {
+    title "span・event・event_range の使い方";
+    unit year;
+    range 0..100;
+    calendar proleptic_gregorian;
+}
+
+// lane: イベントを分類するレーン
+lane "王朝" as dynasty { kind dynasty; order 10; }
+lane "出来事" as events { kind event;   order 20; }
+
+// span: 期間を帯グラフで表示
+span dynasty 0..50 "前半王朝" { tags ["dynasty"]; };
+span dynasty 50..100 "後半王朝" { tags ["dynasty"]; };
+
+// event: 特定年の点イベント
+event events 30 "改革令" {};
+event events 75 "転換点" { tags ["milestone"]; };
+
+// event_range: 期間付き点イベント（塗りつぶし矩形）
+event_range events 40..45 "内乱" { tags ["war"]; };
+`,
+  },
+  {
+    label: 'Wikidata インポート（オフライン不可）',
+    source: `// ⚠️ このサンプルは Wikidata API を使用します。
+// WebUI はオフラインモードで動作するため、
+// "import wikidata" はコンパイルエラーになります。
+// 構文の参考として確認してください。
+
+timeline "Wikidata インポート例" {
+    title "Wikidata から王朝データをインポート";
+    unit year;
+    range -300..300;
+    calendar proleptic_gregorian;
+}
+
+lane "秦" as qin { kind dynasty; order 10; }
+lane "漢" as han { kind dynasty; order 20; }
+
+// Wikidata からエンティティをインポート
+import wikidata as wd {
+    entity Q7183 as qin_dynasty;  // 秦
+    entity Q7209 as han_dynasty;  // 漢
+    policy merge_by_source;
+}
+
+// インポートデータを span にマッピング
+map wd.qin_dynasty to span {
+    lane qin;
+    start claim(P571).year;  // 成立年
+    end   claim(P576).year;  // 消滅年
+    label label@ja ?? label@en;
+    tags ["dynasty", "imported"];
+}
+
+map wd.han_dynasty to span {
+    lane han;
+    start claim(P571).year;
+    end   claim(P576).year;
+    label label@ja ?? label@en;
+    tags ["dynasty", "imported"];
+}
+`,
+  },
 ]
