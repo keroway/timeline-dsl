@@ -1981,7 +1981,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-cli"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "clap",
  "csv",
@@ -1998,7 +1998,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-core"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "async-trait",
  "criterion",
@@ -2014,7 +2014,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-parser"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "criterion",
  "insta",
@@ -2026,7 +2026,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-render"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "criterion",
  "tdsl-core",
@@ -2034,7 +2034,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-wasm"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "console_error_panic_hook",
  "getrandom 0.2.17",
@@ -2049,7 +2049,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-wikidata"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "async-trait",
  "dirs",
