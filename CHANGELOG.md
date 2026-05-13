@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-05-13
+
+### Added
+
+- **Wikidata precision 対応（月・日精度）**: Wikidata TimeValue の precision フィールド（10=月, 11=日）を解析し、IR の `Span`/`Event`/`EventRange` に `start_month`/`start_day`/`end_month`/`end_day`/`time_month`/`time_day` フィールドとして伝播させる。`skip_serializing_if` により既存 JSON IR との後方互換を維持。DSL 構文に `.month`/`.day` アクセサを追加（`claim(P569).month` 等）（#146）
+- **WebUI サンプル拡充**: `examples.ts` に「DSL 基本文法（最小構成）」と「Wikidata インポート（オフライン不可）」の 2 件を追加。合計 4 件以上になり文法カバレッジを向上（#200）
+- **`?source=` URL クエリパラメータ対応**: WebUI に `?source=` クエリパラメータを追加し、URL からエディタ初期内容を設定できる deep link に対応（#201）
+- **コンパイル失敗時の stale プレビュー保持**: WebUI でコンパイルエラー発生時に直前の成功 SVG を表示し続け、「直前の成功時プレビューを表示中」バッジを重畳表示するようにした（#202）
+
+### Changed
+
+- **README 英語化**: `README.md` を英語版に置き換え、日本語版を `README.ja.md` として温存。両ファイルに相互リンクを追加（#90）
+
+### Docs
+
+- **シンタックスハイライト grammar 整合方針を文書化**: `apps/webui/src/lang-tdsl/index.ts` と `editors/vscode/syntaxes/tdsl.tmLanguage.json` の二重管理方針（手動同期）を `CLAUDE.md` と `apps/webui/README.md` に明記。フォローアップ issue #207 を起票（#203）
+
 ## [1.5.0] - 2026-05-13
 
 ### Added
@@ -137,6 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.6.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.2.2...v1.3.0
