@@ -127,15 +127,19 @@ impl<'a> LayoutModel<'a> {
                 continue;
             };
             match item {
-                Item::Span { start, end, .. } => {
-                    let (x, width) = span_x_width(
-                        *start,
-                        *end,
-                        year_min,
-                        year_max,
-                        opts.scale,
-                        opts.left_gutter,
-                    );
+                Item::Span {
+                    start,
+                    end,
+                    start_month,
+                    start_day,
+                    end_month,
+                    end_day,
+                    ..
+                } => {
+                    let sf = to_year_frac(*start, *start_month, *start_day);
+                    let ef = to_year_frac(*end, *end_month, *end_day);
+                    let (x, width) =
+                        span_x_width_frac(sf, ef, year_min, year_max, opts.scale, opts.left_gutter);
                     items.push(LaidItem::Span {
                         item,
                         x,
@@ -144,15 +148,19 @@ impl<'a> LayoutModel<'a> {
                         height: SPAN_HALF_H * 2.0,
                     });
                 }
-                Item::EventRange { start, end, .. } => {
-                    let (x, width) = span_x_width(
-                        *start,
-                        *end,
-                        year_min,
-                        year_max,
-                        opts.scale,
-                        opts.left_gutter,
-                    );
+                Item::EventRange {
+                    start,
+                    end,
+                    start_month,
+                    start_day,
+                    end_month,
+                    end_day,
+                    ..
+                } => {
+                    let sf = to_year_frac(*start, *start_month, *start_day);
+                    let ef = to_year_frac(*end, *end_month, *end_day);
+                    let (x, width) =
+                        span_x_width_frac(sf, ef, year_min, year_max, opts.scale, opts.left_gutter);
                     items.push(LaidItem::EventRange {
                         item,
                         x,
@@ -161,11 +169,17 @@ impl<'a> LayoutModel<'a> {
                         height: EVENT_RANGE_H,
                     });
                 }
-                Item::Event { time, .. } => {
+                Item::Event {
+                    time,
+                    time_month,
+                    time_day,
+                    ..
+                } => {
                     if !year_in_range(*time, year_min, year_max) {
                         continue;
                     }
-                    let x = year_to_x(*time, year_min, opts.scale, opts.left_gutter);
+                    let frac = to_year_frac(*time, *time_month, *time_day);
+                    let x = frac_to_x(frac, year_min, opts.scale, opts.left_gutter);
                     items.push(LaidItem::Event {
                         item,
                         x,
@@ -193,6 +207,35 @@ impl<'a> LayoutModel<'a> {
 
     pub fn year_to_x(&self, year: i64) -> f64 {
         year_to_x(year, self.year_min, self.opts.scale, self.opts.left_gutter)
+    }
+
+    /// Month minor-tick positions for `unit=month` timelines.
+    ///
+    /// Returns `(year, month)` pairs where month ∈ 2..=12 (month=1 overlaps the year tick).
+    /// Empty when `unit != "month"` or when the scale is too small to show sub-year ticks.
+    pub fn month_ticks(&self) -> Vec<(i64, u8)> {
+        if self.ir.meta.unit != "month" {
+            return Vec::new();
+        }
+        if self.opts.scale / 12.0 < 1.0 {
+            return Vec::new();
+        }
+        let mut ticks = Vec::new();
+        for year in self.year_min..=self.year_max {
+            for month in 2u8..=12 {
+                let frac = to_year_frac(year, Some(month), None);
+                if frac < self.year_max as f64 {
+                    ticks.push((year, month));
+                }
+            }
+        }
+        ticks
+    }
+
+    /// X coordinate for a (year, month) fractional position.
+    pub fn frac_year_to_x(&self, year: i64, month: u8) -> f64 {
+        let frac = to_year_frac(year, Some(month), None);
+        frac_to_x(frac, self.year_min, self.opts.scale, self.opts.left_gutter)
     }
 
     /// Tick positions (year values) within [year_min, year_max], inclusive of year_min if aligned.
@@ -229,27 +272,40 @@ fn year_to_x(year: i64, year_min: i64, scale: f64, left_gutter: f64) -> f64 {
     left_gutter + (year - year_min) as f64 * scale
 }
 
+/// Convert year + optional month + optional day to a fractional year value.
+fn to_year_frac(year: i64, month: Option<u8>, day: Option<u8>) -> f64 {
+    let mut frac = year as f64;
+    if let Some(m) = month {
+        frac += (m.clamp(1, 12) - 1) as f64 / 12.0;
+        if let Some(d) = day {
+            frac += (d.clamp(1, 31) - 1) as f64 / 365.25;
+        }
+    }
+    frac
+}
+
+fn frac_to_x(frac: f64, year_min: i64, scale: f64, left_gutter: f64) -> f64 {
+    left_gutter + (frac - year_min as f64) * scale
+}
+
 fn year_in_range(year: i64, year_min: i64, year_max: i64) -> bool {
     year >= year_min && year <= year_max
 }
 
-/// Clamp a span to the visible range and return (x, width). Returns (x, 0.0) if fully out of range.
-fn span_x_width(
-    start: i64,
-    end: i64,
+fn span_x_width_frac(
+    start_frac: f64,
+    end_frac: f64,
     year_min: i64,
     year_max: i64,
     scale: f64,
     left_gutter: f64,
 ) -> (f64, f64) {
-    let s = start.max(year_min);
-    let e = end.min(year_max);
+    let s = start_frac.max(year_min as f64);
+    let e = end_frac.min(year_max as f64);
     if e < s {
-        return (year_to_x(start, year_min, scale, left_gutter), 0.0);
+        return (frac_to_x(start_frac, year_min, scale, left_gutter), 0.0);
     }
-    let x = year_to_x(s, year_min, scale, left_gutter);
-    let width = (e - s) as f64 * scale;
-    (x, width)
+    (frac_to_x(s, year_min, scale, left_gutter), (e - s) * scale)
 }
 
 fn derive_range_from_items(ir: &TimelineIr) -> Option<(i64, i64)> {
@@ -419,11 +475,19 @@ mod tests {
 
     #[test]
     fn span_clamps_to_range() {
-        let (x, w) = span_x_width(-600, 300, -500, 200, 2.0, 120.0);
+        let (x, w) = span_x_width_frac(-600.0, 300.0, -500, 200, 2.0, 120.0);
         // start clamped to -500 → x=120
         assert_eq!(x, 120.0);
         // end clamped to 200 → width = (200-(-500))*2 = 1400
         assert_eq!(w, 1400.0);
+    }
+
+    #[test]
+    fn month_precision_shifts_x_position() {
+        // February (month=2) should be 1/12 of a year to the right of January (no month).
+        let x_jan = frac_to_x(to_year_frac(100, None, None), 0, 2.0, 0.0);
+        let x_feb = frac_to_x(to_year_frac(100, Some(2), None), 0, 2.0, 0.0);
+        assert!((x_feb - x_jan - 2.0 / 12.0).abs() < 0.001);
     }
 
     #[test]
