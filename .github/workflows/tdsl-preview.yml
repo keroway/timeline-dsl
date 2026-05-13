@@ -71,7 +71,7 @@ jobs:
           echo "Summary written to preview/summary.json"
           cat preview/summary.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tdsl-preview-svg
           path: preview/
