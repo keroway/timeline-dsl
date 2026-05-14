@@ -170,7 +170,7 @@ const SHORTCUTS = [
   { key: 'Ctrl/Cmd + Shift + Z', desc: 'やり直す' },
   { key: 'Tab / Space', desc: 'スニペット候補を選択' },
   { key: 'Ctrl/Cmd + Space', desc: '補完候補を表示' },
-  { key: '? (エディタ外)', desc: 'ショートカット一覧を開く' },
+  { key: '? (エディタ外)', desc: '設定を開く' },
 ]
 
 type MobileTab = 'editor' | 'preview'
@@ -197,9 +197,11 @@ function App() {
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
-  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [showGallery, setShowGallery] = useState(false)
   const [lineWrap, setLineWrap] = useState(false)
+  const [fileMenuOpen, setFileMenuOpen] = useState(false)
+  const fileMenuRef = useRef<HTMLDivElement>(null)
   const [isStalePreview, setIsStalePreview] = useState(false)
 
   // Split pane ratio (editor / preview)
@@ -364,18 +366,30 @@ function App() {
     document.body.style.userSelect = 'none'
   }
 
-  // Global `?` key to toggle shortcut modal (only when editor doesn't have focus)
+  // Global `?` key to toggle settings modal (only when editor doesn't have focus)
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === '?' && !(e.target instanceof HTMLTextAreaElement) && !editorViewRef.current?.hasFocus) {
         e.preventDefault()
-        setShowShortcuts((v) => !v)
+        setShowSettings((v) => !v)
       }
-      if (e.key === 'Escape') setShowShortcuts(false)
+      if (e.key === 'Escape') setShowSettings(false)
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  // Close file menu on outside click
+  useEffect(() => {
+    if (!fileMenuOpen) return
+    function onOutside(e: globalThis.MouseEvent) {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+        setFileMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [fileMenuOpen])
   function handleEditorChange(value: string) {
     setSource(value)
   }
@@ -387,10 +401,6 @@ function App() {
 
   function handleFontSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
     setFontSize(parseInt(e.target.value, 10))
-  }
-
-  function toggleColorScheme() {
-    setColorScheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
   }
 
   function downloadTdsl() {
@@ -565,7 +575,26 @@ function App() {
       {/* Header / Toolbar */}
       <header className="toolbar">
         <div className="toolbar-left">
-          <span className="app-title">Timeline DSL Editor</span>
+          <span className="app-title">Timeline DSL</span>
+          <div className="toolbar-divider" />
+          {/* ファイルメニュー */}
+          <div className="export-menu-wrapper" ref={fileMenuRef}>
+            <button
+              className="btn"
+              onClick={() => setFileMenuOpen((v) => !v)}
+              title="ファイル操作"
+            >
+              ファイル ▾
+            </button>
+            {fileMenuOpen && (
+              <div className="export-menu">
+                <button className="export-menu-item" onClick={() => { openFile(); setFileMenuOpen(false) }}>
+                  .tdsl を開く
+                </button>
+              </div>
+            )}
+          </div>
+          {/* テンプレートギャラリー */}
           <button
             className="btn"
             onClick={() => setShowGallery(true)}
@@ -573,76 +602,9 @@ function App() {
           >
             テンプレート
           </button>
-          <div className="toolbar-divider" />
-          <select
-            className="toolbar-select"
-            value={fontSize}
-            onChange={handleFontSizeChange}
-            title="フォントサイズ"
-          >
-            <option value={12}>12px</option>
-            <option value={13}>13px</option>
-            <option value={14}>14px</option>
-            <option value={16}>16px</option>
-            <option value={18}>18px</option>
-          </select>
-          <button
-            className="btn btn-theme"
-            onClick={toggleColorScheme}
-            title={colorScheme === 'dark' ? 'ライトモードに切替' : 'ダークモードに切替'}
-          >
-            {colorScheme === 'dark' ? 'ライト' : 'ダーク'}
-          </button>
-          <button
-            className={`btn${lineWrap ? ' btn-active' : ''}`}
-            onClick={() => setLineWrap((v) => !v)}
-            title="行折り返しの切替"
-          >
-            折り返し
-          </button>
-          <button
-            className="btn"
-            onClick={() => setShowShortcuts(true)}
-            title="キーボードショートカット一覧 (?)"
-          >
-            ?
-          </button>
         </div>
         <div className="toolbar-right">
-          <a
-            className="btn"
-            href="https://timeline-dsl-lp.pages.dev/"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="ランディングページ・ドキュメント"
-          >
-            About
-          </a>
-          <a
-            className="btn"
-            href="https://github.com/keroway/timeline-dsl"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="GitHub リポジトリ"
-          >
-            GitHub
-          </a>
-          <select
-            className="scale-select"
-            value={scale}
-            onChange={(e) => setScale(Number(e.target.value))}
-            title="プレビューのスケール（ピクセル/年）"
-          >
-            <option value={0}>スケール: Auto</option>
-            <option value={0.5}>0.5×</option>
-            <option value={1}>1×</option>
-            <option value={2}>2×</option>
-            <option value={4}>4×</option>
-            <option value={8}>8×</option>
-          </select>
-          <button className="btn" onClick={openFile} title=".tdsl ファイルを開く">
-            ファイルを開く
-          </button>
+          {/* エクスポートメニュー */}
           <div className="export-menu-wrapper" ref={exportMenuRef}>
             <button
               className="btn"
@@ -652,7 +614,7 @@ function App() {
               エクスポート ▾
             </button>
             {exportMenuOpen && (
-              <div className="export-menu">
+              <div className="export-menu export-menu-left">
                 <div className="export-menu-section">ダウンロード</div>
                 <button className="export-menu-item" onClick={() => { downloadTdsl(); setExportMenuOpen(false) }}>
                   .tdsl 保存
@@ -685,6 +647,24 @@ function App() {
           {copyFeedback && (
             <span className="copy-feedback">{copyFeedback}</span>
           )}
+          {/* 設定 */}
+          <button
+            className="btn"
+            onClick={() => setShowSettings(true)}
+            title="設定 (?)"
+          >
+            設定
+          </button>
+          {/* About */}
+          <a
+            className="btn"
+            href="https://timeline-dsl-lp.pages.dev/"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="ランディングページ・ドキュメント"
+          >
+            About
+          </a>
           <input
             ref={fileInputRef}
             type="file"
@@ -763,24 +743,39 @@ function App() {
         />
         <div className={`preview-area${mobileTab !== 'preview' ? ' mobile-hidden' : ''}`}>
           {/* Preview controls overlay */}
-          {svgContent && (
-            <div className="preview-controls">
-              <button
-                className="btn btn-preview-ctrl"
-                onClick={resetPanZoom}
-                title="ビューをリセット（ダブルクリックでも可）"
-              >
-                リセット
-              </button>
-              <button
-                className="btn btn-preview-ctrl"
-                onClick={() => setShowLegend((v) => !v)}
-                title="凡例を表示/非表示"
-              >
-                {showLegend ? '凡例 ✕' : '凡例'}
-              </button>
-            </div>
-          )}
+          <div className="preview-controls">
+            <select
+              className="scale-select"
+              value={scale}
+              onChange={(e) => setScale(Number(e.target.value))}
+              title="プレビューのスケール（ピクセル/年）"
+            >
+              <option value={0}>Auto</option>
+              <option value={0.5}>0.5×</option>
+              <option value={1}>1×</option>
+              <option value={2}>2×</option>
+              <option value={4}>4×</option>
+              <option value={8}>8×</option>
+            </select>
+            {svgContent && (
+              <>
+                <button
+                  className="btn btn-preview-ctrl"
+                  onClick={resetPanZoom}
+                  title="ビューをリセット（ダブルクリックでも可）"
+                >
+                  リセット
+                </button>
+                <button
+                  className="btn btn-preview-ctrl"
+                  onClick={() => setShowLegend((v) => !v)}
+                  title="凡例を表示/非表示"
+                >
+                  {showLegend ? '凡例 ✕' : '凡例'}
+                </button>
+              </>
+            )}
+          </div>
           {/* Legend panel */}
           {showLegend && legendItems.length > 0 && (
             <div className="legend-panel">
@@ -879,24 +874,82 @@ function App() {
           ))}
         </div>
       )}
-      {/* Keyboard shortcuts modal */}
-      {showShortcuts && (
-        <div className="modal-overlay" onClick={() => setShowShortcuts(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+      {/* Settings modal */}
+      {showSettings && (
+        <div className="modal-overlay" onClick={() => setShowSettings(false)}>
+          <div className="modal modal-settings" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span>キーボードショートカット</span>
-              <button className="modal-close" onClick={() => setShowShortcuts(false)}>✕</button>
+              <span>設定</span>
+              <button className="modal-close" onClick={() => setShowSettings(false)}>✕</button>
             </div>
-            <table className="shortcuts-table">
-              <tbody>
-                {SHORTCUTS.map(({ key, desc }) => (
-                  <tr key={key}>
-                    <td><kbd className="kbd">{key}</kbd></td>
-                    <td>{desc}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="settings-body">
+              <div className="settings-section">
+                <div className="settings-label">テーマ</div>
+                <div className="settings-row">
+                  <button
+                    className={`btn${colorScheme === 'dark' ? ' btn-active' : ''}`}
+                    onClick={() => setColorScheme('dark')}
+                  >
+                    ダーク
+                  </button>
+                  <button
+                    className={`btn${colorScheme === 'light' ? ' btn-active' : ''}`}
+                    onClick={() => setColorScheme('light')}
+                  >
+                    ライト
+                  </button>
+                </div>
+              </div>
+              <div className="settings-section">
+                <div className="settings-label">フォントサイズ</div>
+                <select
+                  className="toolbar-select"
+                  value={fontSize}
+                  onChange={handleFontSizeChange}
+                >
+                  <option value={12}>12px</option>
+                  <option value={13}>13px</option>
+                  <option value={14}>14px</option>
+                  <option value={16}>16px</option>
+                  <option value={18}>18px</option>
+                </select>
+              </div>
+              <div className="settings-section">
+                <div className="settings-label">行折り返し</div>
+                <button
+                  className={`btn${lineWrap ? ' btn-active' : ''}`}
+                  onClick={() => setLineWrap((v) => !v)}
+                >
+                  {lineWrap ? 'オン' : 'オフ'}
+                </button>
+              </div>
+              <hr className="settings-divider" />
+              <div className="settings-section">
+                <div className="settings-label">GitHub</div>
+                <a
+                  className="btn"
+                  href="https://github.com/keroway/timeline-dsl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  keroway/timeline-dsl ↗
+                </a>
+              </div>
+              <hr className="settings-divider" />
+              <div className="settings-section">
+                <div className="settings-label">キーボードショートカット</div>
+                <table className="shortcuts-table">
+                  <tbody>
+                    {SHORTCUTS.map(({ key, desc }) => (
+                      <tr key={key}>
+                        <td><kbd className="kbd">{key}</kbd></td>
+                        <td>{desc}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}
