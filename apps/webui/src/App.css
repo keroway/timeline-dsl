@@ -155,18 +155,20 @@ body,
 }
 
 .scale-select {
-  background: #313244;
+  background: rgba(30, 30, 46, 0.85);
   color: #cdd6f4;
   border: 1px solid #45475a;
   border-radius: 6px;
   padding: 4px 8px;
-  font-size: 13px;
+  font-size: 12px;
+  height: 24px;
   cursor: pointer;
   outline: none;
+  backdrop-filter: blur(4px);
 }
 
 .scale-select:hover {
-  border-color: #cba6f7;
+  border-color: #7f849c;
 }
 
 /* Buttons */
@@ -756,6 +758,53 @@ body,
   white-space: nowrap;
 }
 
+/* Export menu — left-aligned variant (for menus on the left toolbar) */
+.export-menu-left {
+  right: auto;
+  left: 0;
+}
+
+/* Settings modal */
+.modal-settings {
+  min-width: 360px;
+  max-width: 480px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-body {
+  overflow-y: auto;
+  padding: 8px 0 12px;
+}
+
+.settings-section {
+  padding: 10px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.settings-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.settings-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 4px 0;
+}
+
 /* Template gallery modal */
 .modal-gallery {
   min-width: 480px;
@@ -883,8 +932,7 @@ body,
 
   /* Larger touch targets */
   .btn,
-  .toolbar-select,
-  .scale-select {
+  .toolbar-select {
     height: 36px;
     font-size: 13px;
     padding: 6px 12px;
