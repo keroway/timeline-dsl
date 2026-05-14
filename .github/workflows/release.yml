@@ -63,12 +63,8 @@ jobs:
         if: "!matrix.use_cross"
         run: cargo build --release --target ${{ matrix.target }} -p tdsl-cli
 
-      - name: Strip binary (Linux)
-        if: matrix.use_cross
-        run: strip target/${{ matrix.target }}/release/tdsl
-
       - name: Strip binary (macOS)
-        if: "!matrix.use_cross && matrix.os != 'windows-latest'"
+        if: "!matrix.use_cross && matrix.os == 'macos-latest'"
         run: strip target/${{ matrix.target }}/release/tdsl
 
       - name: Create archive (Unix)
