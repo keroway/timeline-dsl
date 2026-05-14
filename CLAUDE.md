@@ -84,15 +84,15 @@ crates/
 4. `crates/tdsl-core/src/lower.rs` にloweringロジックを追加
 5. 必要に応じて `crates/tdsl-core/src/ir.rs` のIR型を更新
 6. `cargo test --workspace` で全テスト通過を確認
-7. **シンタックスハイライトのキーワードを同時に更新すること**（手順下記参照）
+7. **シンタックスハイライトのキーワードを更新すること**（手順下記参照）
 
-### シンタックスハイライトのキーワード手動同期
+### シンタックスハイライトのキーワード管理
 
-WebUI の CodeMirror ハイライトと VS Code 拡張の TextMate grammar はキーワードを
-**二重管理**しています。文法に新キーワードを追加したら**必ず両方を更新**してください:
+キーワードの**単一真実源**は `apps/webui/src/lang-tdsl/keywords.ts` です。
+VS Code 拡張の `editors/vscode/syntaxes/tdsl.tmLanguage.json` は `npm run build` 時に自動生成されます。
 
-- `apps/webui/src/lang-tdsl/index.ts` — `BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS` の該当セット
-- `editors/vscode/syntaxes/tdsl.tmLanguage.json` — 該当パターンの正規表現文字列
+- `apps/webui/src/lang-tdsl/keywords.ts` — `BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS` を編集する
+- `npm run build`（または `node editors/vscode/scripts/gen-grammar-keywords.mjs`）を実行すると `tdsl.tmLanguage.json` が自動更新される
 
 詳細は `apps/webui/README.md` の「シンタックスハイライトのキーワード管理」セクションを参照。
 
