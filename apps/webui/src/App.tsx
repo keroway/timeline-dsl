@@ -587,7 +587,7 @@ function App() {
               ファイル ▾
             </button>
             {fileMenuOpen && (
-              <div className="export-menu">
+              <div className="export-menu export-menu-left">
                 <button className="export-menu-item" onClick={() => { openFile(); setFileMenuOpen(false) }}>
                   .tdsl を開く
                 </button>
@@ -614,7 +614,7 @@ function App() {
               エクスポート ▾
             </button>
             {exportMenuOpen && (
-              <div className="export-menu export-menu-left">
+              <div className="export-menu">
                 <div className="export-menu-section">ダウンロード</div>
                 <button className="export-menu-item" onClick={() => { downloadTdsl(); setExportMenuOpen(false) }}>
                   .tdsl 保存
