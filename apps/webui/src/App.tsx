@@ -999,25 +999,6 @@ function App() {
               </div>
               <hr className="settings-divider" />
               <div className="settings-section">
-                <div className="settings-label">履歴スナップショット</div>
-                <button
-                  className={`btn${settings.historyEnabled ? ' btn-active' : ''}`}
-                  onClick={() => updateSetting('historyEnabled', !settings.historyEnabled)}
-                >
-                  {settings.historyEnabled ? '有効' : '無効'}
-                </button>
-              </div>
-              <div className="settings-section">
-                <div className="settings-label">自動保存（LocalStorage）</div>
-                <button
-                  className={`btn${settings.autoSaveEnabled ? ' btn-active' : ''}`}
-                  onClick={() => updateSetting('autoSaveEnabled', !settings.autoSaveEnabled)}
-                >
-                  {settings.autoSaveEnabled ? '有効' : '無効'}
-                </button>
-              </div>
-              <hr className="settings-divider" />
-              <div className="settings-section">
                 <div className="settings-label">GitHub</div>
                 <a
                   className="btn"
