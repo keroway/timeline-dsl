@@ -257,7 +257,7 @@ tdsl check china_scaffold.tdsl
 
 If there are no errors, proceed to the next step. If errors are shown, refer to the line numbers in the error messages to fix the file.
 
-> `tdsl check` only performs static parsing and semantic validation — it does not access Wikidata. Wikidata data is fetched when you run `tdsl build` or `tdsl render` without `--offline`.
+> `tdsl check` only performs static parsing and semantic validation — it never accesses Wikidata. Wikidata data is fetched during `tdsl build` and `tdsl render` (unless `--offline` is specified for those commands).
 
 ### B-5. Visualize as HTML (tdsl render)
 

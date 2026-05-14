@@ -257,11 +257,7 @@ tdsl check china_scaffold.tdsl
 
 エラーがなければ次のステップへ進みます。エラーが表示された場合は、エラーメッセージに示されている行番号を参考にファイルを修正してください。
 
-Wikidata へのアクセスを避けたい場合は `--offline` オプションを付けます。
-
-```bash
-tdsl check china_scaffold.tdsl --offline
-```
+> `tdsl check` は静的なパース・意味検証のみを行い、Wikidata にはアクセスしません。Wikidata データの取得は `tdsl build` / `tdsl render` 実行時に行われます（`--offline` を指定した場合はスキップ）。
 
 ### B-5. HTML で可視化する（tdsl render）
 
@@ -315,7 +311,7 @@ Wikidata からインポートしたファイルに追記する場合も、同�
 
 - **未定義レーン参照**: `span` / `event` で使ったレーン ID が `lane` 宣言に存在しない。レーン ID のスペルを確認してください。
 - **start > end**: 開始年が終了年より大きい。`tdsl lint --fix` で自動修正できます。
-- **Wikidata fetch 失敗**: ネットワーク接続またはレート制限の問題。`--offline` オプションで Wikidata アクセスをスキップして構文チェックだけ行えます。
+- **Wikidata fetch 失敗**: ネットワーク接続またはレート制限の問題。`tdsl check` は Wikidata にアクセスしないため構文チェックは常に可能です。Wikidata 取得が必要な `tdsl build` / `tdsl render` では `--offline` を付けることでスキップできます。
 - **パースエラー**: セミコロンや波括弧が抜けている可能性があります。エラー行周辺の構文を確認してください。
 
 ```bash
@@ -340,24 +336,34 @@ lane "三国" as sanguo { kind dynasty; order 30; }
 
 ### 5. Wikidata API にアクセスできない環境での使い方は？
 
-`--offline` フラグを付けると Wikidata へのリクエストをスキップします。
+`tdsl build` / `tdsl render` に `--offline` フラグを付けると Wikidata へのリクエストをスキップします。
 
 ```bash
 # オフラインでビルド（Wikidata fetch をスキップ）
 tdsl build my_timeline.tdsl --offline --pretty
 
-# オフラインでチェック
-tdsl check my_timeline.tdsl --offline
-
 # オフラインでレンダリング
 tdsl render my_timeline.tdsl --offline --output out.html
 ```
+
+> `tdsl check` は常に静的検証のみを実行し Wikidata にはアクセスしないため、`--offline` は不要です。
 
 オフラインモードでは `import` / `map` ブロックによるデータ取り込みが行われないため、Wikidata 由来のアイテムは出力に含まれません。静的に定義したアイテム（`span` / `event` / `event_range`）は通常通り処理されます。
 
 ### 6. キャッシュをリセットするには？
 
-現在のバージョンでは Wikidata 取得キャッシュ機能は未実装です。毎回オンラインで Wikidata API にアクセスします。大量のエンティティを処理する場合はレート制限に注意し、`--offline` を活用して開発し、最終確認時にオンラインビルドを実行することを推奨します。
+Wikidata 取得キャッシュは `~/.cache/tdsl/` に保存されています。`tdsl cache` コマンドで管理できます。
+
+```bash
+# キャッシュの状態を確認
+tdsl cache status
+
+# すべてのキャッシュを削除
+tdsl cache clear
+
+# 30日以上古いキャッシュを削除
+tdsl cache clear --older-than 30
+```
 
 ---
 
