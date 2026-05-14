@@ -62,28 +62,22 @@ npm run build
 
 ## シンタックスハイライトのキーワード管理
 
-### 方針: 手動同期（真実源 = `src/lang-tdsl/index.ts`）
+### 方針: ビルド時自動生成（真実源 = `src/lang-tdsl/keywords.ts`）
 
-WebUI 側の CodeMirror ハイライトと VS Code 拡張のシンタックスハイライトでは、
-キーワード集合が**手動で二重管理**されています。
+キーワード集合の**単一真実源**は `src/lang-tdsl/keywords.ts` です。
+VS Code 拡張の `editors/vscode/syntaxes/tdsl.tmLanguage.json` のキーワードパターンは、
+`npm run build` の `prebuild` フックで自動生成されます（手動同期不要）。
 
 | ファイル | 役割 |
 |---|---|
-| `src/lang-tdsl/index.ts:8-22` | CodeMirror StreamLanguage 用キーワード集合（`BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS`）|
-| `editors/vscode/syntaxes/tdsl.tmLanguage.json` | VS Code TextMate grammar キーワードパターン |
-
-ビルド時自動生成は将来の改善課題（フォローアップ issue 参照）とし、現時点では**両ファイルを手動で同時に更新する運用**としています。
+| `src/lang-tdsl/keywords.ts` | キーワード配列の単一真実源（`BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS`）|
+| `src/lang-tdsl/index.ts` | CodeMirror StreamLanguage 定義（`keywords.ts` をインポート）|
+| `editors/vscode/syntaxes/tdsl.tmLanguage.json` | VS Code TextMate grammar（ビルド時に自動更新）|
+| `editors/vscode/scripts/gen-grammar-keywords.mjs` | 生成スクリプト |
 
 ### 文法ステートメントを追加するときの更新手順
 
 1. `crates/tdsl-parser/src/grammar.pest` に文法規則を追加
 2. `crates/tdsl-parser/src/builder.rs` / `crates/tdsl-core/src/lower.rs` を更新
-3. **`apps/webui/src/lang-tdsl/index.ts`** の `BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS` に追加
-4. **`editors/vscode/syntaxes/tdsl.tmLanguage.json`** の該当パターン文字列に追加
-5. `cargo test --workspace` と `npm run build` がパスすることを確認
-
-> ⚠️ 手順 3 と 4 を同時に更新しないとシンタックスハイライトが VSCode と WebUI で不一致になります。
-
-### 将来の改善（フォローアップ issue: #204 以降で追跡）
-
-`src/lang-tdsl/index.ts` を単一の真実源とし、tmLanguage の一部をビルド時に自動生成する仕組みを導入する予定です。
+3. **`apps/webui/src/lang-tdsl/keywords.ts`** の `BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS` に追加
+4. `cargo test --workspace` と `npm run build` がパスすることを確認（`npm run build` で `tdsl.tmLanguage.json` が自動更新される）

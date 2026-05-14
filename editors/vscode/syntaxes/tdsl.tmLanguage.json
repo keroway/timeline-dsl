@@ -2,22 +2,52 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Timeline DSL",
   "scopeName": "source.tdsl",
-  "fileTypes": ["tdsl"],
+  "fileTypes": [
+    "tdsl"
+  ],
   "patterns": [
-    { "include": "#comment-line" },
-    { "include": "#comment-block" },
-    { "include": "#string" },
-    { "include": "#qid" },
-    { "include": "#pid" },
-    { "include": "#wikidata-ref" },
-    { "include": "#claim-expr" },
-    { "include": "#label-expr" },
-    { "include": "#keyword-block" },
-    { "include": "#keyword-item" },
-    { "include": "#keyword-misc" },
-    { "include": "#number" },
-    { "include": "#property-key" },
-    { "include": "#punctuation" }
+    {
+      "include": "#comment-line"
+    },
+    {
+      "include": "#comment-block"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#qid"
+    },
+    {
+      "include": "#pid"
+    },
+    {
+      "include": "#wikidata-ref"
+    },
+    {
+      "include": "#claim-expr"
+    },
+    {
+      "include": "#label-expr"
+    },
+    {
+      "include": "#keyword-block"
+    },
+    {
+      "include": "#keyword-item"
+    },
+    {
+      "include": "#keyword-misc"
+    },
+    {
+      "include": "#number"
+    },
+    {
+      "include": "#property-key"
+    },
+    {
+      "include": "#punctuation"
+    }
   ],
   "repository": {
     "comment-line": {
@@ -62,7 +92,7 @@
     },
     "keyword-block": {
       "name": "keyword.control.block.tdsl",
-      "match": "\\b(timeline|lane|import|map|template|apply)\\b"
+      "match": "\\b(timeline|lane|import|map|template|apply|color_map|policy)\\b"
     },
     "keyword-item": {
       "name": "keyword.other.item.tdsl",
@@ -70,7 +100,7 @@
     },
     "keyword-misc": {
       "name": "keyword.other.misc.tdsl",
-      "match": "\\b(as|query|wikidata|unit|range|calendar|kind|order|tags|source|label|start|end|time|id|target_type|target_lane|merge_by_source|overwrite_imported|keep_manual|proleptic_gregorian|year|dynasty|person|era)\\b"
+      "match": "\\b(as|query|wikidata|unit|range|calendar|kind|order|tags|source|label|start|end|time|id|target_type|target_lane|merge_by_source|overwrite_imported|keep_manual|proleptic_gregorian|year|dynasty|person|era|title|field_priority|origin)\\b"
     },
     "number": {
       "name": "constant.numeric.tdsl",

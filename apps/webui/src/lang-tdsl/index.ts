@@ -1,25 +1,14 @@
 import { StreamLanguage, LanguageSupport } from "@codemirror/language"
 import { tags } from "@lezer/highlight"
+import { BLOCK_KEYWORDS as BLOCK_KWS, ITEM_KEYWORDS as ITEM_KWS, MISC_KEYWORDS as MISC_KWS } from "./keywords.ts"
 
 interface TdslState {
   inBlockComment: boolean
 }
 
-const BLOCK_KEYWORDS = new Set([
-  "timeline", "lane", "import", "map", "template", "apply", "color_map", "policy",
-])
-
-const ITEM_KEYWORDS = new Set([
-  "span", "event", "event_range",
-])
-
-const MISC_KEYWORDS = new Set([
-  "as", "query", "wikidata", "unit", "range", "calendar", "kind", "order",
-  "tags", "source", "label", "start", "end", "time", "id", "target_type",
-  "target_lane", "merge_by_source", "overwrite_imported", "keep_manual",
-  "proleptic_gregorian", "year", "dynasty", "person", "era", "title",
-  "field_priority", "origin",
-])
+const BLOCK_KEYWORDS = new Set(BLOCK_KWS)
+const ITEM_KEYWORDS = new Set(ITEM_KWS)
+const MISC_KEYWORDS = new Set(MISC_KWS)
 
 const tdslLanguage = StreamLanguage.define<TdslState>({
   name: "tdsl",
