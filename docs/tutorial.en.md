@@ -257,11 +257,7 @@ tdsl check china_scaffold.tdsl
 
 If there are no errors, proceed to the next step. If errors are shown, refer to the line numbers in the error messages to fix the file.
 
-To avoid accessing Wikidata, add the `--offline` option:
-
-```bash
-tdsl check china_scaffold.tdsl --offline
-```
+> `tdsl check` only performs static parsing and semantic validation — it does not access Wikidata. Wikidata data is fetched when you run `tdsl build` or `tdsl render` without `--offline`.
 
 ### B-5. Visualize as HTML (tdsl render)
 
@@ -315,7 +311,7 @@ Error messages show the line number and cause. Common patterns:
 
 - **Undefined lane reference**: The lane ID used in a `span` / `event` does not exist in a `lane` declaration. Check the spelling of the lane ID.
 - **start > end**: The start year is greater than the end year. Run `tdsl lint --fix` to auto-fix.
-- **Wikidata fetch failure**: A network connectivity or rate-limit issue. Use the `--offline` option to skip Wikidata access and only check syntax.
+- **Wikidata fetch failure**: A network connectivity or rate-limit issue. `tdsl check` only performs static validation and does not access Wikidata. Use `tdsl build --offline` or `tdsl render --offline` to skip Wikidata access in those commands.
 - **Parse error**: A semicolon or brace may be missing. Check the syntax around the line indicated in the error.
 
 ```bash
@@ -340,18 +336,17 @@ lane "Three Kingdoms" as sanguo { kind dynasty; order 30; }
 
 ### 5. How do I use Timeline DSL without Wikidata access?
 
-Add the `--offline` flag to skip requests to Wikidata.
+Add the `--offline` flag to `tdsl build` or `tdsl render` to skip Wikidata requests.
 
 ```bash
 # Build offline (skip Wikidata fetch)
 tdsl build my_timeline.tdsl --offline --pretty
 
-# Check offline
-tdsl check my_timeline.tdsl --offline
-
 # Render offline
 tdsl render my_timeline.tdsl --offline --output out.html
 ```
+
+> `tdsl check` always runs in static-only mode and never accesses Wikidata, so `--offline` is not applicable to it.
 
 In offline mode, no data is imported via `import` / `map` blocks, so Wikidata-sourced items will not appear in the output. Statically defined items (`span` / `event` / `event_range`) are processed as usual.
 
