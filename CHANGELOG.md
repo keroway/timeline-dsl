@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-05-14
+
+### Added
+
+- **テンプレートギャラリーモーダル**: WebUI に「テンプレート」ボタンを設置し、`examples/*.tdsl` を全件ロードできるモーダルを実装。概要テキスト付きリストからサンプルを選択するとエディタにロードされる（#214）
+- **月・日精度のタイムライン軸表示**: Wikidata precision=10（月）・precision=11（日）を持つアイテムのレンダリング時に、月・日精度に応じた軸ラベルを表示するよう対応（#212）
+
+### Changed
+
+- **シンタックスハイライト キーワード自動生成**: `apps/webui/src/lang-tdsl/keywords.ts` を単一真実源として、VS Code TextMate grammar（`tdsl.tmLanguage.json`）を `npm run build` 時に自動生成するよう変更。`color_map`・`policy`・`title`・`field_priority`・`origin` の同期漏れを解消（#207）
+
 ## [1.6.0] - 2026-05-13
 
 ### Added
@@ -154,6 +165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.7.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.3.0...v1.4.0
