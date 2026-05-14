@@ -62,6 +62,40 @@ const DEBOUNCE_MS = 500
 
 type ColorScheme = 'dark' | 'light'
 
+// ─── Settings & LocalStorage persistence ─────────────────────────────────────
+
+const SETTINGS_KEY = 'tdsl:settings'
+
+type Settings = {
+  theme: ColorScheme
+  fontSize: number
+  lineWrap: boolean
+  scale: number
+  pngWhiteBg: boolean
+  historyEnabled: boolean
+  autoSaveEnabled: boolean
+}
+
+const SETTINGS_DEFAULTS: Settings = {
+  theme: 'dark',
+  fontSize: 14,
+  lineWrap: false,
+  scale: 0,
+  pngWhiteBg: true,
+  historyEnabled: true,
+  autoSaveEnabled: true,
+}
+
+function readSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    if (!raw) return SETTINGS_DEFAULTS
+    return { ...SETTINGS_DEFAULTS, ...JSON.parse(raw) }
+  } catch {
+    return SETTINGS_DEFAULTS
+  }
+}
+
 type LegendItem = { lane: string; label: string; color: string }
 
 type SelectedItem = {
@@ -186,20 +220,21 @@ function App() {
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
   const [wasmReady, setWasmReady] = useState(false)
   const [wasmError, setWasmError] = useState<string | null>(null)
-  const [fontSize, setFontSize] = useState<number>(14)
-  const [colorScheme, setColorScheme] = useState<ColorScheme>('dark')
+  const [settings, setSettings] = useState<Settings>(readSettings)
+  const { theme: colorScheme, fontSize, lineWrap, scale, pngWhiteBg } = settings
   const [mobileTab, setMobileTab] = useState<MobileTab>('editor')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
-  const [scale, setScale] = useState<number>(0) // 0 = Auto
+  function updateSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
+    setSettings((prev) => ({ ...prev, [key]: value }))
+  }
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showGallery, setShowGallery] = useState(false)
-  const [lineWrap, setLineWrap] = useState(false)
   const [fileMenuOpen, setFileMenuOpen] = useState(false)
   const fileMenuRef = useRef<HTMLDivElement>(null)
   const [isStalePreview, setIsStalePreview] = useState(false)
@@ -232,6 +267,13 @@ function App() {
   function resetPanZoom() {
     applyTransform({ x: 0, y: 0, s: 1 })
   }
+
+  // Persist settings to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+    } catch {/* quota exceeded or private browsing — ignore */}
+  }, [settings])
 
   // Initialize WASM on mount
   useEffect(() => {
@@ -400,7 +442,7 @@ function App() {
   }
 
   function handleFontSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    setFontSize(parseInt(e.target.value, 10))
+    updateSetting('fontSize', parseInt(e.target.value, 10))
   }
 
   function downloadTdsl() {
@@ -445,7 +487,7 @@ function App() {
 
   function copyPng() {
     if (!svgContent) return
-    svgToPngBlob(svgContent, true).then((blob) => {
+    svgToPngBlob(svgContent, pngWhiteBg).then((blob) => {
       return navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
     }).then(() => showCopyFeedback('PNG をコピーしました'))
       .catch(() => {/* silently ignore */})
@@ -747,7 +789,7 @@ function App() {
             <select
               className="scale-select"
               value={scale}
-              onChange={(e) => setScale(Number(e.target.value))}
+              onChange={(e) => updateSetting('scale', Number(e.target.value))}
               title="プレビューのスケール（ピクセル/年）"
             >
               <option value={0}>Auto</option>
@@ -888,13 +930,13 @@ function App() {
                 <div className="settings-row">
                   <button
                     className={`btn${colorScheme === 'dark' ? ' btn-active' : ''}`}
-                    onClick={() => setColorScheme('dark')}
+                    onClick={() => updateSetting('theme', 'dark')}
                   >
                     ダーク
                   </button>
                   <button
                     className={`btn${colorScheme === 'light' ? ' btn-active' : ''}`}
-                    onClick={() => setColorScheme('light')}
+                    onClick={() => updateSetting('theme', 'light')}
                   >
                     ライト
                   </button>
@@ -918,9 +960,60 @@ function App() {
                 <div className="settings-label">行折り返し</div>
                 <button
                   className={`btn${lineWrap ? ' btn-active' : ''}`}
-                  onClick={() => setLineWrap((v) => !v)}
+                  onClick={() => updateSetting('lineWrap', !lineWrap)}
                 >
                   {lineWrap ? 'オン' : 'オフ'}
+                </button>
+              </div>
+              <div className="settings-section">
+                <div className="settings-label">スケール（ピクセル/年）</div>
+                <select
+                  className="toolbar-select"
+                  value={scale}
+                  onChange={(e) => updateSetting('scale', Number(e.target.value))}
+                >
+                  <option value={0}>Auto</option>
+                  <option value={0.5}>0.5×</option>
+                  <option value={1}>1×</option>
+                  <option value={2}>2×</option>
+                  <option value={4}>4×</option>
+                  <option value={8}>8×</option>
+                </select>
+              </div>
+              <div className="settings-section">
+                <div className="settings-label">PNG 背景色</div>
+                <div className="settings-row">
+                  <button
+                    className={`btn${pngWhiteBg ? ' btn-active' : ''}`}
+                    onClick={() => updateSetting('pngWhiteBg', true)}
+                  >
+                    白背景
+                  </button>
+                  <button
+                    className={`btn${!pngWhiteBg ? ' btn-active' : ''}`}
+                    onClick={() => updateSetting('pngWhiteBg', false)}
+                  >
+                    透過
+                  </button>
+                </div>
+              </div>
+              <hr className="settings-divider" />
+              <div className="settings-section">
+                <div className="settings-label">履歴スナップショット</div>
+                <button
+                  className={`btn${settings.historyEnabled ? ' btn-active' : ''}`}
+                  onClick={() => updateSetting('historyEnabled', !settings.historyEnabled)}
+                >
+                  {settings.historyEnabled ? '有効' : '無効'}
+                </button>
+              </div>
+              <div className="settings-section">
+                <div className="settings-label">自動保存（LocalStorage）</div>
+                <button
+                  className={`btn${settings.autoSaveEnabled ? ' btn-active' : ''}`}
+                  onClick={() => updateSetting('autoSaveEnabled', !settings.autoSaveEnabled)}
+                >
+                  {settings.autoSaveEnabled ? '有効' : '無効'}
                 </button>
               </div>
               <hr className="settings-divider" />
