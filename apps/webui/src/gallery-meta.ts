@@ -311,6 +311,46 @@ map wd.chinese_dynasties to span {
 `,
   },
   {
+    label: 'インターネット・Web 年表',
+    description: '複数 lane（Web / プラットフォーム / SNS）と span/event 混在の現代史サンプル',
+    filename: 'internet_history.tdsl',
+    requiresNetwork: false,
+    source: `// インターネット・Web 年表サンプル（静的定義のみ）
+//
+// このサンプルで示しているDSL機能:
+//   - event でインターネット史の重要な出来事を表現
+//   - span で継続期間のあるトレンドを表現
+//   - 複数の lane（Web・プラットフォーム・SNS）を使った分類
+//   - 静的定義のみ（Wikidata 不要）
+
+timeline "インターネット・Web 年表" {
+    title "インターネット・Web 年表";
+    unit year;
+    range 1990..2020;
+    calendar proleptic_gregorian;
+}
+
+// レーン定義
+lane "Web" as web { kind event; order 10; }
+lane "プラットフォーム" as platform { kind event; order 20; }
+lane "SNS" as sns { kind event; order 30; }
+
+// ── Web の普及 ──
+event web 1991 "World Wide Web 公開" { tags ["web", "standards"]; };
+event web 1993 "Mosaic 公開" { tags ["web", "browser"]; };
+span web 1995..2001 "第一次ブラウザ戦争" { tags ["web", "browser"]; id "span:browser_wars"; };
+event web 2008 "Google Chrome 公開" { tags ["web", "browser"]; };
+
+// ── プラットフォームの転換 ──
+event platform 1998 "Google 創業" { tags ["search", "platform"]; };
+event platform 2007 "iPhone 発表" { tags ["mobile", "platform"]; };
+
+// ── SNS の拡大 ──
+event sns 2004 "Facebook 公開" { tags ["social", "sns"]; };
+event sns 2006 "Twitter 公開" { tags ["social", "sns"]; };
+`,
+  },
+  {
     label: 'テンプレート構文（template / apply）',
     description: 'template で再利用可能なマップパターンを定義し apply で複数 import に適用 ⚠️ ネットワーク必要',
     filename: 'template_apply_example.tdsl',
