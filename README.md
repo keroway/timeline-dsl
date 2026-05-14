@@ -369,8 +369,8 @@ A browser-based editor powered by WASM. Create and preview timelines without ins
 
 ## Documentation
 
-- [Getting Started Tutorial](docs/tutorial.md) — Step-by-step hands-on guide
-- [DSL Language Reference](docs/dsl-spec.md) — Grammar reference
+- [Getting Started Tutorial](docs/tutorial.en.md) — Step-by-step hands-on guide
+- [DSL Language Reference](docs/dsl-spec.en.md) — Grammar reference
 - [Styling Customization Guide](docs/styling.md) — CSS customization via `--theme` / `--custom-css`
 - [Error Code Catalog](docs/error-catalog.md) — Causes and fixes for error messages
 - [v0 to v1 Migration Guide](docs/migration-v0-to-v1.md) — Changes when upgrading
