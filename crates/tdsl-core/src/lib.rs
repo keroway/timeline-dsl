@@ -257,13 +257,16 @@ mod tests {
                 start_day: None,
                 end_month: None,
                 end_day: None,
+                source_span: None,
             }],
             imports: vec![],
             sources: vec![],
         };
         let warnings = validate::validate(&ir);
         assert!(
-            warnings.iter().any(|w| w.contains("start") && w.contains("end")),
+            warnings
+                .iter()
+                .any(|w| w.contains("start") && w.contains("end")),
             "expected start > end warning, got: {warnings:?}"
         );
     }
@@ -297,13 +300,16 @@ mod tests {
                 start_day: None,
                 end_month: None,
                 end_day: None,
+                source_span: None,
             }],
             imports: vec![],
             sources: vec![],
         };
         let warnings = validate::validate(&ir);
         assert!(
-            warnings.iter().any(|w| w.contains("start") && w.contains("end")),
+            warnings
+                .iter()
+                .any(|w| w.contains("start") && w.contains("end")),
             "expected start > end warning, got: {warnings:?}"
         );
     }
@@ -337,6 +343,7 @@ mod tests {
                 start_day: None,
                 end_month: None,
                 end_day: None,
+                source_span: None,
             }],
             imports: vec![],
             sources: vec![],
@@ -576,7 +583,11 @@ mod tests {
         let result = lower::lower_static(&file);
         assert!(result.is_err());
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::NoTimeline)));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, error::LoweringError::NoTimeline))
+        );
     }
 
     #[test]
@@ -589,7 +600,11 @@ mod tests {
         let result = lower::lower_static(&file);
         assert!(result.is_err());
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::MultipleTimelines)));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, error::LoweringError::MultipleTimelines))
+        );
     }
 
     #[test]
@@ -634,7 +649,11 @@ mod tests {
         let result = lower::lower_static(&file);
         assert!(result.is_err());
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::DuplicateItemId(_))));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, error::LoweringError::DuplicateItemId(_)))
+        );
     }
 
     #[test]
@@ -680,8 +699,14 @@ mod tests {
         let file = tdsl_parser::parse(src).unwrap();
         let ir = lower::lower_static(&file).unwrap();
         assert_eq!(ir.meta.color_map.len(), 2);
-        assert_eq!(ir.meta.color_map.get("dynasty").map(String::as_str), Some("#3366cc"));
-        assert_eq!(ir.meta.color_map.get("war").map(String::as_str), Some("#cc0000"));
+        assert_eq!(
+            ir.meta.color_map.get("dynasty").map(String::as_str),
+            Some("#3366cc")
+        );
+        assert_eq!(
+            ir.meta.color_map.get("war").map(String::as_str),
+            Some("#cc0000")
+        );
     }
 
     #[test]
@@ -806,7 +831,13 @@ mod tests {
         let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
         assert_eq!(ir.items.len(), 1);
         match &ir.items[0] {
-            ir::Item::Span { lane, label, start, end, .. } => {
+            ir::Item::Span {
+                lane,
+                label,
+                start,
+                end,
+                ..
+            } => {
                 assert_eq!(lane, "dynasty");
                 assert_eq!(label, "漢");
                 assert_eq!(*start, -206);
@@ -887,7 +918,11 @@ mod tests {
         let result = lower::lower_with_wikidata(&file, &client).await;
         assert!(result.is_err());
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::UnknownTemplate(_))));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, error::LoweringError::UnknownTemplate(_)))
+        );
     }
 
     #[cfg(feature = "wikidata")]
@@ -952,7 +987,11 @@ mod tests {
         let result = lower::lower_static(&file);
         assert!(result.is_err());
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, error::LoweringError::DuplicateTemplate(_))));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, error::LoweringError::DuplicateTemplate(_)))
+        );
     }
 
     #[cfg(feature = "wikidata")]

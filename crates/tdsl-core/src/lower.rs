@@ -16,9 +16,19 @@ const MAX_IMPORT_QUERY_RESULTS: usize = 50;
 
 /// Lower a parsed AST into the canonical IR (static items only, no Wikidata).
 pub fn lower_static(file: &ast::File) -> Result<TimelineIr, Vec<LoweringError>> {
+    lower_static_with_source(file, None)
+}
+
+/// Lower a parsed AST into the canonical IR (static items only, no Wikidata).
+/// `source` が与えられた場合、各アイテムに `source_span`（行番号・列番号）を付与する。
+pub fn lower_static_with_source(
+    file: &ast::File,
+    source: Option<&str>,
+) -> Result<TimelineIr, Vec<LoweringError>> {
+    let line_offsets = source.map(build_line_offsets);
     let mut ctx = LoweringContext::new();
     ctx.pass1_declarations(file);
-    ctx.pass2_static_items(file);
+    ctx.pass2_static_items(file, line_offsets.as_deref());
     ctx.finish()
 }
 
@@ -28,12 +38,45 @@ pub async fn lower_with_wikidata(
     file: &ast::File,
     client: &dyn WikidataClient,
 ) -> Result<TimelineIr, Vec<LoweringError>> {
+    lower_with_wikidata_and_source(file, client, None).await
+}
+
+/// Lower a parsed AST into the canonical IR with Wikidata resolution.
+/// `source` が与えられた場合、各アイテムに `source_span`（行番号・列番号）を付与する。
+#[cfg(feature = "wikidata")]
+pub async fn lower_with_wikidata_and_source(
+    file: &ast::File,
+    client: &dyn WikidataClient,
+    source: Option<&str>,
+) -> Result<TimelineIr, Vec<LoweringError>> {
+    let line_offsets = source.map(build_line_offsets);
     let mut ctx = LoweringContext::new();
     ctx.pass1_declarations(file);
-    ctx.pass2_static_items(file);
+    ctx.pass2_static_items(file, line_offsets.as_deref());
     ctx.pass3_resolve_imports(file, client).await;
     ctx.pass4_apply_maps(file);
     ctx.finish()
+}
+
+/// ソーステキストから各行の先頭バイトオフセット配列を構築する（0-indexed）。
+/// `line_offsets[0]` は行0（=行番号1）の先頭オフセット（常に0）。
+fn build_line_offsets(source: &str) -> Vec<usize> {
+    let mut offsets = vec![0usize];
+    for (i, b) in source.bytes().enumerate() {
+        if b == b'\n' {
+            offsets.push(i + 1);
+        }
+    }
+    offsets
+}
+
+/// バイトオフセットから (1-based 行番号, 1-based 列番号) に変換する。
+fn offset_to_line_col(offset: usize, line_offsets: &[usize]) -> (u32, u32) {
+    let line_idx = line_offsets
+        .partition_point(|&o| o <= offset)
+        .saturating_sub(1);
+    let col = offset - line_offsets[line_idx];
+    ((line_idx + 1) as u32, (col + 1) as u32)
 }
 
 struct LoweringContext {
@@ -165,7 +208,7 @@ impl LoweringContext {
     }
 
     /// Pass 2: Lower static items (span, event, event_range).
-    fn pass2_static_items(&mut self, file: &ast::File) {
+    fn pass2_static_items(&mut self, file: &ast::File, line_offsets: Option<&[usize]>) {
         for stmt in &file.statements {
             match &stmt.node {
                 ast::Statement::Span(s) => {
@@ -183,6 +226,15 @@ impl LoweringContext {
                         continue;
                     }
                     self.add_source_from_ref(&s.props.source);
+                    let source_span = line_offsets.map(|lo| {
+                        let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
+                        let (_, col_end) = offset_to_line_col(stmt.span.end, lo);
+                        SourceSpan {
+                            line,
+                            col_start,
+                            col_end,
+                        }
+                    });
                     self.items.push(Item::Span {
                         id,
                         lane: s.lane_ref.clone(),
@@ -196,6 +248,7 @@ impl LoweringContext {
                         start_day: None,
                         end_month: None,
                         end_day: None,
+                        source_span,
                     });
                 }
                 ast::Statement::Event(e) => {
@@ -213,6 +266,15 @@ impl LoweringContext {
                         continue;
                     }
                     self.add_source_from_ref(&e.props.source);
+                    let source_span = line_offsets.map(|lo| {
+                        let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
+                        let (_, col_end) = offset_to_line_col(stmt.span.end, lo);
+                        SourceSpan {
+                            line,
+                            col_start,
+                            col_end,
+                        }
+                    });
                     self.items.push(Item::Event {
                         id,
                         lane: e.lane_ref.clone(),
@@ -223,6 +285,7 @@ impl LoweringContext {
                         origin: e.props.origin.clone(),
                         time_month: None,
                         time_day: None,
+                        source_span,
                     });
                 }
                 ast::Statement::EventRange(er) => {
@@ -240,6 +303,15 @@ impl LoweringContext {
                         continue;
                     }
                     self.add_source_from_ref(&er.props.source);
+                    let source_span = line_offsets.map(|lo| {
+                        let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
+                        let (_, col_end) = offset_to_line_col(stmt.span.end, lo);
+                        SourceSpan {
+                            line,
+                            col_start,
+                            col_end,
+                        }
+                    });
                     self.items.push(Item::EventRange {
                         id,
                         lane: er.lane_ref.clone(),
@@ -253,6 +325,7 @@ impl LoweringContext {
                         start_day: None,
                         end_month: None,
                         end_day: None,
+                        source_span,
                     });
                 }
                 _ => {}
@@ -509,6 +582,7 @@ impl LoweringContext {
                         start_day: s.day,
                         end_month: e.month,
                         end_day: e.day,
+                        source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
                 }
@@ -526,6 +600,7 @@ impl LoweringContext {
                         origin,
                         time_month: t.month,
                         time_day: t.day,
+                        source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
                 }
@@ -546,6 +621,7 @@ impl LoweringContext {
                         start_day: s.day,
                         end_month: e.month,
                         end_day: e.day,
+                        source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
                 }
@@ -568,9 +644,7 @@ impl LoweringContext {
         let mut seen = std::collections::HashSet::new();
         self.sources.retain(|s| seen.insert(s.id.clone()));
 
-        let meta = self
-            .meta
-            .ok_or_else(|| vec![LoweringError::NoTimeline])?;
+        let meta = self.meta.ok_or_else(|| vec![LoweringError::NoTimeline])?;
 
         Ok(TimelineIr {
             meta,
@@ -705,12 +779,8 @@ fn eval_claim_expr(expr: &ast::ClaimExpr, entity: &WikidataEntity) -> Option<Tim
         DataValue::Time { value } => {
             let tp = time_value_to_timepoint(value).ok()?;
             match expr.accessor.as_deref() {
-                Some("month") => {
-                    tp.month.map(|_| tp)
-                }
-                Some("day") => {
-                    tp.day.map(|_| tp)
-                }
+                Some("month") => tp.month.map(|_| tp),
+                Some("day") => tp.day.map(|_| tp),
                 Some("year") | None => Some(TimePoint {
                     year: tp.year,
                     month: None,
@@ -906,6 +976,7 @@ fn merge_items_by_field_priority(
                 start_day: ex_sd,
                 end_month: ex_em,
                 end_day: ex_ed,
+                source_span,
             },
             Item::Span {
                 start: in_start,
@@ -931,6 +1002,7 @@ fn merge_items_by_field_priority(
             start_day: in_sd.or(ex_sd),
             end_month: in_em.or(ex_em),
             end_day: in_ed.or(ex_ed),
+            source_span,
         },
         (
             Item::Event {
@@ -943,6 +1015,7 @@ fn merge_items_by_field_priority(
                 origin,
                 time_month: ex_tm,
                 time_day: ex_td,
+                source_span,
             },
             Item::Event {
                 time: in_time,
@@ -962,6 +1035,7 @@ fn merge_items_by_field_priority(
             origin,
             time_month: in_tm.or(ex_tm),
             time_day: in_td.or(ex_td),
+            source_span,
         },
         (
             Item::EventRange {
@@ -977,6 +1051,7 @@ fn merge_items_by_field_priority(
                 start_day: ex_sd,
                 end_month: ex_em,
                 end_day: ex_ed,
+                source_span,
             },
             Item::EventRange {
                 start: in_start,
@@ -1002,6 +1077,7 @@ fn merge_items_by_field_priority(
             start_day: in_sd.or(ex_sd),
             end_month: in_em.or(ex_em),
             end_day: in_ed.or(ex_ed),
+            source_span,
         },
         (_, incoming) => incoming,
     }

@@ -63,6 +63,7 @@ mod tests {
                 start_day: None,
                 end_month: None,
                 end_day: None,
+                source_span: None,
             }],
             imports: vec![],
             sources: vec![],
@@ -177,6 +178,7 @@ mod tests {
                 origin: None,
                 time_month: None,
                 time_day: None,
+                source_span: None,
             }],
             imports: vec![],
             sources: vec![],
@@ -214,6 +216,7 @@ mod tests {
                 start_day: None,
                 end_month: None,
                 end_day: None,
+                source_span: None,
             }],
             imports: vec![],
             sources: vec![],
@@ -247,7 +250,10 @@ mod tests {
             ..RenderOptions::default()
         };
         let html = render_html(&ir, opts);
-        assert!(html.contains("<script>"), "interactive mode must include <script>");
+        assert!(
+            html.contains("<script>"),
+            "interactive mode must include <script>"
+        );
         assert!(
             html.contains("tdsl-search"),
             "interactive mode must include search input"

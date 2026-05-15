@@ -1179,3 +1179,30 @@ body,
   pointer-events: none;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
+
+/* ─── 双方向ジャンプ ───────────────────────────────────────────────────────────── */
+
+/* プレビュー→エディタ: CodeMirror の行ハイライト（500ms フェード） */
+.cm-jump-highlight {
+  background: rgba(250, 210, 50, 0.35) !important;
+  transition: background 500ms ease-out;
+}
+
+/* エディタ→プレビュー: SVG アイテムのカーソル行強調 */
+.svg-container .tdsl-item-cursor-highlight rect.tdsl-span,
+.svg-container .tdsl-item-cursor-highlight rect.tdsl-event-range {
+  stroke: #facc15;
+  stroke-width: 3;
+  filter: brightness(1.25);
+}
+
+.svg-container .tdsl-item-cursor-highlight line.tdsl-event-stem {
+  stroke: #facc15;
+  stroke-width: 3;
+}
+
+.svg-container .tdsl-item-cursor-highlight circle.tdsl-event-dot {
+  stroke: #facc15;
+  stroke-width: 3;
+  filter: brightness(1.25);
+}

@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback, type CSSProperties, type MouseEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type MouseEvent } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { tdsl } from './lang-tdsl'
 import { oneDark } from '@codemirror/theme-one-dark'
-import { EditorView } from '@codemirror/view'
+import { EditorView, Decoration, ViewPlugin, type ViewUpdate, type DecorationSet } from '@codemirror/view'
+import { StateEffect, StateField } from '@codemirror/state'
 import { autocompletion, snippetCompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import { bracketMatching } from '@codemirror/language'
 import { search } from '@codemirror/search'
@@ -24,6 +25,63 @@ import {
   type Snapshot,
 } from './history'
 import './App.css'
+
+// ─── CodeMirror line highlight effect (プレビュー→エディタ方向) ──────────────────
+
+/** 一時ハイライトをセットする StateEffect。行番号（1-based）を受け取る。 */
+const setLineHighlight = StateEffect.define<number | null>()
+
+/** アクティブなハイライト行を保持する StateField。 */
+const lineHighlightField = StateField.define<DecorationSet>({
+  create() { return Decoration.none },
+  update(deco, tr) {
+    deco = deco.map(tr.changes)
+    for (const effect of tr.effects) {
+      if (effect.is(setLineHighlight)) {
+        if (effect.value === null) {
+          deco = Decoration.none
+        } else {
+          try {
+            const line = tr.state.doc.line(effect.value)
+            deco = Decoration.set([
+              Decoration.line({ class: 'cm-jump-highlight' }).range(line.from),
+            ])
+          } catch {
+            deco = Decoration.none
+          }
+        }
+      }
+    }
+    return deco
+  },
+  provide: (f) => EditorView.decorations.from(f),
+})
+
+/**
+ * CodeMirror extension: カーソル行を外部コールバックへ通知する。
+ * debounce 16ms (次の animation frame 相当) でパフォーマンスを確保する。
+ */
+function makeCursorLineExtension(onCursorLine: (line: number) => void) {
+  let debounceId: ReturnType<typeof setTimeout> | null = null
+  return ViewPlugin.fromClass(
+    class {
+      update(update: ViewUpdate) {
+        if (!update.selectionSet && !update.docChanged) return
+        if (debounceId !== null) clearTimeout(debounceId)
+        debounceId = setTimeout(() => {
+          debounceId = null
+          const pos = update.state.selection.main.head
+          try {
+            const line = update.state.doc.lineAt(pos).number
+            onCursorLine(line)
+          } catch {
+            // ignore out-of-range
+          }
+        }, 16)
+      }
+    }
+  )
+}
 
 const SVG_EMBEDDED_CSS = `
   .tdsl-lane-band-even { fill: #ffffff; }
@@ -277,6 +335,11 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
+
+  // 双方向ジャンプ: エディタ→プレビュー方向のカーソル行
+  const cursorLineRef = useRef<number>(0)
+  // ハイライトタイマー（プレビュー→エディタ方向の 500ms フェード用）
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   function updateSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((prev) => ({ ...prev, [key]: value }))
   }
@@ -483,12 +546,25 @@ function App() {
     return () => preview.removeEventListener('wheel', onWheel)
   }, [])
 
-  // Extract legend after SVG renders into DOM
+  // Extract legend after SVG renders into DOM; also restore cursor highlight
   useEffect(() => {
     if (!svgContent) { setLegendItems([]); return }
     requestAnimationFrame(() => {
-      if (svgContainerRef.current) {
-        setLegendItems(extractLegend(svgContainerRef.current))
+      const container = svgContainerRef.current
+      if (container) {
+        setLegendItems(extractLegend(container))
+        // SVG再描画後にカーソル行ハイライトを復元（直接DOM操作）
+        const currentLine = cursorLineRef.current
+        if (currentLine > 0) {
+          container.querySelectorAll<Element>('.tdsl-item-cursor-highlight').forEach((el) => {
+            el.classList.remove('tdsl-item-cursor-highlight')
+          })
+          container.querySelectorAll<HTMLElement>('[data-line]').forEach((el) => {
+            if (parseInt(el.dataset.line || '0', 10) === currentLine) {
+              el.classList.add('tdsl-item-cursor-highlight')
+            }
+          })
+        }
       }
     })
   }, [svgContent])
@@ -706,10 +782,61 @@ function App() {
         source: target.dataset.source || '',
         tooltip: target.dataset.tdslTooltip || '',
       })
+
+      // プレビュー → エディタ方向ジャンプ
+      const lineStr = target.dataset.line
+      if (lineStr) {
+        const lineNum = parseInt(lineStr, 10)
+        const view = editorViewRef.current
+        if (view && lineNum > 0) {
+          try {
+            const lineInfo = view.state.doc.line(lineNum)
+            view.dispatch({
+              selection: { anchor: lineInfo.from },
+              scrollIntoView: true,
+              effects: [
+                EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+                setLineHighlight.of(lineNum),
+              ],
+            })
+            view.focus()
+            // 500ms 後にハイライトをフェードアウト
+            if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current)
+            highlightTimerRef.current = setTimeout(() => {
+              view.dispatch({ effects: setLineHighlight.of(null) })
+              highlightTimerRef.current = null
+            }, 500)
+          } catch {
+            // 行範囲外は無視
+          }
+        }
+      }
     } else {
       setSelectedItem(null)
     }
   }
+
+  // エディタ→プレビュー方向: カーソル行に対応するSVG要素を強調
+  const handleCursorLine = useCallback((line: number) => {
+    cursorLineRef.current = line
+    const container = svgContainerRef.current
+    if (!container) return
+    // 既存の強調をすべて解除
+    container.querySelectorAll<Element>('.tdsl-item-cursor-highlight').forEach((el) => {
+      el.classList.remove('tdsl-item-cursor-highlight')
+    })
+    // カーソル行に対応するアイテムを強調
+    container.querySelectorAll<HTMLElement>('[data-line]').forEach((el) => {
+      const elLine = parseInt(el.dataset.line || '0', 10)
+      if (elLine === line) {
+        el.classList.add('tdsl-item-cursor-highlight')
+      }
+    })
+  }, [])
+
+  // カーソル行監視 extension（handleCursorLine が変わっても再生成しない）
+  // eslint-disable-next-line react-hooks/refs, react-hooks/exhaustive-deps
+  const cursorLineExtension = useMemo(() => makeCursorLineExtension(handleCursorLine), [])
 
   function handleDiagClick(diag: Diagnostic) {
     const view = editorViewRef.current
@@ -959,6 +1086,8 @@ function App() {
               search({ top: true }),
               bracketMatching(),
               autocompletion({ override: [makeTdslCompletionSource(() => source)] }),
+              lineHighlightField,
+              cursorLineExtension,
               ...(lineWrap ? [EditorView.lineWrapping] : []),
             ]}
             onChange={handleEditorChange}
