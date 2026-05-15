@@ -12,6 +12,17 @@ import { EXAMPLES } from './examples'
 import { GALLERY_EXAMPLES } from './gallery-meta'
 import { useToast } from './components/useToast'
 import { buildShareUrl, readSourceFromHash } from './share'
+import {
+  readAutoSnapshots,
+  readManualSnapshots,
+  pushAutoSnapshot,
+  shouldAutoSnapshot,
+  pushManualSnapshot,
+  renameManualSnapshot,
+  deleteManualSnapshot,
+  clearAllHistory,
+  type Snapshot,
+} from './history'
 import './App.css'
 
 const SVG_EMBEDDED_CSS = `
@@ -280,6 +291,14 @@ function App() {
   // Tracks programmatic source loads (template/file) that should not be auto-saved
   const skipAutoSaveRef = useRef(false)
 
+  // History panel
+  const [showHistory, setShowHistory] = useState(false)
+  const [autoSnaps, setAutoSnaps] = useState<Snapshot[]>(() => readAutoSnapshots())
+  const [manualSnaps, setManualSnaps] = useState<Snapshot[]>(() => readManualSnapshots())
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const lastAutoSnapRef = useRef<number>(0)
+
   // Split pane ratio (editor / preview)
   const [splitRatio, setSplitRatio] = useState(0.4)
   const splitDragRef = useRef<{ startX: number; startRatio: number; containerWidth: number } | null>(null)
@@ -362,6 +381,19 @@ function App() {
       } catch {/* ignore */}
     }
   }, [settings.autoSaveEnabled])
+
+  // Auto-snapshot on timed interval (5 min + diff present)
+  useEffect(() => {
+    if (!settings.historyEnabled) return
+    const timer = setTimeout(() => {
+      if (shouldAutoSnapshot(source, lastAutoSnapRef.current)) {
+        pushAutoSnapshot(source, '自動保存')
+        lastAutoSnapRef.current = Date.now()
+        setAutoSnaps(readAutoSnapshots())
+      }
+    }, DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [source, settings.historyEnabled])
 
   // Initialize WASM on mount
   useEffect(() => {
@@ -519,9 +551,14 @@ function App() {
     setSource(value)
   }
 
-  function handleGallerySelect(source: string) {
+  function handleGallerySelect(newSource: string) {
+    if (settings.historyEnabled && source.trim()) {
+      pushAutoSnapshot(source, 'テンプレートロード前')
+      lastAutoSnapRef.current = Date.now()
+      setAutoSnaps(readAutoSnapshots())
+    }
     skipAutoSaveRef.current = true
-    setSource(source)
+    setSource(newSource)
     setShowGallery(false)
   }
 
@@ -693,12 +730,55 @@ function App() {
     const reader = new FileReader()
     reader.onload = (ev) => {
       const text = ev.target?.result as string
+      if (settings.historyEnabled && source.trim()) {
+        pushAutoSnapshot(source, 'ファイルオープン前')
+        lastAutoSnapRef.current = Date.now()
+        setAutoSnaps(readAutoSnapshots())
+      }
       skipAutoSaveRef.current = true
       setSource(text)
     }
     reader.readAsText(file)
     // Reset so same file can be re-opened
     e.target.value = ''
+  }
+
+  function handleSaveToHistory() {
+    const snap = pushManualSnapshot(source, `手動保存 — ${new Date().toLocaleString('ja-JP')}`)
+    setManualSnaps(readManualSnapshots())
+    showToast(`履歴に保存しました: ${snap.label}`, 'success')
+  }
+
+  function handleRestoreSnapshot(src: string) {
+    skipAutoSaveRef.current = true
+    setSource(src)
+    setShowHistory(false)
+  }
+
+  function handleRenameStart(snap: Snapshot) {
+    setRenamingId(snap.id)
+    setRenameValue(snap.label)
+  }
+
+  function handleRenameCommit() {
+    if (renamingId && renameValue.trim()) {
+      renameManualSnapshot(renamingId, renameValue.trim())
+      setManualSnaps(readManualSnapshots())
+    }
+    setRenamingId(null)
+    setRenameValue('')
+  }
+
+  function handleDeleteManual(id: string) {
+    deleteManualSnapshot(id)
+    setManualSnaps(readManualSnapshots())
+  }
+
+  function handleClearAllHistory() {
+    clearAllHistory()
+    setAutoSnaps([])
+    setManualSnaps([])
+    showToast('履歴を全件削除しました', 'success')
   }
 
   const errorCount = diagnostics.filter((d) => d.severity === 'error').length
@@ -740,6 +820,24 @@ function App() {
           >
             テンプレート
           </button>
+          {settings.historyEnabled && (
+            <>
+              <button
+                className="btn"
+                onClick={handleSaveToHistory}
+                title="現在の DSL を履歴に手動保存"
+              >
+                履歴に保存
+              </button>
+              <button
+                className={`btn${(autoSnaps.length + manualSnaps.length) > 0 ? ' btn-history-badge' : ''}`}
+                onClick={() => setShowHistory(true)}
+                title="履歴パネルを開く"
+              >
+                履歴 {(autoSnaps.length + manualSnaps.length) > 0 ? `(${autoSnaps.length + manualSnaps.length})` : ''}
+              </button>
+            </>
+          )}
         </div>
         <div className="toolbar-right">
           {/* エクスポートメニュー */}
@@ -1124,6 +1222,21 @@ function App() {
                   </span>
                 </div>
               </div>
+              <div className="settings-section">
+                <div className="settings-label">履歴スナップショット</div>
+                <div className="settings-row">
+                  <button
+                    className={`btn${settings.historyEnabled ? ' btn-active' : ''}`}
+                    onClick={() => updateSetting('historyEnabled', !settings.historyEnabled)}
+                    title="テンプレートロード・ファイルオープン・5分毎に自動スナップショットを保存"
+                  >
+                    {settings.historyEnabled ? 'オン' : 'オフ'}
+                  </button>
+                  <span className="settings-hint">
+                    {settings.historyEnabled ? '自動スナップショット有効（最大5件）' : '無効（既存履歴は保持）'}
+                  </span>
+                </div>
+              </div>
               <hr className="settings-divider" />
               <div className="settings-section">
                 <div className="settings-label">GitHub</div>
@@ -1175,6 +1288,90 @@ function App() {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      )}
+      {/* History modal */}
+      {showHistory && (
+        <div className="modal-overlay" onClick={() => setShowHistory(false)}>
+          <div className="modal modal-history" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span>履歴</span>
+              <button className="modal-close" onClick={() => setShowHistory(false)}>✕</button>
+            </div>
+            <div className="history-body">
+              {manualSnaps.length > 0 && (
+                <section>
+                  <div className="history-section-title">手動保存</div>
+                  <ul className="history-list">
+                    {manualSnaps.map((snap) => (
+                      <li key={snap.id} className="history-item">
+                        {renamingId === snap.id ? (
+                          <div className="history-rename-row">
+                            <input
+                              className="history-rename-input"
+                              value={renameValue}
+                              autoFocus
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleRenameCommit()
+                                if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
+                              }}
+                            />
+                            <button className="btn btn-sm" onClick={handleRenameCommit}>確定</button>
+                            <button className="btn btn-sm" onClick={() => { setRenamingId(null); setRenameValue('') }}>キャンセル</button>
+                          </div>
+                        ) : (
+                          <div className="history-item-row">
+                            <button
+                              className="history-restore-btn"
+                              onClick={() => handleRestoreSnapshot(snap.source)}
+                              title="このスナップショットを復元"
+                            >
+                              {snap.label}
+                            </button>
+                            <div className="history-item-actions">
+                              <button className="btn btn-sm" onClick={() => handleRenameStart(snap)} title="名前を変更">✎</button>
+                              <button className="btn btn-sm btn-danger" onClick={() => handleDeleteManual(snap.id)} title="削除">✕</button>
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {autoSnaps.length > 0 && (
+                <section>
+                  <div className="history-section-title">自動スナップショット（最大 {autoSnaps.length}/5 件）</div>
+                  <ul className="history-list">
+                    {autoSnaps.map((snap) => (
+                      <li key={snap.id} className="history-item">
+                        <div className="history-item-row">
+                          <button
+                            className="history-restore-btn"
+                            onClick={() => handleRestoreSnapshot(snap.source)}
+                            title="このスナップショットを復元"
+                          >
+                            {snap.label}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {autoSnaps.length === 0 && manualSnaps.length === 0 && (
+                <div className="history-empty">履歴はありません</div>
+              )}
+              {(autoSnaps.length > 0 || manualSnaps.length > 0) && (
+                <div className="history-footer">
+                  <button className="btn btn-danger" onClick={handleClearAllHistory}>
+                    全件削除
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
