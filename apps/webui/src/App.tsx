@@ -11,6 +11,7 @@ import type { Diagnostic } from './wasmLoader'
 import { EXAMPLES } from './examples'
 import { GALLERY_EXAMPLES } from './gallery-meta'
 import { useToast } from './components/useToast'
+import { buildShareUrl, readSourceFromHash } from './share'
 import './App.css'
 
 const SVG_EMBEDDED_CSS = `
@@ -225,13 +226,27 @@ const SHORTCUTS = [
 
 type MobileTab = 'editor' | 'preview'
 
-function readInitialSource(): string {
+type InitialSourceResult = { source: string; hashError: string | null }
+
+function readInitialSource(): InitialSourceResult {
+  try {
+    const fromHash = readSourceFromHash()
+    if (fromHash !== null) return { source: fromHash, hashError: null }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return {
+      source: EXAMPLES[0].source,
+      hashError: `共有 URL の展開に失敗しました: ${msg}`,
+    }
+  }
   const param = new URLSearchParams(location.search).get('source')
-  return param && param.length > 0 ? param : EXAMPLES[0].source
+  if (param && param.length > 0) return { source: param, hashError: null }
+  return { source: EXAMPLES[0].source, hashError: null }
 }
 
 function App() {
-  const [source, setSource] = useState<string>(readInitialSource)
+  const [initial] = useState<InitialSourceResult>(readInitialSource)
+  const [source, setSource] = useState<string>(initial.source)
   const [svgContent, setSvgContent] = useState<string>('')
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
   const [wasmReady, setWasmReady] = useState(false)
@@ -292,6 +307,13 @@ function App() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
     } catch {/* quota exceeded or private browsing — ignore */}
   }, [settings])
+
+  // Surface a Toast if the initial Hash failed to decode
+  useEffect(() => {
+    if (initial.hashError) showToast(initial.hashError, 'error')
+    // run once after mount; `initial` is from useState lazy initializer (stable)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Track OS color-scheme preference so `auto` follows it live
   useEffect(() => {
@@ -529,6 +551,17 @@ function App() {
       .catch(() => showToast('Markdown のコピーに失敗しました', 'error'))
   }
 
+  function copyShareLink() {
+    try {
+      const url = buildShareUrl(source)
+      navigator.clipboard.writeText(url)
+        .then(() => showToast('Share link をコピーしました', 'success'))
+        .catch(() => showToast('Share link のコピーに失敗しました', 'error'))
+    } catch {
+      showToast('Share link の生成に失敗しました', 'error')
+    }
+  }
+
   function downloadHtml() {
     if (!svgContent) return
     try {
@@ -711,6 +744,9 @@ function App() {
                 </button>
                 <button className="export-menu-item" onClick={() => { copyMarkdown(); setExportMenuOpen(false) }}>
                   Markdown をコピー
+                </button>
+                <button className="export-menu-item" onClick={() => { copyShareLink(); setExportMenuOpen(false) }}>
+                  Share link をコピー
                 </button>
               </div>
             )}

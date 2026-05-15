@@ -18,6 +18,7 @@
     "@codemirror/view": "^6.36.5",
     "@lezer/highlight": "^1.2.3",
     "@uiw/react-codemirror": "^4.25.9",
+    "pako": "^2.1.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "rollup": "^4.60.3",
@@ -27,6 +28,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.12.2",
+    "@types/pako": "^2.0.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
