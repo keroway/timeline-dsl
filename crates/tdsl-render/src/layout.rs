@@ -510,6 +510,7 @@ mod tests {
                 origin: None,
                 time_month: None,
                 time_day: None,
+                source_span: None,
             }],
             imports: vec![],
             sources: vec![],

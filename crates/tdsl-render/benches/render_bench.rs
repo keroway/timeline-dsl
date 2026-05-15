@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
 use tdsl_render::RenderOptions;
@@ -20,6 +20,7 @@ fn make_ir(n: usize) -> TimelineIr {
             start_day: None,
             end_month: None,
             end_day: None,
+            source_span: None,
         });
     }
     TimelineIr {
@@ -63,5 +64,10 @@ fn bench_render_large(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_render_small, bench_render_medium, bench_render_large);
+criterion_group!(
+    benches,
+    bench_render_small,
+    bench_render_medium,
+    bench_render_large
+);
 criterion_main!(benches);

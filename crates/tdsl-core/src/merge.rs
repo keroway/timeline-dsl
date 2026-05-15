@@ -128,6 +128,7 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             start_day,
             end_month,
             end_day,
+            source_span,
             ..
         } => Item::Span {
             id: new_id,
@@ -142,6 +143,7 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             start_day,
             end_month,
             end_day,
+            source_span,
         },
         Item::Event {
             lane,
@@ -152,6 +154,7 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             origin,
             time_month,
             time_day,
+            source_span,
             ..
         } => Item::Event {
             id: new_id,
@@ -163,6 +166,7 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             origin,
             time_month,
             time_day,
+            source_span,
         },
         Item::EventRange {
             lane,
@@ -176,6 +180,7 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             start_day,
             end_month,
             end_day,
+            source_span,
             ..
         } => Item::EventRange {
             id: new_id,
@@ -190,6 +195,7 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             start_day,
             end_month,
             end_day,
+            source_span,
         },
     }
 }
@@ -240,12 +246,18 @@ mod tests {
             start_day: None,
             end_month: None,
             end_day: None,
+            source_span: None,
         }
     }
 
     #[test]
     fn merge_single_ir_is_identity() {
-        let ir = make_ir("A", (0, 100), vec![lane("a", "A", 1)], vec![span("s1", "a", 10, 20)]);
+        let ir = make_ir(
+            "A",
+            (0, 100),
+            vec![lane("a", "A", 1)],
+            vec![span("s1", "a", 10, 20)],
+        );
         let (merged, warnings) = merge_irs(vec![ir.clone()]);
         assert!(warnings.is_empty());
         assert_eq!(merged.meta.title, "A");
@@ -255,8 +267,18 @@ mod tests {
 
     #[test]
     fn merge_two_irs_combines_lanes_and_items() {
-        let ir1 = make_ir("A", (0, 100), vec![lane("a", "A", 1)], vec![span("s1", "a", 10, 20)]);
-        let ir2 = make_ir("B", (50, 200), vec![lane("b", "B", 2)], vec![span("s2", "b", 60, 90)]);
+        let ir1 = make_ir(
+            "A",
+            (0, 100),
+            vec![lane("a", "A", 1)],
+            vec![span("s1", "a", 10, 20)],
+        );
+        let ir2 = make_ir(
+            "B",
+            (50, 200),
+            vec![lane("b", "B", 2)],
+            vec![span("s2", "b", 60, 90)],
+        );
         let (merged, warnings) = merge_irs(vec![ir1, ir2]);
         assert!(warnings.is_empty());
         assert_eq!(merged.meta.title, "A"); // first wins
@@ -277,8 +299,18 @@ mod tests {
 
     #[test]
     fn merge_duplicate_item_id_is_renamed() {
-        let ir1 = make_ir("A", (0, 100), vec![lane("a", "A", 1)], vec![span("s1", "a", 10, 20)]);
-        let ir2 = make_ir("B", (0, 100), vec![lane("b", "B", 2)], vec![span("s1", "b", 30, 40)]);
+        let ir1 = make_ir(
+            "A",
+            (0, 100),
+            vec![lane("a", "A", 1)],
+            vec![span("s1", "a", 10, 20)],
+        );
+        let ir2 = make_ir(
+            "B",
+            (0, 100),
+            vec![lane("b", "B", 2)],
+            vec![span("s1", "b", 30, 40)],
+        );
         let (merged, warnings) = merge_irs(vec![ir1, ir2]);
         assert_eq!(merged.items.len(), 2);
         assert_eq!(warnings.len(), 1);
