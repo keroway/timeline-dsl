@@ -873,6 +873,12 @@ body,
   margin: 4px 0;
 }
 
+.settings-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  align-self: center;
+}
+
 /* Template gallery modal */
 .modal-gallery {
   min-width: 480px;
