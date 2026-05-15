@@ -61,6 +61,7 @@ function svgToPngBlob(svg: string, whiteBg: boolean): Promise<Blob> {
 }
 
 const DEBOUNCE_MS = 500
+const EDITOR_SOURCE_KEY = 'tdsl:editor:source'
 
 type ColorScheme = 'dark' | 'light'
 type ThemePreference = 'auto' | 'light' | 'dark'
@@ -241,6 +242,10 @@ function readInitialSource(): InitialSourceResult {
   }
   const param = new URLSearchParams(location.search).get('source')
   if (param && param.length > 0) return { source: param, hashError: null }
+  try {
+    const saved = localStorage.getItem(EDITOR_SOURCE_KEY)
+    if (saved) return { source: saved, hashError: null }
+  } catch {/* private browsing or quota */}
   return { source: EXAMPLES[0].source, hashError: null }
 }
 
@@ -271,6 +276,9 @@ function App() {
   const [fileMenuOpen, setFileMenuOpen] = useState(false)
   const fileMenuRef = useRef<HTMLDivElement>(null)
   const [isStalePreview, setIsStalePreview] = useState(false)
+
+  // Tracks programmatic source loads (template/file) that should not be auto-saved
+  const skipAutoSaveRef = useRef(false)
 
   // Split pane ratio (editor / preview)
   const [splitRatio, setSplitRatio] = useState(0.4)
@@ -330,6 +338,30 @@ function App() {
     mql.addListener(handleChange)
     return () => mql.removeListener(handleChange)
   }, [])
+
+  // Auto-save editor source to LocalStorage (debounced, skips template/file loads)
+  useEffect(() => {
+    if (skipAutoSaveRef.current) {
+      skipAutoSaveRef.current = false
+      return
+    }
+    if (!settings.autoSaveEnabled) return
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(EDITOR_SOURCE_KEY, source)
+      } catch {/* quota exceeded or private browsing */}
+    }, DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [source, settings.autoSaveEnabled])
+
+  // When autoSaveEnabled is turned OFF, remove the stored source
+  useEffect(() => {
+    if (!settings.autoSaveEnabled) {
+      try {
+        localStorage.removeItem(EDITOR_SOURCE_KEY)
+      } catch {/* ignore */}
+    }
+  }, [settings.autoSaveEnabled])
 
   // Initialize WASM on mount
   useEffect(() => {
@@ -488,6 +520,7 @@ function App() {
   }
 
   function handleGallerySelect(source: string) {
+    skipAutoSaveRef.current = true
     setSource(source)
     setShowGallery(false)
   }
@@ -660,6 +693,7 @@ function App() {
     const reader = new FileReader()
     reader.onload = (ev) => {
       const text = ev.target?.result as string
+      skipAutoSaveRef.current = true
       setSource(text)
     }
     reader.readAsText(file)
@@ -1073,6 +1107,21 @@ function App() {
                   >
                     透過
                   </button>
+                </div>
+              </div>
+              <div className="settings-section">
+                <div className="settings-label">自動保存</div>
+                <div className="settings-row">
+                  <button
+                    className={`btn${settings.autoSaveEnabled ? ' btn-active' : ''}`}
+                    onClick={() => updateSetting('autoSaveEnabled', !settings.autoSaveEnabled)}
+                    title="編集内容をブラウザに自動保存します（リロード後も復元）"
+                  >
+                    {settings.autoSaveEnabled ? 'オン' : 'オフ'}
+                  </button>
+                  <span className="settings-hint">
+                    {settings.autoSaveEnabled ? 'リロード後に復元されます' : '保存しません（オフ時は既存の保存を削除）'}
+                  </span>
                 </div>
               </div>
               <hr className="settings-divider" />
