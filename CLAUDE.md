@@ -64,8 +64,16 @@ crates/
 - `meta`: title, unit, range, calendar
 - `lanes`: id, label, kind, order
 - `items`: Span / Event / EventRange（tagged enum）
+  - 各 item の共通フィールド: `id`, `lane`, `label`, `tags`, `source`, `origin`
+  - `source_span?: { line, col_start, col_end }` — ソーステキストを渡した場合のみ付与（1-based 行番号・列番号）。JSON では `None` のとき省略
 - `imports`: インポート記録
 - `sources`: 出典・ライセンス情報
+
+### `source_span` の付与条件
+
+`lower_static_with_source(file, Some(src))` または `lower_with_wikidata_and_source(file, client, Some(src))` にソーステキストを渡した場合のみ付与。
+`lower_static(file)` / `lower_with_wikidata(file, client)` では常に `None`（JSON に出力されない）。
+WebUI と WASM バインディングはソーステキストを渡しているため `source_span` が含まれる。CLI の `build` サブコマンドはソースを渡さないため含まれない（将来拡張可能）。
 
 ## コーディング規約
 

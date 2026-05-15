@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 
-use tdsl_core::lower::lower_static;
+use tdsl_core::lower::lower_static_with_source;
 use tdsl_render::{RenderOptions, render_html, render_svg_only};
 
 /// Initialize the panic hook for better error messages in the browser console.
@@ -11,16 +11,16 @@ pub fn main() {
 }
 
 /// Compile TDSL source to IR (JSON string), without Wikidata resolution.
+/// `source_span` fields are populated for each static item (for bidirectional jump).
 /// Returns Ok(json_string) or Err(error_message).
 #[wasm_bindgen]
 pub fn compile_to_ir(source: &str) -> Result<String, JsValue> {
     let file = tdsl_parser::parse(source).map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let ir = lower_static(&file).map_err(|errors| {
+    let ir = lower_static_with_source(&file, Some(source)).map_err(|errors| {
         let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
         JsValue::from_str(&msgs.join("\n"))
     })?;
-    serde_json::to_string_pretty(&ir)
-        .map_err(|e| JsValue::from_str(&e.to_string()))
+    serde_json::to_string_pretty(&ir).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 /// Compute auto scale (pixels-per-year) for a given year span.
@@ -35,11 +35,13 @@ fn auto_scale_for_span(span: f64) -> f64 {
 /// Render SVG from TDSL source (static items only).
 /// `scale` controls pixels-per-year. Pass `0.0` (or negative) to auto-calculate
 /// from the IR's `meta.range` (clamped to `0.5..=50.0`).
+/// `source_span` (line numbers) are embedded as `data-line` attributes in the SVG
+/// for bidirectional editor↔preview jump.
 /// Returns Ok(svg_string) or Err(error_message).
 #[wasm_bindgen]
 pub fn render_svg_from_source(source: &str, scale: f64) -> Result<String, JsValue> {
     let file = tdsl_parser::parse(source).map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let ir = lower_static(&file).map_err(|errors| {
+    let ir = lower_static_with_source(&file, Some(source)).map_err(|errors| {
         let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
         JsValue::from_str(&msgs.join("\n"))
     })?;
@@ -50,7 +52,13 @@ pub fn render_svg_from_source(source: &str, scale: f64) -> Result<String, JsValu
         let span = (range.1 - range.0).unsigned_abs().max(1) as f64;
         auto_scale_for_span(span)
     };
-    let svg = render_svg_only(&ir, RenderOptions { scale: computed_scale, ..RenderOptions::default() });
+    let svg = render_svg_only(
+        &ir,
+        RenderOptions {
+            scale: computed_scale,
+            ..RenderOptions::default()
+        },
+    );
     Ok(svg)
 }
 
@@ -87,6 +95,7 @@ mod tests {
                 start_day: None,
                 end_month: None,
                 end_day: None,
+                source_span: None,
             }],
             imports: vec![],
             sources: vec![],
@@ -125,10 +134,13 @@ mod tests {
     fn svg_width_is_readable_for_short_range() {
         // span=12, scale=50 → width = 120 + 12*50 + 20 = 740px
         let ir = make_ir(2018, 2030);
-        let svg = render_svg_only(&ir, RenderOptions {
-            scale: auto_scale_for_span(12.0),
-            ..RenderOptions::default()
-        });
+        let svg = render_svg_only(
+            &ir,
+            RenderOptions {
+                scale: auto_scale_for_span(12.0),
+                ..RenderOptions::default()
+            },
+        );
         let w = extract_svg_width(&svg);
         assert!(w >= 700.0, "span=12 SVG width should be ≥700px, got {w}");
     }
@@ -137,24 +149,36 @@ mod tests {
     fn svg_width_for_medium_range_unchanged() {
         // span=125, scale=8 → width = 120 + 125*8 + 20 = 1140px
         let ir = make_ir(1900, 2025);
-        let svg = render_svg_only(&ir, RenderOptions {
-            scale: auto_scale_for_span(125.0),
-            ..RenderOptions::default()
-        });
+        let svg = render_svg_only(
+            &ir,
+            RenderOptions {
+                scale: auto_scale_for_span(125.0),
+                ..RenderOptions::default()
+            },
+        );
         let w = extract_svg_width(&svg);
-        assert!((w - 1140.0).abs() < 1.0, "span=125 width should be ~1140px, got {w}");
+        assert!(
+            (w - 1140.0).abs() < 1.0,
+            "span=125 width should be ~1140px, got {w}"
+        );
     }
 
     #[test]
     fn svg_width_for_long_range_uses_lower_clamp() {
         // span=5000, scale=0.5 → width = 120 + 5000*0.5 + 20 = 2640px
         let ir = make_ir(-3000, 2000);
-        let svg = render_svg_only(&ir, RenderOptions {
-            scale: auto_scale_for_span(5000.0),
-            ..RenderOptions::default()
-        });
+        let svg = render_svg_only(
+            &ir,
+            RenderOptions {
+                scale: auto_scale_for_span(5000.0),
+                ..RenderOptions::default()
+            },
+        );
         let w = extract_svg_width(&svg);
-        assert!((w - 2640.0).abs() < 1.0, "span=5000 width should be ~2640px, got {w}");
+        assert!(
+            (w - 2640.0).abs() < 1.0,
+            "span=5000 width should be ~2640px, got {w}"
+        );
     }
 }
 
@@ -163,7 +187,7 @@ mod tests {
 #[wasm_bindgen]
 pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
     let file = tdsl_parser::parse(source).map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let ir = lower_static(&file).map_err(|errors| {
+    let ir = lower_static_with_source(&file, Some(source)).map_err(|errors| {
         let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
         JsValue::from_str(&msgs.join("\n"))
     })?;
@@ -213,7 +237,7 @@ pub fn check_source(source: &str) -> String {
         }
     };
 
-    match lower_static(&file) {
+    match lower_static_with_source(&file, Some(source)) {
         Ok(ir) => {
             // Lowering succeeded — collect validation warnings
             let warnings = tdsl_core::validate::validate(&ir);

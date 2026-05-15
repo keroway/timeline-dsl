@@ -160,6 +160,7 @@ mod tests {
                     start_day: None,
                     end_month: None,
                     end_day: None,
+                    source_span: None,
                 },
                 Item::Event {
                     id: "event:a:100".to_string(),
@@ -171,6 +172,7 @@ mod tests {
                     origin: Some("imported".to_string()),
                     time_month: None,
                     time_day: None,
+                    source_span: None,
                 },
                 Item::EventRange {
                     id: "event_range:a:50".to_string(),
@@ -185,6 +187,7 @@ mod tests {
                     start_day: None,
                     end_month: None,
                     end_day: None,
+                    source_span: None,
                 },
             ],
             imports: vec![],
@@ -198,8 +201,8 @@ mod tests {
         let tdsl = decompile(&ir);
 
         let file = tdsl_parser::parse(&tdsl).expect("decompiled output must parse");
-        let ir2 = crate::lower::lower_static(&file)
-            .expect("decompiled output must lower without errors");
+        let ir2 =
+            crate::lower::lower_static(&file).expect("decompiled output must lower without errors");
 
         assert_eq!(ir2.meta.title, "Test Timeline");
         assert_eq!(ir2.meta.range, (-100, 500));
@@ -242,7 +245,13 @@ mod tests {
         let ir2 = crate::lower::lower_static(&file).unwrap();
 
         match &ir2.items[0] {
-            Item::Span { start, end, label, tags, .. } => {
+            Item::Span {
+                start,
+                end,
+                label,
+                tags,
+                ..
+            } => {
                 assert_eq!(*start, 0);
                 assert_eq!(*end, 200);
                 assert_eq!(label, "Span One");
@@ -251,7 +260,12 @@ mod tests {
             _ => panic!("expected span"),
         }
         match &ir2.items[1] {
-            Item::Event { time, label, source, .. } => {
+            Item::Event {
+                time,
+                label,
+                source,
+                ..
+            } => {
                 assert_eq!(*time, 100);
                 assert_eq!(label, "Event One");
                 assert_eq!(source.as_deref(), Some("wd:Q1"));
@@ -259,7 +273,13 @@ mod tests {
             _ => panic!("expected event"),
         }
         match &ir2.items[2] {
-            Item::EventRange { start, end, label, tags, .. } => {
+            Item::EventRange {
+                start,
+                end,
+                label,
+                tags,
+                ..
+            } => {
                 assert_eq!(*start, 50);
                 assert_eq!(*end, 150);
                 assert_eq!(label, "Range One");

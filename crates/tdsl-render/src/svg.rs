@@ -319,21 +319,59 @@ fn item_tags(item: &Item) -> &[String] {
 
 /// Build data-* attributes for interactive mode as a string fragment (leading space included).
 fn build_data_attrs(item: &Item, lane_id: &str) -> String {
-    let (label, type_str, source) = match item {
-        Item::Span { label, source, .. } => (label.as_str(), "span", source.as_deref()),
-        Item::Event { label, source, .. } => (label.as_str(), "event", source.as_deref()),
-        Item::EventRange { label, source, .. } => {
-            (label.as_str(), "event_range", source.as_deref())
-        }
+    let (id, label, type_str, source, source_span) = match item {
+        Item::Span {
+            id,
+            label,
+            source,
+            source_span,
+            ..
+        } => (
+            id.as_str(),
+            label.as_str(),
+            "span",
+            source.as_deref(),
+            source_span.as_ref(),
+        ),
+        Item::Event {
+            id,
+            label,
+            source,
+            source_span,
+            ..
+        } => (
+            id.as_str(),
+            label.as_str(),
+            "event",
+            source.as_deref(),
+            source_span.as_ref(),
+        ),
+        Item::EventRange {
+            id,
+            label,
+            source,
+            source_span,
+            ..
+        } => (
+            id.as_str(),
+            label.as_str(),
+            "event_range",
+            source.as_deref(),
+            source_span.as_ref(),
+        ),
     };
     let mut attrs = format!(
-        r#" data-label="{}" data-type="{}" data-lane="{}""#,
+        r#" data-id="{}" data-label="{}" data-type="{}" data-lane="{}""#,
+        escape_xml_attr(id),
         escape_xml_attr(label),
         type_str,
         escape_xml_attr(lane_id),
     );
     if let Some(src) = source {
         attrs.push_str(&format!(r#" data-source="{}""#, escape_xml_attr(src)));
+    }
+    if let Some(ss) = source_span {
+        attrs.push_str(&format!(r#" data-line="{}""#, ss.line));
     }
     attrs
 }
@@ -544,6 +582,7 @@ mod tests {
                     start_day: None,
                     end_month: None,
                     end_day: None,
+                    source_span: None,
                 },
                 Item::Event {
                     id: "event:han:-209".into(),
@@ -555,6 +594,7 @@ mod tests {
                     origin: None,
                     time_month: None,
                     time_day: None,
+                    source_span: None,
                 },
             ],
             imports: vec![],
@@ -638,6 +678,7 @@ mod tests {
                 origin: None,
                 time_month: Some(2),
                 time_day: None,
+                source_span: None,
             }],
             imports: vec![],
             sources: vec![],

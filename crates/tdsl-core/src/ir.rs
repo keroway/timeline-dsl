@@ -1,5 +1,17 @@
 use serde::{Deserialize, Serialize};
 
+/// DSL ソース内のアイテム定義位置（1-based 行番号・列番号）。
+/// `source_span` が付いていない場合はスキップして JSON に出力しない。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourceSpan {
+    /// 定義開始行（1-based）。
+    pub line: u32,
+    /// 定義開始列（1-based, バイト単位）。
+    pub col_start: u32,
+    /// 定義終了列（1-based, バイト単位）。`start` と同じ行の場合のみ有効。
+    pub col_end: u32,
+}
+
 /// `.tdsl` ファイルをコンパイルした結果の正規中間表現（JSON 直列化対象）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimelineIr {
@@ -72,6 +84,9 @@ pub enum Item {
         end_month: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         end_day: Option<u8>,
+        /// DSL ソース上の定義位置（双方向ジャンプ用）。
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_span: Option<SourceSpan>,
     },
     Event {
         id: String,
@@ -89,6 +104,9 @@ pub enum Item {
         time_month: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         time_day: Option<u8>,
+        /// DSL ソース上の定義位置（双方向ジャンプ用）。
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_span: Option<SourceSpan>,
     },
     EventRange {
         id: String,
@@ -111,6 +129,9 @@ pub enum Item {
         end_month: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         end_day: Option<u8>,
+        /// DSL ソース上の定義位置（双方向ジャンプ用）。
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_span: Option<SourceSpan>,
     },
 }
 
