@@ -1298,4 +1298,103 @@ mod tests {
         let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
         assert_eq!(ir.items.len(), 0);
     }
+
+    // ─── source_span regression tests ─────────────────────────────────────────
+
+    #[test]
+    fn lower_static_without_source_has_no_source_span() {
+        let src = r#"
+            timeline "T" { unit year; range 0..100; }
+            lane "A" as a { kind dynasty; }
+            span a 10..20 "S" {};
+            event a 15 "E" {};
+            event_range a 30..40 "R" {};
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        for item in &ir.items {
+            match item {
+                ir::Item::Span { source_span, .. } => assert!(source_span.is_none()),
+                ir::Item::Event { source_span, .. } => assert!(source_span.is_none()),
+                ir::Item::EventRange { source_span, .. } => assert!(source_span.is_none()),
+            }
+        }
+    }
+
+    #[test]
+    fn lower_static_with_source_sets_correct_line_numbers() {
+        // 各アイテム定義の行番号を検証する。
+        // line 1: timeline, line 2: lane, line 3: span, line 4: event, line 5: event_range
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..100; }\n",
+            "lane \"A\" as a { kind dynasty; }\n",
+            "span a 10..20 \"S\" {};\n",
+            "event a 15 \"E\" {};\n",
+            "event_range a 30..40 \"R\" {};\n",
+        );
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static_with_source(&file, Some(src)).unwrap();
+        assert_eq!(ir.items.len(), 3);
+        for item in &ir.items {
+            match item {
+                ir::Item::Span { source_span, label, .. } => {
+                    let ss = source_span.as_ref().expect("span should have source_span");
+                    assert_eq!(ss.line, 3, "span '{label}' expected line 3, got {}", ss.line);
+                }
+                ir::Item::Event { source_span, label, .. } => {
+                    let ss = source_span.as_ref().expect("event should have source_span");
+                    assert_eq!(ss.line, 4, "event '{label}' expected line 4, got {}", ss.line);
+                }
+                ir::Item::EventRange { source_span, label, .. } => {
+                    let ss = source_span.as_ref().expect("event_range should have source_span");
+                    assert_eq!(ss.line, 5, "event_range '{label}' expected line 5, got {}", ss.line);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn lower_static_with_source_span_col_start_is_one_based() {
+        // col_start は 1-based でインデント列を反映する。
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..100; }\n",
+            "lane \"A\" as a { kind dynasty; }\n",
+            "span a 1..2 \"S\" {};\n",
+        );
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static_with_source(&file, Some(src)).unwrap();
+        let span = ir.items.iter().find(|i| matches!(i, ir::Item::Span { .. })).unwrap();
+        if let ir::Item::Span { source_span, .. } = span {
+            let ss = source_span.as_ref().unwrap();
+            assert!(ss.col_start >= 1, "col_start should be ≥1, got {}", ss.col_start);
+            assert_eq!(ss.line, 3, "span should be on line 3, got {}", ss.line);
+        }
+    }
+
+    #[test]
+    fn lower_static_with_source_json_contains_source_span() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..100; }\n",
+            "lane \"A\" as a { kind dynasty; }\n",
+            "span a 1..2 \"S\" {};\n",
+        );
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static_with_source(&file, Some(src)).unwrap();
+        let json = serde_json::to_string(&ir).unwrap();
+        assert!(json.contains("source_span"), "JSON should contain 'source_span'");
+        assert!(json.contains("\"line\""), "JSON should contain 'line'");
+    }
+
+    #[test]
+    fn lower_static_json_omits_source_span_when_none() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..100; }\n",
+            "lane \"A\" as a { kind dynasty; }\n",
+            "span a 1..2 \"S\" {};\n",
+        );
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        let json = serde_json::to_string(&ir).unwrap();
+        assert!(!json.contains("source_span"), "JSON without source should omit 'source_span'");
+    }
 }
