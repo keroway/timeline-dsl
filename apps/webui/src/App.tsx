@@ -10,6 +10,7 @@ import { initWasm, renderSvg, renderHtml, checkSource } from './wasmLoader'
 import type { Diagnostic } from './wasmLoader'
 import { EXAMPLES } from './examples'
 import { GALLERY_EXAMPLES } from './gallery-meta'
+import { useToast } from './components/useToast'
 import './App.css'
 
 const SVG_EMBEDDED_CSS = `
@@ -61,13 +62,14 @@ function svgToPngBlob(svg: string, whiteBg: boolean): Promise<Blob> {
 const DEBOUNCE_MS = 500
 
 type ColorScheme = 'dark' | 'light'
+type ThemePreference = 'auto' | 'light' | 'dark'
 
 // ─── Settings & LocalStorage persistence ─────────────────────────────────────
 
 const SETTINGS_KEY = 'tdsl:settings'
 
 type Settings = {
-  theme: ColorScheme
+  theme: ThemePreference
   fontSize: number
   lineWrap: boolean
   scale: number
@@ -77,7 +79,7 @@ type Settings = {
 }
 
 const SETTINGS_DEFAULTS: Settings = {
-  theme: 'dark',
+  theme: 'auto',
   fontSize: 14,
   lineWrap: false,
   scale: 0,
@@ -90,10 +92,24 @@ function readSettings(): Settings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
     if (!raw) return SETTINGS_DEFAULTS
-    return { ...SETTINGS_DEFAULTS, ...JSON.parse(raw) }
+    const parsed = JSON.parse(raw) as Partial<Settings>
+    const merged: Settings = { ...SETTINGS_DEFAULTS, ...parsed }
+    if (merged.theme !== 'auto' && merged.theme !== 'light' && merged.theme !== 'dark') {
+      merged.theme = SETTINGS_DEFAULTS.theme
+    }
+    return merged
   } catch {
     return SETTINGS_DEFAULTS
   }
+}
+
+function detectSystemScheme(): ColorScheme {
+  if (typeof window === 'undefined' || !window.matchMedia) return 'dark'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function resolveColorScheme(pref: ThemePreference, systemScheme: ColorScheme): ColorScheme {
+  return pref === 'auto' ? systemScheme : pref
 }
 
 type LegendItem = { lane: string; label: string; color: string }
@@ -221,7 +237,10 @@ function App() {
   const [wasmReady, setWasmReady] = useState(false)
   const [wasmError, setWasmError] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings>(readSettings)
-  const { theme: colorScheme, fontSize, lineWrap, scale, pngWhiteBg } = settings
+  const { theme: themePref, fontSize, lineWrap, scale, pngWhiteBg } = settings
+  const [systemScheme, setSystemScheme] = useState<ColorScheme>(detectSystemScheme)
+  const colorScheme = resolveColorScheme(themePref, systemScheme)
+  const showToast = useToast()
   const [mobileTab, setMobileTab] = useState<MobileTab>('editor')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -231,7 +250,6 @@ function App() {
     setSettings((prev) => ({ ...prev, [key]: value }))
   }
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showGallery, setShowGallery] = useState(false)
@@ -274,6 +292,22 @@ function App() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
     } catch {/* quota exceeded or private browsing — ignore */}
   }, [settings])
+
+  // Track OS color-scheme preference so `auto` follows it live
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mql = window.matchMedia('(prefers-color-scheme: dark)')
+    function handleChange(e: MediaQueryListEvent) {
+      setSystemScheme(e.matches ? 'dark' : 'light')
+    }
+    if (mql.addEventListener) {
+      mql.addEventListener('change', handleChange)
+      return () => mql.removeEventListener('change', handleChange)
+    }
+    // Safari < 14 fallback
+    mql.addListener(handleChange)
+    return () => mql.removeListener(handleChange)
+  }, [])
 
   // Initialize WASM on mount
   useEffect(() => {
@@ -343,11 +377,6 @@ function App() {
     document.addEventListener('mousedown', onOutside)
     return () => document.removeEventListener('mousedown', onOutside)
   }, [exportMenuOpen])
-
-  function showCopyFeedback(msg: string) {
-    setCopyFeedback(msg)
-    setTimeout(() => setCopyFeedback(null), 2000)
-  }
 
   // Wheel zoom (passive:false required to call preventDefault)
   useEffect(() => {
@@ -475,29 +504,29 @@ function App() {
       a.download = 'timeline.png'
       a.click()
       URL.revokeObjectURL(url)
-    }).catch(() => {/* silently ignore */})
+    }).catch(() => showToast('PNG の生成に失敗しました', 'error'))
   }
 
   function copySvg() {
     if (!svgContent) return
     navigator.clipboard.writeText(svgContent)
-      .then(() => showCopyFeedback('SVG をコピーしました'))
-      .catch(() => {/* silently ignore */})
+      .then(() => showToast('SVG をコピーしました', 'success'))
+      .catch(() => showToast('SVG のコピーに失敗しました', 'error'))
   }
 
   function copyPng() {
     if (!svgContent) return
-    svgToPngBlob(svgContent, pngWhiteBg).then((blob) => {
-      return navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-    }).then(() => showCopyFeedback('PNG をコピーしました'))
-      .catch(() => {/* silently ignore */})
+    svgToPngBlob(svgContent, pngWhiteBg)
+      .then((blob) => navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]))
+      .then(() => showToast('PNG をコピーしました', 'success'))
+      .catch(() => showToast('PNG のコピーに失敗しました', 'error'))
   }
 
   function copyMarkdown() {
     const md = '```tdsl\n' + source + '\n```'
     navigator.clipboard.writeText(md)
-      .then(() => showCopyFeedback('Markdown をコピーしました'))
-      .catch(() => {/* silently ignore */})
+      .then(() => showToast('Markdown をコピーしました', 'success'))
+      .catch(() => showToast('Markdown のコピーに失敗しました', 'error'))
   }
 
   function downloadHtml() {
@@ -686,9 +715,6 @@ function App() {
               </div>
             )}
           </div>
-          {copyFeedback && (
-            <span className="copy-feedback">{copyFeedback}</span>
-          )}
           {/* 設定 */}
           <button
             className="btn"
@@ -927,18 +953,34 @@ function App() {
             <div className="settings-body">
               <div className="settings-section">
                 <div className="settings-label">テーマ</div>
-                <div className="settings-row">
+                <div className="settings-row" role="radiogroup" aria-label="テーマ">
                   <button
-                    className={`btn${colorScheme === 'dark' ? ' btn-active' : ''}`}
-                    onClick={() => updateSetting('theme', 'dark')}
+                    type="button"
+                    role="radio"
+                    aria-checked={themePref === 'auto'}
+                    className={`btn${themePref === 'auto' ? ' btn-active' : ''}`}
+                    onClick={() => updateSetting('theme', 'auto')}
+                    title={`OS の設定に追従（現在: ${systemScheme === 'dark' ? 'ダーク' : 'ライト'}）`}
                   >
-                    ダーク
+                    OS 追従
                   </button>
                   <button
-                    className={`btn${colorScheme === 'light' ? ' btn-active' : ''}`}
+                    type="button"
+                    role="radio"
+                    aria-checked={themePref === 'light'}
+                    className={`btn${themePref === 'light' ? ' btn-active' : ''}`}
                     onClick={() => updateSetting('theme', 'light')}
                   >
                     ライト
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={themePref === 'dark'}
+                    className={`btn${themePref === 'dark' ? ' btn-active' : ''}`}
+                    onClick={() => updateSetting('theme', 'dark')}
+                  >
+                    ダーク
                   </button>
                 </div>
               </div>
