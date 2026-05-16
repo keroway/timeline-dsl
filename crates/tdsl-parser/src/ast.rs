@@ -45,11 +45,71 @@ pub struct TimelineBlock {
     pub color_map: Vec<(String, String)>,
 }
 
+/// 時刻リテラル。年・月・日の3精度を保持する。
+///
+/// `Year(y)` は `YYYY` または `-YYYY`（紀元前）、
+/// `YearMonth(y, m)` は `YYYY-MM`、
+/// `Date(y, m, d)` は `YYYY-MM-DD` に対応する。
+/// 紀元前（負の年）は文法上 year 精度のみ許容される（仕様書 §1.3）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimeValue {
+    Year(i64),
+    YearMonth(i64, u8),
+    Date(i64, u8, u8),
+}
+
+impl TimeValue {
+    /// 年部分のみ取り出す（month/day 精度の情報は失われる）。
+    pub fn year(&self) -> i64 {
+        match self {
+            TimeValue::Year(y) => *y,
+            TimeValue::YearMonth(y, _) => *y,
+            TimeValue::Date(y, _, _) => *y,
+        }
+    }
+
+    pub fn month(&self) -> Option<u8> {
+        match self {
+            TimeValue::Year(_) => None,
+            TimeValue::YearMonth(_, m) => Some(*m),
+            TimeValue::Date(_, m, _) => Some(*m),
+        }
+    }
+
+    pub fn day(&self) -> Option<u8> {
+        match self {
+            TimeValue::Year(_) | TimeValue::YearMonth(_, _) => None,
+            TimeValue::Date(_, _, d) => Some(*d),
+        }
+    }
+
+    /// 比較用のタプル `(year, month_or_0, day_or_0)`。
+    /// `Eq` の意味（精度の違いを保持）と整合させるため、`PartialOrd` 実装には依らず
+    /// 呼び出し側でこの関数を使って明示的にタプル順序で比較する。
+    pub fn to_sortable(&self) -> (i64, u8, u8) {
+        match self {
+            TimeValue::Year(y) => (*y, 0, 0),
+            TimeValue::YearMonth(y, m) => (*y, *m, 0),
+            TimeValue::Date(y, m, d) => (*y, *m, *d),
+        }
+    }
+}
+
+impl std::fmt::Display for TimeValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TimeValue::Year(y) => write!(f, "{y}"),
+            TimeValue::YearMonth(y, m) => write!(f, "{y:04}-{m:02}"),
+            TimeValue::Date(y, m, d) => write!(f, "{y:04}-{m:02}-{d:02}"),
+        }
+    }
+}
+
 /// `start..end` 形式の時間範囲式。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RangeExpr {
-    pub start: i64,
-    pub end: i64,
+    pub start: TimeValue,
+    pub end: TimeValue,
 }
 
 // ─── Lane ───────────────────────────────────────────────────
@@ -69,8 +129,8 @@ pub struct LaneDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpanDecl {
     pub lane_ref: String,
-    pub start: i64,
-    pub end: i64,
+    pub start: TimeValue,
+    pub end: TimeValue,
     pub label: String,
     pub props: ItemProps,
 }
@@ -79,7 +139,7 @@ pub struct SpanDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventDecl {
     pub lane_ref: String,
-    pub time: i64,
+    pub time: TimeValue,
     pub label: String,
     pub props: ItemProps,
 }
@@ -88,8 +148,8 @@ pub struct EventDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventRangeDecl {
     pub lane_ref: String,
-    pub start: i64,
-    pub end: i64,
+    pub start: TimeValue,
+    pub end: TimeValue,
     pub label: String,
     pub props: ItemProps,
 }
@@ -125,10 +185,7 @@ pub struct ImportBlock {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ImportItem {
     /// `entity QXXX as alias` — 単一エンティティのインポート。
-    Entity {
-        qid: String,
-        alias: Option<String>,
-    },
+    Entity { qid: String, alias: Option<String> },
     /// `query "SPARQL" as alias` — SPARQL クエリで複数エンティティを一括インポート。
     Query {
         query: String,

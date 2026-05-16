@@ -24,16 +24,18 @@ Timeline DSL の時刻値は当初「整数の年」のみを受け付けてい�
 ### 1.2 PEG ルール（実装ガイド）
 
 ```pest
-year       = @{ "-"? ~ ASCII_DIGIT{1,4} }      // 既存
-year_pos   = @{ ASCII_DIGIT{1,4} }              // 月日付きでは符号なし
-year_month = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} }
-date       = ${ year_month ~ "-" ~ ASCII_DIGIT{2} }
-time_value = { date | year_month | year }       // 長いものから優先
+year_lit       = @{ "-"? ~ ASCII_DIGIT+ }                       // year 精度: 桁数制限なし
+year_pos       = @{ ASCII_DIGIT{1,4} }                          // 月日付きでは符号なし・最大4桁
+year_month_lit = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ !("-" ~ ASCII_DIGIT) }
+date_lit       = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} }
+time_value     = { date_lit | year_month_lit | year_lit }       // 長いものから優先
 ```
 
 - `${ }`（atomic）でトークン間の空白を許可しないことで、`1969 - 07 - 20` のような誤マッチを防ぐ
 - 検証は builder 側で実施: 月は 1〜12、日は 1〜31。範囲外はパースエラー
 - カレンダー妥当性チェック（2月30日など）は lowering 側の責務（lint で警告／エラー）
+- `year_lit` は桁数制限を設けない: 既存 `range 0..10000;` のような4桁超リテラルを後方互換で許容するため。月日精度の `year_pos` のみ最大 4 桁に制限する（`10000-07-20` のような5桁年付き日付はサポート外）。
+- `year_month_lit` の末尾には `!("-" ~ ASCII_DIGIT)` を置き、`date_lit` との曖昧性を回避する
 
 ### 1.3 紀元前（負の年）
 

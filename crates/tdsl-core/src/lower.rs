@@ -158,7 +158,10 @@ impl LoweringContext {
                     self.meta = Some(Meta {
                         title: t.title.clone().unwrap_or_else(|| t.name.clone()),
                         unit: t.unit.clone().unwrap_or_else(|| "year".to_string()),
-                        range: t.range.as_ref().map_or((0, 2000), |r| (r.start, r.end)),
+                        range: t
+                            .range
+                            .as_ref()
+                            .map_or((0, 2000), |r| (r.start.year(), r.end.year())),
                         calendar: t
                             .calendar
                             .clone()
@@ -221,7 +224,7 @@ impl LoweringContext {
                         .props
                         .id
                         .clone()
-                        .unwrap_or_else(|| format!("span:{}:{}", s.lane_ref, s.start));
+                        .unwrap_or_else(|| format!("span:{}:{}", s.lane_ref, s.start.year()));
                     if !self.register_static_id(&id) {
                         continue;
                     }
@@ -238,8 +241,8 @@ impl LoweringContext {
                     self.items.push(Item::Span {
                         id,
                         lane: s.lane_ref.clone(),
-                        start: s.start,
-                        end: s.end,
+                        start: s.start.year(),
+                        end: s.end.year(),
                         label: s.label.clone(),
                         tags: s.props.tags.clone(),
                         source: source_str(&s.props.source),
@@ -261,7 +264,7 @@ impl LoweringContext {
                         .props
                         .id
                         .clone()
-                        .unwrap_or_else(|| format!("event:{}:{}", e.lane_ref, e.time));
+                        .unwrap_or_else(|| format!("event:{}:{}", e.lane_ref, e.time.year()));
                     if !self.register_static_id(&id) {
                         continue;
                     }
@@ -278,7 +281,7 @@ impl LoweringContext {
                     self.items.push(Item::Event {
                         id,
                         lane: e.lane_ref.clone(),
-                        time: e.time,
+                        time: e.time.year(),
                         label: e.label.clone(),
                         tags: e.props.tags.clone(),
                         source: source_str(&e.props.source),
@@ -294,11 +297,9 @@ impl LoweringContext {
                         self.errors.push(err);
                         continue;
                     }
-                    let id = er
-                        .props
-                        .id
-                        .clone()
-                        .unwrap_or_else(|| format!("event_range:{}:{}", er.lane_ref, er.start));
+                    let id = er.props.id.clone().unwrap_or_else(|| {
+                        format!("event_range:{}:{}", er.lane_ref, er.start.year())
+                    });
                     if !self.register_static_id(&id) {
                         continue;
                     }
@@ -315,8 +316,8 @@ impl LoweringContext {
                     self.items.push(Item::EventRange {
                         id,
                         lane: er.lane_ref.clone(),
-                        start: er.start,
-                        end: er.end,
+                        start: er.start.year(),
+                        end: er.end.year(),
                         label: er.label.clone(),
                         tags: er.props.tags.clone(),
                         source: source_str(&er.props.source),

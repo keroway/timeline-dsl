@@ -24,7 +24,7 @@ timeline_prop = _{
 }
 title_prop      = { "title" ~ string_literal ~ ";" }
 unit_prop       = { "unit" ~ ident ~ ";" }
-range_prop      = { "range" ~ integer ~ ".." ~ integer ~ ";" }
+range_prop      = { "range" ~ time_value ~ ".." ~ time_value ~ ";" }
 calendar_prop   = { "calendar" ~ ident ~ ";" }
 color_map_block = { "color_map" ~ "{" ~ color_map_entry* ~ "}" }
 color_map_entry = { ident ~ ":" ~ string_literal ~ ";" }
@@ -42,17 +42,17 @@ order_prop = { "order" ~ integer ~ ";" }
 
 // ─── Span Declaration ───────────────────────────────────────
 span_decl = {
-    "span" ~ ident ~ integer ~ ".." ~ integer ~ string_literal ~ block_options ~ ";"
+    "span" ~ ident ~ time_value ~ ".." ~ time_value ~ string_literal ~ block_options ~ ";"
 }
 
 // ─── Event Declaration ──────────────────────────────────────
 event_decl = {
-    "event" ~ ident ~ integer ~ string_literal ~ block_options ~ ";"
+    "event" ~ ident ~ time_value ~ string_literal ~ block_options ~ ";"
 }
 
 // ─── Event Range Declaration ────────────────────────────────
 event_range_decl = {
-    "event_range" ~ ident ~ integer ~ ".." ~ integer ~ string_literal ~ block_options ~ ";"
+    "event_range" ~ ident ~ time_value ~ ".." ~ time_value ~ string_literal ~ block_options ~ ";"
 }
 
 // ─── Block Options (shared by span/event/event_range) ───────
@@ -147,6 +147,15 @@ label_ref  = ${ "label" ~ "@" ~ ident }
 integer        = @{ "-"? ~ ASCII_DIGIT+ }
 qid            = @{ "Q" ~ ASCII_DIGIT+ }
 property_id    = @{ "P" ~ ASCII_DIGIT+ }
+
+// time literal: YYYY-MM-DD / YYYY-MM / YYYY[Y...] (negative years allowed only at year precision)
+// year_pos は YYYY-MM 形式専用なので 4 桁まで（仕様 §1.2）。
+// year_lit は桁数制限なし（後方互換: 既存の `range 0..10000;` 等を許容するため）。
+year_pos       = @{ ASCII_DIGIT{1,4} }
+year_lit       = @{ "-"? ~ ASCII_DIGIT+ }
+year_month_lit = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ !("-" ~ ASCII_DIGIT) }
+date_lit       = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} }
+time_value     = { date_lit | year_month_lit | year_lit }
 ident          = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
 dotted_ident   = @{ ident ~ ("." ~ ident)+ }
 source_ref     = ${ ident ~ ":" ~ qid }

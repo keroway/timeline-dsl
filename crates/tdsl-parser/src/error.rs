@@ -16,4 +16,10 @@ pub enum ParseError {
 
     #[error("Unexpected rule {rule} at {location}")]
     UnexpectedRule { rule: String, location: String },
+
+    #[error("Invalid month at {location}: {value} (expected 1-12)")]
+    InvalidMonth { value: u32, location: String },
+
+    #[error("Invalid day at {location}: {value} (expected 1-31)")]
+    InvalidDay { value: u32, location: String },
 }

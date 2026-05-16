@@ -108,8 +108,8 @@ fn build_timeline(pair: Pair<'_, Rule>) -> Result<TimelineBlock> {
             }
             Rule::range_prop => {
                 let mut nums = prop.into_inner();
-                let start = parse_int(&nums.next().unwrap())?;
-                let end = parse_int(&nums.next().unwrap())?;
+                let start = parse_time_value(nums.next().unwrap())?;
+                let end = parse_time_value(nums.next().unwrap())?;
                 block.range = Some(RangeExpr { start, end });
             }
             Rule::calendar_prop => {
@@ -164,8 +164,8 @@ fn build_lane(pair: Pair<'_, Rule>) -> Result<LaneDecl> {
 fn build_span(pair: Pair<'_, Rule>) -> Result<SpanDecl> {
     let mut inner = pair.into_inner();
     let lane_ref = inner.next().unwrap().as_str().to_string();
-    let start = parse_int(&inner.next().unwrap())?;
-    let end = parse_int(&inner.next().unwrap())?;
+    let start = parse_time_value(inner.next().unwrap())?;
+    let end = parse_time_value(inner.next().unwrap())?;
     let label = extract_string_literal(&inner.next().unwrap());
     let props = build_block_options(inner.next().unwrap())?;
 
@@ -183,7 +183,7 @@ fn build_span(pair: Pair<'_, Rule>) -> Result<SpanDecl> {
 fn build_event(pair: Pair<'_, Rule>) -> Result<EventDecl> {
     let mut inner = pair.into_inner();
     let lane_ref = inner.next().unwrap().as_str().to_string();
-    let time = parse_int(&inner.next().unwrap())?;
+    let time = parse_time_value(inner.next().unwrap())?;
     let label = extract_string_literal(&inner.next().unwrap());
     let props = build_block_options(inner.next().unwrap())?;
 
@@ -200,8 +200,8 @@ fn build_event(pair: Pair<'_, Rule>) -> Result<EventDecl> {
 fn build_event_range(pair: Pair<'_, Rule>) -> Result<EventRangeDecl> {
     let mut inner = pair.into_inner();
     let lane_ref = inner.next().unwrap().as_str().to_string();
-    let start = parse_int(&inner.next().unwrap())?;
-    let end = parse_int(&inner.next().unwrap())?;
+    let start = parse_time_value(inner.next().unwrap())?;
+    let end = parse_time_value(inner.next().unwrap())?;
     let label = extract_string_literal(&inner.next().unwrap());
     let props = build_block_options(inner.next().unwrap())?;
 
@@ -578,7 +578,10 @@ fn extract_string_literal(pair: &Pair<'_, Rule>) -> String {
             match chars.next() {
                 Some('"') => out.push('"'),
                 Some('\\') => out.push('\\'),
-                Some(c) => { out.push('\\'); out.push(c); }
+                Some(c) => {
+                    out.push('\\');
+                    out.push(c);
+                }
                 None => out.push('\\'),
             }
         } else {
@@ -610,6 +613,110 @@ fn parse_int(pair: &Pair<'_, Rule>) -> Result<i64> {
             value: pair.as_str().to_string(),
             location: format!("{}:{}", pair.as_span().start(), pair.as_span().end()),
         })
+}
+
+/// `time_value` ノードを [`TimeValue`] に変換する。
+///
+/// PEG ルールは `date_lit | year_month_lit | year_lit` の順に試行され、
+/// 月は 1〜12、日は 1〜31 の範囲を builder 側で検証する。
+/// カレンダー妥当性（2月30日など）は lowering 側の責務。
+fn parse_time_value(pair: Pair<'_, Rule>) -> Result<TimeValue> {
+    let location = pair_location_str(&pair);
+    let inner = pair
+        .into_inner()
+        .next()
+        .ok_or_else(|| ParseError::UnexpectedRule {
+            rule: "time_value: empty inner".to_string(),
+            location: location.clone(),
+        })?;
+    match inner.as_rule() {
+        Rule::year_lit => {
+            let year = inner
+                .as_str()
+                .parse::<i64>()
+                .map_err(|_| ParseError::InvalidInt {
+                    value: inner.as_str().to_string(),
+                    location: location.clone(),
+                })?;
+            Ok(TimeValue::Year(year))
+        }
+        Rule::year_month_lit => {
+            let s = inner.as_str();
+            let (y, m) = s
+                .split_once('-')
+                .ok_or_else(|| ParseError::UnexpectedRule {
+                    rule: format!("year_month_lit malformed: {s}"),
+                    location: location.clone(),
+                })?;
+            let year = y.parse::<i64>().map_err(|_| ParseError::InvalidInt {
+                value: y.to_string(),
+                location: location.clone(),
+            })?;
+            let month: u32 = m.parse().map_err(|_| ParseError::InvalidInt {
+                value: m.to_string(),
+                location: location.clone(),
+            })?;
+            check_month(month, &location)?;
+            Ok(TimeValue::YearMonth(year, month as u8))
+        }
+        Rule::date_lit => {
+            let s = inner.as_str();
+            let mut parts = s.splitn(3, '-');
+            let y = parts.next().ok_or_else(|| ParseError::UnexpectedRule {
+                rule: format!("date_lit malformed: {s}"),
+                location: location.clone(),
+            })?;
+            let m = parts.next().ok_or_else(|| ParseError::UnexpectedRule {
+                rule: format!("date_lit malformed: {s}"),
+                location: location.clone(),
+            })?;
+            let d = parts.next().ok_or_else(|| ParseError::UnexpectedRule {
+                rule: format!("date_lit malformed: {s}"),
+                location: location.clone(),
+            })?;
+            let year = y.parse::<i64>().map_err(|_| ParseError::InvalidInt {
+                value: y.to_string(),
+                location: location.clone(),
+            })?;
+            let month: u32 = m.parse().map_err(|_| ParseError::InvalidInt {
+                value: m.to_string(),
+                location: location.clone(),
+            })?;
+            let day: u32 = d.parse().map_err(|_| ParseError::InvalidInt {
+                value: d.to_string(),
+                location: location.clone(),
+            })?;
+            check_month(month, &location)?;
+            check_day(day, &location)?;
+            Ok(TimeValue::Date(year, month as u8, day as u8))
+        }
+        other => Err(ParseError::UnexpectedRule {
+            rule: format!("time_value: {other:?}"),
+            location,
+        }),
+    }
+}
+
+fn check_month(month: u32, location: &str) -> Result<()> {
+    if (1..=12).contains(&month) {
+        Ok(())
+    } else {
+        Err(ParseError::InvalidMonth {
+            value: month,
+            location: location.to_string(),
+        })
+    }
+}
+
+fn check_day(day: u32, location: &str) -> Result<()> {
+    if (1..=31).contains(&day) {
+        Ok(())
+    } else {
+        Err(ParseError::InvalidDay {
+            value: day,
+            location: location.to_string(),
+        })
+    }
 }
 
 fn pair_span(pair: &Pair<'_, Rule>) -> Span {
