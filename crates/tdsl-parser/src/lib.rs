@@ -774,6 +774,37 @@ mod tests {
     }
 
     #[test]
+    fn parse_five_digit_year_still_works() {
+        // 後方互換: bench / 既存テストで使われている 5 桁以上の年が引き続き year_lit でマッチすること
+        let src = r#"timeline "T" { unit year; range 0..10000; }"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Timeline(t) => {
+                assert_eq!(
+                    t.range,
+                    Some(ast::RangeExpr {
+                        start: ast::TimeValue::Year(0),
+                        end: ast::TimeValue::Year(10000),
+                    })
+                );
+            }
+            _ => panic!("expected Timeline"),
+        }
+    }
+
+    #[test]
+    fn parse_six_digit_year_in_event() {
+        let src = r#"event ancient 100000 "未来" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Event(e) => {
+                assert_eq!(e.time, ast::TimeValue::Year(100000));
+            }
+            _ => panic!("expected Event"),
+        }
+    }
+
+    #[test]
     fn test_field_priority_policy_parse() {
         let src = r#"
             import wikidata as wd {

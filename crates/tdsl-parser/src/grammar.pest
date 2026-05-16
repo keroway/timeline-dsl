@@ -148,9 +148,11 @@ integer        = @{ "-"? ~ ASCII_DIGIT+ }
 qid            = @{ "Q" ~ ASCII_DIGIT+ }
 property_id    = @{ "P" ~ ASCII_DIGIT+ }
 
-// time literal: YYYY-MM-DD / YYYY-MM / YYYY (negative years allowed only at year precision)
+// time literal: YYYY-MM-DD / YYYY-MM / YYYY[Y...] (negative years allowed only at year precision)
+// year_pos は YYYY-MM 形式専用なので 4 桁まで（仕様 §1.2）。
+// year_lit は桁数制限なし（後方互換: 既存の `range 0..10000;` 等を許容するため）。
 year_pos       = @{ ASCII_DIGIT{1,4} }
-year_lit       = @{ "-"? ~ ASCII_DIGIT{1,4} }
+year_lit       = @{ "-"? ~ ASCII_DIGIT+ }
 year_month_lit = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ !("-" ~ ASCII_DIGIT) }
 date_lit       = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} }
 time_value     = { date_lit | year_month_lit | year_lit }
