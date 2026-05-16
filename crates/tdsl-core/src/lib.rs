@@ -209,6 +209,280 @@ mod tests {
         assert_eq!(ir2.items.len(), 1);
     }
 
+    // ─── 月日精度の lowering / 補完ヘルパ (#247) ─────────────────────────
+
+    #[test]
+    fn lower_static_event_with_date_precision() {
+        let src = r#"
+            timeline "T" { title "T"; unit day; range 1969-07-01..1969-07-31; }
+            lane "A" as a { kind custom; order 1; }
+            event a 1969-07-20 "月面着陸" {};
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        match &ir.items[0] {
+            ir::Item::Event {
+                time,
+                time_month,
+                time_day,
+                ..
+            } => {
+                assert_eq!(*time, 1969);
+                assert_eq!(*time_month, Some(7));
+                assert_eq!(*time_day, Some(20));
+            }
+            _ => panic!("expected event"),
+        }
+    }
+
+    #[test]
+    fn lower_static_span_with_date_precision() {
+        let src = r#"
+            timeline "T" { title "T"; unit month; range 1939-09-01..1945-09-30; }
+            lane "war" as war { kind custom; order 1; }
+            span war 1939-09-01..1945-09-02 "WW2" {};
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        match &ir.items[0] {
+            ir::Item::Span {
+                start,
+                end,
+                start_month,
+                start_day,
+                end_month,
+                end_day,
+                ..
+            } => {
+                assert_eq!(*start, 1939);
+                assert_eq!(*start_month, Some(9));
+                assert_eq!(*start_day, Some(1));
+                assert_eq!(*end, 1945);
+                assert_eq!(*end_month, Some(9));
+                assert_eq!(*end_day, Some(2));
+            }
+            _ => panic!("expected span"),
+        }
+    }
+
+    #[test]
+    fn lower_static_event_range_with_year_month() {
+        let src = r#"
+            timeline "T" { title "T"; unit month; range 1939-09..1945-09; }
+            lane "war" as war { kind custom; order 1; }
+            event_range war 1939-09..1945-09 "WW2" {};
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        match &ir.items[0] {
+            ir::Item::EventRange {
+                start,
+                end,
+                start_month,
+                start_day,
+                end_month,
+                end_day,
+                ..
+            } => {
+                assert_eq!(*start, 1939);
+                assert_eq!(*start_month, Some(9));
+                assert!(start_day.is_none());
+                assert_eq!(*end, 1945);
+                assert_eq!(*end_month, Some(9));
+                assert!(end_day.is_none());
+            }
+            _ => panic!("expected event_range"),
+        }
+    }
+
+    #[test]
+    fn lower_meta_range_keeps_precision() {
+        let src = r#"
+            timeline "T" { title "T"; unit month; range 1939-09..1945-09; }
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        assert_eq!(ir.meta.range, (1939, 1945));
+        assert_eq!(ir.meta.range_start_month, Some(9));
+        assert!(ir.meta.range_start_day.is_none());
+        assert_eq!(ir.meta.range_end_month, Some(9));
+        assert!(ir.meta.range_end_day.is_none());
+    }
+
+    #[test]
+    fn lower_static_mixed_precision_range() {
+        // 仕様 §1.4: 範囲の片端が year、もう片端が date の混在
+        let src = r#"
+            timeline "T" { title "T"; unit year; range 1900..2000; }
+            lane "x" as x { kind custom; order 1; }
+            span x 1900..1969-07-20 "Mixed" {};
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        match &ir.items[0] {
+            ir::Item::Span {
+                start,
+                end,
+                start_month,
+                end_month,
+                end_day,
+                ..
+            } => {
+                assert_eq!(*start, 1900);
+                assert!(start_month.is_none());
+                assert_eq!(*end, 1969);
+                assert_eq!(*end_month, Some(7));
+                assert_eq!(*end_day, Some(20));
+            }
+            _ => panic!("expected span"),
+        }
+    }
+
+    #[test]
+    fn lower_meta_range_year_only_no_precision_fields() {
+        // 後方互換: year のみの range では新フィールドはすべて None
+        let src = r#"
+            timeline "T" { title "T"; unit year; range -500..2000; }
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        assert_eq!(ir.meta.range, (-500, 2000));
+        assert!(ir.meta.range_start_month.is_none());
+        assert!(ir.meta.range_start_day.is_none());
+        assert!(ir.meta.range_end_month.is_none());
+        assert!(ir.meta.range_end_day.is_none());
+
+        // JSON 出力に precision フィールドが現れないこと
+        let json = serde_json::to_string(&ir).unwrap();
+        assert!(!json.contains("range_start_month"));
+        assert!(!json.contains("range_end_month"));
+    }
+
+    #[test]
+    fn ir_start_frac_year_only_uses_jan_first() {
+        assert!((ir::start_frac(1939, None, None) - 1939.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ir_end_frac_year_only_uses_year_end() {
+        // 1939-12-31 → 1939 + 11/12 + 30/365.25
+        let v = ir::end_frac(1939, None, None);
+        let expected = 1939.0 + 11.0 / 12.0 + 30.0 / 365.25;
+        assert!(
+            (v - expected).abs() < 1e-9,
+            "end_frac year-only: got {v}, expected {expected}"
+        );
+    }
+
+    #[test]
+    fn ir_end_frac_year_month_uses_month_end() {
+        // 1939-02 → 1939 + 1/12 + 27/365.25（1939は非うるう年で28日）
+        let v = ir::end_frac(1939, Some(2), None);
+        let expected = 1939.0 + 1.0 / 12.0 + 27.0 / 365.25;
+        assert!((v - expected).abs() < 1e-9);
+
+        // 1940-02 → うるう年の29日
+        let v = ir::end_frac(1940, Some(2), None);
+        let expected = 1940.0 + 1.0 / 12.0 + 28.0 / 365.25;
+        assert!((v - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ir_days_in_month_examples() {
+        assert_eq!(ir::days_in_month(2024, 2), 29); // うるう年
+        assert_eq!(ir::days_in_month(2025, 2), 28);
+        assert_eq!(ir::days_in_month(2000, 2), 29); // 400 で割り切れる
+        assert_eq!(ir::days_in_month(1900, 2), 28); // 100 で割り切れるが 400 で割れない
+        assert_eq!(ir::days_in_month(2025, 4), 30);
+        assert_eq!(ir::days_in_month(2025, 12), 31);
+    }
+
+    #[test]
+    fn decompile_round_trip_with_date_precision() {
+        let src = r#"timeline "T" {
+    title "T";
+    unit day;
+    range 1969-07-01..1969-07-31;
+}
+
+lane "A" as a { kind custom; order 1; }
+
+event a 1969-07-20 "月面着陸" { id "event:a:1969"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        let regenerated = decompile::decompile(&ir);
+
+        // 月日精度が保たれていること
+        assert!(
+            regenerated.contains("1969-07-20"),
+            "expected date literal, got:\n{regenerated}"
+        );
+
+        // 再パース可能であること（roundtrip）
+        let reparsed = tdsl_parser::parse(&regenerated);
+        assert!(
+            reparsed.is_ok(),
+            "decompiled output must reparse: {regenerated}\nerror: {:?}",
+            reparsed.err()
+        );
+    }
+
+    #[test]
+    fn decompile_round_trip_with_year_month_range() {
+        let src = r#"timeline "T" {
+    title "T";
+    unit month;
+    range 1939-09..1945-09;
+}
+
+lane "war" as war { kind custom; order 1; }
+
+event_range war 1939-09..1945-09 "WW2" { id "event_range:war:1939"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        let regenerated = decompile::decompile(&ir);
+
+        assert!(
+            regenerated.contains("range 1939-09..1945-09"),
+            "expected year-month range, got:\n{regenerated}"
+        );
+        assert!(
+            regenerated.contains("1939-09..1945-09"),
+            "expected event_range with year-month, got:\n{regenerated}"
+        );
+
+        let reparsed = tdsl_parser::parse(&regenerated);
+        assert!(reparsed.is_ok(), "{:?}", reparsed.err());
+    }
+
+    #[test]
+    fn lower_bc_year_does_not_keep_month_day_from_static() {
+        // 仕様 §1.3: 紀元前 (-206) は parser 段階で year 精度のみ。
+        // 静的 lowering でも year 精度として落とされること。
+        let src = r#"
+            timeline "T" { title "T"; unit year; range -300..0; }
+            lane "qin" as qin { kind dynasty; order 1; }
+            event qin -206 "始皇帝崩御" {};
+        "#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        match &ir.items[0] {
+            ir::Item::Event {
+                time,
+                time_month,
+                time_day,
+                ..
+            } => {
+                assert_eq!(*time, -206);
+                assert!(time_month.is_none());
+                assert!(time_day.is_none());
+            }
+            _ => panic!("expected event"),
+        }
+    }
+
     #[test]
     fn validate_warns_on_bad_range() {
         let ir = ir::TimelineIr {
@@ -218,6 +492,7 @@ mod tests {
                 range: (100, 0),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![],
             items: vec![],
@@ -237,6 +512,7 @@ mod tests {
                 range: (0, 1000),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![ir::Lane {
                 id: "a".into(),
@@ -280,6 +556,7 @@ mod tests {
                 range: (0, 1000),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![ir::Lane {
                 id: "a".into(),
@@ -323,6 +600,7 @@ mod tests {
                 range: (0, 1000),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![ir::Lane {
                 id: "a".into(),
@@ -1337,17 +1615,37 @@ mod tests {
         assert_eq!(ir.items.len(), 3);
         for item in &ir.items {
             match item {
-                ir::Item::Span { source_span, label, .. } => {
+                ir::Item::Span {
+                    source_span, label, ..
+                } => {
                     let ss = source_span.as_ref().expect("span should have source_span");
-                    assert_eq!(ss.line, 3, "span '{label}' expected line 3, got {}", ss.line);
+                    assert_eq!(
+                        ss.line, 3,
+                        "span '{label}' expected line 3, got {}",
+                        ss.line
+                    );
                 }
-                ir::Item::Event { source_span, label, .. } => {
+                ir::Item::Event {
+                    source_span, label, ..
+                } => {
                     let ss = source_span.as_ref().expect("event should have source_span");
-                    assert_eq!(ss.line, 4, "event '{label}' expected line 4, got {}", ss.line);
+                    assert_eq!(
+                        ss.line, 4,
+                        "event '{label}' expected line 4, got {}",
+                        ss.line
+                    );
                 }
-                ir::Item::EventRange { source_span, label, .. } => {
-                    let ss = source_span.as_ref().expect("event_range should have source_span");
-                    assert_eq!(ss.line, 5, "event_range '{label}' expected line 5, got {}", ss.line);
+                ir::Item::EventRange {
+                    source_span, label, ..
+                } => {
+                    let ss = source_span
+                        .as_ref()
+                        .expect("event_range should have source_span");
+                    assert_eq!(
+                        ss.line, 5,
+                        "event_range '{label}' expected line 5, got {}",
+                        ss.line
+                    );
                 }
             }
         }
@@ -1363,10 +1661,18 @@ mod tests {
         );
         let file = tdsl_parser::parse(src).unwrap();
         let ir = lower::lower_static_with_source(&file, Some(src)).unwrap();
-        let span = ir.items.iter().find(|i| matches!(i, ir::Item::Span { .. })).unwrap();
+        let span = ir
+            .items
+            .iter()
+            .find(|i| matches!(i, ir::Item::Span { .. }))
+            .unwrap();
         if let ir::Item::Span { source_span, .. } = span {
             let ss = source_span.as_ref().unwrap();
-            assert!(ss.col_start >= 1, "col_start should be ≥1, got {}", ss.col_start);
+            assert!(
+                ss.col_start >= 1,
+                "col_start should be ≥1, got {}",
+                ss.col_start
+            );
             assert_eq!(ss.line, 3, "span should be on line 3, got {}", ss.line);
         }
     }
@@ -1381,7 +1687,10 @@ mod tests {
         let file = tdsl_parser::parse(src).unwrap();
         let ir = lower::lower_static_with_source(&file, Some(src)).unwrap();
         let json = serde_json::to_string(&ir).unwrap();
-        assert!(json.contains("source_span"), "JSON should contain 'source_span'");
+        assert!(
+            json.contains("source_span"),
+            "JSON should contain 'source_span'"
+        );
         assert!(json.contains("\"line\""), "JSON should contain 'line'");
     }
 
@@ -1395,6 +1704,9 @@ mod tests {
         let file = tdsl_parser::parse(src).unwrap();
         let ir = lower::lower_static(&file).unwrap();
         let json = serde_json::to_string(&ir).unwrap();
-        assert!(!json.contains("source_span"), "JSON without source should omit 'source_span'");
+        assert!(
+            !json.contains("source_span"),
+            "JSON without source should omit 'source_span'"
+        );
     }
 }

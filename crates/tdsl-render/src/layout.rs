@@ -369,6 +369,7 @@ mod tests {
             range,
             calendar: "proleptic_gregorian".into(),
             color_map: std::collections::HashMap::new(),
+            ..Default::default()
         }
     }
 

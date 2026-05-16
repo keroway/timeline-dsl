@@ -30,14 +30,26 @@ pub struct TimelineIr {
 }
 
 /// 年表のメタデータ。`timeline` ブロックの属性に対応する。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Meta {
     /// 年表の表示タイトル。
     pub title: String,
     /// 時間軸の単位（通常 `"year"`）。
     pub unit: String,
-    /// 表示範囲 `(start, end)`（単位は `unit` に準ずる）。
+    /// 表示範囲 `(start, end)`（年に丸めた値。月日精度は下の `range_*_month/_day` で保持）。
     pub range: (i64, i64),
+    /// `range` start の月精度（`range 1939-09..1945-09` のような場合のみ Some）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_start_month: Option<u8>,
+    /// `range` start の日精度。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_start_day: Option<u8>,
+    /// `range` end の月精度。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_end_month: Option<u8>,
+    /// `range` end の日精度。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_end_day: Option<u8>,
     /// 使用するカレンダー体系（例: `"proleptic_gregorian"`）。
     pub calendar: String,
     /// タグ→CSS カラー文字列のマッピング（`color_map` ブロックで宣言）。
@@ -155,4 +167,46 @@ pub struct SourceRecord {
     pub provider: String,
     /// ライセンス識別子（例: `"CC0"`）。
     pub license: String,
+}
+
+// ─── 範囲補完ヘルパ（仕様 §1.4） ────────────────────────────────────
+
+/// 範囲の **start** として `(year, month?, day?)` を fractional year に変換する。
+///
+/// month/day が `None` の場合は年/月の頭（1月1日 / 月の1日）を採用する。
+/// Renderer の x 座標計算で使われる想定。
+pub fn start_frac(year: i64, month: Option<u8>, day: Option<u8>) -> f64 {
+    let m = month.unwrap_or(1).clamp(1, 12);
+    let d = day.unwrap_or(1).clamp(1, days_in_month(year, m));
+    year as f64 + (m - 1) as f64 / 12.0 + (d - 1) as f64 / 365.25
+}
+
+/// 範囲の **end** として `(year, month?, day?)` を fractional year に変換する。
+///
+/// month が `None` のときは年末（12月31日）、day が `None` のときは月末日を採用する。
+pub fn end_frac(year: i64, month: Option<u8>, day: Option<u8>) -> f64 {
+    let m = month.unwrap_or(12).clamp(1, 12);
+    let last_day = days_in_month(year, m);
+    let d = day.unwrap_or(last_day).clamp(1, last_day);
+    year as f64 + (m - 1) as f64 / 12.0 + (d - 1) as f64 / 365.25
+}
+
+/// 指定 `(year, month)` の最終日（うるう年考慮）。`month` は 1..=12 を想定する。
+pub fn days_in_month(year: i64, month: u8) -> u8 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if is_leap_year(year) {
+                29
+            } else {
+                28
+            }
+        }
+        _ => 31,
+    }
+}
+
+fn is_leap_year(year: i64) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
