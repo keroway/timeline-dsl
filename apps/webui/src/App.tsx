@@ -283,6 +283,7 @@ function makeTdslCompletionSource(getSource: () => string) {
 // ─── Keyboard shortcut reference ─────────────────────────────────────────────
 
 const SHORTCUTS = [
+  { key: 'Ctrl/Cmd + S', desc: '.tdsl をダウンロード' },
   { key: 'Ctrl/Cmd + F', desc: '検索・置換パネルを開く' },
   { key: 'Escape', desc: '検索パネルを閉じる' },
   { key: 'Ctrl/Cmd + Enter', desc: '次の候補へ' },
@@ -611,6 +612,19 @@ function App() {
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  // Ctrl/Cmd+S: .tdsl ファイルをダウンロード
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        downloadTdsl()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source])
 
   // Close file menu on outside click
   useEffect(() => {
