@@ -179,10 +179,6 @@ impl LoweringContext {
                         range_start_day,
                         range_end_month,
                         range_end_day,
-                        range: t
-                            .range
-                            .as_ref()
-                            .map_or((0, 2000), |r| (r.start.year(), r.end.year())),
                         calendar: t
                             .calendar
                             .clone()
