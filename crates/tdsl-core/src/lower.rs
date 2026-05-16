@@ -155,13 +155,30 @@ impl LoweringContext {
                         .iter()
                         .cloned()
                         .collect::<std::collections::HashMap<_, _>>();
+                    let (
+                        range_yy,
+                        range_start_month,
+                        range_start_day,
+                        range_end_month,
+                        range_end_day,
+                    ) = match t.range.as_ref() {
+                        Some(r) => (
+                            (r.start.year(), r.end.year()),
+                            r.start.month(),
+                            r.start.day(),
+                            r.end.month(),
+                            r.end.day(),
+                        ),
+                        None => ((0, 2000), None, None, None, None),
+                    };
                     self.meta = Some(Meta {
                         title: t.title.clone().unwrap_or_else(|| t.name.clone()),
                         unit: t.unit.clone().unwrap_or_else(|| "year".to_string()),
-                        range: t
-                            .range
-                            .as_ref()
-                            .map_or((0, 2000), |r| (r.start.year(), r.end.year())),
+                        range: range_yy,
+                        range_start_month,
+                        range_start_day,
+                        range_end_month,
+                        range_end_day,
                         calendar: t
                             .calendar
                             .clone()
@@ -247,10 +264,10 @@ impl LoweringContext {
                         tags: s.props.tags.clone(),
                         source: source_str(&s.props.source),
                         origin: s.props.origin.clone(),
-                        start_month: None,
-                        start_day: None,
-                        end_month: None,
-                        end_day: None,
+                        start_month: s.start.month(),
+                        start_day: s.start.day(),
+                        end_month: s.end.month(),
+                        end_day: s.end.day(),
                         source_span,
                     });
                 }
@@ -286,8 +303,8 @@ impl LoweringContext {
                         tags: e.props.tags.clone(),
                         source: source_str(&e.props.source),
                         origin: e.props.origin.clone(),
-                        time_month: None,
-                        time_day: None,
+                        time_month: e.time.month(),
+                        time_day: e.time.day(),
                         source_span,
                     });
                 }
@@ -322,10 +339,10 @@ impl LoweringContext {
                         tags: er.props.tags.clone(),
                         source: source_str(&er.props.source),
                         origin: er.props.origin.clone(),
-                        start_month: None,
-                        start_day: None,
-                        end_month: None,
-                        end_day: None,
+                        start_month: er.start.month(),
+                        start_day: er.start.day(),
+                        end_month: er.end.month(),
+                        end_day: er.end.day(),
                         source_span,
                     });
                 }
@@ -566,10 +583,21 @@ impl LoweringContext {
         let item_source = Some(source_id.clone());
         let origin = Some("wikidata".to_string());
 
+        // 仕様 §4: 紀元前（year < 0）のデータは year 精度に丸める
+        let strip_bc = |tp: &TimePoint| -> (Option<u8>, Option<u8>) {
+            if tp.year < 0 {
+                (None, None)
+            } else {
+                (tp.month, tp.day)
+            }
+        };
+
         match map.target_type {
             MapTargetType::Span => {
                 if let (Some(s), Some(e)) = (start, end) {
                     let id = format!("span:{}:{}", entity.id.to_lowercase(), s.year);
+                    let (s_month, s_day) = strip_bc(&s);
+                    let (e_month, e_day) = strip_bc(&e);
                     let item = Item::Span {
                         id,
                         lane: lane_ref,
@@ -579,10 +607,10 @@ impl LoweringContext {
                         tags,
                         source: item_source,
                         origin,
-                        start_month: s.month,
-                        start_day: s.day,
-                        end_month: e.month,
-                        end_day: e.day,
+                        start_month: s_month,
+                        start_day: s_day,
+                        end_month: e_month,
+                        end_day: e_day,
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
@@ -591,6 +619,7 @@ impl LoweringContext {
             MapTargetType::Event => {
                 if let Some(t) = time {
                     let id = format!("event:{}:{}", entity.id.to_lowercase(), t.year);
+                    let (t_month, t_day) = strip_bc(&t);
                     let item = Item::Event {
                         id,
                         lane: lane_ref,
@@ -599,8 +628,8 @@ impl LoweringContext {
                         tags,
                         source: item_source,
                         origin,
-                        time_month: t.month,
-                        time_day: t.day,
+                        time_month: t_month,
+                        time_day: t_day,
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
@@ -609,6 +638,8 @@ impl LoweringContext {
             MapTargetType::EventRange => {
                 if let (Some(s), Some(e)) = (start, end) {
                     let id = format!("event_range:{}:{}", entity.id.to_lowercase(), s.year);
+                    let (s_month, s_day) = strip_bc(&s);
+                    let (e_month, e_day) = strip_bc(&e);
                     let item = Item::EventRange {
                         id,
                         lane: lane_ref,
@@ -618,10 +649,10 @@ impl LoweringContext {
                         tags,
                         source: item_source,
                         origin,
-                        start_month: s.month,
-                        start_day: s.day,
-                        end_month: e.month,
-                        end_day: e.day,
+                        start_month: s_month,
+                        start_day: s_day,
+                        end_month: e_month,
+                        end_day: e_day,
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);

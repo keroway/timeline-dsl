@@ -561,6 +561,7 @@ mod tests {
                 range: (-300, 300),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![Lane {
                 id: "han".into(),
@@ -661,6 +662,7 @@ mod tests {
                 range: (-300, 300),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![Lane {
                 id: "han".into(),

@@ -30,6 +30,7 @@ fn make_ir(n: usize) -> TimelineIr {
             range: (0, n as i64 * 10),
             calendar: "proleptic_gregorian".into(),
             color_map: Default::default(),
+            ..Default::default()
         },
         lanes: vec![Lane {
             id: "bench".into(),

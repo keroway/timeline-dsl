@@ -43,6 +43,7 @@ mod tests {
                 range: (-300, 300),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![Lane {
                 id: "han".into(),
@@ -106,6 +107,7 @@ mod tests {
                 range: (0, 500),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![
                 Lane {
@@ -142,6 +144,7 @@ mod tests {
                 range: (0, 100),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![],
             items: vec![],
@@ -161,6 +164,7 @@ mod tests {
                 range: (0, 500),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![Lane {
                 id: "politics".into(),
@@ -196,6 +200,7 @@ mod tests {
                 range: (0, 500),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![Lane {
                 id: "war".into(),

@@ -75,6 +75,7 @@ mod tests {
                 range: (range_start, range_end),
                 calendar: "proleptic_gregorian".into(),
                 color_map: std::collections::HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![Lane {
                 id: "a".into(),
