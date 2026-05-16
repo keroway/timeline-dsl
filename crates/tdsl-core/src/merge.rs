@@ -215,6 +215,7 @@ mod tests {
                 range,
                 calendar: "proleptic_gregorian".to_string(),
                 color_map: HashMap::new(),
+                ..Default::default()
             },
             lanes,
             items,

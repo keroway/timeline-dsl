@@ -6,6 +6,16 @@ fn escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+/// IR の年 + 月日精度を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` 形式の文字列に整形する。
+/// 負の年は year 精度のみサポート（仕様 §1.3）。
+fn format_time(year: i64, month: Option<u8>, day: Option<u8>) -> String {
+    match (month, day) {
+        (Some(m), Some(d)) if year >= 0 => format!("{year:04}-{m:02}-{d:02}"),
+        (Some(m), _) if year >= 0 => format!("{year:04}-{m:02}"),
+        _ => format!("{year}"),
+    }
+}
+
 pub fn decompile(ir: &TimelineIr) -> String {
     let mut out = String::new();
 
@@ -13,7 +23,17 @@ pub fn decompile(ir: &TimelineIr) -> String {
     writeln!(out, r#"timeline "{title}" {{"#).unwrap();
     writeln!(out, r#"    title "{title}";"#).unwrap();
     writeln!(out, "    unit {};", ir.meta.unit).unwrap();
-    writeln!(out, "    range {}..{};", ir.meta.range.0, ir.meta.range.1).unwrap();
+    let range_start_str = format_time(
+        ir.meta.range.0,
+        ir.meta.range_start_month,
+        ir.meta.range_start_day,
+    );
+    let range_end_str = format_time(
+        ir.meta.range.1,
+        ir.meta.range_end_month,
+        ir.meta.range_end_day,
+    );
+    writeln!(out, "    range {range_start_str}..{range_end_str};").unwrap();
     writeln!(out, "    calendar {};", ir.meta.calendar).unwrap();
     if !ir.meta.color_map.is_empty() {
         let mut entries: Vec<_> = ir.meta.color_map.iter().collect();
@@ -45,6 +65,10 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 lane,
                 start,
                 end,
+                start_month,
+                start_day,
+                end_month,
+                end_day,
                 label,
                 tags,
                 source,
@@ -53,9 +77,11 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 ..
             } => {
                 let props = render_props(id, tags, source, origin);
+                let start_s = format_time(*start, *start_month, *start_day);
+                let end_s = format_time(*end, *end_month, *end_day);
                 writeln!(
                     out,
-                    r#"span {lane} {start}..{end} "{}" {props};"#,
+                    r#"span {lane} {start_s}..{end_s} "{}" {props};"#,
                     escape(label)
                 )
                 .unwrap();
@@ -63,6 +89,8 @@ pub fn decompile(ir: &TimelineIr) -> String {
             Item::Event {
                 lane,
                 time,
+                time_month,
+                time_day,
                 label,
                 tags,
                 source,
@@ -71,12 +99,17 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 ..
             } => {
                 let props = render_props(id, tags, source, origin);
-                writeln!(out, r#"event {lane} {time} "{}" {props};"#, escape(label)).unwrap();
+                let time_s = format_time(*time, *time_month, *time_day);
+                writeln!(out, r#"event {lane} {time_s} "{}" {props};"#, escape(label)).unwrap();
             }
             Item::EventRange {
                 lane,
                 start,
                 end,
+                start_month,
+                start_day,
+                end_month,
+                end_day,
                 label,
                 tags,
                 source,
@@ -85,9 +118,11 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 ..
             } => {
                 let props = render_props(id, tags, source, origin);
+                let start_s = format_time(*start, *start_month, *start_day);
+                let end_s = format_time(*end, *end_month, *end_day);
                 writeln!(
                     out,
-                    r#"event_range {lane} {start}..{end} "{}" {props};"#,
+                    r#"event_range {lane} {start_s}..{end_s} "{}" {props};"#,
                     escape(label)
                 )
                 .unwrap();
@@ -139,6 +174,7 @@ mod tests {
                 range: (-100, 500),
                 calendar: "proleptic_gregorian".to_string(),
                 color_map: HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![Lane {
                 id: "a".to_string(),
@@ -298,6 +334,7 @@ mod tests {
                 range: (0, 100),
                 calendar: "proleptic_gregorian".to_string(),
                 color_map: HashMap::new(),
+                ..Default::default()
             },
             lanes: vec![Lane {
                 id: "x".to_string(),
