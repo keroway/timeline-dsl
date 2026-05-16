@@ -39,8 +39,8 @@ mod tests {
                 assert_eq!(
                     t.range,
                     Some(ast::RangeExpr {
-                        start: -500,
-                        end: 2000
+                        start: ast::TimeValue::Year(-500),
+                        end: ast::TimeValue::Year(2000),
                     })
                 );
                 assert_eq!(t.calendar.as_deref(), Some("proleptic_gregorian"));
@@ -74,8 +74,8 @@ mod tests {
         match &file.statements[0].node {
             ast::Statement::Span(s) => {
                 assert_eq!(s.lane_ref, "han");
-                assert_eq!(s.start, -206);
-                assert_eq!(s.end, 220);
+                assert_eq!(s.start, ast::TimeValue::Year(-206));
+                assert_eq!(s.end, ast::TimeValue::Year(220));
                 assert_eq!(s.label, "漢");
                 assert_eq!(s.props.tags, vec!["dynasty"]);
                 assert_eq!(
@@ -99,7 +99,7 @@ mod tests {
         match &file.statements[0].node {
             ast::Statement::Event(e) => {
                 assert_eq!(e.lane_ref, "han");
-                assert_eq!(e.time, -209);
+                assert_eq!(e.time, ast::TimeValue::Year(-209));
                 assert_eq!(e.label, "陳勝・呉広の乱");
             }
             _ => panic!("expected Event"),
@@ -114,8 +114,8 @@ mod tests {
         match &file.statements[0].node {
             ast::Statement::EventRange(er) => {
                 assert_eq!(er.lane_ref, "han");
-                assert_eq!(er.start, 184);
-                assert_eq!(er.end, 204);
+                assert_eq!(er.start, ast::TimeValue::Year(184));
+                assert_eq!(er.end, ast::TimeValue::Year(204));
                 assert_eq!(er.label, "黄巾の乱");
                 assert_eq!(er.props.tags, vec!["war"]);
             }
@@ -497,8 +497,8 @@ mod tests {
         let file = parse(src).unwrap();
         match &file.statements[0].node {
             ast::Statement::Span(s) => {
-                assert_eq!(s.start, -9999);
-                assert_eq!(s.end, 0);
+                assert_eq!(s.start, ast::TimeValue::Year(-9999));
+                assert_eq!(s.end, ast::TimeValue::Year(0));
             }
             _ => panic!("expected Span"),
         }
@@ -565,7 +565,10 @@ mod tests {
         let file = parse(src).unwrap();
         match &file.statements[0].node {
             ast::Statement::Map(m) => {
-                let has_tags = m.props.iter().any(|p| matches!(p, ast::MapProp::Tags(t) if t.len() == 2));
+                let has_tags = m
+                    .props
+                    .iter()
+                    .any(|p| matches!(p, ast::MapProp::Tags(t) if t.len() == 2));
                 assert!(has_tags);
             }
             _ => panic!("expected Map"),
@@ -608,7 +611,7 @@ mod tests {
         let src = r#"event han 0 "年0の出来事" {};"#;
         let file = parse(src).unwrap();
         match &file.statements[0].node {
-            ast::Statement::Event(e) => assert_eq!(e.time, 0),
+            ast::Statement::Event(e) => assert_eq!(e.time, ast::TimeValue::Year(0)),
             _ => panic!("expected Event"),
         }
     }
@@ -745,8 +748,16 @@ mod tests {
         match &file.statements[0].node {
             ast::Statement::Timeline(t) => {
                 assert_eq!(t.color_map.len(), 2);
-                assert!(t.color_map.iter().any(|(k, v)| k == "dynasty" && v == "#3366cc"));
-                assert!(t.color_map.iter().any(|(k, v)| k == "war" && v == "#cc0000"));
+                assert!(
+                    t.color_map
+                        .iter()
+                        .any(|(k, v)| k == "dynasty" && v == "#3366cc")
+                );
+                assert!(
+                    t.color_map
+                        .iter()
+                        .any(|(k, v)| k == "war" && v == "#cc0000")
+                );
             }
             _ => panic!("expected Timeline"),
         }
@@ -791,6 +802,186 @@ mod tests {
         }
     }
 
+    // ─── 日付リテラル (#243) ─────────────────────────────────────────
+
+    #[test]
+    fn parse_date_literal_event() {
+        let src = r#"event han 1969-07-20 "月面着陸" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Event(e) => {
+                assert_eq!(e.time, ast::TimeValue::Date(1969, 7, 20));
+            }
+            _ => panic!("expected Event"),
+        }
+    }
+
+    #[test]
+    fn parse_year_month_literal_event() {
+        let src = r#"event han 1969-07 "月着陸の月" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Event(e) => {
+                assert_eq!(e.time, ast::TimeValue::YearMonth(1969, 7));
+            }
+            _ => panic!("expected Event"),
+        }
+    }
+
+    #[test]
+    fn parse_span_with_dates() {
+        let src = r#"span ww2 1939-09-01..1945-09-02 "第二次世界大戦" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Span(s) => {
+                assert_eq!(s.start, ast::TimeValue::Date(1939, 9, 1));
+                assert_eq!(s.end, ast::TimeValue::Date(1945, 9, 2));
+            }
+            _ => panic!("expected Span"),
+        }
+    }
+
+    #[test]
+    fn parse_span_with_mixed_precision() {
+        let src = r#"span partial 1900..1969-07-20 "混在範囲" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Span(s) => {
+                assert_eq!(s.start, ast::TimeValue::Year(1900));
+                assert_eq!(s.end, ast::TimeValue::Date(1969, 7, 20));
+            }
+            _ => panic!("expected Span"),
+        }
+    }
+
+    #[test]
+    fn parse_event_range_with_year_month() {
+        let src = r#"event_range han 1939-09..1945-09 "第二次世界大戦" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::EventRange(er) => {
+                assert_eq!(er.start, ast::TimeValue::YearMonth(1939, 9));
+                assert_eq!(er.end, ast::TimeValue::YearMonth(1945, 9));
+            }
+            _ => panic!("expected EventRange"),
+        }
+    }
+
+    #[test]
+    fn parse_range_directive_with_dates() {
+        let src = r#"
+            timeline "近代史" {
+                unit month;
+                range 1939-01..1946-01;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Timeline(t) => {
+                assert_eq!(
+                    t.range,
+                    Some(ast::RangeExpr {
+                        start: ast::TimeValue::YearMonth(1939, 1),
+                        end: ast::TimeValue::YearMonth(1946, 1),
+                    })
+                );
+            }
+            _ => panic!("expected Timeline"),
+        }
+    }
+
+    #[test]
+    fn parse_negative_year_still_works() {
+        let src = r#"event qin -206 "始皇帝即位" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Event(e) => {
+                assert_eq!(e.time, ast::TimeValue::Year(-206));
+            }
+            _ => panic!("expected Event"),
+        }
+    }
+
+    #[test]
+    fn parse_invalid_month_zero_fails() {
+        let src = r#"event han 1969-00-20 "invalid" {};"#;
+        let result = parse(src);
+        assert!(result.is_err(), "expected error for month=00");
+        let msg = format!("{}", result.unwrap_err());
+        assert!(
+            msg.contains("Invalid month") || msg.to_lowercase().contains("month"),
+            "unexpected error: {msg}"
+        );
+    }
+
+    #[test]
+    fn parse_invalid_month_thirteen_fails() {
+        let src = r#"event han 1969-13-20 "invalid" {};"#;
+        let result = parse(src);
+        assert!(result.is_err(), "expected error for month=13");
+    }
+
+    #[test]
+    fn parse_invalid_day_zero_fails() {
+        let src = r#"event han 1969-07-00 "invalid" {};"#;
+        let result = parse(src);
+        assert!(result.is_err(), "expected error for day=00");
+    }
+
+    #[test]
+    fn parse_invalid_day_thirtytwo_fails() {
+        let src = r#"event han 1969-07-32 "invalid" {};"#;
+        let result = parse(src);
+        assert!(result.is_err(), "expected error for day=32");
+    }
+
+    #[test]
+    fn parse_negative_year_with_month_rejected() {
+        // 紀元前は year 精度のみ。仕様書 §1.3 に従い year_month/date は符号なし。
+        let src = r#"event ancient -206-01 "鴻門の会" {};"#;
+        let result = parse(src);
+        assert!(result.is_err(), "expected error for negative YearMonth");
+    }
+
+    #[test]
+    fn parse_time_value_display_round_trip() {
+        // Display 実装が `Date` を `YYYY-MM-DD` で表示することを確認
+        let d = ast::TimeValue::Date(1969, 7, 20);
+        assert_eq!(format!("{d}"), "1969-07-20");
+        let m = ast::TimeValue::YearMonth(1939, 9);
+        assert_eq!(format!("{m}"), "1939-09");
+        let y = ast::TimeValue::Year(-206);
+        assert_eq!(format!("{y}"), "-206");
+    }
+
+    #[test]
+    fn parse_time_value_accessors() {
+        let d = ast::TimeValue::Date(1969, 7, 20);
+        assert_eq!(d.year(), 1969);
+        assert_eq!(d.month(), Some(7));
+        assert_eq!(d.day(), Some(20));
+
+        let m = ast::TimeValue::YearMonth(1939, 9);
+        assert_eq!(m.year(), 1939);
+        assert_eq!(m.month(), Some(9));
+        assert_eq!(m.day(), None);
+
+        let y = ast::TimeValue::Year(-206);
+        assert_eq!(y.year(), -206);
+        assert_eq!(y.month(), None);
+        assert_eq!(y.day(), None);
+    }
+
+    #[test]
+    fn parse_time_value_to_sortable_order() {
+        use ast::TimeValue::*;
+        assert!(Year(1939).to_sortable() < Year(1940).to_sortable());
+        assert!(YearMonth(1939, 9).to_sortable() > YearMonth(1939, 8).to_sortable());
+        assert!(Date(1939, 9, 1).to_sortable() > Date(1939, 8, 31).to_sortable());
+        // 同年の Year は (year, 0, 0) なので、月日付きより前に位置する
+        assert!(Year(1939).to_sortable() < YearMonth(1939, 1).to_sortable());
+    }
+
     #[test]
     fn test_field_priority_partial_fields() {
         // デフォルト値が適用されること
@@ -811,9 +1002,9 @@ mod tests {
         };
         match import.policy {
             Some(crate::ast::ReimportPolicy::FieldPriority(config)) => {
-                assert_eq!(config.label, crate::ast::FieldStrategy::Manual);   // default
-                assert_eq!(config.time, crate::ast::FieldStrategy::Wikidata);  // default
-                assert_eq!(config.tags, crate::ast::FieldStrategy::Wikidata);  // overridden
+                assert_eq!(config.label, crate::ast::FieldStrategy::Manual); // default
+                assert_eq!(config.time, crate::ast::FieldStrategy::Wikidata); // default
+                assert_eq!(config.tags, crate::ast::FieldStrategy::Wikidata); // overridden
             }
             other => panic!("expected FieldPriority, got {:?}", other),
         }

@@ -1957,7 +1957,7 @@ fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue> {
                     line,
                     &mut issues,
                 );
-                if s.start > s.end {
+                if s.start.to_sortable() > s.end.to_sortable() {
                     issues.push(LintIssue {
                         code: "start_gt_end".to_string(),
                         severity: LintSeverity::Error,
@@ -1988,7 +1988,7 @@ fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue> {
                     line,
                     &mut issues,
                 );
-                if er.start > er.end {
+                if er.start.to_sortable() > er.end.to_sortable() {
                     issues.push(LintIssue {
                         code: "start_gt_end".to_string(),
                         severity: LintSeverity::Error,
@@ -2185,28 +2185,38 @@ fn apply_lint_fixes(file: &mut tdsl_parser::ast::File) -> usize {
         match &mut stmt.node {
             Statement::Span(s) => {
                 fixed += fix_tags(&mut s.props.tags);
-                if s.start > s.end {
+                if s.start.to_sortable() > s.end.to_sortable() {
                     std::mem::swap(&mut s.start, &mut s.end);
                     fixed += 1;
                 }
-                fixed +=
-                    ensure_item_id("span", &s.lane_ref, s.start, &mut s.props.id, &mut used_ids);
+                fixed += ensure_item_id(
+                    "span",
+                    &s.lane_ref,
+                    s.start.year(),
+                    &mut s.props.id,
+                    &mut used_ids,
+                );
             }
             Statement::Event(e) => {
                 fixed += fix_tags(&mut e.props.tags);
-                fixed +=
-                    ensure_item_id("event", &e.lane_ref, e.time, &mut e.props.id, &mut used_ids);
+                fixed += ensure_item_id(
+                    "event",
+                    &e.lane_ref,
+                    e.time.year(),
+                    &mut e.props.id,
+                    &mut used_ids,
+                );
             }
             Statement::EventRange(er) => {
                 fixed += fix_tags(&mut er.props.tags);
-                if er.start > er.end {
+                if er.start.to_sortable() > er.end.to_sortable() {
                     std::mem::swap(&mut er.start, &mut er.end);
                     fixed += 1;
                 }
                 fixed += ensure_item_id(
                     "event_range",
                     &er.lane_ref,
-                    er.start,
+                    er.start.year(),
                     &mut er.props.id,
                     &mut used_ids,
                 );

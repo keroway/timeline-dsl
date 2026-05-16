@@ -92,7 +92,13 @@ const tdslLanguage = StreamLanguage.define<TdslState>({
       return "atom"
     }
 
-    // 数値（負の年含む）— 識別子の前にチェック
+    // 数値リテラル — 日付（YYYY-MM-DD）・年月（YYYY-MM）・年（-?YYYY）。識別子の前にチェック
+    if (stream.match(/^\d{1,4}-\d{2}-\d{2}/)) {
+      return "number"
+    }
+    if (stream.match(/^\d{1,4}-\d{2}(?!-?\d)/)) {
+      return "number"
+    }
     if (stream.match(/^-?\d+(\.\d+)?/)) {
       return "number"
     }
