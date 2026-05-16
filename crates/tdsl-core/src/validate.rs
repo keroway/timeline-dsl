@@ -1,5 +1,10 @@
 use crate::ir::TimelineIr;
 
+/// `(year, month_or_0, day_or_0)` を返す。月日が `None` の場合はソート上は最小値扱い。
+fn sortable_tuple(year: i64, month: Option<u8>, day: Option<u8>) -> (i64, u8, u8) {
+    (year, month.unwrap_or(0), day.unwrap_or(0))
+}
+
 /// Validate the IR for semantic consistency.
 pub fn validate(ir: &TimelineIr) -> Vec<String> {
     let mut warnings = Vec::new();
@@ -19,18 +24,38 @@ pub fn validate(ir: &TimelineIr) -> Vec<String> {
         }
     }
 
-    // Check start > end for span and event_range items
+    // Check start > end for span and event_range items（月日精度を考慮）
     for item in &ir.items {
         match item {
-            crate::ir::Item::Span { id, start, end, .. } => {
-                if start > end {
-                    warnings.push(format!(
-                        "Span \"{id}\" has start ({start}) > end ({end})"
-                    ));
+            crate::ir::Item::Span {
+                id,
+                start,
+                end,
+                start_month,
+                start_day,
+                end_month,
+                end_day,
+                ..
+            } => {
+                let s = sortable_tuple(*start, *start_month, *start_day);
+                let e = sortable_tuple(*end, *end_month, *end_day);
+                if s > e {
+                    warnings.push(format!("Span \"{id}\" has start ({start}) > end ({end})"));
                 }
             }
-            crate::ir::Item::EventRange { id, start, end, .. } => {
-                if start > end {
+            crate::ir::Item::EventRange {
+                id,
+                start,
+                end,
+                start_month,
+                start_day,
+                end_month,
+                end_day,
+                ..
+            } => {
+                let s = sortable_tuple(*start, *start_month, *start_day);
+                let e = sortable_tuple(*end, *end_month, *end_day);
+                if s > e {
                     warnings.push(format!(
                         "EventRange \"{id}\" has start ({start}) > end ({end})"
                     ));
@@ -40,9 +65,15 @@ pub fn validate(ir: &TimelineIr) -> Vec<String> {
         }
     }
 
-    // Check range coherence
+    // Check range coherence（月日精度を考慮）
     let (range_start, range_end) = ir.meta.range;
-    if range_start >= range_end {
+    let r_start = sortable_tuple(
+        range_start,
+        ir.meta.range_start_month,
+        ir.meta.range_start_day,
+    );
+    let r_end = sortable_tuple(range_end, ir.meta.range_end_month, ir.meta.range_end_day);
+    if r_start >= r_end {
         warnings.push(format!(
             "Timeline range is invalid: {range_start}..{range_end}"
         ));

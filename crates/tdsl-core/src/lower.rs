@@ -70,6 +70,15 @@ fn build_line_offsets(source: &str) -> Vec<usize> {
     offsets
 }
 
+/// 自動生成 ID 用に時刻を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` 形式に整形する。
+fn format_id_time(t: &ast::TimeValue) -> String {
+    match t {
+        ast::TimeValue::Year(y) => format!("{y}"),
+        ast::TimeValue::YearMonth(y, m) => format!("{y:04}-{m:02}"),
+        ast::TimeValue::Date(y, m, d) => format!("{y:04}-{m:02}-{d:02}"),
+    }
+}
+
 /// バイトオフセットから (1-based 行番号, 1-based 列番号) に変換する。
 fn offset_to_line_col(offset: usize, line_offsets: &[usize]) -> (u32, u32) {
     let line_idx = line_offsets
@@ -237,11 +246,9 @@ impl LoweringContext {
                         self.errors.push(err);
                         continue;
                     }
-                    let id = s
-                        .props
-                        .id
-                        .clone()
-                        .unwrap_or_else(|| format!("span:{}:{}", s.lane_ref, s.start.year()));
+                    let id = s.props.id.clone().unwrap_or_else(|| {
+                        format!("span:{}:{}", s.lane_ref, format_id_time(&s.start))
+                    });
                     if !self.register_static_id(&id) {
                         continue;
                     }
@@ -277,11 +284,9 @@ impl LoweringContext {
                         self.errors.push(err);
                         continue;
                     }
-                    let id = e
-                        .props
-                        .id
-                        .clone()
-                        .unwrap_or_else(|| format!("event:{}:{}", e.lane_ref, e.time.year()));
+                    let id = e.props.id.clone().unwrap_or_else(|| {
+                        format!("event:{}:{}", e.lane_ref, format_id_time(&e.time))
+                    });
                     if !self.register_static_id(&id) {
                         continue;
                     }
@@ -315,7 +320,7 @@ impl LoweringContext {
                         continue;
                     }
                     let id = er.props.id.clone().unwrap_or_else(|| {
-                        format!("event_range:{}:{}", er.lane_ref, er.start.year())
+                        format!("event_range:{}:{}", er.lane_ref, format_id_time(&er.start))
                     });
                     if !self.register_static_id(&id) {
                         continue;
