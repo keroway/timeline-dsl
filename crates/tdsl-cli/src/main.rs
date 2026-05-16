@@ -2,7 +2,7 @@ use std::fmt::Write;
 use std::path::PathBuf;
 use std::process;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 use tdsl_wikidata::entity::{DataValue, time_value_to_year};
 use tdsl_wikidata::{WikidataClient, WikidataEntity, parse_wikipedia_url};
@@ -275,6 +275,12 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Generate shell completion scripts (bash / fish / zsh / powershell / elvish)
+    Completions {
+        /// Target shell
+        shell: clap_complete::Shell,
+    },
 }
 
 #[derive(Subcommand)]
@@ -495,6 +501,10 @@ fn main() {
         Commands::Lint { input, fix, format } => cmd_lint(&input, fix, format),
         Commands::Cache { action } => cmd_cache(action),
         Commands::Decompile { input, output } => cmd_decompile(input.as_deref(), output.as_deref()),
+        Commands::Completions { shell } => {
+            clap_complete::generate(shell, &mut Cli::command(), "tdsl", &mut std::io::stdout());
+            Ok(())
+        }
     };
 
     if let Err(e) = result {

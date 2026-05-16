@@ -28,6 +28,7 @@ tdsl-core = { path = "../tdsl-core", features = ["wikidata"] }
 tdsl-wikidata = { path = "../tdsl-wikidata" }
 tdsl-render = { path = "../tdsl-render" }
 clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
 serde.workspace = true
 serde_json.workspace = true
 miette = { version = "7", features = ["fancy"] }
