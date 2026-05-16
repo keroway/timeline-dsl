@@ -34,7 +34,7 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     // Embed font-family and axis text size for standalone SVG viewers (no CDN dependency).
     writeln!(
         s,
-        r#"  <style>text {{ font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }}</style>"#
+        r#"  <style>text {{ font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }} .tdsl-axis-day-tick {{ stroke: #ddd; stroke-width: 1; }} .tdsl-axis-day-text {{ font-size: 9px; fill: #888; }}</style>"#
     )
     .unwrap();
 
@@ -139,6 +139,42 @@ fn render_axis(s: &mut String, layout: &LayoutModel) {
             writeln!(
                 s,
                 r#"  <text class="tdsl-axis-text tdsl-axis-month-text" x="{x}" y="{y}" text-anchor="middle">{label}</text>"#,
+                x = fmt_f(x),
+                y = fmt_f(baseline_y - 5.0),
+            )
+            .unwrap();
+        }
+    }
+
+    // Day minor ticks (unit=day only, hidden when scale too small).
+    // 月初には `YYYY-MM` ラベルを表示し、それ以外は短い tick のみ。
+    let pixels_per_day = layout.opts.scale / 365.25;
+    for (year, month, day) in layout.day_ticks() {
+        let x = layout.day_frac_to_x(year, month, day);
+        writeln!(
+            s,
+            r#"  <line class="tdsl-axis-day-tick" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
+            x = fmt_f(x),
+            y1 = fmt_f(baseline_y - 2.0),
+            y2 = fmt_f(baseline_y),
+        )
+        .unwrap();
+        if day == 1 && pixels_per_day >= 1.5 {
+            // 月またぎラベル: YYYY-MM
+            let label = format!("{year:04}-{month:02}");
+            writeln!(
+                s,
+                r#"  <text class="tdsl-axis-text tdsl-axis-day-text" x="{x}" y="{y}" text-anchor="middle">{label}</text>"#,
+                x = fmt_f(x),
+                y = fmt_f(baseline_y - 5.0),
+                label = escape_xml(&label),
+            )
+            .unwrap();
+        } else if pixels_per_day >= 8.0 {
+            // 日番号ラベル（密度が十分なときのみ）
+            writeln!(
+                s,
+                r#"  <text class="tdsl-axis-text tdsl-axis-day-text" x="{x}" y="{y}" text-anchor="middle">{day}</text>"#,
                 x = fmt_f(x),
                 y = fmt_f(baseline_y - 5.0),
             )

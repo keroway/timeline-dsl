@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use tdsl_core::ir::{Item, Lane, TimelineIr};
+use tdsl_core::ir::{Item, Lane, TimelineIr, end_frac, start_frac};
 
 /// Color/style theme for HTML output.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -99,6 +99,9 @@ impl<'a> LayoutModel<'a> {
         let (year_min, year_max) = ir.meta.range;
         let (year_min, year_max) = if year_max > year_min {
             (year_min, year_max)
+        } else if year_max == year_min {
+            // 同一年内のレンジ（例: range 1939-09..1939-10）: items から導出せず一年幅を確保
+            (year_min, year_max + 1)
         } else {
             // Fallback: if range is degenerate, derive from items.
             derive_range_from_items(ir).unwrap_or((0, 2000))
@@ -136,8 +139,9 @@ impl<'a> LayoutModel<'a> {
                     end_day,
                     ..
                 } => {
-                    let sf = to_year_frac(*start, *start_month, *start_day);
-                    let ef = to_year_frac(*end, *end_month, *end_day);
+                    // 仕様 §1.4: start は year/月の頭、end は year/月の末日を採用（混在精度補完）
+                    let sf = start_frac(*start, *start_month, *start_day);
+                    let ef = end_frac(*end, *end_month, *end_day);
                     let (x, width) =
                         span_x_width_frac(sf, ef, year_min, year_max, opts.scale, opts.left_gutter);
                     items.push(LaidItem::Span {
@@ -157,8 +161,8 @@ impl<'a> LayoutModel<'a> {
                     end_day,
                     ..
                 } => {
-                    let sf = to_year_frac(*start, *start_month, *start_day);
-                    let ef = to_year_frac(*end, *end_month, *end_day);
+                    let sf = start_frac(*start, *start_month, *start_day);
+                    let ef = end_frac(*end, *end_month, *end_day);
                     let (x, width) =
                         span_x_width_frac(sf, ef, year_min, year_max, opts.scale, opts.left_gutter);
                     items.push(LaidItem::EventRange {
@@ -236,6 +240,61 @@ impl<'a> LayoutModel<'a> {
     pub fn frac_year_to_x(&self, year: i64, month: u8) -> f64 {
         let frac = to_year_frac(year, Some(month), None);
         frac_to_x(frac, self.year_min, self.opts.scale, self.opts.left_gutter)
+    }
+
+    /// X coordinate for a (year, month, day) fractional position.
+    pub fn day_frac_to_x(&self, year: i64, month: u8, day: u8) -> f64 {
+        let frac = to_year_frac(year, Some(month), Some(day));
+        frac_to_x(frac, self.year_min, self.opts.scale, self.opts.left_gutter)
+    }
+
+    /// Day-level minor-tick positions for `unit=day` timelines.
+    ///
+    /// Returns `(year, month, day)` triples covering the visible range.
+    /// 過密回避のため、1日あたりの pixel-per-day が小さい場合は step を 7/14/30 日に切り替える。
+    /// `unit != "day"` または 1 日あたりのピクセルが小さすぎる場合は空配列を返す。
+    pub fn day_ticks(&self) -> Vec<(i64, u8, u8)> {
+        if self.ir.meta.unit != "day" {
+            return Vec::new();
+        }
+
+        let pixels_per_day = self.opts.scale / 365.25;
+        // 最低でも 1px の間隔を要求。完全に詰まる場合は描画しない（年単位描画に委ねる）
+        if pixels_per_day < 0.5 {
+            return Vec::new();
+        }
+
+        // 1 tick あたり最低 6 px を確保するための step（日数）
+        let step = if pixels_per_day >= 6.0 {
+            1
+        } else if pixels_per_day >= 3.0 {
+            2
+        } else if pixels_per_day >= 1.5 {
+            7
+        } else {
+            30
+        };
+
+        let mut ticks = Vec::new();
+        for year in self.year_min..=self.year_max {
+            for month in 1u8..=12 {
+                let last = tdsl_core::ir::days_in_month(year, month);
+                let mut day = 1u8;
+                while day <= last {
+                    if day == 1 || (day - 1) as usize % step == 0 {
+                        let frac = to_year_frac(year, Some(month), Some(day));
+                        if frac < self.year_max as f64 {
+                            ticks.push((year, month, day));
+                        }
+                    }
+                    day = day.saturating_add(1);
+                    if day == 0 {
+                        break;
+                    }
+                }
+            }
+        }
+        ticks
     }
 
     /// Tick positions (year values) within [year_min, year_max], inclusive of year_min if aligned.
@@ -428,6 +487,190 @@ mod tests {
         assert_eq!(div_floor(-500, 100), -5);
         assert_eq!(div_floor(-501, 100), -6);
         assert_eq!(div_floor(501, 100), 5);
+    }
+
+    // ─── unit day レンダリング (#248) ─────────────────────────────────
+
+    fn mk_meta_with_unit(unit: &str, range: (i64, i64)) -> tdsl_core::ir::Meta {
+        tdsl_core::ir::Meta {
+            title: "t".into(),
+            unit: unit.into(),
+            range,
+            calendar: "proleptic_gregorian".into(),
+            color_map: std::collections::HashMap::new(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn day_ticks_empty_when_unit_not_day() {
+        let ir = TimelineIr {
+            meta: mk_meta_with_unit("year", (1939, 1945)),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        assert!(layout.day_ticks().is_empty());
+    }
+
+    #[test]
+    fn day_ticks_empty_when_unit_month() {
+        let ir = TimelineIr {
+            meta: mk_meta_with_unit("month", (1939, 1945)),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        assert!(layout.day_ticks().is_empty());
+    }
+
+    #[test]
+    fn day_ticks_produced_for_short_unit_day_range() {
+        // 1ヶ月分（30日）を大きめスケールで描画 → 1日 step
+        let ir = TimelineIr {
+            meta: mk_meta_with_unit("day", (1939, 1940)),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 365.25 * 6.0, // pixels_per_day = 6 → step=1
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let ticks = layout.day_ticks();
+        // 1939年内+1940年の日々
+        assert!(!ticks.is_empty(), "expected day ticks but got none");
+        // 1939-01-01 が含まれる
+        assert!(ticks.contains(&(1939, 1, 1)));
+        // 1939-12-31 が含まれる
+        assert!(ticks.contains(&(1939, 12, 31)));
+    }
+
+    #[test]
+    fn day_ticks_step_thins_for_lower_density() {
+        // 中スケール → 1日あたり 3px (step=2): 月初+奇数日が描画される
+        let ir = TimelineIr {
+            meta: mk_meta_with_unit("day", (1939, 1940)),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 365.25 * 3.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let ticks = layout.day_ticks();
+        // 月初は常に含まれる
+        assert!(ticks.contains(&(1939, 1, 1)));
+        assert!(ticks.contains(&(1939, 2, 1)));
+        // step=2 のとき、1, 3, 5, ... のみが描画される
+        assert!(ticks.contains(&(1939, 1, 3)));
+        assert!(!ticks.contains(&(1939, 1, 2)));
+    }
+
+    #[test]
+    fn day_ticks_thinning_to_weekly_for_low_density() {
+        // pixels_per_day ≈ 1.5 → step=7
+        let ir = TimelineIr {
+            meta: mk_meta_with_unit("day", (1939, 1940)),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 365.25 * 2.0, // pixels_per_day=2 → step=7
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let ticks = layout.day_ticks();
+        // 月初は描画
+        assert!(ticks.contains(&(1939, 1, 1)));
+        // 1, 8, 15, 22, 29 が含まれる（step=7）
+        assert!(ticks.contains(&(1939, 1, 8)));
+        // 2, 3, 4 は含まれない
+        assert!(!ticks.contains(&(1939, 1, 2)));
+        assert!(!ticks.contains(&(1939, 1, 4)));
+    }
+
+    #[test]
+    fn day_ticks_empty_when_scale_too_small() {
+        let ir = TimelineIr {
+            meta: mk_meta_with_unit("day", (1900, 2000)),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 2.0, // pixels_per_day ≈ 0.0055 → 描画不可
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        assert!(layout.day_ticks().is_empty());
+    }
+
+    #[test]
+    fn span_uses_start_frac_end_frac_for_year_precision() {
+        // `span x 1939..1945` は start=1939-01-01, end=1945-12-31 として描画されるべき
+        let ir = TimelineIr {
+            meta: mk_meta_with_unit("year", (1900, 2000)),
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "custom".into(),
+                order: 1,
+            }],
+            items: vec![Item::Span {
+                id: "s1".into(),
+                lane: "x".into(),
+                start: 1939,
+                end: 1945,
+                label: "WW2".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                end_month: None,
+                end_day: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let span = layout
+            .items
+            .iter()
+            .find_map(|i| match i {
+                LaidItem::Span { x, width, .. } => Some((*x, *width)),
+                _ => None,
+            })
+            .expect("span should be laid out");
+        // start_frac(1939)=1939.0, end_frac(1945)≈1945.998
+        // x = left_gutter(120) + (1939-1900)*scale(2) = 120 + 78 = 198
+        // width = (end_frac - start_frac) * scale ≈ 6.998 * 2 ≈ 13.996
+        assert!(
+            (span.0 - 198.0).abs() < 0.01,
+            "expected x ≈ 198, got {}",
+            span.0
+        );
+        // 旧実装 (to_year_frac) なら width = (1945 - 1939) * 2 = 12.0、
+        // 新実装 (end_frac) なら ≈ 13.996。明確に差が出る。
+        assert!(
+            span.1 > 13.0,
+            "expected width > 13 (end-of-year extension), got {}",
+            span.1
+        );
     }
 
     #[test]
