@@ -138,6 +138,23 @@ type ThemePreference = 'auto' | 'light' | 'dark'
 // ─── Settings & LocalStorage persistence ─────────────────────────────────────
 
 const SETTINGS_KEY = 'tdsl:settings'
+const SPLIT_RATIO_KEY = 'tdsl:split-ratio'
+
+const SPLIT_RATIO_DEFAULT = 0.4
+const SPLIT_RATIO_MIN = 0.15
+const SPLIT_RATIO_MAX = 0.85
+
+function readSplitRatio(): number {
+  try {
+    const raw = localStorage.getItem(SPLIT_RATIO_KEY)
+    if (raw === null) return SPLIT_RATIO_DEFAULT
+    const n = parseFloat(raw)
+    if (!Number.isFinite(n)) return SPLIT_RATIO_DEFAULT
+    return Math.max(SPLIT_RATIO_MIN, Math.min(SPLIT_RATIO_MAX, n))
+  } catch {
+    return SPLIT_RATIO_DEFAULT
+  }
+}
 
 type Settings = {
   theme: ThemePreference
@@ -363,8 +380,10 @@ function App() {
   const [renameValue, setRenameValue] = useState('')
   const lastAutoSnapRef = useRef<number>(0)
 
-  // Split pane ratio (editor / preview)
-  const [splitRatio, setSplitRatio] = useState(0.4)
+  // Split pane ratio (editor / preview); persisted to LocalStorage on drag end
+  const [splitRatio, setSplitRatio] = useState<number>(readSplitRatio)
+  const splitRatioRef = useRef<number>(splitRatio)
+  splitRatioRef.current = splitRatio
   const splitDragRef = useRef<{ startX: number; startRatio: number; containerWidth: number } | null>(null)
   const mainRef = useRef<HTMLElement>(null)
 
@@ -588,6 +607,9 @@ function App() {
       splitDragRef.current = null
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      try {
+        localStorage.setItem(SPLIT_RATIO_KEY, String(splitRatioRef.current))
+      } catch {/* quota or private browsing — ignore */}
     }
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
