@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-05-17
+
+### Added
+
+- **日付リテラルのパース対応（YYYY-MM / YYYY-MM-DD）**: パーサで月精度・日精度の日付リテラルを受理し、AST `TimeValue` に `Year` / `YearMonth` / `Date` の 3 バリアントを導入。比較は `to_sortable() -> (i64, u8, u8)` で行う（#243）
+- **月・日精度の静的 lowering / range 拡張 / decompile 対応**: core で月・日精度のアイテムを lowering し、混在範囲補完（`range_start_month` 等）・decompile（IR → `.tdsl`）も月日対応。既存の年精度 IR JSON は完全後方互換（#247）
+- **月・日精度レンダリング（`unit day` / `day_ticks` / 日精度ラベル）**: render で `unit day` をサポートし、月・日精度の軸ラベル・自動 tick 配置を実装（#248）
+- **CLI シェル補完スクリプト生成（`tdsl completions`）**: bash / zsh / fish / PowerShell / elvish の補完スクリプトを生成するサブコマンドを追加（#244）
+- **WebUI プレビュー全画面表示モード**: プレビューエリアを画面全体に拡大表示できる全画面トグルを実装。`?preview=1` クエリでも起動可（#241）
+- **WebUI エディタにインラインエラーハイライト**: `@codemirror/lint` を統合し、構文エラー/警告を CodeMirror 内の波線アンダーラインとガターアイコンで表示。ホバーで tooltip 表示。既存の診断パネルは維持（#239）
+- **WebUI 分割ペイン比率を LocalStorage に永続化**: エディタ/プレビューの分割比率をドラッグ完了時に LocalStorage に保存し、ページリロード後も維持されるようにした（#240）
+- **WebUI Ctrl/Cmd+S で `.tdsl` ソースをダウンロード**: キーボードショートカットでエディタ内容を `.tdsl` ファイルとしてダウンロード可能にした（#246）
+
+### Docs
+
+- **月・日精度の時間表現 仕様設計書**: `docs/spec-date-precision.md` を追加し、日付リテラル文法・IR スキーマ拡張・後方互換性方針を明文化（#242）
+
 ## [1.8.0] - 2026-05-16
 
 ### Added
