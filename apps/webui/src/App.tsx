@@ -285,7 +285,7 @@ function makeTdslCompletionSource(getSource: () => string) {
 const SHORTCUTS = [
   { key: 'Ctrl/Cmd + S', desc: '.tdsl をダウンロード' },
   { key: 'Ctrl/Cmd + F', desc: '検索・置換パネルを開く' },
-  { key: 'Escape', desc: '検索パネルを閉じる' },
+  { key: 'Escape', desc: '検索パネルを閉じる / 全画面モードを終了' },
   { key: 'Ctrl/Cmd + Enter', desc: '次の候補へ' },
   { key: 'Ctrl/Cmd + G', desc: '次の一致へ' },
   { key: 'Ctrl/Cmd + Z', desc: '元に戻す' },
@@ -367,6 +367,11 @@ function App() {
   const [splitRatio, setSplitRatio] = useState(0.4)
   const splitDragRef = useRef<{ startX: number; startRatio: number; containerWidth: number } | null>(null)
   const mainRef = useRef<HTMLElement>(null)
+
+  // Preview fullscreen mode
+  const [previewFullscreen, setPreviewFullscreen] = useState<boolean>(() =>
+    new URLSearchParams(location.search).get('preview') === '1'
+  )
 
   // Pan/zoom (direct DOM manipulation avoids React re-renders during drag)
   const panZoomRef = useRef({ x: 0, y: 0, s: 1 })
@@ -607,7 +612,10 @@ function App() {
         e.preventDefault()
         setShowSettings((v) => !v)
       }
-      if (e.key === 'Escape') setShowSettings(false)
+      if (e.key === 'Escape') {
+        setShowSettings(false)
+        setPreviewFullscreen(false)
+      }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
@@ -1089,7 +1097,7 @@ function App() {
       <main className="main" ref={mainRef}>
         <div
           className={`editor-pane${mobileTab !== 'editor' ? ' mobile-hidden' : ''}`}
-          style={{ flex: `0 0 ${splitRatio * 100}%` }}
+          style={{ flex: `0 0 ${splitRatio * 100}%`, ...(previewFullscreen ? { display: 'none' } : {}) }}
         >
           <CodeMirror
             value={source}
@@ -1119,6 +1127,7 @@ function App() {
           className="split-divider"
           onMouseDown={handleDividerMouseDown}
           title="ドラッグして分割幅を調整"
+          style={previewFullscreen ? { display: 'none' } : undefined}
         />
         <div className={`preview-area${mobileTab !== 'preview' ? ' mobile-hidden' : ''}`}>
           {/* Preview controls overlay */}
@@ -1154,6 +1163,14 @@ function App() {
                 </button>
               </>
             )}
+            <button
+              className={`btn btn-preview-ctrl${previewFullscreen ? ' btn-preview-ctrl-active' : ''}`}
+              onClick={() => setPreviewFullscreen((v) => !v)}
+              title={previewFullscreen ? '全画面モードを終了（Escape）' : '全画面モードでプレビュー'}
+              aria-label={previewFullscreen ? '全画面モードを終了' : '全画面モードでプレビュー'}
+            >
+              {previewFullscreen ? '✕ 全画面' : '⛶'}
+            </button>
           </div>
           {/* Legend panel */}
           {showLegend && legendItems.length > 0 && (
