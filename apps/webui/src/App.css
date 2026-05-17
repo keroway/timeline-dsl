@@ -363,6 +363,12 @@ body,
   border-color: #7f849c;
 }
 
+.btn-preview-ctrl-active {
+  background: rgba(49, 50, 68, 0.9);
+  border-color: #cba6f7;
+  color: #cba6f7;
+}
+
 /* Legend panel */
 .legend-panel {
   position: absolute;
