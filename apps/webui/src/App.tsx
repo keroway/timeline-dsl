@@ -7,6 +7,7 @@ import { StateEffect, StateField } from '@codemirror/state'
 import { autocompletion, snippetCompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import { bracketMatching } from '@codemirror/language'
 import { search } from '@codemirror/search'
+import { linter, lintGutter, forceLinting, type Diagnostic as CmDiagnostic } from '@codemirror/lint'
 import { initWasm, renderSvg, renderHtml, checkSource } from './wasmLoader'
 import type { Diagnostic } from './wasmLoader'
 import { EXAMPLES } from './examples'
@@ -80,6 +81,32 @@ function makeCursorLineExtension(onCursorLine: (line: number) => void) {
         }, 16)
       }
     }
+  )
+}
+
+/**
+ * CodeMirror linter: 渡された ref から最新の WASM Diagnostic[] を読み取り、
+ * 行全体（line.from → line.to）にハイライトを描画する。
+ * checkSource の二重実行を避けるため、ソースを参照せず ref に依存する。
+ */
+function makeTdslLinter(diagnosticsRef: { current: Diagnostic[] }) {
+  return linter(
+    (view): CmDiagnostic[] => {
+      const doc = view.state.doc
+      const out: CmDiagnostic[] = []
+      for (const d of diagnosticsRef.current) {
+        if (d.line < 1 || d.line > doc.lines) continue
+        const line = doc.line(d.line)
+        out.push({
+          from: line.from,
+          to: line.to,
+          severity: d.severity,
+          message: d.message,
+        })
+      }
+      return out
+    },
+    { delay: 0 },
   )
 }
 
@@ -324,6 +351,9 @@ function App() {
   const [source, setSource] = useState<string>(initial.source)
   const [svgContent, setSvgContent] = useState<string>('')
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
+  // CodeMirror linter は diagnostics の最新値を参照する必要があるため ref で同期する
+  const diagnosticsRef = useRef<Diagnostic[]>(diagnostics)
+  diagnosticsRef.current = diagnostics
   const [wasmReady, setWasmReady] = useState(false)
   const [wasmError, setWasmError] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings>(readSettings)
@@ -860,6 +890,16 @@ function App() {
   // eslint-disable-next-line react-hooks/refs, react-hooks/exhaustive-deps
   const cursorLineExtension = useMemo(() => makeCursorLineExtension(handleCursorLine), [])
 
+  // インライン linter extension（ref 経由で最新 diagnostics を参照する）
+  // eslint-disable-next-line react-hooks/refs, react-hooks/exhaustive-deps
+  const tdslLinterExtension = useMemo(() => makeTdslLinter(diagnosticsRef), [])
+
+  // diagnostics が更新されたら linter を強制再実行してマーカーを最新化する
+  useEffect(() => {
+    const view = editorViewRef.current
+    if (view) forceLinting(view)
+  }, [diagnostics])
+
   function handleDiagClick(diag: Diagnostic) {
     const view = editorViewRef.current
     if (!view || diag.line <= 0) return
@@ -1110,6 +1150,8 @@ function App() {
               autocompletion({ override: [makeTdslCompletionSource(() => source)] }),
               lineHighlightField,
               cursorLineExtension,
+              tdslLinterExtension,
+              lintGutter(),
               ...(lineWrap ? [EditorView.lineWrapping] : []),
             ]}
             onChange={handleEditorChange}
