@@ -1,5 +1,4 @@
 /* tslint:disable */
-/* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const check_source: (a: number, b: number, c: number) => void;
 export const compile_to_ir: (a: number, b: number, c: number) => void;
