@@ -11,6 +11,18 @@
     ],
     "description": "timeline ブロック基本形"
   },
+  "Timeline block (day precision)": {
+    "prefix": "tl-day",
+    "body": [
+      "timeline \"${1:タイトル}\" {",
+      "\tunit day",
+      "\trange ${2:2025-01-01} to ${3:2025-12-31}",
+      "",
+      "\tlane \"${4:レーン名}\" as ${5:lane_id} {}",
+      "}"
+    ],
+    "description": "timeline ブロック（unit day, 日精度 range）"
+  },
   "Lane definition": {
     "prefix": "lane",
     "body": [
@@ -27,7 +39,29 @@
       "\tend ${4:1950}",
       "}"
     ],
-    "description": "span アイテム"
+    "description": "span アイテム（年精度）"
+  },
+  "Span item (day precision)": {
+    "prefix": "span-day",
+    "body": [
+      "span \"${1:タイトル}\" {",
+      "\tlane ${2:lane_id}",
+      "\tstart ${3:2025-01-15}",
+      "\tend ${4:2025-04-30}",
+      "}"
+    ],
+    "description": "span アイテム（YYYY-MM-DD 月日精度）"
+  },
+  "Span item (month precision)": {
+    "prefix": "span-month",
+    "body": [
+      "span \"${1:タイトル}\" {",
+      "\tlane ${2:lane_id}",
+      "\tstart ${3:2025-04}",
+      "\tend ${4:2025-09}",
+      "}"
+    ],
+    "description": "span アイテム（YYYY-MM 月精度）"
   },
   "Event item": {
     "prefix": "event",
@@ -37,7 +71,28 @@
       "\tat ${3:1945}",
       "}"
     ],
-    "description": "event アイテム"
+    "description": "event アイテム（年精度）"
+  },
+  "Event item (day precision)": {
+    "prefix": "event-day",
+    "body": [
+      "event \"${1:タイトル}\" {",
+      "\tlane ${2:lane_id}",
+      "\tat ${3:1969-07-20}",
+      "}"
+    ],
+    "description": "event アイテム（YYYY-MM-DD 月日精度）"
+  },
+  "Event range item": {
+    "prefix": "event_range",
+    "body": [
+      "event_range \"${1:タイトル}\" {",
+      "\tlane ${2:lane_id}",
+      "\tstart ${3:1939-09-01}",
+      "\tend ${4:1945-09-02}",
+      "}"
+    ],
+    "description": "event_range アイテム（YYYY-MM-DD 月日精度）"
   },
   "Import block": {
     "prefix": "import",
