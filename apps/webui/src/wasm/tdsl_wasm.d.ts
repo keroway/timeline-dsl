@@ -1,5 +1,4 @@
 /* tslint:disable */
-/* eslint-disable */
 
 /**
  * Check TDSL source and return diagnostics as JSON.

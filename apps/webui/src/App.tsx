@@ -565,7 +565,7 @@ function App() {
   // Initial compile when WASM becomes ready
   useEffect(() => {
     if (wasmReady) {
-      compileAndCheck(source)
+      queueMicrotask(() => compileAndCheck(source))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wasmReady])
@@ -603,7 +603,10 @@ function App() {
 
   // Extract legend after SVG renders into DOM; also restore cursor highlight
   useEffect(() => {
-    if (!svgContent) { setLegendItems([]); return }
+    if (!svgContent) {
+      requestAnimationFrame(() => setLegendItems([]))
+      return
+    }
     requestAnimationFrame(() => {
       const container = svgContainerRef.current
       if (container) {
@@ -908,12 +911,10 @@ function App() {
     })
   }, [])
 
-  // カーソル行監視 extension（handleCursorLine が変わっても再生成しない）
-  // eslint-disable-next-line react-hooks/refs, react-hooks/exhaustive-deps
-  const cursorLineExtension = useMemo(() => makeCursorLineExtension(handleCursorLine), [])
+  // カーソル行監視 extension（handleCursorLine は useCallback で安定しているため再生成しない）
+  const cursorLineExtension = useMemo(() => makeCursorLineExtension(handleCursorLine), [handleCursorLine])
 
   // インライン linter extension（ref 経由で最新 diagnostics を参照する）
-  // eslint-disable-next-line react-hooks/refs, react-hooks/exhaustive-deps
   const tdslLinterExtension = useMemo(() => makeTdslLinter(diagnosticsRef), [])
 
   // diagnostics が更新されたら linter を強制再実行してマーカーを最新化する
