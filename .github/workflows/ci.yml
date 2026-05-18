@@ -46,6 +46,10 @@ jobs:
         working-directory: apps/webui
         run: npm ci
 
+      - name: Lint
+        working-directory: apps/webui
+        run: npm run lint
+
       - name: Build
         working-directory: apps/webui
         run: npm run build
