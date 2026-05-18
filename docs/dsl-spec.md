@@ -4,6 +4,8 @@
 
 Timeline DSL（`.tdsl`）は年表データを宣言的に記述するためのドメイン固有言語。C風の波括弧+セミコロン構文を採用し、可読性とGit差分管理のしやすさを重視している。
 
+> 月・日精度の時間表現（`YYYY-MM` / `YYYY-MM-DD` 形式）の詳細設計は [spec-date-precision.md](spec-date-precision.md) を参照。
+
 ## 文法（EBNF）
 
 ```ebnf
@@ -23,7 +25,7 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <timeline_setting>
                ::= "title" <string> ";"
                  | "unit" <identifier> ";"
-                 | "range" <number> ".." <number> ";"
+                 | "range" <time_value> ".." <time_value> ";"
                  | "calendar" <identifier> ";"
                  | "color_map" "{" { <identifier> ":" <string> ";" } "}"
 
@@ -31,11 +33,11 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <lane_prop>    ::= "kind" <identifier> ";"
                  | "order" <number> ";"
 
-<span>         ::= "span" <identifier> <number> ".." <number> <string>
+<span>         ::= "span" <identifier> <time_value> ".." <time_value> <string>
                    <block_options> ";"
-<event>        ::= "event" <identifier> <number> <string>
+<event>        ::= "event" <identifier> <time_value> <string>
                    <block_options> ";"
-<event_range>  ::= "event_range" <identifier> <number> ".." <number> <string>
+<event_range>  ::= "event_range" <identifier> <time_value> ".." <time_value> <string>
                    <block_options> ";"
 
 <block_options> ::= "{" { <option> } "}"
@@ -79,6 +81,10 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <property_id>  ::= "P" <digits>
 <identifier>   ::= /[A-Za-z_][A-Za-z0-9_-]*/
 <number>       ::= /"-"? [0-9]+/
+<time_value>   ::= <date> | <year_month> | <year>
+<year>         ::= /"-"? [0-9]+/
+<year_month>   ::= /[0-9]{1,4} "-" [0-9]{2}/
+<date>         ::= /[0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2}/
 ```
 
 ## 構文要素の詳細
@@ -130,10 +136,13 @@ lane "漢" as han { kind dynasty; order 20; }
 
 ```
 span han -206..220 "漢" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };
+
+// 月・日精度の例
+span ww2 1939-09-01..1945-09-02 "第二次世界大戦" { tags ["war"]; };
 ```
 
 - 第1引数: レーンID
-- 第2引数: `開始..終了`（整数範囲）
+- 第2引数: `開始..終了`（時刻値の範囲。`1939-09-01..1945-09-02` のように月・日精度も指定可）
 - 第3引数: ラベル（文字列）
 
 ### event
@@ -145,7 +154,7 @@ event han -209 "陳勝・呉広の乱" {};
 ```
 
 - 第1引数: レーンID
-- 第2引数: 時点（整数）
+- 第2引数: 時点（時刻値。`1969-07-20` のように月・日精度も指定可）
 - 第3引数: ラベル（文字列）
 
 ### event_range
@@ -157,7 +166,7 @@ event_range han 184..204 "黄巾の乱" { tags ["war"]; };
 ```
 
 - 第1引数: レーンID
-- 第2引数: `開始..終了`（整数範囲）
+- 第2引数: `開始..終了`（時刻値の範囲）
 - 第3引数: ラベル（文字列）
 
 ### block_options（共通オプション）
@@ -298,10 +307,15 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 
 ## 時間の表現
 
-- 正の整数: 西暦年（例: `220` = 220年）
-- 負の整数: 紀元前（例: `-206` = 紀元前206年）
-- 範囲: `開始..終了`（例: `-206..220`）
-- Wikidataの時刻値は `.year` 関数で整数年に変換
+| 形式 | 例 | 精度 |
+|---|---|---|
+| `YYYY` | `1969`, `-206` | 年 |
+| `YYYY-MM` | `1969-07` | 月 |
+| `YYYY-MM-DD` | `1969-07-20` | 日 |
+
+- 範囲: `開始..終了`（例: `-206..220`, `1939-09-01..1945-09-02`）
+- 紀元前（負の年）は**年精度のみ**サポート。`-206-07-20` のような月日付き紀元前は無効
+- Wikidataの時刻値は `.year` / `.month` / `.day` 関数で各精度の値を取得可能
 
 ## CLI
 
