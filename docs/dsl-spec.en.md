@@ -4,6 +4,8 @@
 
 Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describing timeline data. It uses a C-style brace + semicolon syntax, prioritizing readability and ease of Git diff management.
 
+> For detailed design of month/day precision (`YYYY-MM` / `YYYY-MM-DD` format), see [spec-date-precision.md](spec-date-precision.md).
+
 ## Grammar (EBNF)
 
 ```ebnf
@@ -23,7 +25,7 @@ Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describin
 <timeline_setting>
                ::= "title" <string> ";"
                  | "unit" <identifier> ";"
-                 | "range" <number> ".." <number> ";"
+                 | "range" <time_value> ".." <time_value> ";"
                  | "calendar" <identifier> ";"
                  | "color_map" "{" { <identifier> ":" <string> ";" } "}"
 
@@ -31,11 +33,11 @@ Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describin
 <lane_prop>    ::= "kind" <identifier> ";"
                  | "order" <number> ";"
 
-<span>         ::= "span" <identifier> <number> ".." <number> <string>
+<span>         ::= "span" <identifier> <time_value> ".." <time_value> <string>
                    <block_options> ";"
-<event>        ::= "event" <identifier> <number> <string>
+<event>        ::= "event" <identifier> <time_value> <string>
                    <block_options> ";"
-<event_range>  ::= "event_range" <identifier> <number> ".." <number> <string>
+<event_range>  ::= "event_range" <identifier> <time_value> ".." <time_value> <string>
                    <block_options> ";"
 
 <block_options> ::= "{" { <option> } "}"
@@ -79,6 +81,10 @@ Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describin
 <property_id>  ::= "P" <digits>
 <identifier>   ::= /[A-Za-z_][A-Za-z0-9_-]*/
 <number>       ::= /"-"? [0-9]+/
+<time_value>   ::= <date> | <year_month> | <year>
+<year>         ::= /"-"? [0-9]+/
+<year_month>   ::= /[0-9]{1,4} "-" [0-9]{2}/
+<date>         ::= /[0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2}/
 ```
 
 ## Syntax Element Details
@@ -130,10 +136,13 @@ Represents a period of existence, such as a dynasty's reign or a person's lifesp
 
 ```
 span han -206..220 "Han" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };
+
+// Month/day precision example
+span ww2 1939-09-01..1945-09-02 "World War II" { tags ["war"]; };
 ```
 
 - 1st argument: lane ID
-- 2nd argument: `start..end` (integer range)
+- 2nd argument: `start..end` (time value range; month/day precision is also accepted, e.g. `1939-09-01..1945-09-02`)
 - 3rd argument: label (string)
 
 ### event
@@ -145,7 +154,7 @@ event han -209 "Dazexiang Uprising" {};
 ```
 
 - 1st argument: lane ID
-- 2nd argument: point in time (integer)
+- 2nd argument: point in time (time value; month/day precision is also accepted, e.g. `1969-07-20`)
 - 3rd argument: label (string)
 
 ### event_range
@@ -157,7 +166,7 @@ event_range han 184..204 "Yellow Turban Rebellion" { tags ["war"]; };
 ```
 
 - 1st argument: lane ID
-- 2nd argument: `start..end` (integer range)
+- 2nd argument: `start..end` (time value range)
 - 3rd argument: label (string)
 
 ### block_options (common options)
@@ -298,10 +307,15 @@ Both line comments and block comments are supported.
 
 ## Representing Time
 
-- Positive integers: CE year (e.g., `220` = 220 CE)
-- Negative integers: BCE year (e.g., `-206` = 206 BCE)
-- Range: `start..end` (e.g., `-206..220`)
-- Wikidata time values are converted to integer years using the `.year` function
+| Format | Example | Precision |
+|---|---|---|
+| `YYYY` | `1969`, `-206` | Year |
+| `YYYY-MM` | `1969-07` | Month |
+| `YYYY-MM-DD` | `1969-07-20` | Day |
+
+- Range: `start..end` (e.g., `-206..220`, `1939-09-01..1945-09-02`)
+- BCE years (negative) support **year precision only**. Month/day on BCE dates (e.g., `-206-07-20`) is invalid.
+- Wikidata time values can be accessed at any precision using `.year`, `.month`, or `.day`
 
 ## CLI
 
