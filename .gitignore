@@ -1,6 +1,10 @@
 /target/
 .claude/*
 !.claude/settings.json
+!.claude/agents/
+!.claude/commands/
+!.claude/hooks/
+!.claude/rules/
 .serena/
 CLAUDE.md.bak
 
