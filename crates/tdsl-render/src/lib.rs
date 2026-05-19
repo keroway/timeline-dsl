@@ -277,6 +277,137 @@ mod tests {
         );
     }
 
+    // ─── render_svg_only golden tests ────────────────────────────────────
+
+    #[test]
+    fn render_svg_only_year_precision_basic_structure() {
+        // 年精度のみのシンプルな IR で SVG の基本構造を検証
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "年精度テスト".into(),
+                unit: "year".into(),
+                range: (-300, 300),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "han".into(),
+                label: "漢".into(),
+                kind: "dynasty".into(),
+                order: 10,
+            }],
+            items: vec![
+                Item::Span {
+                    id: "span:han".into(),
+                    lane: "han".into(),
+                    start: -206,
+                    end: 220,
+                    label: "漢".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    end_month: None,
+                    end_day: None,
+                    source_span: None,
+                },
+                Item::Event {
+                    id: "event:1".into(),
+                    lane: "han".into(),
+                    time: 0,
+                    label: "紀元".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    time_month: None,
+                    time_day: None,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+        let svg = render_svg_only(&ir, RenderOptions::default());
+        // SVG の基本構造
+        assert!(svg.starts_with("<svg"), "SVG should start with <svg");
+        assert!(svg.contains("</svg>"), "SVG should end with </svg>");
+        // span と event が含まれる
+        assert!(svg.contains("tdsl-span"), "should contain span element");
+        assert!(
+            svg.contains("tdsl-event-dot"),
+            "should contain event element"
+        );
+        // レーンラベルが含まれる
+        assert!(svg.contains("漢"), "should contain lane label");
+    }
+
+    #[test]
+    fn render_svg_only_month_day_mix_precision() {
+        // 月日精度ミックス: start_month / time_month を持つアイテムが正常に SVG に出力されること
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "月日精度テスト".into(),
+                unit: "year".into(),
+                range: (1939, 1946),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "ww2".into(),
+                label: "WW2".into(),
+                kind: "conflict".into(),
+                order: 10,
+            }],
+            items: vec![
+                Item::Span {
+                    id: "span:ww2".into(),
+                    lane: "ww2".into(),
+                    start: 1939,
+                    end: 1945,
+                    label: "第二次世界大戦".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: Some(9),
+                    start_day: Some(1),
+                    end_month: Some(9),
+                    end_day: Some(2),
+                    source_span: None,
+                },
+                Item::Event {
+                    id: "event:normandy".into(),
+                    lane: "ww2".into(),
+                    time: 1944,
+                    label: "ノルマンディー上陸".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    time_month: Some(6),
+                    time_day: Some(6),
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+        let svg = render_svg_only(&ir, RenderOptions::default());
+        assert!(svg.starts_with("<svg"), "SVG should start with <svg");
+        assert!(svg.contains("tdsl-span"), "should contain span element");
+        assert!(
+            svg.contains("tdsl-event-dot"),
+            "should contain event element"
+        );
+        // 月日精度がツールチップに反映される
+        assert!(
+            svg.contains("1939 Sep"),
+            "month-precision start should appear in tooltip, got SVG length={}",
+            svg.len()
+        );
+    }
+
     #[test]
     fn render_html_non_interactive_unchanged_behavior() {
         let ir = sample_ir();
