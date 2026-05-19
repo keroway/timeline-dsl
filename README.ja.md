@@ -371,6 +371,7 @@ WASM 駆動のブラウザ内エディタです。インストール不要でタ
 
 - [Getting Started チュートリアル](docs/tutorial.md) — ステップバイステップのハンズオン
 - [DSL 言語仕様](docs/dsl-spec.md) — 文法リファレンス
+- [CLI サブコマンドリファレンス](docs/cli-spec.md) — 全サブコマンドのオプションと実行例
 - [スタイルカスタマイズガイド](docs/styling.md) — `--theme` / `--custom-css` によるCSSカスタマイズのリファレンス
 - [エラーコードカタログ](docs/error-catalog.md) — エラーメッセージの原因と修正方法
 - [v0→v1 移行ガイド](docs/migration-v0-to-v1.md) — バージョンアップ時の変更点
