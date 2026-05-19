@@ -23,7 +23,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 console_error_panic_hook = { version = "0.1", optional = true }
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [package.metadata.wasm-pack.profile.release]
 # wasm-opt is disabled: wasm-pack's bundled binary fails on some CI runners.
