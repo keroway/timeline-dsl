@@ -305,6 +305,18 @@ event han -209 "陳勝・呉広の乱" {
 
 Wikidata からインポートしたファイルに追記する場合も、同じ文法でアイテムを追加できます。
 
+スプレッドシートで管理しているアイテムを取り込みたい場合は、`tdsl import-csv` を使うと CSV を `.tdsl` スニペットに変換できます。`start` / `end` / `time` 列は `YYYY-MM-DD` / `YYYY-MM` / `YYYY` の 3 精度に対応しています（紀元前は年精度のみ）。
+
+```bash
+# CSV を標準出力に変換
+tdsl import-csv examples/fictional_empire_items.csv
+
+# 既存ファイルに追記
+tdsl import-csv items.csv --append my_timeline.tdsl
+```
+
+詳細は [docs/cli-spec.md#import-csv](cli-spec.md#import-csv) を参照してください。
+
 ### 3. エラーメッセージが出た時はどうする？
 
 エラーメッセージには行番号と原因が表示されます。主なパターン:

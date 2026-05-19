@@ -230,7 +230,8 @@ enum Commands {
         lanes: String,
     },
 
-    /// Import timeline items from CSV (`lane,type,start,end,time,label,tags,id`)
+    /// Import timeline items from CSV (`lane,type,start,end,time,label,tags,id`).
+    /// `start` / `end` / `time` columns accept `YYYY-MM-DD`, `YYYY-MM`, or `YYYY` (negative years are year-precision only)
     ImportCsv {
         /// Input CSV file path (UTF-8 with header row)
         #[arg(value_name = "CSV")]
@@ -1448,9 +1449,9 @@ enum CsvItemType {
 struct ImportedCsvItem {
     lane: String,
     item_type: CsvItemType,
-    start: Option<i64>,
-    end: Option<i64>,
-    time: Option<i64>,
+    start: Option<tdsl_parser::ast::TimeValue>,
+    end: Option<tdsl_parser::ast::TimeValue>,
+    time: Option<tdsl_parser::ast::TimeValue>,
     label: String,
     tags: Vec<String>,
     id: Option<String>,
@@ -1666,21 +1667,26 @@ fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvItem>, Strin
         let end_raw = get("end")?;
         let time_raw = get("time")?;
 
-        let parse_required_year = |field: &str, raw: &str| -> Result<i64, String> {
+        let parse_required_time = |field: &str,
+                                   raw: &str|
+         -> Result<tdsl_parser::ast::TimeValue, String> {
             if raw.is_empty() {
                 return Err(format!("CSV row {row_no}: {field} must not be empty"));
             }
-            raw.parse::<i64>()
-                .map_err(|_| format!("CSV row {row_no}: {field} must be an integer"))
+            tdsl_parser::parse_time_literal(raw).map_err(|e| {
+                    format!(
+                        "CSV row {row_no}: {field} must be YYYY-MM-DD, YYYY-MM, or YYYY (got `{raw}`): {e}"
+                    )
+                })
         };
 
         let (start, end, time) = match item_type {
             CsvItemType::Span | CsvItemType::EventRange => (
-                Some(parse_required_year("start", &start_raw)?),
-                Some(parse_required_year("end", &end_raw)?),
+                Some(parse_required_time("start", &start_raw)?),
+                Some(parse_required_time("end", &end_raw)?),
                 None,
             ),
-            CsvItemType::Event => (None, None, Some(parse_required_year("time", &time_raw)?)),
+            CsvItemType::Event => (None, None, Some(parse_required_time("time", &time_raw)?)),
         };
 
         let tags_raw = get("tags")?;
@@ -1743,8 +1749,8 @@ fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
                     out,
                     r#"span {lane} {start}..{end} "{label}" {options};"#,
                     lane = item.lane,
-                    start = item.start.expect("validated start"),
-                    end = item.end.expect("validated end"),
+                    start = item.start.as_ref().expect("validated start"),
+                    end = item.end.as_ref().expect("validated end"),
                     label = escape_tdsl_string(&item.label),
                     options = block_options
                 )
@@ -1755,7 +1761,7 @@ fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
                     out,
                     r#"event {lane} {time} "{label}" {options};"#,
                     lane = item.lane,
-                    time = item.time.expect("validated time"),
+                    time = item.time.as_ref().expect("validated time"),
                     label = escape_tdsl_string(&item.label),
                     options = block_options
                 )
@@ -1766,8 +1772,8 @@ fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
                     out,
                     r#"event_range {lane} {start}..{end} "{label}" {options};"#,
                     lane = item.lane,
-                    start = item.start.expect("validated start"),
-                    end = item.end.expect("validated end"),
+                    start = item.start.as_ref().expect("validated start"),
+                    end = item.end.as_ref().expect("validated end"),
                     label = escape_tdsl_string(&item.label),
                     options = block_options
                 )
@@ -3150,7 +3156,90 @@ a,event,,,abc,foo,,\n",
         );
         let err = parse_csv_items(&path_bad_num).unwrap_err();
         std::fs::remove_file(path_bad_num).ok();
-        assert!(err.contains("time must be an integer"));
+        assert!(
+            err.contains("time must be YYYY-MM-DD"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_csv_items_accepts_month_day_precision() {
+        use tdsl_parser::ast::TimeValue;
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id\n\
+ww2,span,1939-09-01,1945-09-02,,第二次世界大戦,war,span:ww2\n\
+mission,event,,,1969-07-20,アポロ11号着陸,space,event:apollo\n\
+months,event_range,1939-09,1945-09,,WW2期間,war,range:ww2\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].start, Some(TimeValue::Date(1939, 9, 1)));
+        assert_eq!(items[0].end, Some(TimeValue::Date(1945, 9, 2)));
+        assert_eq!(items[1].time, Some(TimeValue::Date(1969, 7, 20)));
+        assert_eq!(items[2].start, Some(TimeValue::YearMonth(1939, 9)));
+        assert_eq!(items[2].end, Some(TimeValue::YearMonth(1945, 9)));
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_invalid_month() {
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id\n\
+a,event,,,2020-13-01,foo,,\n",
+        );
+        let err = parse_csv_items(&path).unwrap_err();
+        std::fs::remove_file(path).ok();
+        assert!(err.contains("CSV row 2"), "missing row no: {err}");
+        assert!(
+            err.contains("time") && err.contains("2020-13-01"),
+            "missing field/raw: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_negative_year_with_month() {
+        // 紀元前は year 精度のみ
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id\n\
+a,event,,,-206-01,foo,,\n",
+        );
+        let err = parse_csv_items(&path).unwrap_err();
+        std::fs::remove_file(path).ok();
+        assert!(err.contains("CSV row 2"), "{err}");
+    }
+
+    #[test]
+    fn render_imported_csv_items_emits_date_literal_round_trip() {
+        // CSV → render → 再パースが成功し、TimeValue の precision が往復で一致する
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id\n\
+ww2,span,1939-09-01,1945-09-02,,第二次世界大戦,war,span:ww2\n\
+mission,event,,,1969-07-20,着陸,space,event:apollo\n\
+qin,span,-221,-206,,秦,dynasty,span:qin\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+
+        let snippet = render_imported_csv_items(&items);
+        // 月日リテラルが Display 経由で正しく出力される
+        assert!(
+            snippet.contains("1939-09-01..1945-09-02"),
+            "missing date range: {snippet}"
+        );
+        assert!(
+            snippet.contains("event mission 1969-07-20"),
+            "missing date event: {snippet}"
+        );
+        assert!(
+            snippet.contains("-221..-206"),
+            "missing negative year: {snippet}"
+        );
+
+        // 再パース可能であること
+        let file = tdsl_parser::parse(&snippet)
+            .unwrap_or_else(|e| panic!("re-parse failed: {e}\n--- snippet ---\n{snippet}"));
+        assert_eq!(file.statements.len(), 3);
     }
 
     #[test]
