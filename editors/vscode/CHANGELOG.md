@@ -8,6 +8,12 @@
   - `span-day`, `span-month`, `event-day`, `event_range`, `tl-day`
 - `event_range` snippet (previously missing)
 
+### Changed
+
+- **Breaking:** Minimum required VS Code version raised from `^1.75.0` (Feb 2023) to `^1.90.0` (Jun 2024) ([#278](https://github.com/keroway/timeline-dsl/issues/278))
+  - Aligns the extension with currently supported VS Code APIs and Marketplace recommendations.
+  - Users on VS Code earlier than 1.90 should update to install or upgrade this extension.
+
 ### Notes
 
 - Syntax highlighting for date literals (`YYYY-MM-DD` / `YYYY-MM`) is already supported via the `number` pattern in `tdsl.tmLanguage.json` since the v1.9.0 month/day precision release ([#243](https://github.com/keroway/timeline-dsl/issues/243))

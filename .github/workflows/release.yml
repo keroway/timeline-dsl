@@ -99,7 +99,9 @@ jobs:
           key: wasm
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack@0.14.0
 
       - name: Build WASM (web target)
         run: wasm-pack build crates/tdsl-wasm --target web --release
