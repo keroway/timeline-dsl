@@ -8,17 +8,19 @@ Timeline DSL へのコントリビューションを歓迎します。このガ�
 
 ### 必要なもの
 
-- **Rust 1.80 以上** — [rustup](https://rustup.rs/) でインストール推奨
+- **Rust** — リポジトリ直下の [`rust-toolchain.toml`](./rust-toolchain.toml) で固定（現在 1.94）。[rustup](https://rustup.rs/) を入れておけば、リポジトリで `cargo` を実行した時に自動で対応バージョンがインストールされる
 - **cargo** — Rust に同梱
 
 ```bash
-# Rust のインストール（未インストールの場合）
+# rustup のインストール（未インストールの場合）
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# バージョン確認
+# バージョン確認（rust-toolchain.toml のチャネルが使われる）
 rustc --version
 cargo --version
 ```
+
+> **Rust バージョン更新の方針:** ローカル・CI ともに `rust-toolchain.toml` を単一の真実源とし、CI workflow の `dtolnay/rust-toolchain@<バージョン>` も同じバージョンに揃える。保守寄りに「最新 stable から 1 マイナー前」を目安に更新する。
 
 ### リポジトリのクローン
 

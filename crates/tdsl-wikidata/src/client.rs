@@ -264,14 +264,12 @@ impl WikidataClient for HttpWikidataClient {
         let languages = langs.join("|");
         let resp: WbGetEntitiesResponse = self
             .send_with_retry(|| {
-                self.http
-                    .get("https://www.wikidata.org/w/api.php")
-                    .query(&[
-                        ("action", "wbgetentities"),
-                        ("format", "json"),
-                        ("ids", qid),
-                        ("languages", &languages),
-                    ])
+                self.http.get("https://www.wikidata.org/w/api.php").query(&[
+                    ("action", "wbgetentities"),
+                    ("format", "json"),
+                    ("ids", qid),
+                    ("languages", &languages),
+                ])
             })
             .await?
             .json()
@@ -288,15 +286,13 @@ impl WikidataClient for HttpWikidataClient {
         let languages = langs.join("|");
         let resp: WbGetEntitiesResponse = self
             .send_with_retry(|| {
-                self.http
-                    .get("https://www.wikidata.org/w/api.php")
-                    .query(&[
-                        ("action", "wbgetentities"),
-                        ("format", "json"),
-                        ("sites", site),
-                        ("titles", title),
-                        ("languages", &languages),
-                    ])
+                self.http.get("https://www.wikidata.org/w/api.php").query(&[
+                    ("action", "wbgetentities"),
+                    ("format", "json"),
+                    ("sites", site),
+                    ("titles", title),
+                    ("languages", &languages),
+                ])
             })
             .await?
             .json()
@@ -315,16 +311,14 @@ impl WikidataClient for HttpWikidataClient {
         let limit_str = max_limit.to_string();
         let resp: WbSearchResponse = self
             .send_with_retry(|| {
-                self.http
-                    .get("https://www.wikidata.org/w/api.php")
-                    .query(&[
-                        ("action", "wbsearchentities"),
-                        ("format", "json"),
-                        ("type", "item"),
-                        ("language", lang),
-                        ("search", query),
-                        ("limit", &limit_str),
-                    ])
+                self.http.get("https://www.wikidata.org/w/api.php").query(&[
+                    ("action", "wbsearchentities"),
+                    ("format", "json"),
+                    ("type", "item"),
+                    ("language", lang),
+                    ("search", query),
+                    ("limit", &limit_str),
+                ])
             })
             .await?
             .json()
@@ -355,13 +349,12 @@ impl WikidataClient for HttpWikidataClient {
                     Some(v.value)
                 } else {
                     row.into_values()
-                        .find(|v| {
-                            v.value
-                                .starts_with("http://www.wikidata.org/entity/Q")
-                        })
+                        .find(|v| v.value.starts_with("http://www.wikidata.org/entity/Q"))
                         .map(|v| v.value)
                 }?;
-                value.rsplit('/').next()
+                value
+                    .rsplit('/')
+                    .next()
                     .filter(|s| s.starts_with('Q'))
                     .map(String::from)
             })
@@ -458,8 +451,7 @@ mod tests {
 
     #[test]
     fn parse_wikipedia_url_with_underscored_title() {
-        let page =
-            parse_wikipedia_url("https://en.wikipedia.org/wiki/Han_dynasty").unwrap();
+        let page = parse_wikipedia_url("https://en.wikipedia.org/wiki/Han_dynasty").unwrap();
         assert_eq!(
             page,
             WikipediaPageRef {
@@ -481,13 +473,12 @@ mod tests {
                     Some(v.value)
                 } else {
                     row.into_values()
-                        .find(|v| {
-                            v.value
-                                .starts_with("http://www.wikidata.org/entity/Q")
-                        })
+                        .find(|v| v.value.starts_with("http://www.wikidata.org/entity/Q"))
                         .map(|v| v.value)
                 }?;
-                value.rsplit('/').next()
+                value
+                    .rsplit('/')
+                    .next()
                     .filter(|s| s.starts_with('Q'))
                     .map(String::from)
             })
@@ -556,10 +547,7 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/w/api.php"))
             .respond_with(
-                ResponseTemplate::new(200).set_body_raw(
-                    r#"{"search":[]}"#,
-                    "application/json",
-                ),
+                ResponseTemplate::new(200).set_body_raw(r#"{"search":[]}"#, "application/json"),
             )
             .mount(&server)
             .await;
@@ -568,14 +556,18 @@ mod tests {
             .user_agent("tdsl-test")
             .build()
             .unwrap();
-        let client = HttpWikidataClient { http, max_retries: DEFAULT_MAX_RETRIES };
+        let client = HttpWikidataClient {
+            http,
+            max_retries: DEFAULT_MAX_RETRIES,
+        };
         let base = format!("{}/w/api.php", server.uri());
 
-        let result = client
-            .send_with_retry(|| client.http.get(&base))
-            .await;
+        let result = client.send_with_retry(|| client.http.get(&base)).await;
 
-        assert!(result.is_ok(), "expected success after retry, got: {result:?}");
+        assert!(
+            result.is_ok(),
+            "expected success after retry, got: {result:?}"
+        );
     }
 
     #[tokio::test]
@@ -596,12 +588,13 @@ mod tests {
             .user_agent("tdsl-test")
             .build()
             .unwrap();
-        let client = HttpWikidataClient { http, max_retries: DEFAULT_MAX_RETRIES };
+        let client = HttpWikidataClient {
+            http,
+            max_retries: DEFAULT_MAX_RETRIES,
+        };
         let base = format!("{}/w/api.php", server.uri());
 
-        let result = client
-            .send_with_retry(|| client.http.get(&base))
-            .await;
+        let result = client.send_with_retry(|| client.http.get(&base)).await;
 
         assert!(
             matches!(result, Err(WikidataError::RateLimit)),
@@ -619,9 +612,7 @@ mod tests {
         // First call returns 429 with Retry-After: 1
         Mock::given(method("GET"))
             .and(path("/w/api.php"))
-            .respond_with(
-                ResponseTemplate::new(429).insert_header("Retry-After", "1"),
-            )
+            .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "1"))
             .up_to_n_times(1)
             .mount(&server)
             .await;
@@ -629,8 +620,7 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/w/api.php"))
             .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_raw(r#"{"search":[]}"#, "application/json"),
+                ResponseTemplate::new(200).set_body_raw(r#"{"search":[]}"#, "application/json"),
             )
             .mount(&server)
             .await;
@@ -639,12 +629,13 @@ mod tests {
             .user_agent("tdsl-test")
             .build()
             .unwrap();
-        let client = HttpWikidataClient { http, max_retries: DEFAULT_MAX_RETRIES };
+        let client = HttpWikidataClient {
+            http,
+            max_retries: DEFAULT_MAX_RETRIES,
+        };
         let base = format!("{}/w/api.php", server.uri());
 
-        let result = client
-            .send_with_retry(|| client.http.get(&base))
-            .await;
+        let result = client.send_with_retry(|| client.http.get(&base)).await;
 
         assert!(
             result.is_ok(),
@@ -671,12 +662,13 @@ mod tests {
             .build()
             .unwrap();
         // max_retries=0 so the first 5xx triggers an immediate error.
-        let client = HttpWikidataClient { http, max_retries: 0 };
+        let client = HttpWikidataClient {
+            http,
+            max_retries: 0,
+        };
         let base = format!("{}/w/api.php", server.uri());
 
-        let result = client
-            .send_with_retry(|| client.http.get(&base))
-            .await;
+        let result = client.send_with_retry(|| client.http.get(&base)).await;
 
         assert!(
             matches!(result, Err(WikidataError::Http(_))),
@@ -710,13 +702,17 @@ mod tests {
             .user_agent("tdsl-test")
             .build()
             .unwrap();
-        let client = HttpWikidataClient { http, max_retries: DEFAULT_MAX_RETRIES };
+        let client = HttpWikidataClient {
+            http,
+            max_retries: DEFAULT_MAX_RETRIES,
+        };
         let base = format!("{}/w/api.php", server.uri());
 
-        let result = client
-            .send_with_retry(|| client.http.get(&base))
-            .await;
+        let result = client.send_with_retry(|| client.http.get(&base)).await;
 
-        assert!(result.is_ok(), "expected success after 500 retry, got: {result:?}");
+        assert!(
+            result.is_ok(),
+            "expected success after 500 retry, got: {result:?}"
+        );
     }
 }

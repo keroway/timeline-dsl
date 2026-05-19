@@ -77,15 +77,20 @@ impl<C: WikidataClient> CachedWikidataClient<C> {
         let safe_title: String = title
             .chars()
             .map(|c| {
-                if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | ' ') {
+                if matches!(
+                    c,
+                    '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | ' '
+                ) {
                     '_'
                 } else {
                     c
                 }
             })
             .collect();
-        self.cache_dir
-            .join(format!("sitelink_{}_{}_{}.json", site, safe_title, langs_key))
+        self.cache_dir.join(format!(
+            "sitelink_{}_{}_{}.json",
+            site, safe_title, langs_key
+        ))
     }
 
     /// キャッシュファイルが有効かどうかを判定する。
@@ -174,7 +179,10 @@ impl<C: WikidataClient> WikidataClient for CachedWikidataClient<C> {
         if let Some(entity) = self.read_cache(&path) {
             return Ok(entity);
         }
-        let entity = self.inner.get_entity_by_sitelink(site, title, langs).await?;
+        let entity = self
+            .inner
+            .get_entity_by_sitelink(site, title, langs)
+            .await?;
         self.write_cache(&path, &entity);
         Ok(entity)
     }
@@ -313,8 +321,8 @@ mod tests {
     use crate::entity::WikidataEntity;
     use async_trait::async_trait;
     use std::collections::HashMap;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
 
     /// API呼び出し回数を記録するモッククライアント
