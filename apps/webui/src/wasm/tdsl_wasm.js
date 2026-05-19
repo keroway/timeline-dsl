@@ -34,6 +34,7 @@ export function check_source(source) {
 
 /**
  * Compile TDSL source to IR (JSON string), without Wikidata resolution.
+ * `source_span` fields are populated for each static item (for bidirectional jump).
  * Returns Ok(json_string) or Err(error_message).
  * @param {string} source
  * @returns {string}
@@ -46,6 +47,43 @@ export function compile_to_ir(source) {
         const ptr0 = passStringToWasm0(source, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
         const len0 = WASM_VECTOR_LEN;
         wasm.compile_to_ir(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr2 = r0;
+        var len2 = r1;
+        if (r3) {
+            ptr2 = 0; len2 = 0;
+            throw takeObject(r2);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Format TDSL source by re-emitting from the AST.
+ *
+ * Parses `source` and re-emits a normalized form (2-space indent, single blank line
+ * between top-level statements). Comments in the original source are **not preserved**
+ * because they are skipped at the PEG layer.
+ * Returns Ok(formatted_source) on success, Err(parse_error_message) on parse failure.
+ * @param {string} source
+ * @returns {string}
+ */
+export function format_source(source) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(source, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.format_source(retptr, ptr0, len0);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -108,7 +146,9 @@ export function render_html_from_source(source) {
 /**
  * Render SVG from TDSL source (static items only).
  * `scale` controls pixels-per-year. Pass `0.0` (or negative) to auto-calculate
- * from the IR's `meta.range` (clamped to `0.5..=8.0`).
+ * from the IR's `meta.range` (clamped to `0.5..=50.0`).
+ * `source_span` (line numbers) are embedded as `data-line` attributes in the SVG
+ * for bidirectional editor↔preview jump.
  * Returns Ok(svg_string) or Err(error_message).
  * @param {string} source
  * @param {number} scale

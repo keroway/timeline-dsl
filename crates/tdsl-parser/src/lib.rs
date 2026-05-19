@@ -1,6 +1,9 @@
 pub mod ast;
 pub mod builder;
 pub mod error;
+pub mod format;
+
+pub use format::format_source;
 
 use pest::Parser;
 use pest_derive::Parser;

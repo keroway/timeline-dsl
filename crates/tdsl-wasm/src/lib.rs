@@ -10,6 +10,17 @@ pub fn main() {
     console_error_panic_hook::set_once();
 }
 
+/// Format TDSL source by re-emitting from the AST.
+///
+/// Parses `source` and re-emits a normalized form (2-space indent, single blank line
+/// between top-level statements). Comments in the original source are **not preserved**
+/// because they are skipped at the PEG layer.
+/// Returns Ok(formatted_source) on success, Err(parse_error_message) on parse failure.
+#[wasm_bindgen]
+pub fn format_source(source: &str) -> Result<String, JsValue> {
+    tdsl_parser::format_source(source).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 /// Compile TDSL source to IR (JSON string), without Wikidata resolution.
 /// `source_span` fields are populated for each static item (for bidirectional jump).
 /// Returns Ok(json_string) or Err(error_message).
