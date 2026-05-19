@@ -730,4 +730,41 @@ mod tests {
         let html = wrap_html("<svg></svg>", "test", &opts);
         assert!(html.contains("hotpink"), "custom CSS should be in output");
     }
+
+    #[test]
+    fn print_theme_applies_monochrome_background() {
+        let opts = RenderOptions {
+            theme: Theme::Print,
+            ..Default::default()
+        };
+        let html = wrap_html("<svg></svg>", "test", &opts);
+        // Print theme uses white background and black text
+        assert!(
+            html.contains("#fff") || html.contains("#ffffff"),
+            "print theme should include white background"
+        );
+        assert!(
+            html.contains("#000") || html.contains("#000000"),
+            "print theme should include black foreground"
+        );
+    }
+
+    #[test]
+    fn pastel_theme_applies_soft_colors() {
+        let opts = RenderOptions {
+            theme: Theme::Pastel,
+            ..Default::default()
+        };
+        let html = wrap_html("<svg></svg>", "test", &opts);
+        // Pastel theme uses #fef9f0 as background
+        assert!(
+            html.contains("fef9f0"),
+            "pastel theme should include #fef9f0 background"
+        );
+        // Pastel theme uses rounded spans (rx: 6)
+        assert!(
+            html.contains("b5d5f5"),
+            "pastel theme should include pastel blue span color"
+        );
+    }
 }

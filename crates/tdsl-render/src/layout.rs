@@ -281,7 +281,7 @@ impl<'a> LayoutModel<'a> {
                 let last = tdsl_core::ir::days_in_month(year, month);
                 let mut day = 1u8;
                 while day <= last {
-                    if day == 1 || (day - 1) as usize % step == 0 {
+                    if day == 1 || ((day - 1) as usize).is_multiple_of(step) {
                         let frac = to_year_frac(year, Some(month), Some(day));
                         if frac < self.year_max as f64 {
                             ticks.push((year, month, day));
@@ -732,6 +732,119 @@ mod tests {
         let x_jan = frac_to_x(to_year_frac(100, None, None), 0, 2.0, 0.0);
         let x_feb = frac_to_x(to_year_frac(100, Some(2), None), 0, 2.0, 0.0);
         assert!((x_feb - x_jan - 2.0 / 12.0).abs() < 0.001);
+    }
+
+    // ─── to_year_frac 精度テスト ──────────────────────────────────────────
+
+    #[test]
+    fn to_year_frac_year_only() {
+        // 年のみ指定: フラクショナル値 = 整数年
+        assert_eq!(to_year_frac(1939, None, None), 1939.0);
+        assert_eq!(to_year_frac(-206, None, None), -206.0);
+        assert_eq!(to_year_frac(0, None, None), 0.0);
+    }
+
+    #[test]
+    fn to_year_frac_with_month() {
+        // month=1 は +0/12、month=7 は +6/12 ≈ +0.5
+        assert_eq!(to_year_frac(1939, Some(1), None), 1939.0);
+        let mid = to_year_frac(1939, Some(7), None);
+        assert!(
+            (mid - 1939.5).abs() < 0.001,
+            "month=7 should be ~0.5 offset, got {mid}"
+        );
+        // month=12 は +11/12 ≈ +0.917
+        let dec = to_year_frac(1939, Some(12), None);
+        assert!(
+            (dec - (1939.0 + 11.0 / 12.0)).abs() < 0.001,
+            "month=12 offset wrong, got {dec}"
+        );
+    }
+
+    #[test]
+    fn to_year_frac_with_month_and_day() {
+        // month=1, day=1: オフセットなし
+        assert_eq!(to_year_frac(1939, Some(1), Some(1)), 1939.0);
+        // month=1, day=2: +1/365.25 オフセット
+        let d2 = to_year_frac(1939, Some(1), Some(2));
+        assert!(
+            (d2 - (1939.0 + 1.0 / 365.25)).abs() < 0.0001,
+            "day=2 offset wrong, got {d2}"
+        );
+        // month=3, day=15: month offset + day offset
+        let m3d15 = to_year_frac(1939, Some(3), Some(15));
+        let expected = 1939.0 + 2.0 / 12.0 + 14.0 / 365.25;
+        assert!(
+            (m3d15 - expected).abs() < 0.0001,
+            "month=3,day=15 wrong, got {m3d15}"
+        );
+    }
+
+    // ─── month_ticks テスト ──────────────────────────────────────────────
+
+    #[test]
+    fn month_ticks_empty_when_unit_not_month() {
+        let ir = TimelineIr {
+            meta: mk_meta_with_unit("year", (1939, 1945)),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        assert!(layout.month_ticks().is_empty());
+    }
+
+    #[test]
+    fn month_ticks_empty_when_scale_too_small() {
+        // scale/12 < 1.0 のとき空配列
+        let ir = TimelineIr {
+            meta: mk_meta_with_unit("month", (1939, 1945)),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 6.0, // 6/12 = 0.5 < 1.0
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        assert!(layout.month_ticks().is_empty());
+    }
+
+    #[test]
+    fn month_ticks_produced_for_month_unit_sufficient_scale() {
+        // scale/12 >= 1.0 のとき month=2..=12 のティックを返す
+        let ir = TimelineIr {
+            meta: mk_meta_with_unit("month", (1939, 1940)),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 24.0, // 24/12 = 2.0 >= 1.0
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let ticks = layout.month_ticks();
+        assert!(!ticks.is_empty(), "expected month ticks for month unit");
+        // 月初 (month=1) はティックに含まれない（年目盛と重複回避）
+        assert!(
+            !ticks.contains(&(1939, 1)),
+            "month=1 should not appear in month_ticks"
+        );
+        // February は含まれる
+        assert!(
+            ticks.contains(&(1939, 2)),
+            "expected (1939,2) in month_ticks"
+        );
+        // December は含まれる
+        assert!(
+            ticks.contains(&(1939, 12)),
+            "expected (1939,12) in month_ticks"
+        );
     }
 
     #[test]
