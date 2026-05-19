@@ -8,7 +8,7 @@ import { autocompletion, snippetCompletion, type CompletionContext, type Complet
 import { bracketMatching } from '@codemirror/language'
 import { search } from '@codemirror/search'
 import { linter, lintGutter, forceLinting, type Diagnostic as CmDiagnostic } from '@codemirror/lint'
-import { initWasm, renderSvg, renderHtml, checkSource } from './wasmLoader'
+import { initWasm, renderSvg, renderHtml, checkSource, formatSource } from './wasmLoader'
 import type { Diagnostic } from './wasmLoader'
 import { EXAMPLES } from './examples'
 import { GALLERY_EXAMPLES } from './gallery-meta'
@@ -328,6 +328,7 @@ function makeTdslCompletionSource(getSource: () => string) {
 
 const SHORTCUTS = [
   { key: 'Ctrl/Cmd + S', desc: '.tdsl をダウンロード' },
+  { key: 'Ctrl/Cmd + Shift + F', desc: 'エディタ内容を整形' },
   { key: 'Ctrl/Cmd + F', desc: '検索・置換パネルを開く' },
   { key: 'Escape', desc: '検索パネルを閉じる / 全画面モードを終了' },
   { key: 'Ctrl/Cmd + Enter', desc: '次の候補へ' },
@@ -689,6 +690,19 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source])
 
+  // Ctrl/Cmd+Shift+F: エディタ内容を整形
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+        e.preventDefault()
+        handleFormat()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wasmReady])
+
   // Close file menu on outside click
   useEffect(() => {
     if (!fileMenuOpen) return
@@ -717,6 +731,34 @@ function App() {
 
   function handleFontSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
     updateSetting('fontSize', parseInt(e.target.value, 10))
+  }
+
+  function handleFormat() {
+    if (!wasmReady) return
+    const view = editorViewRef.current
+    if (!view) return
+    const currentSource = view.state.doc.toString()
+    let formatted: string
+    try {
+      formatted = formatSource(currentSource)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      showToast(`整形に失敗しました: ${msg}`, 'error')
+      return
+    }
+    if (formatted === currentSource) {
+      showToast('既に整形済みです', 'info')
+      return
+    }
+    const hadComment = currentSource.includes('//') || currentSource.includes('/*')
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: formatted },
+    })
+    if (hadComment) {
+      showToast('整形しました（コメントは保持されません）', 'info')
+    } else {
+      showToast('整形しました', 'success')
+    }
   }
 
   function downloadTdsl() {
@@ -1050,6 +1092,14 @@ function App() {
               </button>
             </>
           )}
+          <button
+            className="btn"
+            onClick={handleFormat}
+            disabled={!wasmReady}
+            title="エディタ内容を整形 (Ctrl/Cmd+Shift+F)"
+          >
+            Format
+          </button>
         </div>
         <div className="toolbar-right">
           {/* エクスポートメニュー */}

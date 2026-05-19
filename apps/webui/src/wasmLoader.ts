@@ -1,4 +1,4 @@
-import init, { compile_to_ir, render_svg_from_source, render_html_from_source, check_source } from './wasm/tdsl_wasm.js'
+import init, { compile_to_ir, render_svg_from_source, render_html_from_source, check_source, format_source } from './wasm/tdsl_wasm.js'
 
 let initialized = false
 
@@ -34,4 +34,8 @@ export function checkSource(source: string): Diagnostic[] {
   } catch {
     return []
   }
+}
+
+export function formatSource(source: string): string {
+  return format_source(source)
 }

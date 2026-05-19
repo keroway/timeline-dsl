@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **WebUI に Format（整形）ボタンと `Ctrl/Cmd+Shift+F` を追加**: AST→再 emit 方式で 2 スペースインデント・ブロック間空行 1 行の標準形に整形する。整形は CodeMirror transaction 経由なので Undo/Redo が機能する。パース失敗時は Toast でエラー通知のみ行い、エディタ内容は変更しない。コメントは AST に残らないため整形時に削除される（コメントを含むソースを整形した場合は Toast で警告）。`tdsl-parser` に `format_source` 公開関数、`tdsl-wasm` に同名のバインディングを追加（#262）
 - **`tdsl import-csv` で月日リテラルを受理**: `start` / `end` / `time` 列が `YYYY-MM-DD` / `YYYY-MM` / `YYYY` の 3 精度を判別パースするようになった。v1.9.0 の月日精度サポートを CSV 経路にも拡張。`tdsl-parser` に `parse_time_literal` を公開し、grammar 由来の検証ロジックを再利用（#260）
 
 ## [1.9.0] - 2026-05-17
