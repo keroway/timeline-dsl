@@ -15,6 +15,31 @@ pub fn parse(source: &str) -> Result<ast::File, error::ParseError> {
     builder::build_file(pairs)
 }
 
+/// 単独の時刻リテラル文字列を [`ast::TimeValue`] にパースする。
+///
+/// `YYYY-MM-DD` / `YYYY-MM` / `YYYY` の 3 形式に対応し、月 1〜12 / 日 1〜31
+/// の範囲外は `ParseError` を返す。前後の空白は許容して除去するが、
+/// 文字列内部に余計なトークンがある場合は拒否する。
+/// `tdsl import-csv` など、DSL 本文の外部で時刻文字列を解釈する経路から利用する。
+pub fn parse_time_literal(s: &str) -> Result<ast::TimeValue, error::ParseError> {
+    let trimmed = s.trim();
+    let mut pairs = TdslParser::parse(Rule::time_literal_only, trimmed)?;
+    let outer = pairs
+        .next()
+        .ok_or_else(|| error::ParseError::UnexpectedRule {
+            rule: "time_literal_only: empty".to_string(),
+            location: "0:0".to_string(),
+        })?;
+    let time_value_pair = outer
+        .into_inner()
+        .find(|p| matches!(p.as_rule(), Rule::time_value))
+        .ok_or_else(|| error::ParseError::UnexpectedRule {
+            rule: "time_literal_only: missing time_value".to_string(),
+            location: "0:0".to_string(),
+        })?;
+    builder::parse_time_value(time_value_pair)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1011,6 +1036,81 @@ mod tests {
         assert!(Date(1939, 9, 1).to_sortable() > Date(1939, 8, 31).to_sortable());
         // 同年の Year は (year, 0, 0) なので、月日付きより前に位置する
         assert!(Year(1939).to_sortable() < YearMonth(1939, 1).to_sortable());
+    }
+
+    // ─── parse_time_literal (公開 API) ───────────────────────
+
+    #[test]
+    fn parse_time_literal_year() {
+        assert_eq!(
+            parse_time_literal("2020").unwrap(),
+            ast::TimeValue::Year(2020)
+        );
+        assert_eq!(
+            parse_time_literal("-206").unwrap(),
+            ast::TimeValue::Year(-206)
+        );
+        assert_eq!(parse_time_literal("0").unwrap(), ast::TimeValue::Year(0));
+    }
+
+    #[test]
+    fn parse_time_literal_year_month() {
+        assert_eq!(
+            parse_time_literal("1939-09").unwrap(),
+            ast::TimeValue::YearMonth(1939, 9)
+        );
+    }
+
+    #[test]
+    fn parse_time_literal_date() {
+        assert_eq!(
+            parse_time_literal("1969-07-20").unwrap(),
+            ast::TimeValue::Date(1969, 7, 20)
+        );
+    }
+
+    #[test]
+    fn parse_time_literal_invalid_month_rejected() {
+        assert!(parse_time_literal("2020-13").is_err());
+        assert!(parse_time_literal("2020-00").is_err());
+    }
+
+    #[test]
+    fn parse_time_literal_invalid_day_rejected() {
+        assert!(parse_time_literal("2020-02-32").is_err());
+        assert!(parse_time_literal("2020-02-00").is_err());
+    }
+
+    #[test]
+    fn parse_time_literal_trailing_garbage_rejected() {
+        // EOI 制約により末尾の非空白ゴミは拒否される
+        assert!(parse_time_literal("1969-07-20foo").is_err());
+        assert!(parse_time_literal("2020 extra").is_err());
+    }
+
+    #[test]
+    fn parse_time_literal_strips_outer_whitespace() {
+        // CSV パディング想定: 前後の空白は trim して解釈する
+        assert_eq!(
+            parse_time_literal("  2020  ").unwrap(),
+            ast::TimeValue::Year(2020)
+        );
+        assert_eq!(
+            parse_time_literal("\t1969-07-20\n").unwrap(),
+            ast::TimeValue::Date(1969, 7, 20)
+        );
+    }
+
+    #[test]
+    fn parse_time_literal_non_numeric_rejected() {
+        assert!(parse_time_literal("abc").is_err());
+        assert!(parse_time_literal("").is_err());
+    }
+
+    #[test]
+    fn parse_time_literal_negative_with_month_rejected() {
+        // 紀元前は year 精度のみ。仕様書 §1.3 と整合させる
+        assert!(parse_time_literal("-206-01").is_err());
     }
 
     #[test]

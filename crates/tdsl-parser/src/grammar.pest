@@ -156,6 +156,9 @@ year_lit       = @{ "-"? ~ ASCII_DIGIT+ }
 year_month_lit = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ !("-" ~ ASCII_DIGIT) }
 date_lit       = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} }
 time_value     = { date_lit | year_month_lit | year_lit }
+// 単独の時刻リテラルを行全体に対してパースするためのエントリポイント。
+// `tdsl-parser::parse_time_literal` から CSV 経路 (#260) などで再利用される。
+time_literal_only = { SOI ~ time_value ~ EOI }
 ident          = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
 dotted_ident   = @{ ident ~ ("." ~ ident)+ }
 source_ref     = ${ ident ~ ":" ~ qid }
