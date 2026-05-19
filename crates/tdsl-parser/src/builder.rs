@@ -620,7 +620,7 @@ fn parse_int(pair: &Pair<'_, Rule>) -> Result<i64> {
 /// PEG ルールは `date_lit | year_month_lit | year_lit` の順に試行され、
 /// 月は 1〜12、日は 1〜31 の範囲を builder 側で検証する。
 /// カレンダー妥当性（2月30日など）は lowering 側の責務。
-fn parse_time_value(pair: Pair<'_, Rule>) -> Result<TimeValue> {
+pub(crate) fn parse_time_value(pair: Pair<'_, Rule>) -> Result<TimeValue> {
     let location = pair_location_str(&pair);
     let inner = pair
         .into_inner()

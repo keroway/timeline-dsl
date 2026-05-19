@@ -467,12 +467,26 @@ tdsl import-csv [OPTIONS] <CSV>
 |---|---|---|
 | `lane` | ○ | アイテムを配置するレーンの ID |
 | `type` | ○ | アイテム種別（`span` / `event` / `event_range`） |
-| `start` | `span`/`event_range` | 開始年（整数） |
-| `end` | `span`/`event_range` | 終了年（整数） |
-| `time` | `event` | 発生年（整数） |
+| `start` | `span`/`event_range` | 開始時刻 |
+| `end` | `span`/`event_range` | 終了時刻 |
+| `time` | `event` | 発生時刻 |
 | `label` | ○ | 表示ラベル |
 | `tags` | — | タグ（カンマ区切り） |
 | `id` | — | アイテム ID（省略時は自動採番） |
+
+### 時刻リテラル
+
+`start` / `end` / `time` 列は v1.10 以降、年・月・日の 3 精度を判別パースします。`.tdsl` 本文と同じ表記が利用できます。
+
+| 表記 | 例 | 精度 |
+|---|---|---|
+| `YYYY-MM-DD` | `1969-07-20` | 日 |
+| `YYYY-MM` | `1939-09` | 月 |
+| `YYYY` | `1180` / `-206` | 年 |
+
+- 紀元前は **年精度のみ**（`-206-01` などは拒否される。仕様書 §1.3 と整合）。
+- 月の範囲は 1〜12、日の範囲は 1〜31（カレンダー妥当性の細かな検証は lowering 側で行う）。
+- 不正フォーマット時は CSV 行番号付きで「`time must be YYYY-MM-DD, YYYY-MM, or YYYY (got `2020-13-01`): ...`」のように原因が表示される。
 
 ### オプション
 
@@ -501,6 +515,8 @@ lane,type,start,end,time,label,tags,id
 dynasty,span,-206,9,,"前漢",dynasty,han_early
 events,event,,,221,"秦の統一",unification,qin_unify
 war,event_range,-206,-202,,"楚漢戦争",war,chuhan_war
+mission,event,,,1969-07-20,"アポロ11号着陸",space,event:apollo
+ww2,span,1939-09-01,1945-09-02,,"第二次世界大戦",war,span:ww2
 ```
 
 ---
