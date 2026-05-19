@@ -1,4 +1,5 @@
 /* tslint:disable */
+/* eslint-disable */
 
 /**
  * Check TDSL source and return diagnostics as JSON.
@@ -15,9 +16,20 @@ export function check_source(source: string): string;
 
 /**
  * Compile TDSL source to IR (JSON string), without Wikidata resolution.
+ * `source_span` fields are populated for each static item (for bidirectional jump).
  * Returns Ok(json_string) or Err(error_message).
  */
 export function compile_to_ir(source: string): string;
+
+/**
+ * Format TDSL source by re-emitting from the AST.
+ *
+ * Parses `source` and re-emits a normalized form (2-space indent, single blank line
+ * between top-level statements). Comments in the original source are **not preserved**
+ * because they are skipped at the PEG layer.
+ * Returns Ok(formatted_source) on success, Err(parse_error_message) on parse failure.
+ */
+export function format_source(source: string): string;
 
 /**
  * Initialize the panic hook for better error messages in the browser console.
@@ -33,7 +45,9 @@ export function render_html_from_source(source: string): string;
 /**
  * Render SVG from TDSL source (static items only).
  * `scale` controls pixels-per-year. Pass `0.0` (or negative) to auto-calculate
- * from the IR's `meta.range` (clamped to `0.5..=8.0`).
+ * from the IR's `meta.range` (clamped to `0.5..=50.0`).
+ * `source_span` (line numbers) are embedded as `data-line` attributes in the SVG
+ * for bidirectional editor↔preview jump.
  * Returns Ok(svg_string) or Err(error_message).
  */
 export function render_svg_from_source(source: string, scale: number): string;
@@ -44,6 +58,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly check_source: (a: number, b: number, c: number) => void;
     readonly compile_to_ir: (a: number, b: number, c: number) => void;
+    readonly format_source: (a: number, b: number, c: number) => void;
     readonly render_html_from_source: (a: number, b: number, c: number) => void;
     readonly render_svg_from_source: (a: number, b: number, c: number, d: number) => void;
     readonly main: () => void;
