@@ -316,7 +316,7 @@ mod tests {
         assert_eq!(merged.items.len(), 2);
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("renamed to 's1_2'"));
-        let ids: Vec<&str> = merged.items.iter().map(|i| item_id(i)).collect();
+        let ids: Vec<&str> = merged.items.iter().map(item_id).collect();
         assert!(ids.contains(&"s1"));
         assert!(ids.contains(&"s1_2"));
     }
