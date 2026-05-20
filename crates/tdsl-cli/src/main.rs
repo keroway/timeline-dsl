@@ -368,6 +368,7 @@ enum RenderFormat {
     #[default]
     Html,
     Svg,
+    Png,
 }
 
 impl ThemeArg {
@@ -1393,19 +1394,39 @@ fn cmd_render(
         ..Default::default()
     };
 
-    let output_str = match format {
-        RenderFormat::Html => tdsl_render::render_html(&ir, opts),
-        RenderFormat::Svg => tdsl_render::render_svg_only(&ir, opts),
-    };
+    match format {
+        RenderFormat::Html => write_render_text(&tdsl_render::render_html(&ir, opts), output),
+        RenderFormat::Svg => write_render_text(&tdsl_render::render_svg_only(&ir, opts), output),
+        RenderFormat::Png => {
+            let bytes = tdsl_render::render_png(&ir, opts)
+                .map_err(|e| format!("PNG rendering failed: {e}"))?;
+            write_render_binary(&bytes, output)
+        }
+    }
+}
 
+fn write_render_text(body: &str, output: Option<&std::path::Path>) -> Result<(), String> {
     if let Some(out_path) = output {
-        std::fs::write(out_path, &output_str)
+        std::fs::write(out_path, body)
             .map_err(|e| format!("Failed to write {}: {e}", out_path.display()))?;
         eprintln!("Written to {}", out_path.display());
     } else {
-        println!("{output_str}");
+        println!("{body}");
     }
+    Ok(())
+}
 
+fn write_render_binary(bytes: &[u8], output: Option<&std::path::Path>) -> Result<(), String> {
+    use std::io::Write;
+    if let Some(out_path) = output {
+        std::fs::write(out_path, bytes)
+            .map_err(|e| format!("Failed to write {}: {e}", out_path.display()))?;
+        eprintln!("Written to {}", out_path.display());
+    } else {
+        std::io::stdout()
+            .write_all(bytes)
+            .map_err(|e| format!("Failed to write to stdout: {e}"))?;
+    }
     Ok(())
 }
 

@@ -4,8 +4,16 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = []
+# Enables PNG rasterization via resvg. Off by default to keep the WASM build
+# slim (tdsl-wasm consumes tdsl-render without this feature).
+png = ["dep:resvg", "dep:thiserror"]
+
 [dependencies]
 tdsl-core = { path = "../tdsl-core", default-features = false }
+resvg = { version = "0.45", optional = true }
+thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

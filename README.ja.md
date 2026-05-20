@@ -80,6 +80,9 @@ tdsl render examples/china_dynasties.tdsl --interactive --output china.html
 # SVG形式で出力
 tdsl render examples/china_dynasties.tdsl --format svg --output china.svg
 
+# PNG形式で出力（resvg によるラスタライズ）
+tdsl render examples/china_dynasties.tdsl --format png --output china.png
+
 # Wikidata連携つきコンパイル
 tdsl build examples/china_with_import.tdsl --pretty
 
@@ -286,7 +289,7 @@ apply dynasty_span to wd {
 | インプット | デフォルト | 説明 |
 |---|---|---|
 | `file` | — | レンダリングする `.tdsl` ファイルのパス（必須） |
-| `format` | `svg` | 出力フォーマット: `svg` または `html` |
+| `format` | `svg` | 出力フォーマット: `svg` / `html` / `png` |
 | `output` | `<basename>.<format>` | 出力ファイルパス |
 | `offline` | `false` | Wikidata フェッチをスキップ（CI推奨） |
 | `interactive` | `false` | インタラクティブ HTML 出力（`format: html` 時） |
