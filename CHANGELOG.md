@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-05-21
+
+### Fixed
+
+- **リリース CI のクロスビルドターゲット未インストール問題を修正**: v1.10.0 で追加した `rust-toolchain.toml`（#279）の影響で `dtolnay/rust-toolchain` の `targets:` 指定が無視され、`x86_64-apple-darwin` 等のホスト以外のターゲットがインストールされなかったため、`Release` ワークフローで `error[E0463]: can't find crate for 'core'` により全マトリクスがキャンセルされ、CLI バイナリ配布と Homebrew formula 更新がスキップされていた。`release.yml` に明示的な `rustup target add` ステップを追加して復旧
+
 ## [1.10.0] - 2026-05-20
 
 ### Added
@@ -226,6 +232,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.10.1]: https://github.com/keroway/timeline-dsl/releases/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.7.0...v1.8.0
