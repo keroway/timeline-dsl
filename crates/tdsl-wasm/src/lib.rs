@@ -192,6 +192,127 @@ mod tests {
             "span=5000 width should be ~2640px, got {w}"
         );
     }
+
+    // ─── compile_to_ir / lower logic tests ───────────────────────────────────
+    // These tests exercise the same logic as compile_to_ir() but call the
+    // underlying pure-Rust functions so they work in native (non-WASM) test runs.
+
+    const VALID_SRC: &str = r#"timeline "Test" {
+    unit year;
+    range 0..100;
+}
+lane "A" as a {}
+span a 10..50 "A Span" {};
+"#;
+
+    #[test]
+    fn lower_valid_source_produces_ir_with_expected_fields() {
+        let file = tdsl_parser::parse(VALID_SRC).expect("valid source must parse");
+        let ir = tdsl_core::lower::lower_static_with_source(&file, Some(VALID_SRC))
+            .expect("valid source must lower");
+        assert_eq!(ir.lanes.len(), 1);
+        assert_eq!(ir.items.len(), 1);
+        let json = serde_json::to_string_pretty(&ir).expect("IR must serialize to JSON");
+        assert!(
+            json.contains(r#""meta""#),
+            "IR JSON should contain meta key"
+        );
+        assert!(
+            json.contains(r#""lanes""#),
+            "IR JSON should contain lanes key"
+        );
+        assert!(
+            json.contains(r#""items""#),
+            "IR JSON should contain items key"
+        );
+    }
+
+    #[test]
+    fn lower_parse_error_returns_err() {
+        let result = tdsl_parser::parse("this is !!! not valid tdsl");
+        assert!(result.is_err(), "invalid syntax must fail to parse");
+    }
+
+    #[test]
+    fn lower_unknown_lane_returns_lowering_err() {
+        let src = r#"timeline "Test" {
+    unit year;
+    range 0..100;
+}
+span nonexistent 10..50 "Bad Span" {};
+"#;
+        let file = tdsl_parser::parse(src).expect("source must parse");
+        let result = tdsl_core::lower::lower_static_with_source(&file, Some(src));
+        assert!(
+            result.is_err(),
+            "unknown lane must produce a lowering error"
+        );
+    }
+
+    // ─── format_source logic tests ────────────────────────────────────────────
+
+    #[test]
+    fn format_valid_source_output_reparses() {
+        let formatted = tdsl_parser::format_source(VALID_SRC).expect("valid source must format");
+        let reparse = tdsl_parser::parse(&formatted);
+        assert!(
+            reparse.is_ok(),
+            "formatted output should re-parse successfully, got {reparse:?}"
+        );
+    }
+
+    #[test]
+    fn format_invalid_source_returns_err() {
+        let result = tdsl_parser::format_source("this is !!! not valid tdsl");
+        assert!(result.is_err(), "invalid syntax must fail to format");
+    }
+
+    // ─── check_source / validate logic tests ─────────────────────────────────
+
+    #[test]
+    fn validate_valid_source_produces_no_warnings() {
+        let file = tdsl_parser::parse(VALID_SRC).expect("valid source must parse");
+        let ir = tdsl_core::lower::lower_static_with_source(&file, Some(VALID_SRC))
+            .expect("valid source must lower");
+        let warnings = tdsl_core::validate::validate(&ir);
+        assert!(
+            warnings.is_empty(),
+            "no warnings expected for valid source, got: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn validate_inverted_span_produces_warning() {
+        let src = r#"timeline "Test" {
+    unit year;
+    range 0..100;
+}
+lane "A" as a {}
+span a 80..10 "Inverted" {};
+"#;
+        let file = tdsl_parser::parse(src).expect("source must parse");
+        let ir = tdsl_core::lower::lower_static_with_source(&file, Some(src))
+            .expect("source must lower");
+        let warnings = tdsl_core::validate::validate(&ir);
+        assert!(
+            !warnings.is_empty(),
+            "inverted span should produce at least one warning"
+        );
+    }
+
+    #[test]
+    fn check_source_json_is_valid_for_valid_source() {
+        let json = check_source(VALID_SRC);
+        let result: Result<Vec<serde_json::Value>, _> = serde_json::from_str(&json);
+        assert!(
+            result.is_ok(),
+            "check_source must always return valid JSON array"
+        );
+        assert!(
+            result.unwrap().is_empty(),
+            "no diagnostics expected for valid source"
+        );
+    }
 }
 
 /// Render standalone HTML from TDSL source (static items only).
