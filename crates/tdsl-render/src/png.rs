@@ -28,6 +28,39 @@ pub enum PngError {
     Encode(String),
 }
 
+/// Resolution and scale options for PNG rasterization.
+///
+/// SVG user units are defined at 96 DPI. Setting `dpi` to a higher value
+/// increases the output pixel dimensions proportionally. Alternatively,
+/// `scale_factor` overrides the DPI calculation with a direct multiplier.
+/// Specifying both is a logic error — the CLI prevents it with `conflicts_with`.
+#[derive(Debug, Clone)]
+pub struct PngOptions {
+    /// Output DPI (default 96). The pixel scale is computed as `dpi / 96.0`.
+    pub dpi: u32,
+    /// Fixed pixel scale multiplier. When `Some`, overrides `dpi`.
+    pub scale_factor: Option<f64>,
+}
+
+impl Default for PngOptions {
+    fn default() -> Self {
+        Self {
+            dpi: 96,
+            scale_factor: None,
+        }
+    }
+}
+
+impl PngOptions {
+    fn pixel_scale(&self) -> f64 {
+        if let Some(sf) = self.scale_factor {
+            sf
+        } else {
+            self.dpi as f64 / 96.0
+        }
+    }
+}
+
 /// Render the timeline IR to PNG bytes using the given options.
 ///
 /// Internally this:
@@ -37,26 +70,34 @@ pub enum PngError {
 ///    shaped.
 /// 4. Rasterizes through `resvg` into a `tiny_skia::Pixmap`.
 /// 5. Encodes the pixmap as a PNG byte buffer.
-pub fn render_png(ir: &TimelineIr, opts: RenderOptions) -> Result<Vec<u8>, PngError> {
+pub fn render_png(
+    ir: &TimelineIr,
+    opts: RenderOptions,
+    png_opts: PngOptions,
+) -> Result<Vec<u8>, PngError> {
     let layout = LayoutModel::compute(ir, opts);
     let svg_str = svg::render_svg(&layout);
-    svg_to_png(&svg_str)
+    svg_to_png(&svg_str, png_opts)
 }
 
 /// Convert a pre-rendered SVG string to PNG bytes.
 ///
 /// Exposed separately so callers that already hold an SVG string (e.g. tests,
 /// alternative pipelines) don't need to re-run layout.
-pub fn svg_to_png(svg_str: &str) -> Result<Vec<u8>, PngError> {
+pub fn svg_to_png(svg_str: &str, png_opts: PngOptions) -> Result<Vec<u8>, PngError> {
+    let factor = png_opts.pixel_scale();
     let mut opt = Options::default();
     opt.fontdb_mut().load_system_fonts();
 
     let tree = Tree::from_data(svg_str.as_bytes(), &opt)?;
     let size = tree.size().to_int_size();
-    let width = size.width();
-    let height = size.height();
+    let base_width = size.width();
+    let base_height = size.height();
+    let width = ((base_width as f64 * factor).round() as u32).max(1);
+    let height = ((base_height as f64 * factor).round() as u32).max(1);
     let mut pixmap = Pixmap::new(width, height).ok_or(PngError::PixmapAlloc { width, height })?;
-    resvg::render(&tree, Transform::default(), &mut pixmap.as_mut());
+    let transform = Transform::from_scale(factor as f32, factor as f32);
+    resvg::render(&tree, transform, &mut pixmap.as_mut());
     pixmap
         .encode_png()
         .map_err(|e| PngError::Encode(e.to_string()))
@@ -109,7 +150,8 @@ mod tests {
     #[test]
     fn render_png_produces_valid_png_bytes() {
         let ir = sample_ir();
-        let bytes = render_png(&ir, RenderOptions::default()).expect("render_png succeeds");
+        let bytes = render_png(&ir, RenderOptions::default(), PngOptions::default())
+            .expect("render_png succeeds");
         assert!(
             bytes.starts_with(PNG_SIGNATURE),
             "output should start with the PNG signature, got first 8 bytes = {:?}",
@@ -138,13 +180,61 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let bytes = render_png(&ir, RenderOptions::default()).expect("render_png succeeds");
+        let bytes = render_png(&ir, RenderOptions::default(), PngOptions::default())
+            .expect("render_png succeeds");
         assert!(bytes.starts_with(PNG_SIGNATURE));
     }
 
     #[test]
     fn svg_to_png_invalid_svg_returns_parse_error() {
-        let err = svg_to_png("not-an-svg").expect_err("invalid SVG must error");
+        let err =
+            svg_to_png("not-an-svg", PngOptions::default()).expect_err("invalid SVG must error");
         assert!(matches!(err, PngError::Parse(_)));
+    }
+
+    #[test]
+    fn png_dpi_300_produces_larger_output_than_default() {
+        let ir = sample_ir();
+        let default_bytes = render_png(&ir, RenderOptions::default(), PngOptions::default())
+            .expect("default render_png succeeds");
+        let hires_bytes = render_png(
+            &ir,
+            RenderOptions::default(),
+            PngOptions {
+                dpi: 300,
+                scale_factor: None,
+            },
+        )
+        .expect("300 DPI render_png succeeds");
+        assert!(
+            hires_bytes.len() > default_bytes.len(),
+            "300 DPI PNG ({} bytes) should be larger than default 96 DPI PNG ({} bytes)",
+            hires_bytes.len(),
+            default_bytes.len()
+        );
+        assert!(hires_bytes.starts_with(PNG_SIGNATURE));
+    }
+
+    #[test]
+    fn png_scale_factor_produces_larger_output_than_default() {
+        let ir = sample_ir();
+        let default_bytes = render_png(&ir, RenderOptions::default(), PngOptions::default())
+            .expect("default render_png succeeds");
+        let scaled_bytes = render_png(
+            &ir,
+            RenderOptions::default(),
+            PngOptions {
+                dpi: 96,
+                scale_factor: Some(2.0),
+            },
+        )
+        .expect("2x scale render_png succeeds");
+        assert!(
+            scaled_bytes.len() > default_bytes.len(),
+            "2x scale PNG ({} bytes) should be larger than default PNG ({} bytes)",
+            scaled_bytes.len(),
+            default_bytes.len()
+        );
+        assert!(scaled_bytes.starts_with(PNG_SIGNATURE));
     }
 }

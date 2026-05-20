@@ -186,6 +186,14 @@ enum Commands {
         #[arg(long)]
         custom_css: Option<PathBuf>,
 
+        /// Output DPI for PNG format (default 96). Scales pixel dimensions as dpi/96. Only applied with --format png.
+        #[arg(long, conflicts_with = "png_scale")]
+        dpi: Option<u32>,
+
+        /// Fixed pixel scale multiplier for PNG format (e.g. 2.0 doubles dimensions). Overrides --dpi. Only applied with --format png.
+        #[arg(long, conflicts_with = "dpi")]
+        png_scale: Option<f64>,
+
         /// Enable interactive mode (zoom, pan, search, legend, detail panel)
         #[arg(long, default_value_t = false)]
         interactive: bool,
@@ -464,6 +472,8 @@ fn main() {
             top_margin,
             theme,
             custom_css,
+            dpi,
+            png_scale,
             interactive,
             offline,
             no_cache,
@@ -479,6 +489,8 @@ fn main() {
             top_margin,
             theme,
             custom_css.as_deref(),
+            dpi,
+            png_scale,
             interactive,
             offline,
             tdsl_wikidata::CacheOptions {
@@ -1358,6 +1370,8 @@ fn cmd_render(
     top_margin: f64,
     theme: ThemeArg,
     custom_css_path: Option<&std::path::Path>,
+    dpi: Option<u32>,
+    png_scale: Option<f64>,
     interactive: bool,
     offline: bool,
     cache_opts: tdsl_wikidata::CacheOptions,
@@ -1398,7 +1412,11 @@ fn cmd_render(
         RenderFormat::Html => write_render_text(&tdsl_render::render_html(&ir, opts), output),
         RenderFormat::Svg => write_render_text(&tdsl_render::render_svg_only(&ir, opts), output),
         RenderFormat::Png => {
-            let bytes = tdsl_render::render_png(&ir, opts)
+            let png_opts = tdsl_render::PngOptions {
+                dpi: dpi.unwrap_or(96),
+                scale_factor: png_scale,
+            };
+            let bytes = tdsl_render::render_png(&ir, opts, png_opts)
                 .map_err(|e| format!("PNG rendering failed: {e}"))?;
             write_render_binary(&bytes, output)
         }
