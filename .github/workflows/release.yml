@@ -46,6 +46,15 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # rust-toolchain.toml の存在下では dtolnay/rust-toolchain の `targets:` が
+      # 反映されない場合があるため、明示的に rustup target add で保証する。
+      - name: Ensure target installed
+        if: "!matrix.use_cross"
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: rustup target add "$TARGET"
+
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
         with:
