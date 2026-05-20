@@ -7,9 +7,13 @@
 
 pub mod html;
 pub mod layout;
+#[cfg(feature = "png")]
+pub mod png;
 pub mod svg;
 
 pub use layout::{LayoutModel, RenderOptions, Theme};
+#[cfg(feature = "png")]
+pub use png::{PngError, render_png};
 
 use tdsl_core::ir::TimelineIr;
 

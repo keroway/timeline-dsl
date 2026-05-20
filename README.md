@@ -80,6 +80,9 @@ tdsl render examples/china_dynasties.tdsl --interactive --output china.html
 # Output as SVG
 tdsl render examples/china_dynasties.tdsl --format svg --output china.svg
 
+# Output as PNG (rasterized via resvg)
+tdsl render examples/china_dynasties.tdsl --format png --output china.png
+
 # Compile with Wikidata integration
 tdsl build examples/china_with_import.tdsl --pretty
 
@@ -286,7 +289,7 @@ Key inputs:
 | Input | Default | Description |
 |---|---|---|
 | `file` | — | Path to the `.tdsl` file to render (required) |
-| `format` | `svg` | Output format: `svg` or `html` |
+| `format` | `svg` | Output format: `svg`, `html`, or `png` |
 | `output` | `<basename>.<format>` | Output file path |
 | `offline` | `false` | Skip Wikidata fetching (recommended for CI) |
 | `interactive` | `false` | Interactive HTML output (when `format: html`) |
