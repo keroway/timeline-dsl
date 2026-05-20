@@ -80,6 +80,25 @@ test -s "$TMP_DIR/china.png"
 head -c 8 "$TMP_DIR/china.png" | od -A n -t x1 | tr -d ' \n' | grep -Eq "^89504e470d0a1a0a$" \
   || { echo "FAIL: PNG signature mismatch in $TMP_DIR/china.png"; exit 1; }
 
+echo "[e2e] render: --format png --dpi 300 produces larger PNG than default 96 DPI"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format png --dpi 300 --output "$TMP_DIR/china_300dpi.png"
+test -s "$TMP_DIR/china_300dpi.png"
+head -c 8 "$TMP_DIR/china_300dpi.png" | od -A n -t x1 | tr -d ' \n' | grep -Eq "^89504e470d0a1a0a$" \
+  || { echo "FAIL: PNG signature mismatch in $TMP_DIR/china_300dpi.png"; exit 1; }
+SIZE_96=$(wc -c < "$TMP_DIR/china.png")
+SIZE_300=$(wc -c < "$TMP_DIR/china_300dpi.png")
+[ "$SIZE_300" -gt "$SIZE_96" ] \
+  || { echo "FAIL: 300 DPI PNG ($SIZE_300 bytes) should be larger than 96 DPI PNG ($SIZE_96 bytes)"; exit 1; }
+
+echo "[e2e] render: --format png --png-scale 2.0 produces larger PNG than default"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format png --png-scale 2.0 --output "$TMP_DIR/china_2x.png"
+test -s "$TMP_DIR/china_2x.png"
+head -c 8 "$TMP_DIR/china_2x.png" | od -A n -t x1 | tr -d ' \n' | grep -Eq "^89504e470d0a1a0a$" \
+  || { echo "FAIL: PNG signature mismatch in $TMP_DIR/china_2x.png"; exit 1; }
+SIZE_2X=$(wc -c < "$TMP_DIR/china_2x.png")
+[ "$SIZE_2X" -gt "$SIZE_96" ] \
+  || { echo "FAIL: 2x scale PNG ($SIZE_2X bytes) should be larger than default PNG ($SIZE_96 bytes)"; exit 1; }
+
 # ---- tdsl init -> import-csv -> lint -> build -> render (full manual flow) --
 echo "[e2e] manual flow: init -> import-csv -> lint --fix -> check -> build -> render"
 cargo run -q -p tdsl-cli -- init \

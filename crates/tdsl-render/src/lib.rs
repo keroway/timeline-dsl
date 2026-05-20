@@ -13,7 +13,7 @@ pub mod svg;
 
 pub use layout::{LayoutModel, RenderOptions, Theme};
 #[cfg(feature = "png")]
-pub use png::{PngError, render_png};
+pub use png::{PngError, PngOptions, render_png, svg_to_png};
 
 use tdsl_core::ir::TimelineIr;
 
