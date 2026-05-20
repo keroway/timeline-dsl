@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`tdsl render --format png` を追加**: `resvg` / `usvg` / `tiny-skia` をオプション feature `tdsl-render/png` 経由で統合し、内部 SVG を PNG にラスタライズして出力できるようにした。`fontdb` に system fonts を読み込むため、Noto Sans JP / Hiragino Sans / Yu Gothic 等が利用可能な環境では CJK レーンラベルもそのまま描画される。`tdsl-cli` は `png` feature を有効化して同梱、`tdsl-wasm` は依存させないため WASM バンドルサイズへの影響なし。composite action `action.yml` も `format: png` をサポート。後続の DPI / scale オプション（#264）と PDF 出力（#265）は別 PR で対応予定（#263）
 - **WebUI に Format（整形）ボタンと `Ctrl/Cmd+Shift+F` を追加**: AST→再 emit 方式で 2 スペースインデント・ブロック間空行 1 行の標準形に整形する。整形は CodeMirror transaction 経由なので Undo/Redo が機能する。パース失敗時は Toast でエラー通知のみ行い、エディタ内容は変更しない。コメントは AST に残らないため整形時に削除される（コメントを含むソースを整形した場合は Toast で警告）。`tdsl-parser` に `format_source` 公開関数、`tdsl-wasm` に同名のバインディングを追加（#262）
 - **`tdsl import-csv` で月日リテラルを受理**: `start` / `end` / `time` 列が `YYYY-MM-DD` / `YYYY-MM` / `YYYY` の 3 精度を判別パースするようになった。v1.9.0 の月日精度サポートを CSV 経路にも拡張。`tdsl-parser` に `parse_time_literal` を公開し、grammar 由来の検証ロジックを再利用（#260）
 

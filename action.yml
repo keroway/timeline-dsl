@@ -1,5 +1,5 @@
 name: 'Timeline DSL'
-description: 'Compile and render .tdsl timeline files to SVG or HTML using Timeline DSL'
+description: 'Compile and render .tdsl timeline files to SVG, HTML, or PNG using Timeline DSL'
 author: 'keroway'
 branding:
   icon: 'clock'
@@ -10,7 +10,7 @@ inputs:
     description: 'Path to the .tdsl file to render'
     required: true
   format:
-    description: 'Output format: svg or html'
+    description: 'Output format: svg, html, or png'
     required: false
     default: 'svg'
   output:

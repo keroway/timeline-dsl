@@ -373,7 +373,7 @@ tdsl render [OPTIONS] <FILE>
 | オプション | 説明 | デフォルト |
 |---|---|---|
 | `-o, --output <OUTPUT>` | 出力ファイルのパス | 標準出力 |
-| `--format <FORMAT>` | 出力フォーマット（`html` / `svg`） | `html` |
+| `--format <FORMAT>` | 出力フォーマット（`html` / `svg` / `png`） | `html` |
 | `--scale <SCALE>` | 横軸の 1 年あたりピクセル数 | `2` |
 | `--lane-height <LANE_HEIGHT>` | 各レーンの高さ（px） | `60` |
 | `--left-gutter <LEFT_GUTTER>` | レーンラベル用の左ガター幅 | `120` |
@@ -394,6 +394,9 @@ tdsl render examples/china_dynasties.tdsl --output china.html
 
 # ダークテーマで SVG に出力
 tdsl render examples/china_dynasties.tdsl --format svg --theme dark --output china.svg
+
+# PNG にラスタライズして出力（resvg ベース、デフォルト DPI 96）
+tdsl render examples/china_dynasties.tdsl --format png --output china.png
 
 # インタラクティブモードで HTML を生成
 tdsl render examples/china_dynasties.tdsl --interactive --output china_interactive.html

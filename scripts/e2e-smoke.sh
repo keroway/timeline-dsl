@@ -72,6 +72,14 @@ echo "[e2e] render: stdout output contains SVG"
 cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl >"$TMP_DIR/render_stdout.html"
 grep -Fq "<svg" "$TMP_DIR/render_stdout.html"
 
+# ---- tdsl render --format png (resvg rasterization) -------------------------
+echo "[e2e] render: --format png outputs a valid PNG file"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format png --output "$TMP_DIR/china.png"
+test -s "$TMP_DIR/china.png"
+# Verify PNG file signature: 89 50 4E 47 0D 0A 1A 0A
+head -c 8 "$TMP_DIR/china.png" | od -A n -t x1 | tr -d ' \n' | grep -Eq "^89504e470d0a1a0a$" \
+  || { echo "FAIL: PNG signature mismatch in $TMP_DIR/china.png"; exit 1; }
+
 # ---- tdsl init -> import-csv -> lint -> build -> render (full manual flow) --
 echo "[e2e] manual flow: init -> import-csv -> lint --fix -> check -> build -> render"
 cargo run -q -p tdsl-cli -- init \
