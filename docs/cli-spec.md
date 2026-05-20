@@ -380,6 +380,8 @@ tdsl render [OPTIONS] <FILE>
 | `--top-margin <TOP_MARGIN>` | 時間軸のトップマージン | `40` |
 | `--theme <THEME>` | 配色テーマ（`default` / `dark` / `print` / `pastel`） | `default` |
 | `--custom-css <CUSTOM_CSS>` | テーマ CSS の後に注入するカスタム CSS ファイルのパス | — |
+| `--dpi <DPI>` | PNG 出力の解像度（dpi/96 倍のピクセルサイズ）。`--format png` のみ有効。`--png-scale` と排他 | `96` |
+| `--png-scale <PNG_SCALE>` | PNG 出力の固定ピクセル倍率（例: `2.0` で 2 倍）。`--format png` のみ有効。`--dpi` と排他 | — |
 | `--interactive` | ズーム・パン・検索・凡例・詳細パネルを有効化 | — |
 | `--offline` | Wikidata フェッチをスキップ | — |
 | `--no-cache` | ローカルキャッシュをバイパス | — |
@@ -397,6 +399,12 @@ tdsl render examples/china_dynasties.tdsl --format svg --theme dark --output chi
 
 # PNG にラスタライズして出力（resvg ベース、デフォルト DPI 96）
 tdsl render examples/china_dynasties.tdsl --format png --output china.png
+
+# 300 DPI の高解像度 PNG（印刷向け）
+tdsl render examples/china_dynasties.tdsl --format png --dpi 300 --output china_hires.png
+
+# 2 倍の固定スケールで PNG 出力（--dpi と排他）
+tdsl render examples/china_dynasties.tdsl --format png --png-scale 2.0 --output china_2x.png
 
 # インタラクティブモードで HTML を生成
 tdsl render examples/china_dynasties.tdsl --interactive --output china_interactive.html
