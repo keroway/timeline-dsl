@@ -7,11 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-05-20
+
 ### Added
 
 - **`tdsl render --format png` を追加**: `resvg` / `usvg` / `tiny-skia` をオプション feature `tdsl-render/png` 経由で統合し、内部 SVG を PNG にラスタライズして出力できるようにした。`fontdb` に system fonts を読み込むため、Noto Sans JP / Hiragino Sans / Yu Gothic 等が利用可能な環境では CJK レーンラベルもそのまま描画される。`tdsl-cli` は `png` feature を有効化して同梱、`tdsl-wasm` は依存させないため WASM バンドルサイズへの影響なし。composite action `action.yml` も `format: png` をサポート。後続の DPI / scale オプション（#264）と PDF 出力（#265）は別 PR で対応予定（#263）
 - **WebUI に Format（整形）ボタンと `Ctrl/Cmd+Shift+F` を追加**: AST→再 emit 方式で 2 スペースインデント・ブロック間空行 1 行の標準形に整形する。整形は CodeMirror transaction 経由なので Undo/Redo が機能する。パース失敗時は Toast でエラー通知のみ行い、エディタ内容は変更しない。コメントは AST に残らないため整形時に削除される（コメントを含むソースを整形した場合は Toast で警告）。`tdsl-parser` に `format_source` 公開関数、`tdsl-wasm` に同名のバインディングを追加（#262）
 - **`tdsl import-csv` で月日リテラルを受理**: `start` / `end` / `time` 列が `YYYY-MM-DD` / `YYYY-MM` / `YYYY` の 3 精度を判別パースするようになった。v1.9.0 の月日精度サポートを CSV 経路にも拡張。`tdsl-parser` に `parse_time_literal` を公開し、grammar 由来の検証ロジックを再利用（#260）
+- **VS Code 拡張に月日リテラル対応スニペットを追加**: `span-day` / `span-month` / `event-day` / `event_range` / `tl-day` スニペットを追加し、`event_range` の不足を解消（#259、拡張版 v1.7.0 として公開）
+
+### Changed
+
+- **CI: Node.js を 22 LTS に統一**: WebUI ビルド・VS Code 拡張ビルド・LP ビルド系の各ワークフローを `actions/setup-node@v5` + Node.js 22 に揃え、複数バージョンの差異から来る不安定さを解消（#280）
+- **Rust ツールチェーンを `rust-toolchain.toml` で pin**: CI と開発環境の Rust バージョン差を解消するため、ワークスペース直下に `rust-toolchain.toml` を追加した（#279）
+- **WebUI ESLint 違反の解消と CI での自動実行**: `apps/webui` の既存違反を全て修正し、CI に `npm run lint` を追加して新規違反の混入を防ぐ（#270）
+- **依存更新**: `getrandom` を tdsl-wasm の `0.3` 系統に更新し、合わせて `0.3.4 → 0.4.2` への bump にも追従（#281、#285）
+- **VS Code 拡張の `engines.vscode`**: 一時的に `^1.85.0` へ引き上げたが互換性影響を考慮して `^1.75.0` に差し戻し（#282、#283）
+
+### Docs
+
+- **`docs/dsl-spec.md` の EBNF を月日精度対応に更新**: `YYYY-MM` / `YYYY-MM-DD` リテラルおよび `.month` / `.day` アクセサを正式に明文化（#258）
+- **`docs/cli-spec.md` を新規作成**: 全 CLI サブコマンド（`build` / `check` / `ast` / `fetch` / `search` / `inspect` / `resolve` / `scaffold` / `render` / `init` / `import-csv` / `lint` / `decompile` / `merge` / `cache` / `completions`）のリファレンスドキュメントを整備（#267）
+
+### Tests
+
+- **`tdsl-render` クレートのテスト整備**: SVG / HTML / インタラクティブ HTML / PNG レンダリングのスナップショット相当テストを追加し、回帰検知体制を強化（#261）
+- **`tdsl-wasm` クレートのテスト整備**: WASM バインディングの compile / render / format_source 各 API について `wasm-bindgen-test` を用いたテストを整備（#266）
 
 ## [1.9.0] - 2026-05-17
 
@@ -205,6 +226,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.10.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.9.0...v1.10.0
+[1.9.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.8.0...v1.9.0
+[1.8.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.4.0...v1.5.0
