@@ -2,15 +2,18 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-05-20
+
 ### Added
 
-- Snippets for day-precision (`YYYY-MM-DD`) and month-precision (`YYYY-MM`) literals
+- Snippets for day-precision (`YYYY-MM-DD`) and month-precision (`YYYY-MM`) literals ([#259](https://github.com/keroway/timeline-dsl/issues/259))
   - `span-day`, `span-month`, `event-day`, `event_range`, `tl-day`
 - `event_range` snippet (previously missing)
 
 ### Notes
 
 - Syntax highlighting for date literals (`YYYY-MM-DD` / `YYYY-MM`) is already supported via the `number` pattern in `tdsl.tmLanguage.json` since the v1.9.0 month/day precision release ([#243](https://github.com/keroway/timeline-dsl/issues/243))
+- Sync extension version with timeline-dsl v1.10.0 release
 
 ## [1.5.0] - 2026-05-13
 
