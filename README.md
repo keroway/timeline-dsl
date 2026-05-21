@@ -2,8 +2,16 @@
 
 [![CI](https://github.com/keroway/timeline-dsl/actions/workflows/ci.yml/badge.svg)](https://github.com/keroway/timeline-dsl/actions/workflows/ci.yml)
 [![Release](https://github.com/keroway/timeline-dsl/actions/workflows/release.yml/badge.svg)](https://github.com/keroway/timeline-dsl/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/github/license/keroway/timeline-dsl)](./LICENSE)
+[![Rust 2024](https://img.shields.io/badge/Rust-2024-orange?logo=rust)](https://doc.rust-lang.org/edition-guide/rust-2024/)
+[![Parser: pest](https://img.shields.io/badge/parser-pest-blue)](https://pest.rs/)
+[![WebAssembly](https://img.shields.io/badge/WebAssembly-wasm--bindgen-654FF0?logo=webassembly)](./crates/tdsl-wasm)
+[![npm: @keroway/tdsl-wasm](https://img.shields.io/npm/v/@keroway/tdsl-wasm?label=npm)](https://www.npmjs.com/package/@keroway/tdsl-wasm)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/keroway.timeline-dsl?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=keroway.timeline-dsl)
 
 A domain-specific language (DSL) compiler for timelines. Define timelines as text, import data from Wikidata, and visualize them as HTML/SVG.
+
+**Tech stack**: Rust 2024 workspace · [pest](https://pest.rs/) PEG parser · 4-pass IR lowering · `wasm-bindgen` for the browser · `serde` JSON IR. See [docs/architecture.en.md](docs/architecture.en.md) for the internals.
 
 **[Landing Page →](https://timeline-dsl-lp.pages.dev/)** | **[Try it in the WebUI →](https://keroway.github.io/timeline-dsl/)**
 
@@ -400,30 +408,41 @@ To manually re-publish (e.g., if CI failed): go to **Actions → Release → Run
 - [Error Code Catalog](docs/error-catalog.md) — Causes and fixes for error messages
 - [v0 to v1 Migration Guide](docs/migration-v0-to-v1.md) — Changes when upgrading
 - [WebUI Design](docs/webui-design.md) — Design notes for the WASM + static site architecture
+- [Architecture Deep Dive](docs/architecture.en.md) — 4-pass lowering, Wikidata cache/retry, WASM facade constraints, crate dependency rules
 
 ## Architecture
 
+### Compilation pipeline
+
+```mermaid
+flowchart LR
+    src[".tdsl source"] --> parser["tdsl-parser<br/>PEG grammar (pest)"]
+    parser --> ast["AST"]
+    ast --> core["tdsl-core<br/>4-pass lowering"]
+    core --> ir["JSON IR<br/>(serde)"]
+    ir --> render["tdsl-render<br/>HTML / SVG / PNG"]
+    ir --> wasm["tdsl-wasm<br/>WebUI / Obsidian"]
+    core <-. "Pass 3<br/>(CLI only)" .-> wikidata["tdsl-wikidata<br/>HTTP + cache + retry"]
+    wikidata <-. "Wikidata API" .-> wd[("wikidata.org")]
 ```
-.tdsl file
-    |
-    v
-[tdsl-parser]   PEG grammar (pest) → AST
-    |
-    v
-[tdsl-core]     AST → IR conversion (4-pass pipeline)
-    |               Pass 1: collect timeline/lane declarations
-    |               Pass 2: convert static items
-    |               Pass 3: resolve Wikidata imports
-    |               Pass 4: apply map blocks
-    |
-[tdsl-wikidata] Wikidata API client (with cache)
-    |
-    v
-JSON IR output
-    |
-    +--[tdsl-render]--> HTML / SVG
-    +--[tdsl-wasm]  --> WebUI (WASM facade)
+
+The 4 passes (`Pass 1` collect declarations · `Pass 2` static items · `Pass 3` resolve Wikidata imports · `Pass 4` apply `map` blocks) and the cache / retry design are documented in [docs/architecture.en.md](docs/architecture.en.md). The browser / WASM build never runs Pass 3 — see the deep dive for why.
+
+### Crate dependency graph
+
+```mermaid
+flowchart TD
+    cli["tdsl-cli<br/>(binary)"] --> core
+    cli --> render
+    cli --> wikidata
+    core["tdsl-core"] --> parser["tdsl-parser"]
+    core -.->|"feature = \"wikidata\""| wikidata["tdsl-wikidata"]
+    render["tdsl-render"] --> core
+    wasm["tdsl-wasm"] --> core
+    wasm --> render
 ```
+
+`tdsl-parser` and `tdsl-wikidata` are leaves with no internal dependencies. `tdsl-core` opts into Wikidata resolution behind the `wikidata` Cargo feature, which `tdsl-cli` enables but `tdsl-wasm` does not — see [docs/architecture.en.md](docs/architecture.en.md) for the dependency rules.
 
 ### Crate overview
 

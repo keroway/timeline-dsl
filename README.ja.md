@@ -2,8 +2,16 @@
 
 [![CI](https://github.com/keroway/timeline-dsl/actions/workflows/ci.yml/badge.svg)](https://github.com/keroway/timeline-dsl/actions/workflows/ci.yml)
 [![Release](https://github.com/keroway/timeline-dsl/actions/workflows/release.yml/badge.svg)](https://github.com/keroway/timeline-dsl/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/github/license/keroway/timeline-dsl)](./LICENSE)
+[![Rust 2024](https://img.shields.io/badge/Rust-2024-orange?logo=rust)](https://doc.rust-lang.org/edition-guide/rust-2024/)
+[![Parser: pest](https://img.shields.io/badge/parser-pest-blue)](https://pest.rs/)
+[![WebAssembly](https://img.shields.io/badge/WebAssembly-wasm--bindgen-654FF0?logo=webassembly)](./crates/tdsl-wasm)
+[![npm: @keroway/tdsl-wasm](https://img.shields.io/npm/v/@keroway/tdsl-wasm?label=npm)](https://www.npmjs.com/package/@keroway/tdsl-wasm)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/keroway.timeline-dsl?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=keroway.timeline-dsl)
 
 年表特化のドメイン固有言語（DSL）コンパイラ。テキストベースで年表を定義し、WikidataからデータをインポートしてHTML/SVGで可視化できる。
+
+**技術スタック**: Rust 2024 ワークスペース ／ [pest](https://pest.rs/) PEG パーサ ／ 4-pass IR lowering ／ ブラウザ向け `wasm-bindgen` ／ `serde` JSON IR。内部設計は [docs/architecture.md](docs/architecture.md) を参照。
 
 **[ランディングページ →](https://timeline-dsl-lp.pages.dev/)** | **[WebUI で今すぐ試す →](https://keroway.github.io/timeline-dsl/)**
 
@@ -400,30 +408,41 @@ CI で自動 publish を有効にするには、npm アクセストークンを 
 - [エラーコードカタログ](docs/error-catalog.md) — エラーメッセージの原因と修正方法
 - [v0→v1 移行ガイド](docs/migration-v0-to-v1.md) — バージョンアップ時の変更点
 - [WebUI 技術選定](docs/webui-design.md) — WASM + 静的サイト構成の設計記録
+- [アーキテクチャ詳細](docs/architecture.md) — 4-pass lowering / Wikidata キャッシュ・リトライ / WASM facade の制約 / クレート依存方向の制約
 
 ## アーキテクチャ
 
+### コンパイルパイプライン
+
+```mermaid
+flowchart LR
+    src[".tdsl ソース"] --> parser["tdsl-parser<br/>PEG 文法 (pest)"]
+    parser --> ast["AST"]
+    ast --> core["tdsl-core<br/>4-pass lowering"]
+    core --> ir["JSON IR<br/>(serde)"]
+    ir --> render["tdsl-render<br/>HTML / SVG / PNG"]
+    ir --> wasm["tdsl-wasm<br/>WebUI / Obsidian"]
+    core <-. "Pass 3<br/>(CLI のみ)" .-> wikidata["tdsl-wikidata<br/>HTTP + キャッシュ + リトライ"]
+    wikidata <-. "Wikidata API" .-> wd[("wikidata.org")]
 ```
-.tdsl ファイル
-    |
-    v
-[tdsl-parser]   PEG文法(pest) → AST
-    |
-    v
-[tdsl-core]     AST → IR変換（4パスパイプライン）
-    |               Pass 1: timeline/lane 宣言の収集
-    |               Pass 2: 静的アイテムの変換
-    |               Pass 3: Wikidataインポート解決
-    |               Pass 4: mapブロックの適用
-    |
-[tdsl-wikidata] Wikidata APIクライアント（キャッシュ付き）
-    |
-    v
-JSON IR 出力
-    |
-    +--[tdsl-render]--> HTML / SVG
-    +--[tdsl-wasm]  --> WebUI (WASM facade)
+
+4 つの pass（`Pass 1` 宣言収集 ／ `Pass 2` 静的アイテム ／ `Pass 3` Wikidata import 解決 ／ `Pass 4` `map` 適用）の責務とキャッシュ・リトライ設計は [docs/architecture.md](docs/architecture.md) を参照。ブラウザ / WASM ビルドでは Pass 3 は実行しない（理由は同ドキュメント参照）。
+
+### クレート依存関係
+
+```mermaid
+flowchart TD
+    cli["tdsl-cli<br/>(バイナリ)"] --> core
+    cli --> render
+    cli --> wikidata
+    core["tdsl-core"] --> parser["tdsl-parser"]
+    core -.->|"feature = \"wikidata\""| wikidata["tdsl-wikidata"]
+    render["tdsl-render"] --> core
+    wasm["tdsl-wasm"] --> core
+    wasm --> render
 ```
+
+`tdsl-parser` と `tdsl-wikidata` は内部依存を持たないリーフ。`tdsl-core` は `wikidata` Cargo フィーチャー越しに `tdsl-wikidata` を取り込み、`tdsl-cli` はこれを有効化するが `tdsl-wasm` は無効化する。依存方向のルールは [docs/architecture.md](docs/architecture.md) に詳述。
 
 ### クレート構成
 
