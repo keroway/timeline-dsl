@@ -56,7 +56,7 @@ flowchart LR
     lowering --> ir["TimelineIr<br/>(serde JSON)"]
     ir --> render["tdsl-render"]
     ir --> wasm["tdsl-wasm"]
-    lowering <-. "Pass 3 のみ" .-> wikidata["tdsl-wikidata<br/>HTTP + キャッシュ + リトライ"]
+    lowering <-. "Pass 3<br/>(Wikidata 連携時のみ)" .-> wikidata["tdsl-wikidata<br/>HTTP + キャッシュ + リトライ"]
     wikidata <-. "Wikidata API" .-> wd[("wikidata.org")]
 ```
 
@@ -76,7 +76,7 @@ flowchart LR
 | Pass 1 | `pass1_declarations` | AST 全体 | `meta` / `lanes` テーブルを構築 | timeline / lane の重複宣言、必須メタの欠落 |
 | Pass 2 | `pass2_static_items` | AST（`span` / `event` / `event_range` 文）+ 行オフセット | `items[]` に静的アイテムを追加し、必要に応じて `source_span` を付与 | lane 参照の存在チェック、ID 重複、range 整合性 |
 | Pass 3 | `pass3_resolve_imports` | AST（`import wikidata` 文）+ `WikidataClient` | 解決済みエンティティをキャッシュテーブルに格納、`imports[]` を更新 | QID の存在、`query "SPARQL"` の結果上限（`MAX_IMPORT_QUERY_RESULTS = 50`） |
-| Pass 4 | `pass4_apply_maps` | AST（`map` 文）+ Pass 3 のキャッシュ | imported item を `items[]` に投入し、`origin = "imported"` / `source = wd:<QID>` を付与 | `target_type` が enum で `span` / `event` / `event_range` のみ、未解決 `wd.xxx` を黙って通さない |
+| Pass 4 | `pass4_apply_maps` | AST（`map` 文）+ Pass 3 のキャッシュ | imported item を `items[]` に投入し、`origin = "wikidata"` / `source = wd:<QID>` を付与し、再インポートポリシー（`merge_by_source` / `overwrite_imported` / `keep_manual`）を適用 | `target_type` が enum で `span` / `event` / `event_range` のみ、未解決 `wd.xxx` を黙って通さない |
 
 #### 設計上のポイント
 
@@ -121,7 +121,16 @@ flowchart LR
 
 ### オフライン運用
 
-`tdsl build ... --offline` は `CachedWikidataClient` を「キャッシュにヒットしない場合はエラー」モードで動かします。CI や開発時のレート制限回避、再現可能ビルドを保ちたいときに利用します。
+`tdsl build ... --offline` はネットワークを完全に切り離す実装になっています（`crates/tdsl-cli/src/main.rs::load_ir`）。具体的には:
+
+- `CachedWikidataClient` も `HttpWikidataClient` も生成せず、Wikidata クライアントを一切作らない。
+- `tdsl-core::lower::lower_static` のみを呼び、Pass 3 / Pass 4 をスキップする。
+- 結果として、`import wikidata` 文を含む `.tdsl` を `--offline` でビルドすると import は解決されず、imported item は IR に出力されない（map ブロックが参照する `wd.xxx` も解決されないため、`map` を含むファイルでは lowering エラーになる可能性がある）。
+- キャッシュ自体は通常モード（オンライン）でのみ参照される。`CachedWikidataClient` は API 呼び出し前に毎回キャッシュをチェックし、TTL 内ならネットワーク不要で結果を返す。つまり「`--offline` フラグなし」でもキャッシュヒット時はオフライン動作と同等のコストになる。
+
+CI や再現可能ビルドのためにネットワークから完全に切り離したいなら `--offline`、本番ビルドだがレート制限を避けたいなら通常モード（キャッシュ駆動）を使い分けてください。
+
+なお `--no-cache` は通常モードに対して「キャッシュを無視して常に API を叩く」フラグであり、`--offline` とは独立に指定できます。
 
 ## WASM facade で Wikidata 連携が無効な理由
 

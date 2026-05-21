@@ -422,11 +422,11 @@ flowchart LR
     core --> ir["JSON IR<br/>(serde)"]
     ir --> render["tdsl-render<br/>HTML / SVG / PNG"]
     ir --> wasm["tdsl-wasm<br/>WebUI / Obsidian"]
-    core <-. "Pass 3<br/>(CLI only)" .-> wikidata["tdsl-wikidata<br/>HTTP + cache + retry"]
+    core <-. "Pass 3<br/>(only when resolving Wikidata)" .-> wikidata["tdsl-wikidata<br/>HTTP + cache + retry"]
     wikidata <-. "Wikidata API" .-> wd[("wikidata.org")]
 ```
 
-The 4 passes (`Pass 1` collect declarations · `Pass 2` static items · `Pass 3` resolve Wikidata imports · `Pass 4` apply `map` blocks) and the cache / retry design are documented in [docs/architecture.en.md](docs/architecture.en.md). The browser / WASM build never runs Pass 3 — see the deep dive for why.
+The 4 passes (`Pass 1` collect declarations · `Pass 2` static items · `Pass 3` resolve Wikidata imports · `Pass 4` apply `map` blocks) and the cache / retry design are documented in [docs/architecture.en.md](docs/architecture.en.md). The browser / WASM build and `tdsl build --offline` both skip Pass 3 entirely — only the online CLI path constructs a Wikidata client.
 
 ### Crate dependency graph
 

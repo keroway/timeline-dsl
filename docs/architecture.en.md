@@ -55,7 +55,7 @@ flowchart LR
     lowering --> ir["TimelineIr<br/>(serde JSON)"]
     ir --> render["tdsl-render"]
     ir --> wasm["tdsl-wasm"]
-    lowering <-. "Pass 3 only" .-> wikidata["tdsl-wikidata<br/>HTTP + cache + retry"]
+    lowering <-. "Pass 3<br/>(only when resolving Wikidata)" .-> wikidata["tdsl-wikidata<br/>HTTP + cache + retry"]
     wikidata <-. "Wikidata API" .-> wd[("wikidata.org")]
 ```
 
@@ -75,7 +75,7 @@ End to end, the pipeline looks like this:
 | Pass 1 | `pass1_declarations` | Whole AST | Populates the `meta` and `lanes` tables | Duplicate timeline/lane declarations, missing required metadata |
 | Pass 2 | `pass2_static_items` | `span` / `event` / `event_range` statements + line offsets | Appends static items to `items[]`, attaches `source_span` when a source string was provided | Lane reference existence, ID uniqueness, range consistency |
 | Pass 3 | `pass3_resolve_imports` | `import wikidata` statements + a `WikidataClient` | Stores resolved entities in an intermediate table, updates `imports[]` | QID existence; SPARQL result cap (`MAX_IMPORT_QUERY_RESULTS = 50`) |
-| Pass 4 | `pass4_apply_maps` | `map` statements + the cache built in Pass 3 | Adds imported items to `items[]` with `origin = "imported"` and `source = wd:<QID>` | `target_type` is an enum restricted to `span` / `event` / `event_range`; unresolved `wd.xxx` raises an error instead of being silently dropped |
+| Pass 4 | `pass4_apply_maps` | `map` statements + the cache built in Pass 3 | Adds imported items to `items[]` with `origin = "wikidata"` and `source = wd:<QID>`, applying the re-import policy (`merge_by_source` / `overwrite_imported` / `keep_manual`) | `target_type` is an enum restricted to `span` / `event` / `event_range`; unresolved `wd.xxx` raises an error instead of being silently dropped |
 
 #### Design notes
 
@@ -120,7 +120,14 @@ flowchart LR
 
 ### Offline operation
 
-`tdsl build ... --offline` puts `CachedWikidataClient` into "fail on miss" mode. Useful for CI, rate-limit avoidance, and reproducible builds.
+`tdsl build ... --offline` cuts the build off from the network entirely (`crates/tdsl-cli/src/main.rs::load_ir`):
+
+- No `CachedWikidataClient` or `HttpWikidataClient` is constructed — the CLI doesn't create any Wikidata client at all.
+- It calls `tdsl-core::lower::lower_static` only, skipping Passes 3 and 4.
+- As a consequence, a `.tdsl` file that contains `import wikidata` statements will not resolve those imports under `--offline`. Imported items won't appear in the IR, and any `map` block that references `wd.xxx` will fail lowering because the entity wasn't resolved.
+- The cache itself is only consulted in normal (online) mode. `CachedWikidataClient` checks the cache before every API call, so a fresh cache (within TTL) already serves traffic without hitting the network. In other words, **online + cache hit** is functionally the same cost as offline — `--offline` is for the case where you also want to guarantee that no network call could possibly happen (CI, reproducible builds, locked-down environments).
+
+`--no-cache` is independent and applies to the normal mode: it forces every call to bypass the cache and hit Wikidata directly.
 
 ## Why the WASM facade disables Wikidata integration
 

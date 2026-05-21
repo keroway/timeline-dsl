@@ -422,11 +422,11 @@ flowchart LR
     core --> ir["JSON IR<br/>(serde)"]
     ir --> render["tdsl-render<br/>HTML / SVG / PNG"]
     ir --> wasm["tdsl-wasm<br/>WebUI / Obsidian"]
-    core <-. "Pass 3<br/>(CLI のみ)" .-> wikidata["tdsl-wikidata<br/>HTTP + キャッシュ + リトライ"]
+    core <-. "Pass 3<br/>(Wikidata 連携時のみ)" .-> wikidata["tdsl-wikidata<br/>HTTP + キャッシュ + リトライ"]
     wikidata <-. "Wikidata API" .-> wd[("wikidata.org")]
 ```
 
-4 つの pass（`Pass 1` 宣言収集 ／ `Pass 2` 静的アイテム ／ `Pass 3` Wikidata import 解決 ／ `Pass 4` `map` 適用）の責務とキャッシュ・リトライ設計は [docs/architecture.md](docs/architecture.md) を参照。ブラウザ / WASM ビルドでは Pass 3 は実行しない（理由は同ドキュメント参照）。
+4 つの pass（`Pass 1` 宣言収集 ／ `Pass 2` 静的アイテム ／ `Pass 3` Wikidata import 解決 ／ `Pass 4` `map` 適用）の責務とキャッシュ・リトライ設計は [docs/architecture.md](docs/architecture.md) を参照。ブラウザ / WASM ビルドと `tdsl build --offline` はいずれも Pass 3 を完全にスキップする（Wikidata クライアントを生成するのは通常モードの CLI のみ）。
 
 ### クレート依存関係
 
