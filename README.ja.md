@@ -94,7 +94,7 @@ tdsl render examples/china_dynasties.tdsl --format png --output china.png
 # Wikidata連携つきコンパイル
 tdsl build examples/china_with_import.tdsl --pretty
 
-# オフラインモード（キャッシュのみ使用）
+# オフラインモード（Wikidata フェッチを完全にスキップし、静的アイテムのみコンパイル）
 tdsl build examples/china_with_import.tdsl --offline --pretty
 
 # ASTダンプ（デバッグ用）

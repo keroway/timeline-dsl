@@ -94,7 +94,7 @@ tdsl render examples/china_dynasties.tdsl --format png --output china.png
 # Compile with Wikidata integration
 tdsl build examples/china_with_import.tdsl --pretty
 
-# Offline mode (use cache only)
+# Offline mode (skip Wikidata fetching entirely; only static items are compiled)
 tdsl build examples/china_with_import.tdsl --offline --pretty
 
 # AST dump (for debugging)
