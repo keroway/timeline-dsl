@@ -370,6 +370,27 @@ WASM 駆動のブラウザ内エディタです。インストール不要でタ
 
 > **制限**: ブラウザ内では Wikidata インポート（`import wikidata`）は解決されません。静的な `span`・`event`・`event_range` のみプレビューされます。
 
+## WASM npm パッケージ
+
+`@keroway/tdsl-wasm` は npm から利用できます（Obsidian プラグインやカスタム Web アプリなど）：
+
+```bash
+npm install @keroway/tdsl-wasm
+```
+
+> **制限**: ブラウザ / WASM 環境では Wikidata インポートは非対応です。静的な `span`・`event`・`event_range` のみコンパイルされます。
+
+### `NPM_TOKEN` の設定（メンテナー向け）
+
+CI で自動 publish を有効にするには、npm アクセストークンを GitHub Actions シークレット `NPM_TOKEN` として登録します：
+
+1. [npmjs.com](https://www.npmjs.com/) にログインし、**Automation** タイプのトークンを生成（Settings → Access Tokens）
+2. リポジトリの **Settings → Secrets and variables → Actions** を開く
+3. `NPM_TOKEN` という名前でシークレットを追加
+4. リリースタグ push ごとに自動 publish される
+
+手動再 publish が必要な場合（CI 失敗時など）は **Actions → Release → Run workflow** からバージョン番号を入力して実行します。
+
 ## ドキュメント
 
 - [Getting Started チュートリアル](docs/tutorial.md) — ステップバイステップのハンズオン
