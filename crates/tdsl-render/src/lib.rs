@@ -413,6 +413,34 @@ mod tests {
     }
 
     #[test]
+    fn render_svg_has_tdsl_root_class_on_root_element() {
+        let ir = sample_ir();
+        let svg = render_svg_only(&ir, RenderOptions::default());
+        assert!(
+            svg.contains(r#"class="tdsl-root""#),
+            "SVG root must have class=tdsl-root for CSS scoping"
+        );
+        assert!(
+            svg.contains(".tdsl-root text"),
+            "SVG style must scope font via .tdsl-root text"
+        );
+    }
+
+    #[test]
+    fn render_svg_custom_font_family_appears_in_style() {
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            font_family: Some("Arial, sans-serif".to_string()),
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts);
+        assert!(
+            svg.contains("Arial, sans-serif"),
+            "custom font_family must appear in SVG style"
+        );
+    }
+
+    #[test]
     fn render_html_non_interactive_unchanged_behavior() {
         let ir = sample_ir();
         let opts_default = RenderOptions::default();
