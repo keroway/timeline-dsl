@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "npm に publish する version（例: 1.10.0、v プレフィックスなし）"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,6 +18,7 @@ permissions:
 jobs:
   build:
     name: Build ${{ matrix.target }}
+    if: github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -112,8 +119,14 @@ jobs:
         with:
           tool: wasm-pack@0.14.0
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Build WASM (web target)
-        run: wasm-pack build crates/tdsl-wasm --target web --release
+        run: wasm-pack build crates/tdsl-wasm --target web --release --scope keroway
 
       - name: Smoke test — check_source returns JSON array
         run: |
@@ -126,17 +139,33 @@ jobs:
           console.log('WASM smoke test passed');
           "
 
+      - name: Determine version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "value=${INPUT_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "tag=v${INPUT_VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Package WASM bundle
         run: |
-          VERSION="${GITHUB_REF_NAME}"
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.value }}"
           cd crates/tdsl-wasm/pkg
-          # Inject version into package.json
           node -e "
-          const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
-          pkg.version = '${VERSION}'.replace(/^v/, '');
-          require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          pkg.version = '${VERSION}';
+          pkg.publishConfig = { access: 'public' };
+          pkg.bugs = { url: 'https://github.com/keroway/timeline-dsl/issues' };
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
-          tar czf "../../../tdsl-wasm-${VERSION}.tar.gz" \
+          tar czf "../../../tdsl-wasm-${TAG}.tar.gz" \
             tdsl_wasm.js \
             tdsl_wasm.d.ts \
             tdsl_wasm_bg.wasm \
@@ -146,12 +175,20 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: tdsl-wasm-${{ github.ref_name }}.tar.gz
-          path: tdsl-wasm-${{ github.ref_name }}.tar.gz
+          name: tdsl-wasm-${{ steps.version.outputs.tag }}.tar.gz
+          path: tdsl-wasm-${{ steps.version.outputs.tag }}.tar.gz
+
+      - name: Publish to npm
+        run: |
+          cd crates/tdsl-wasm/pkg
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   release:
     name: GitHub Release
     needs: [build, build-wasm]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts

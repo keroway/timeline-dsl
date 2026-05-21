@@ -370,6 +370,27 @@ A browser-based editor powered by WASM. Create and preview timelines without ins
 
 > **Limitation**: Wikidata imports (`import wikidata`) are not resolved in the browser. Only static `span`, `event`, and `event_range` items are previewed.
 
+## WASM npm Package
+
+`@keroway/tdsl-wasm` is available on npm for use in JavaScript/TypeScript projects (Obsidian plugins, custom web apps, etc.):
+
+```bash
+npm install @keroway/tdsl-wasm
+```
+
+> **Note**: Wikidata imports are not supported in browser/WASM environments. Only static `span`, `event`, and `event_range` items are compiled.
+
+### Setting up `NPM_TOKEN` (maintainers)
+
+To enable automatic publishing in CI, add an npm access token as a GitHub Actions secret named `NPM_TOKEN`:
+
+1. Log in to [npmjs.com](https://www.npmjs.com/) and generate an **Automation** token (Settings → Access Tokens)
+2. Go to the repository's **Settings → Secrets and variables → Actions**
+3. Add a new secret named `NPM_TOKEN` with the token value
+4. Publishing runs automatically on each release tag push
+
+To manually re-publish (e.g., if CI failed): go to **Actions → Release → Run workflow** and enter the version number.
+
 ## Documentation
 
 - [Getting Started Tutorial](docs/tutorial.en.md) — Step-by-step hands-on guide
