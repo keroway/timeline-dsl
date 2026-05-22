@@ -136,9 +136,10 @@ apply_override = _{
 }
 
 // ─── Expressions ────────────────────────────────────────────
-map_expr   = { claim_expr ~ ("??" ~ claim_expr)* }
-claim_expr = { claim_call ~ ("." ~ ident)? }
-claim_call = { "claim" ~ "(" ~ property_id ~ ")" }
+map_expr     = { claim_expr ~ ("??" ~ claim_expr)* }
+claim_offset = @{ ("+" | "-") ~ ASCII_DIGIT+ }
+claim_expr   = { claim_call ~ ("." ~ ident)? ~ claim_offset? }
+claim_call   = { "claim" ~ "(" ~ property_id ~ ")" }
 
 label_expr = { label_ref ~ ("??" ~ label_ref)* }
 label_ref  = ${ "label" ~ "@" ~ ident }

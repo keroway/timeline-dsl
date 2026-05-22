@@ -327,9 +327,14 @@ fn write_map_props(out: &mut String, props: &[MapProp]) {
 }
 
 fn format_claim_expr(c: &ClaimExpr) -> String {
-    match &c.accessor {
+    let base = match &c.accessor {
         Some(acc) => format!("claim({}).{acc}", c.claim.property),
         None => format!("claim({})", c.claim.property),
+    };
+    match c.offset {
+        Some(off) if off >= 0 => format!("{base} +{off}"),
+        Some(off) => format!("{base} {off}"),
+        None => base,
     }
 }
 

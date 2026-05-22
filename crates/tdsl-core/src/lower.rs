@@ -809,23 +809,29 @@ fn eval_map_expr(expr: &ast::MapExpr, entity: &WikidataEntity) -> Option<TimePoi
 /// - `.year` or no accessor: year only
 /// - `.month`: year + month (if precision >= 10)
 /// - `.day`: year + month + day (if precision >= 11)
+///
+/// If `expr.offset` is set, the integer offset is added to the resolved year.
 #[cfg(feature = "wikidata")]
 fn eval_claim_expr(expr: &ast::ClaimExpr, entity: &WikidataEntity) -> Option<TimePoint> {
     let dv = entity.claim(&expr.claim.property)?;
     match dv {
         DataValue::Time { value } => {
             let tp = time_value_to_timepoint(value).ok()?;
-            match expr.accessor.as_deref() {
-                Some("month") => tp.month.map(|_| tp),
-                Some("day") => tp.day.map(|_| tp),
-                Some("year") | None => Some(TimePoint {
+            let mut result = match expr.accessor.as_deref() {
+                Some("month") => tp.month.map(|_| tp)?,
+                Some("day") => tp.day.map(|_| tp)?,
+                Some("year") | None => TimePoint {
                     year: tp.year,
                     month: None,
                     day: None,
                     precision: tp.precision,
-                }),
-                _ => None,
+                },
+                _ => return None,
+            };
+            if let Some(off) = expr.offset {
+                result.year += i64::from(off);
             }
+            Some(result)
         }
         _ => None,
     }
