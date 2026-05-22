@@ -1709,4 +1709,155 @@ event_range war 1939-09..1945-09 "WW2" { id "event_range:war:1939"; };
             "JSON without source should omit 'source_span'"
         );
     }
+
+    // ─── claim_expr offset (#148) ────────────────────────────────────────────
+
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn eval_claim_expr_positive_offset_applied_to_year() {
+        // start claim(P569).year +1: 誕生年 + 1 = span start になる
+        let src = r#"
+            timeline "Test" { unit year; range 0..2000; }
+            lane "People" as people { kind custom; order 1; }
+
+            import wikidata as wd {
+                entity Q1 as person;
+            }
+
+            map wd.person to span {
+                lane people;
+                start claim(P571).year +1;
+                end claim(P576).year -5;
+                label label@ja;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+
+        // P571=100, P576=220 の entity を作る
+        let mut labels = HashMap::new();
+        labels.insert(
+            "ja".to_string(),
+            LabelValue {
+                language: "ja".to_string(),
+                value: "テスト人物".to_string(),
+            },
+        );
+        let mut claims = HashMap::new();
+        claims.insert("P571".to_string(), vec![make_time_statement("P571", 100)]);
+        claims.insert("P576".to_string(), vec![make_time_statement("P576", 220)]);
+        let entity = WikidataEntity {
+            id: "Q1".to_string(),
+            labels,
+            claims,
+        };
+        let mut entities = HashMap::new();
+        entities.insert("Q1".to_string(), entity);
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 1);
+        match &ir.items[0] {
+            ir::Item::Span { start, end, .. } => {
+                assert_eq!(*start, 101); // 100 + 1
+                assert_eq!(*end, 215); // 220 - 5
+            }
+            _ => panic!("expected Span"),
+        }
+    }
+
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn eval_claim_expr_negative_offset_applied_to_year() {
+        // start claim(P571).year -30: 30年前
+        let src = r#"
+            timeline "Test" { unit year; range -100..2000; }
+            lane "People" as people { kind custom; order 1; }
+
+            import wikidata as wd {
+                entity Q1 as person;
+            }
+
+            map wd.person to event {
+                lane people;
+                time claim(P571).year -30;
+                label label@ja;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+
+        let mut labels = HashMap::new();
+        labels.insert(
+            "ja".to_string(),
+            LabelValue {
+                language: "ja".to_string(),
+                value: "test".to_string(),
+            },
+        );
+        let mut claims = HashMap::new();
+        claims.insert("P571".to_string(), vec![make_time_statement("P571", 200)]);
+        let entity = WikidataEntity {
+            id: "Q1".to_string(),
+            labels,
+            claims,
+        };
+        let mut entities = HashMap::new();
+        entities.insert("Q1".to_string(), entity);
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 1);
+        match &ir.items[0] {
+            ir::Item::Event { time, .. } => {
+                assert_eq!(*time, 170); // 200 - 30
+            }
+            _ => panic!("expected Event"),
+        }
+    }
+
+    #[cfg(feature = "wikidata")]
+    #[tokio::test]
+    async fn eval_claim_expr_zero_offset_is_noop() {
+        // オフセット 0 はオフセットなしと同じ結果
+        let src = r#"
+            timeline "Test" { unit year; range -500..1000; }
+            lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+            import wikidata as wd {
+                entity Q7209 as han;
+            }
+
+            map wd.han to span {
+                lane dynasty;
+                start claim(P571).year +0;
+                end claim(P576).year +0;
+                label label@ja;
+            }
+        "#;
+
+        let file = tdsl_parser::parse(src).unwrap();
+        let mut entities = HashMap::new();
+        entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+        let client = MockWikidataClient {
+            entities,
+            query_results: vec![],
+        };
+
+        let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+        assert_eq!(ir.items.len(), 1);
+        match &ir.items[0] {
+            ir::Item::Span { start, end, .. } => {
+                assert_eq!(*start, -206);
+                assert_eq!(*end, 220);
+            }
+            _ => panic!("expected Span"),
+        }
+    }
 }

@@ -536,11 +536,24 @@ fn build_claim_expr(pair: Pair<'_, Rule>) -> Result<ClaimExpr> {
     let mut inner = pair.into_inner();
     let claim_pair = inner.next().unwrap();
     let property = claim_pair.into_inner().next().unwrap().as_str().to_string();
-    let accessor = inner.next().map(|p| p.as_str().to_string());
+
+    let mut accessor = None;
+    let mut offset = None;
+    for child in inner {
+        match child.as_rule() {
+            Rule::ident => accessor = Some(child.as_str().to_string()),
+            Rule::claim_offset => {
+                // as_str() gives "+1" or "-30"; parse directly as i32
+                offset = child.as_str().parse::<i32>().ok();
+            }
+            _ => {}
+        }
+    }
 
     Ok(ClaimExpr {
         claim: ClaimCall { property },
         accessor,
+        offset,
     })
 }
 

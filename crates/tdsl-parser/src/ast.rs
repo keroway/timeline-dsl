@@ -286,6 +286,8 @@ pub struct MapExpr {
 pub struct ClaimExpr {
     pub claim: ClaimCall,
     pub accessor: Option<String>,
+    /// Year offset applied after claim resolution (e.g. `+1`, `-30`).
+    pub offset: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

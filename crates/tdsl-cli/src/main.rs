@@ -2676,10 +2676,15 @@ fn render_map_expr(expr: &tdsl_parser::ast::MapExpr) -> String {
 }
 
 fn render_claim_expr(expr: &tdsl_parser::ast::ClaimExpr) -> String {
-    if let Some(accessor) = &expr.accessor {
+    let base = if let Some(accessor) = &expr.accessor {
         format!("claim({}).{}", expr.claim.property, accessor)
     } else {
         format!("claim({})", expr.claim.property)
+    };
+    match expr.offset {
+        Some(off) if off >= 0 => format!("{base} +{off}"),
+        Some(off) => format!("{base} {off}"),
+        None => base,
     }
 }
 

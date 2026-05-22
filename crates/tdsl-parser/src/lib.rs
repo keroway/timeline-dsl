@@ -1116,6 +1116,144 @@ mod tests {
         assert!(parse_time_literal("-206-01").is_err());
     }
 
+    // ─── 時間式オフセット (#148) ──────────────────────────────────
+
+    #[test]
+    fn parse_claim_expr_with_positive_offset() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                start claim(P569).year +1;
+                end claim(P570).year +30;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).expect("should parse claim_expr with positive offset");
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let start = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::Start(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("start present");
+                assert_eq!(start.fallbacks.len(), 1);
+                assert_eq!(start.fallbacks[0].claim.property, "P569");
+                assert_eq!(start.fallbacks[0].accessor.as_deref(), Some("year"));
+                assert_eq!(start.fallbacks[0].offset, Some(1));
+
+                let end = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::End(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("end present");
+                assert_eq!(end.fallbacks[0].offset, Some(30));
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
+    fn parse_claim_expr_with_negative_offset() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                start claim(P569).year -5;
+                end claim(P570).year -100;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).expect("should parse claim_expr with negative offset");
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let start = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::Start(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("start present");
+                assert_eq!(start.fallbacks[0].offset, Some(-5));
+
+                let end = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::End(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("end present");
+                assert_eq!(end.fallbacks[0].offset, Some(-100));
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
+    fn parse_claim_expr_without_offset_is_none() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                start claim(P569).year;
+                end claim(P570).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).expect("should parse claim_expr without offset");
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let start = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::Start(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("start present");
+                assert_eq!(start.fallbacks[0].offset, None);
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
+    fn parse_claim_expr_offset_with_fallback() {
+        // フォールバックチェーン `??` 内でもオフセットが正しくパースされる
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                start claim(P580).year +1 ?? claim(P571).year -10;
+                end claim(P582).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).expect("should parse claim_expr with offset in fallback chain");
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let start = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::Start(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("start present");
+                assert_eq!(start.fallbacks.len(), 2);
+                assert_eq!(start.fallbacks[0].claim.property, "P580");
+                assert_eq!(start.fallbacks[0].offset, Some(1));
+                assert_eq!(start.fallbacks[1].claim.property, "P571");
+                assert_eq!(start.fallbacks[1].offset, Some(-10));
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
     #[test]
     fn test_field_priority_partial_fields() {
         // デフォルト値が適用されること
