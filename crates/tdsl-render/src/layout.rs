@@ -35,6 +35,8 @@ pub struct RenderOptions {
     pub color_map: std::collections::HashMap<String, String>,
     /// Enable interactive mode (zoom, pan, search, legend, detail panel).
     pub interactive: bool,
+    /// Custom font-family CSS value for SVG text. When None, uses the built-in CJK-friendly stack.
+    pub font_family: Option<String>,
 }
 
 impl Default for RenderOptions {
@@ -50,6 +52,7 @@ impl Default for RenderOptions {
             custom_css: None,
             color_map: std::collections::HashMap::new(),
             interactive: false,
+            font_family: None,
         }
     }
 }
