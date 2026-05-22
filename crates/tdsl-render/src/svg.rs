@@ -25,16 +25,23 @@ pub fn render_svg(layout: &LayoutModel) -> String {
 
     writeln!(
         s,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img" aria-label="timeline">"#,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img" aria-label="timeline" class="tdsl-root">"#,
         w = fmt_f(w),
         h = fmt_f(h)
     )
     .unwrap();
 
+    let font_family = layout
+        .opts
+        .font_family
+        .as_deref()
+        .unwrap_or(r#""Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif"#);
+
     // Embed font-family and axis text size for standalone SVG viewers (no CDN dependency).
+    // Use .tdsl-root text selector to scope styles and prevent CSS leakage when embedded inline.
     writeln!(
         s,
-        r#"  <style>text {{ font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }} .tdsl-axis-day-tick {{ stroke: #ddd; stroke-width: 1; }} .tdsl-axis-day-text {{ font-size: 9px; fill: #888; }}</style>"#
+        r#"  <style>.tdsl-root text {{ font-family: {font_family}; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }} .tdsl-axis-day-tick {{ stroke: #ddd; stroke-width: 1; }} .tdsl-axis-day-text {{ font-size: 9px; fill: #888; }}</style>"#
     )
     .unwrap();
 

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `tdsl-wasm` is now published to npm as `@keroway/tdsl-wasm` on each release tag push. Install with `npm install @keroway/tdsl-wasm` ([#292])
+- **SVG CSS スコープの改善**: SVG ルート要素に `class="tdsl-root"` を追加し、埋め込みスタイルのセレクタを `.tdsl-root text { }` にスコープ。Obsidian 等の外部ホストに SVG をインライン埋め込みした際のグローバル `text { }` セレクタによる CSS 干渉を防ぐ ([#293])
+- **`RenderOptions::font_family` フィールドを追加**: SVG 出力のフォントファミリーをカスタマイズ可能に。`None`（デフォルト）は CJK 対応フォントスタックを維持 ([#293])
 
 ## [1.10.1] - 2026-05-21
 
