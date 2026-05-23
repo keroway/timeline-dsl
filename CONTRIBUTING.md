@@ -152,6 +152,23 @@ chore: dependabot の設定を更新
 
 ---
 
+## リリース時にバンプするファイル一覧
+
+新バージョンをリリースする際は、git tag を打つ前に以下のファイルを同一 PR で更新してください。
+
+| ファイル | 更新箇所 |
+|----------|---------|
+| `Cargo.toml` | `[workspace.package].version` |
+| `editors/vscode/package.json` | `"version"` フィールド |
+| `editors/vscode/CHANGELOG.md` | `## [Unreleased]` の直下に新バージョンセクションを追加 |
+| `CHANGELOG.md`（本体） | `## [Unreleased]` の直下に新バージョンセクションを追加 |
+
+`editors/vscode/package.json` の version と git tag が一致していない場合、VS Code Marketplace への自動 publish がブロックされます。
+
+詳細な手順は [docs/release.md](./docs/release.md) を参照してください。
+
+---
+
 ## 質問・相談
 
 不明点や設計についての相談は [GitHub Issues](https://github.com/keroway/timeline-dsl/issues) へお気軽にどうぞ。
