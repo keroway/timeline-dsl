@@ -7,11 +7,15 @@
 
 pub mod html;
 pub mod layout;
+#[cfg(feature = "pdf")]
+pub mod pdf;
 #[cfg(feature = "png")]
 pub mod png;
 pub mod svg;
 
 pub use layout::{LayoutModel, RenderOptions, Theme};
+#[cfg(feature = "pdf")]
+pub use pdf::{PdfError, PdfOptions, render_pdf, svg_to_pdf};
 #[cfg(feature = "png")]
 pub use png::{PngError, PngOptions, render_png, svg_to_png};
 
