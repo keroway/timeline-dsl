@@ -26,7 +26,7 @@ pkg-url = "{ repo }/releases/download/v{ version }/tdsl-macos-aarch64.tar.gz"
 tdsl-parser = { path = "../tdsl-parser" }
 tdsl-core = { path = "../tdsl-core", features = ["wikidata"] }
 tdsl-wikidata = { path = "../tdsl-wikidata" }
-tdsl-render = { path = "../tdsl-render", features = ["png"] }
+tdsl-render = { path = "../tdsl-render", features = ["png", "pdf"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
 serde.workspace = true

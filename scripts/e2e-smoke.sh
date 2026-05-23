@@ -99,6 +99,14 @@ SIZE_2X=$(wc -c < "$TMP_DIR/china_2x.png")
 [ "$SIZE_2X" -gt "$SIZE_96" ] \
   || { echo "FAIL: 2x scale PNG ($SIZE_2X bytes) should be larger than default PNG ($SIZE_96 bytes)"; exit 1; }
 
+# ---- tdsl render --format pdf (svg2pdf vector PDF) ---------------------------
+echo "[e2e] render: --format pdf outputs a valid vector PDF file"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format pdf --output "$TMP_DIR/china.pdf"
+test -s "$TMP_DIR/china.pdf"
+# Verify PDF file signature: %PDF-  (25 50 44 46 2D)
+head -c 5 "$TMP_DIR/china.pdf" | grep -Fq '%PDF-' \
+  || { echo "FAIL: PDF signature %%PDF- not found in $TMP_DIR/china.pdf"; exit 1; }
+
 # ---- tdsl init -> import-csv -> lint -> build -> render (full manual flow) --
 echo "[e2e] manual flow: init -> import-csv -> lint --fix -> check -> build -> render"
 cargo run -q -p tdsl-cli -- init \

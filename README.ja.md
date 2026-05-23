@@ -23,6 +23,7 @@
 - **Wikidata連携** — QIDを指定するだけで歴史データを自動取得。ローカルキャッシュ（24時間TTL）でオフライン利用も可能
 - **インタラクティブHTML出力** — ズーム・パン・検索・凡例・詳細パネルを内蔵したスタンドアロンHTMLを生成
 - **SVG出力** — ベクター形式で書き出し。論文・スライドへの組み込みに
+- **PDF出力** — ベクター PDF を出力（`svg2pdf` 経由）。印刷・文書への埋め込みに
 - **カラーマッピング** — タグ→色の対応を DSL 内または CLI フラグで指定
 - **逆コンパイル** — JSON IRから`.tdsl`ソースを再生成
 - **WebUI** — ブラウザ上でリアルタイム編集・プレビュー（WASM駆動）。フォントサイズ・ライト/ダークテーマ選択対応
@@ -90,6 +91,9 @@ tdsl render examples/china_dynasties.tdsl --format svg --output china.svg
 
 # PNG形式で出力（resvg によるラスタライズ）
 tdsl render examples/china_dynasties.tdsl --format png --output china.png
+
+# PDF形式でベクター出力（svg2pdf 経由）
+tdsl render examples/china_dynasties.tdsl --format pdf --output china.pdf
 
 # Wikidata連携つきコンパイル
 tdsl build examples/china_with_import.tdsl --pretty
@@ -297,7 +301,7 @@ apply dynasty_span to wd {
 | インプット | デフォルト | 説明 |
 |---|---|---|
 | `file` | — | レンダリングする `.tdsl` ファイルのパス（必須） |
-| `format` | `svg` | 出力フォーマット: `svg` / `html` / `png` |
+| `format` | `svg` | 出力フォーマット: `svg` / `html` / `png` / `pdf` |
 | `output` | `<basename>.<format>` | 出力ファイルパス |
 | `offline` | `false` | Wikidata フェッチをスキップ（CI推奨） |
 | `interactive` | `false` | インタラクティブ HTML 出力（`format: html` 時） |
@@ -420,7 +424,7 @@ flowchart LR
     parser --> ast["AST"]
     ast --> core["tdsl-core<br/>4-pass lowering"]
     core --> ir["JSON IR<br/>(serde)"]
-    ir --> render["tdsl-render<br/>HTML / SVG / PNG"]
+    ir --> render["tdsl-render<br/>HTML / SVG / PNG / PDF"]
     ir --> wasm["tdsl-wasm<br/>WebUI / Obsidian"]
     core <-. "Pass 3<br/>(Wikidata 連携時のみ)" .-> wikidata["tdsl-wikidata<br/>HTTP + キャッシュ + リトライ"]
     wikidata <-. "Wikidata API" .-> wd[("wikidata.org")]
@@ -451,7 +455,7 @@ flowchart TD
 | `tdsl-parser` | PEG文法定義とAST構築 |
 | `tdsl-core` | IR変換（lowering）・バリデーション・逆コンパイル |
 | `tdsl-wikidata` | Wikidata HTTPクライアント・エンティティモデル・キャッシュ |
-| `tdsl-render` | IR → HTML（静的・インタラクティブ）/ SVG レンダラ |
+| `tdsl-render` | IR → HTML（静的・インタラクティブ）/ SVG / PNG / PDF レンダラ |
 | `tdsl-wasm` | WebUI向けWASM facade（`wasm-bindgen`） |
 | `tdsl-cli` | CLIバイナリ（全サブコマンド） |
 

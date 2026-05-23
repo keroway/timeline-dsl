@@ -10,7 +10,7 @@ inputs:
     description: 'Path to the .tdsl file to render'
     required: true
   format:
-    description: 'Output format: svg, html, or png'
+    description: 'Output format: svg, html, png, or pdf'
     required: false
     default: 'svg'
   output:

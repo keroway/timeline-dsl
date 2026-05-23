@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`tdsl render --format pdf` を追加**: `svg2pdf` / `usvg` 経由でベクター PDF を出力できるようになった。`tdsl-render/pdf` Cargo feature でゲートされており、WASM ビルドへの影響なし。PNG と対称な `PdfError` / `PdfOptions` / `render_pdf` / `svg_to_pdf` API を `tdsl-render` に追加。システムフォントを `fontdb` 経由でロードするため CJK レーンラベルも適切に描画される（#265、ADR-0002）
+
 ### Changed
 - `tdsl-wasm` is now published to npm as `@keroway/tdsl-wasm` on each release tag push. Install with `npm install @keroway/tdsl-wasm` ([#292])
 - **SVG CSS スコープの改善**: SVG ルート要素に `class="tdsl-root"` を追加し、埋め込みスタイルのセレクタを `.tdsl-root text { }` にスコープ。Obsidian 等の外部ホストに SVG をインライン埋め込みした際のグローバル `text { }` セレクタによる CSS 干渉を防ぐ ([#293])
