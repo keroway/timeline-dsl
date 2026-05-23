@@ -9,10 +9,15 @@ default = []
 # Enables PNG rasterization via resvg. Off by default to keep the WASM build
 # slim (tdsl-wasm consumes tdsl-render without this feature).
 png = ["dep:resvg", "dep:thiserror"]
+# Enables vector PDF output via svg2pdf. Off by default to keep the WASM build
+# slim. Both `usvg` and `svg2pdf` share the same usvg type tree; bump them in
+# sync (see ADR-0002 D2).
+pdf = ["dep:svg2pdf", "dep:thiserror"]
 
 [dependencies]
 tdsl-core = { path = "../tdsl-core", default-features = false }
 resvg = { version = "0.45", optional = true }
+svg2pdf = { version = "0.13", optional = true }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]

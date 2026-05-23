@@ -23,6 +23,7 @@ A domain-specific language (DSL) compiler for timelines. Define timelines as tex
 - **Wikidata integration** — Automatically fetch historical data by specifying a QID. Local cache (24-hour TTL) enables offline use
 - **Interactive HTML output** — Generate standalone HTML with built-in zoom, pan, search, legend, and detail panel
 - **SVG output** — Export as vector format for use in papers and slides
+- **PDF output** — Export as vector PDF (via `svg2pdf`) for printing and document embedding
 - **Color mapping** — Declare tag-to-color mappings in the DSL or via CLI flags
 - **Decompiler** — Regenerate `.tdsl` source from a JSON IR
 - **WebUI** — Real-time editing and preview in the browser (WASM-powered), with font size and light/dark theme selection
@@ -90,6 +91,9 @@ tdsl render examples/china_dynasties.tdsl --format svg --output china.svg
 
 # Output as PNG (rasterized via resvg)
 tdsl render examples/china_dynasties.tdsl --format png --output china.png
+
+# Output as vector PDF (via svg2pdf)
+tdsl render examples/china_dynasties.tdsl --format pdf --output china.pdf
 
 # Compile with Wikidata integration
 tdsl build examples/china_with_import.tdsl --pretty
@@ -297,7 +301,7 @@ Key inputs:
 | Input | Default | Description |
 |---|---|---|
 | `file` | — | Path to the `.tdsl` file to render (required) |
-| `format` | `svg` | Output format: `svg`, `html`, or `png` |
+| `format` | `svg` | Output format: `svg`, `html`, `png`, or `pdf` |
 | `output` | `<basename>.<format>` | Output file path |
 | `offline` | `false` | Skip Wikidata fetching (recommended for CI) |
 | `interactive` | `false` | Interactive HTML output (when `format: html`) |
@@ -420,7 +424,7 @@ flowchart LR
     parser --> ast["AST"]
     ast --> core["tdsl-core<br/>4-pass lowering"]
     core --> ir["JSON IR<br/>(serde)"]
-    ir --> render["tdsl-render<br/>HTML / SVG / PNG"]
+    ir --> render["tdsl-render<br/>HTML / SVG / PNG / PDF"]
     ir --> wasm["tdsl-wasm<br/>WebUI / Obsidian"]
     core <-. "Pass 3<br/>(only when resolving Wikidata)" .-> wikidata["tdsl-wikidata<br/>HTTP + cache + retry"]
     wikidata <-. "Wikidata API" .-> wd[("wikidata.org")]
@@ -451,7 +455,7 @@ flowchart TD
 | `tdsl-parser` | PEG grammar definition and AST construction |
 | `tdsl-core` | IR conversion (lowering), validation, decompiler |
 | `tdsl-wikidata` | Wikidata HTTP client, entity model, cache |
-| `tdsl-render` | IR → HTML (static / interactive) / SVG renderer |
+| `tdsl-render` | IR → HTML (static / interactive) / SVG / PNG / PDF renderer |
 | `tdsl-wasm` | WASM facade for the WebUI (`wasm-bindgen`) |
 | `tdsl-cli` | CLI binary (all subcommands) |
 

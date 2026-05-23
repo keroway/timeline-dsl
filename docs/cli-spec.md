@@ -36,7 +36,7 @@ tdsl [OPTIONS] <COMMAND>
 | [`inspect`](#inspect) | Wikidata エンティティを詳細解析してマッピング戦略を提案 |
 | [`resolve`](#resolve) | Wikipedia 記事 URL を Wikidata QID に変換 |
 | [`scaffold`](#scaffold) | Wikidata エンティティから `.tdsl` テンプレートを自動生成 |
-| [`render`](#render) | `.tdsl` をスタンドアロン HTML/SVG 年表にレンダリング |
+| [`render`](#render) | `.tdsl` をスタンドアロン HTML/SVG/PNG/PDF 年表にレンダリング |
 | [`init`](#init) | 手動編集用の最小 `.tdsl` テンプレートを生成 |
 | [`import-csv`](#import-csv) | CSV から年表アイテムを取り込む |
 | [`lint`](#lint) | `.tdsl` ファイルのリントと自動修正 |
@@ -356,7 +356,7 @@ tdsl scaffold wikidata \
 
 ## `render`
 
-`.tdsl` ファイルをスタンドアロンな HTML または SVG 年表にレンダリングします。
+`.tdsl` ファイルをスタンドアロンな HTML / SVG / PNG / PDF 年表にレンダリングします。
 
 ```
 tdsl render [OPTIONS] <FILE>
@@ -373,7 +373,7 @@ tdsl render [OPTIONS] <FILE>
 | オプション | 説明 | デフォルト |
 |---|---|---|
 | `-o, --output <OUTPUT>` | 出力ファイルのパス | 標準出力 |
-| `--format <FORMAT>` | 出力フォーマット（`html` / `svg` / `png`） | `html` |
+| `--format <FORMAT>` | 出力フォーマット（`html` / `svg` / `png` / `pdf`） | `html` |
 | `--scale <SCALE>` | 横軸の 1 年あたりピクセル数 | `2` |
 | `--lane-height <LANE_HEIGHT>` | 各レーンの高さ（px） | `60` |
 | `--left-gutter <LEFT_GUTTER>` | レーンラベル用の左ガター幅 | `120` |
@@ -405,6 +405,9 @@ tdsl render examples/china_dynasties.tdsl --format png --dpi 300 --output china_
 
 # 2 倍の固定スケールで PNG 出力（--dpi と排他）
 tdsl render examples/china_dynasties.tdsl --format png --png-scale 2.0 --output china_2x.png
+
+# ベクター PDF として出力（svg2pdf 経由）
+tdsl render examples/china_dynasties.tdsl --format pdf --output china.pdf
 
 # インタラクティブモードで HTML を生成
 tdsl render examples/china_dynasties.tdsl --interactive --output china_interactive.html

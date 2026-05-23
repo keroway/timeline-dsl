@@ -377,6 +377,7 @@ enum RenderFormat {
     Html,
     Svg,
     Png,
+    Pdf,
 }
 
 impl ThemeArg {
@@ -1418,6 +1419,11 @@ fn cmd_render(
             };
             let bytes = tdsl_render::render_png(&ir, opts, png_opts)
                 .map_err(|e| format!("PNG rendering failed: {e}"))?;
+            write_render_binary(&bytes, output)
+        }
+        RenderFormat::Pdf => {
+            let bytes = tdsl_render::render_pdf(&ir, opts, tdsl_render::PdfOptions::default())
+                .map_err(|e| format!("PDF rendering failed: {e}"))?;
             write_render_binary(&bytes, output)
         }
     }
