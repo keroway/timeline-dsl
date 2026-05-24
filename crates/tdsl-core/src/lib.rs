@@ -1860,4 +1860,87 @@ event_range war 1939-09..1945-09 "WW2" { id "event_range:war:1939"; };
             _ => panic!("expected Span"),
         }
     }
+
+    // ─── validate_with_spans テスト ──────────────────────────────────────
+
+    /// start > end の span → warning 診断が返り、span.message に span ID を含む。
+    #[test]
+    fn validate_with_spans_start_gt_end() {
+        // span の文法: span <lane_id> <start>..<end> "label" { ... }
+        let src = r#"
+timeline "t" { title "t"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+span l 500..100 "reversed" {};
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static_with_source(&file, Some(src)).unwrap();
+        let diags = validate::validate_with_spans(&ir);
+        assert!(!diags.is_empty(), "start>end の span は警告を返す");
+        // 自動生成 ID に "500" が含まれる（format_id_time で "500" になる）
+        assert!(
+            diags.iter().any(|d| d.message.contains("500")),
+            "start 値を含む警告があるべき"
+        );
+    }
+
+    /// source_span が付与された item の診断は span を持つ（Some）。
+    #[test]
+    fn validate_with_spans_has_source_span_when_source_provided() {
+        let src = r#"
+timeline "t" { title "t"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+span l 500..100 "reversed" {};
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        // source を渡すと source_span が付与される
+        let ir = lower::lower_static_with_source(&file, Some(src)).unwrap();
+        let diags = validate::validate_with_spans(&ir);
+        // start>end の警告があるはず
+        let bad_diag = diags.iter().find(|d| d.message.contains("start"));
+        assert!(bad_diag.is_some(), "start>end 警告が存在する");
+        // ソースを渡しているので source_span は Some になるはず
+        assert!(
+            bad_diag.unwrap().span.is_some(),
+            "source あり lowering では source_span が付与される"
+        );
+    }
+
+    /// range 不整合の警告は span: None（アイテムに紐付かない）。
+    #[test]
+    fn validate_with_spans_range_incoherence_has_no_span() {
+        let src = r#"
+timeline "t" { title "t"; unit year; range 2000..1000; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static_with_source(&file, Some(src)).unwrap();
+        let diags = validate::validate_with_spans(&ir);
+        let range_diag = diags.iter().find(|d| d.message.contains("range"));
+        assert!(range_diag.is_some(), "range 不整合の警告が存在する");
+        assert!(
+            range_diag.unwrap().span.is_none(),
+            "range 不整合の警告は span: None"
+        );
+    }
+
+    /// 既存の validate() が validate_with_spans() と同じ文字列を返す（後方互換）。
+    #[test]
+    fn validate_backward_compat_with_spans() {
+        let src = r#"
+timeline "t" { title "t"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+span l 500..100 "reversed" {};
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let ir = lower::lower_static(&file).unwrap();
+        let old_msgs: Vec<String> = validate::validate(&ir);
+        let new_msgs: Vec<String> = validate::validate_with_spans(&ir)
+            .into_iter()
+            .map(|d| d.message)
+            .collect();
+        assert_eq!(
+            old_msgs, new_msgs,
+            "validate() と validate_with_spans() のメッセージが一致する"
+        );
+    }
 }

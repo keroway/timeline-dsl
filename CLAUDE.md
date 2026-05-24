@@ -122,7 +122,7 @@ VS Code 拡張の `editors/vscode/syntaxes/tdsl.tmLanguage.json` は `npm run bu
 - PEG文法 + パーサ（7種のstatement: timeline, lane, span, event, event_range, import, map）
 - AST → IR変換（静的 / Wikidata連携 両方）
 - Wikidata HTTPクライアント（wbgetentities API, wbsearchentities, SPARQL）
-- CLI サブコマンド: `build` / `check` / `ast` / `fetch` / `search` / `inspect` / `resolve` / `scaffold` / `render` / `init` / `import-csv` / `lint` / `decompile` / `merge` / `cache`
+- CLI サブコマンド: `build` / `check` / `ast` / `fetch` / `search` / `inspect` / `resolve` / `scaffold` / `render` / `init` / `import-csv` / `lint` / `decompile` / `merge` / `cache` / `lsp`
 - JSON IR出力（`origin` フィールドを含む）
 - コメント（行 `//` / ブロック `/* */`）
 - `map` の `target_type` は enum 型（span / event / event_range のみ許可）

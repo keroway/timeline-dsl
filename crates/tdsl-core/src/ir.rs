@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// DSL ソース内のアイテム定義位置（1-based 行番号・列番号）。
 /// `source_span` が付いていない場合はスキップして JSON に出力しない。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SourceSpan {
     /// 定義開始行（1-based）。
     pub line: u32,

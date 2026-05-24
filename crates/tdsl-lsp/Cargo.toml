@@ -1,0 +1,16 @@
+[package]
+name = "tdsl-lsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tdsl-parser = { path = "../tdsl-parser" }
+tdsl-core = { path = "../tdsl-core", default-features = false }
+# tower-lsp 0.20.0 (最新安定版、2026-05 時点で crates.io の max_stable_version)
+# API: LanguageServer trait / LspService::new / Server::new(stdin, stdout, socket).serve(service)
+tower-lsp = "0.20"
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-std"] }
+thiserror.workspace = true

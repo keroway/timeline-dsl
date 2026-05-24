@@ -356,6 +356,21 @@ tdsl merge base.tdsl additions.tdsl --output merged.json --pretty
 
 最初のファイルの `timeline` メタ（title / range / calendar）が優先されます。`lane` は全ファイルから収集され、`item` は重複 ID を検出しながら順に追加されます。
 
+## Language Server（LSP）
+
+`tdsl lsp`
+
+stdio 経由で LSP サーバを起動します。エディタから接続すると、パースエラー・検証警告を行番号・列番号付きでリアルタイム表示できます。
+
+```bash
+# LSP サーバを起動（stdin で JSON-RPC を待機）
+tdsl lsp
+```
+
+**対応機能（v1.10.x）:** `textDocument/publishDiagnostics` — パースエラーと検証警告を実際の行/列位置付きで通知。
+
+**今後の別 issue で実装予定:** Completion、Hover、Goto Definition、Code Actions、VS Code 拡張の LSP クライアント。
+
 ## Lint
 
 `tdsl lint <file> [--fix] [--format text|json]`

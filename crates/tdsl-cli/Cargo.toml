@@ -27,6 +27,7 @@ tdsl-parser = { path = "../tdsl-parser" }
 tdsl-core = { path = "../tdsl-core", features = ["wikidata"] }
 tdsl-wikidata = { path = "../tdsl-wikidata" }
 tdsl-render = { path = "../tdsl-render", features = ["png", "pdf"] }
+tdsl-lsp = { path = "../tdsl-lsp" }
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
 serde.workspace = true
