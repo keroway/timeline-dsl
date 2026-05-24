@@ -92,7 +92,10 @@ fn byte_range_to_loc(location: &str, src: &str) -> Option<ParseErrorLoc> {
 }
 
 /// バイトオフセットを 1-based の (line, col) に変換する。
-fn byte_offset_to_line_col(src: &str, offset: usize) -> (u32, u32) {
+///
+/// pest の span はバイト単位かつ char 境界に揃っているため `src` のスライスは安全。
+/// LSP など、AST ノードの `Span`（バイトオフセット）から行・列を求める用途でも再利用する。
+pub fn byte_offset_to_line_col(src: &str, offset: usize) -> (u32, u32) {
     // オフセットがソース長を超えていたら末尾に丸める
     let offset = offset.min(src.len());
     let before = &src[..offset];

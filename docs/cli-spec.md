@@ -716,6 +716,8 @@ tdsl lsp
 | `textDocument/didChange` | ドキュメント変更時に診断を再実行（FULL sync） |
 | `textDocument/didClose` | ドキュメントを閉じたときに診断をクリア |
 
+> **`import` / `map` / `apply` ブロックについて**: LSP の診断はネットワークアクセスを伴わない静的解析（offline）で行うため、Wikidata 取得が前提の `import` / `map` / `apply` ブロックは解決されません。これらのブロックは黙って無視せず、各ブロック位置に **Information レベルの診断**（「offline 診断では未解決」）を表示します。生成されるアイテムの完全な検証は `tdsl build` / `tdsl check` を使用してください。
+
 **今後の別 issue で実装予定の機能:**
 
 - Completion（コード補完）

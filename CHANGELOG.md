@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`tdsl lsp` サブコマンド（LSP サーバ）を追加**: `tdsl-lsp` クレートを新設し、`tower-lsp 0.20` をベースにした LSP サーバを提供。`textDocument/didOpen`・`didChange` を受けてパースエラー・検証警告を実際の line/col 付きで `publishDiagnostics` として返す。静的 lowering のみ（Wikidata fetch 不要）。Completion / Hover / Code Action は別 issue で実装予定（#307）
+- **`tdsl lsp` サブコマンド（LSP サーバ）を追加**: `tdsl-lsp` クレートを新設し、`tower-lsp 0.20` をベースにした LSP サーバを提供。`textDocument/didOpen`・`didChange` を受けてパースエラー・検証警告を実際の line/col 付きで `publishDiagnostics` として返す。静的 lowering のみ（Wikidata fetch 不要）。offline では解決できない `import` / `map` / `apply` ブロックは黙って無視せず、各ブロック位置に Information レベルの診断（「offline 診断では未解決」）を表示する。Completion / Hover / Code Action は別 issue で実装予定（#307）
 - **`tdsl-parser::ParseError::source_location`**: パースエラーの 1-based 行・列を返すアクセサを追加。Syntax variant は pest `line_col`、バイトオフセット variant（`InvalidInt` 等）はソーステキストから算出（#307）
 - **`tdsl-core::validate::validate_with_spans`**: バリデーション警告を item の `source_span` に紐付けた構造化診断を返す新関数。既存 `validate()` はこの薄いラッパに変更（後方互換維持）（#307）
 - **`tdsl-core::ir::SourceSpan` に `PartialEq` を追加**（#307）
