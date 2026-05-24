@@ -9,9 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`tdsl lsp` サブコマンド（LSP サーバ）を追加**: `tdsl-lsp` クレートを新設し、`tower-lsp 0.20` をベースにした LSP サーバを提供。`textDocument/didOpen`・`didChange` を受けてパースエラー・検証警告を実際の line/col 付きで `publishDiagnostics` として返す。静的 lowering のみ（Wikidata fetch 不要）。offline では解決できない `import` / `map` / `apply` ブロックは黙って無視せず、各ブロック位置に Information レベルの診断（「offline 診断では未解決」）を表示する。Completion / Hover / Code Action は別 issue で実装予定（#307）
+- **`tdsl lsp` サブコマンド（LSP サーバ）を追加**: `tdsl-lsp` クレートを新設し、`tower-lsp 0.20` をベースにした LSP サーバを提供。`textDocument/didOpen`・`didChange` を受けてパースエラー・検証警告を実際の line/col 付きで `publishDiagnostics` として返す。静的 lowering のみ（Wikidata fetch 不要）。ネットワーク不要で判定できる `map` / `apply` の静的参照エラー（未宣言の import alias / template）は offline でも Error として検出する。エンティティ解決が必要なブロックは黙って無視せず、各ブロック位置に Information レベルの診断（「offline 診断では未解決」）を表示する。Completion / Hover / Code Action は別 issue で実装予定（#307）
 - **`tdsl-parser::ParseError::source_location`**: パースエラーの 1-based 行・列を返すアクセサを追加。Syntax variant は pest `line_col`、バイトオフセット variant（`InvalidInt` 等）はソーステキストから算出（#307）
 - **`tdsl-core::validate::validate_with_spans`**: バリデーション警告を item の `source_span` に紐付けた構造化診断を返す新関数。既存 `validate()` はこの薄いラッパに変更（後方互換維持）（#307）
+- **`tdsl-core::validate::validate_static_references`**: AST から、ネットワーク不要で判定できる `map` / `apply` の参照エラー（未宣言 import alias / template）をバイト span 付きで収集する新関数。LSP の offline 診断で利用（#307）
 - **`tdsl-core::ir::SourceSpan` に `PartialEq` を追加**（#307）
 - **`tdsl render --format pdf` を追加**: `svg2pdf` / `usvg` 経由でベクター PDF を出力できるようになった。`tdsl-render/pdf` Cargo feature でゲートされており、WASM ビルドへの影響なし。PNG と対称な `PdfError` / `PdfOptions` / `render_pdf` / `svg_to_pdf` API を `tdsl-render` に追加。システムフォントを `fontdb` 経由でロードするため CJK レーンラベルも適切に描画される（#265、ADR-0002）
 

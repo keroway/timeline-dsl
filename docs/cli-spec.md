@@ -711,12 +711,16 @@ tdsl lsp
 
 | 機能 | 説明 |
 |---|---|
-| `textDocument/publishDiagnostics` | パースエラー・検証警告をリアルタイムで通知 |
+| `textDocument/publishDiagnostics` | パースエラー・検証警告・静的参照エラーをリアルタイムで通知 |
 | `textDocument/didOpen` | ドキュメントを開いたときに診断を実行 |
 | `textDocument/didChange` | ドキュメント変更時に診断を再実行（FULL sync） |
 | `textDocument/didClose` | ドキュメントを閉じたときに診断をクリア |
 
-> **`import` / `map` / `apply` ブロックについて**: LSP の診断はネットワークアクセスを伴わない静的解析（offline）で行うため、Wikidata 取得が前提の `import` / `map` / `apply` ブロックは解決されません。これらのブロックは黙って無視せず、各ブロック位置に **Information レベルの診断**（「offline 診断では未解決」）を表示します。生成されるアイテムの完全な検証は `tdsl build` / `tdsl check` を使用してください。
+> **`import` / `map` / `apply` ブロックについて**: LSP の診断はネットワークアクセスを伴わない静的解析（offline）で行うため、Wikidata 取得が前提のエンティティ解決は行いません。ただし、ネットワーク不要で判定できる **静的な参照エラー** は offline でも検出します:
+> - `map <alias>.<key>` の `alias` が未宣言（`import ... as <alias>` が存在しない）→ **Error**
+> - `apply <template> to <import>` の `template` / `import` が未宣言 → **Error**
+>
+> エンティティ解決に依存するブロック（参照は正しいが Wikidata 取得が必要なもの）は黙って無視せず、各ブロック位置に **Information レベルの診断**（「offline 診断では未解決」）を表示します。生成されるアイテムの完全な検証は `tdsl build` / `tdsl check` を使用してください。
 
 **今後の別 issue で実装予定の機能:**
 

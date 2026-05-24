@@ -107,10 +107,27 @@ pub fn compute_diagnostics(source: &str) -> Vec<Diagnostic> {
                     }
                 };
 
+            // 静的に判定できる map/apply の参照エラー（未宣言 import alias / template、
+            // `alias.key` 形式違反）を error 診断として報告する。エンティティ解決
+            // （要ネットワーク）には依存しない。
+            let ref_diags = tdsl_core::validate::validate_static_references(&file);
+            let error_spans: std::collections::HashSet<(usize, usize)> = ref_diags
+                .iter()
+                .map(|d| (d.span.start, d.span.end))
+                .collect();
+            diags.extend(ref_diags.into_iter().map(|d| Diagnostic {
+                range: span_to_range(&d.span, source),
+                severity: Some(DiagnosticSeverity::ERROR),
+                message: d.message,
+                source: Some("tdsl".to_string()),
+                ..Default::default()
+            }));
+
             // offline 診断は Wikidata fetch を行わないため、import/map/apply ブロックは
-            // 解決されない（pass3/pass4 が走らない）。silent に握りつぶさず、各ブロック位置に
-            // 「offline では未検証」である旨を Information 診断として明示する。
-            diags.extend(unresolved_block_notices(&file, source));
+            // エンティティ解決されない（pass3/pass4 が走らない）。silent に握りつぶさず、
+            // 各ブロック位置に「offline では未検証」である旨を Information 診断として明示する。
+            // ただし静的参照エラーを既に出したブロックは、二重表示を避けて除外する。
+            diags.extend(unresolved_block_notices(&file, source, &error_spans));
             diags
         }
     }
@@ -121,7 +138,13 @@ pub fn compute_diagnostics(source: &str) -> Vec<Diagnostic> {
 /// これらのブロックは Wikidata の解決（ネットワーク）が前提のため、offline の LSP 診断では
 /// アイテムが生成・検証されない。利用者がその差異に気付けるよう、各ブロック位置に
 /// `Information` 診断を付与する（完全な検証は `tdsl build` / `tdsl check` を案内）。
-fn unresolved_block_notices(file: &tdsl_parser::ast::File, source: &str) -> Vec<Diagnostic> {
+///
+/// `error_spans` に含まれるブロック（= 静的参照エラーを既に報告済み）は除外する。
+fn unresolved_block_notices(
+    file: &tdsl_parser::ast::File,
+    source: &str,
+    error_spans: &std::collections::HashSet<(usize, usize)>,
+) -> Vec<Diagnostic> {
     file.statements
         .iter()
         .filter_map(|stmt| {
@@ -131,12 +154,16 @@ fn unresolved_block_notices(file: &tdsl_parser::ast::File, source: &str) -> Vec<
                 Statement::Apply(_) => "apply",
                 _ => return None,
             };
+            if error_spans.contains(&(stmt.span.start, stmt.span.end)) {
+                return None;
+            }
             Some(Diagnostic {
                 range: span_to_range(&stmt.span, source),
                 severity: Some(DiagnosticSeverity::INFORMATION),
                 message: format!(
-                    "`{kind}` ブロックは offline LSP 診断では解決されません（Wikidata fetch が必要）。\
-                     生成されるアイテムは表示・検証されません。完全な検証は `tdsl build` / `tdsl check` を使用してください。"
+                    "`{kind}` block is not resolved by offline LSP diagnostics (Wikidata fetch \
+                     required); generated items are not shown or validated here. Run `tdsl build` \
+                     / `tdsl check` for full validation."
                 ),
                 source: Some("tdsl".to_string()),
                 ..Default::default()
@@ -221,6 +248,72 @@ map wd.han_dynasty to span {
                 .iter()
                 .all(|d| d.severity != Some(DiagnosticSeverity::ERROR)),
             "解決不能を error にはしない（offline の制約は Information で表現）"
+        );
+    }
+
+    /// 未宣言の import alias を参照する map は、offline でも error 診断になる
+    /// （静的に判定できる参照エラー）。当該ブロックには冗長な Information 通知を出さない。
+    #[test]
+    fn map_with_undeclared_import_alias_is_error() {
+        let src = r#"
+timeline "test" { title "test"; unit year; range -500..300; calendar proleptic_gregorian; }
+lane "han" as han { kind dynasty; order 10; }
+import wikidata as wd {
+    entity Q7209 as han_dynasty;
+}
+map typo.han_dynasty to span {
+    lane han;
+    start claim(P571).year;
+    end claim(P576).year;
+    label label@ja ?? label@en;
+}
+"#;
+        let diags = compute_diagnostics(src);
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
+            .collect();
+        assert_eq!(
+            errors.len(),
+            1,
+            "未宣言 alias 参照は 1 件の error。実際: {diags:#?}"
+        );
+        assert!(
+            errors[0].message.contains("typo"),
+            "error メッセージに未宣言 alias 名を含むべき"
+        );
+        // map ブロック（error 済み）には Information 通知を重ねない。import ブロックには出る。
+        let infos: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Some(DiagnosticSeverity::INFORMATION))
+            .collect();
+        assert_eq!(
+            infos.len(),
+            1,
+            "Information は import ブロックの 1 件のみ（error 済みの map は除外）。実際: {diags:#?}"
+        );
+    }
+
+    /// 未宣言の template / import を参照する apply は error 診断になる。
+    #[test]
+    fn apply_with_undeclared_refs_is_error() {
+        let src = r#"
+timeline "test" { title "test"; unit year; range -500..300; calendar proleptic_gregorian; }
+lane "d" as d { kind dynasty; order 10; }
+apply missing_tmpl to missing_import {
+    lane d;
+}
+"#;
+        let diags = compute_diagnostics(src);
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
+            .collect();
+        // 未宣言 import + 未宣言 template の 2 件
+        assert_eq!(
+            errors.len(),
+            2,
+            "apply の未宣言参照は 2 件の error。実際: {diags:#?}"
         );
     }
 

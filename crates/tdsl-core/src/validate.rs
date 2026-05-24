@@ -1,8 +1,96 @@
 use crate::ir::{SourceSpan, TimelineIr};
+use tdsl_parser::ast;
 
 /// `(year, month_or_0, day_or_0)` を返す。月日が `None` の場合はソート上は最小値扱い。
 fn sortable_tuple(year: i64, month: Option<u8>, day: Option<u8>) -> (i64, u8, u8) {
     (year, month.unwrap_or(0), day.unwrap_or(0))
+}
+
+/// AST（lowering 前）レベルで検出できる参照エラー。`span` はソース内のバイト範囲。
+///
+/// `map` / `apply` ブロックの参照のうち、**ネットワーク（Wikidata 取得）を要しない**
+/// 静的に判定可能な参照ミスを表す。具体的には lowering Pass 4 が
+/// `UnresolvedImport` / `UnknownTemplate` として検出するエラーのうち、
+/// エンティティ解決に依存しない部分（import alias / template の宣言有無、
+/// `map` 参照の `alias.key` 形式）を offline でも報告するために使う。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceDiagnostic {
+    /// エラーメッセージ。
+    pub message: String,
+    /// 該当する `map` / `apply` 文のソース内バイト範囲。
+    pub span: ast::Span,
+}
+
+/// AST から、ネットワーク不要で判定できる `map` / `apply` の参照エラーを収集する。
+///
+/// - `map <alias>.<key>` の `alias` が `import ... as <alias>` で宣言されていない → エラー。
+/// - `apply <template> to <import>` の `import` が未宣言 → エラー。
+/// - `apply <template> to <import>` の `template` が未宣言 → エラー。
+///
+/// `map` の参照は文法（`dotted_ident`）上必ず `alias.key` 形式（`.` を含む）なので、
+/// 形式不正はパース段階で弾かれる（ここには到達しない）。
+/// エンティティキー（`alias.<key>` の `key`）が Wikidata に存在するかは
+/// ネットワークに依存するため、ここでは判定しない（lowering Pass 4 の責務）。
+/// alias / template の宣言解決は lowering Pass 1 / Pass 3 と同じ規則
+/// （`import` は `alias ?? source_type`、`template` は `alias ?? name` をキーとする）。
+pub fn validate_static_references(file: &ast::File) -> Vec<ReferenceDiagnostic> {
+    let mut import_aliases: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut template_keys: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for stmt in &file.statements {
+        match &stmt.node {
+            ast::Statement::Import(imp) => {
+                let alias = imp.alias.as_deref().unwrap_or(imp.source_type.as_str());
+                import_aliases.insert(alias);
+            }
+            ast::Statement::Template(t) => {
+                let key = t.alias.as_deref().unwrap_or(t.name.as_str());
+                template_keys.insert(key);
+            }
+            _ => {}
+        }
+    }
+
+    let mut diags = Vec::new();
+    for stmt in &file.statements {
+        match &stmt.node {
+            ast::Statement::Map(m) => {
+                // 文法上 source_ref は必ず `alias.key`（dot を含む）。先頭要素が import alias。
+                let alias = m
+                    .source_ref
+                    .split('.')
+                    .next()
+                    .unwrap_or(m.source_ref.as_str());
+                if !import_aliases.contains(alias) {
+                    diags.push(ReferenceDiagnostic {
+                        message: format!("Map references undeclared import alias: {alias}"),
+                        span: stmt.span.clone(),
+                    });
+                }
+            }
+            ast::Statement::Apply(a) => {
+                if !import_aliases.contains(a.import_alias.as_str()) {
+                    diags.push(ReferenceDiagnostic {
+                        message: format!(
+                            "Apply references undeclared import alias: {}",
+                            a.import_alias
+                        ),
+                        span: stmt.span.clone(),
+                    });
+                }
+                if !template_keys.contains(a.template_alias.as_str()) {
+                    diags.push(ReferenceDiagnostic {
+                        message: format!(
+                            "Apply references undeclared template: {}",
+                            a.template_alias
+                        ),
+                        span: stmt.span.clone(),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    diags
 }
 
 /// 診断メッセージと、対応するアイテムのソース位置（あれば）を保持する構造体。
