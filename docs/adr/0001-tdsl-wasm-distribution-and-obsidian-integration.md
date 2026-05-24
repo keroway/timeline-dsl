@@ -74,6 +74,7 @@ ADR 本体決定に付随する技術判断を以下に明示する。後続 sub
 - **バージョニング**: Cargo workspace の version を CI で `pkg/package.json` の `version` に注入する現行方式（`build-wasm` ジョブの該当ステップ）を踏襲する。npm パッケージのバージョンは本リポの release タグに 1:1 で連動する。
 - **publish trigger**: release タグ push で自動 publish。緊急時の再 publish 用に `workflow_dispatch` も併設する。
 - **`NPM_TOKEN`**: GitHub Secrets に登録する。トークン取得・ローテーション手順は #292 の作業範囲で README に追記する。
+  - > **更新（2026-05-25）**: 長期トークン `NPM_TOKEN` 方式は廃止し、npm Trusted Publishing（OIDC）に移行した。`Release` ワークフローは `permissions: id-token: write` で短命トークンを発行し、provenance attestation を自動付与する。設定手順は README の「Trusted Publishing / OIDC での publish」を参照。
 - **WebUI（`apps/webui`）の参照方式**: 当面は `apps/webui/src/wasm/` 配下のコミット済み成果物をそのまま参照する現行方式を維持する（開発者が `wasm-pack build ../../crates/tdsl-wasm --target web --out-dir src/wasm --no-opt` を実行してコミットする運用も継続）。`@keroway/tdsl-wasm` への npm 依存切替・自動同期スクリプト化・README の「.gitignore 対象」記述の訂正は本 ADR の範囲外とし、別 issue で検討する。
 - **`pkg/package.json` のメタデータ整備**: CI で `name`, `version`, `publishConfig.access`, `repository`, `homepage`, `bugs`, `license` を確実に注入できるよう、`build-wasm` ジョブのスクリプトを拡張する（#292 で実施）。
 
