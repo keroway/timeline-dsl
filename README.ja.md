@@ -407,14 +407,22 @@ npm install @keroway/tdsl-wasm
 
 > **制限**: ブラウザ / WASM 環境では Wikidata インポートは非対応です。静的な `span`・`event`・`event_range` のみコンパイルされます。
 
-### `NPM_TOKEN` の設定（メンテナー向け）
+### Trusted Publishing / OIDC での publish（メンテナー向け）
 
-CI で自動 publish を有効にするには、npm アクセストークンを GitHub Actions シークレット `NPM_TOKEN` として登録します：
+CI は npm の **Trusted Publishing**（OIDC）で `@keroway/tdsl-wasm` を publish します。長期トークン `NPM_TOKEN` の登録は不要です。`Release` ワークフローが `permissions: id-token: write` により短命の OIDC トークンを発行し、provenance attestation も自動で付与されます。
 
-1. [npmjs.com](https://www.npmjs.com/) にログインし、**Automation** タイプのトークンを生成（Settings → Access Tokens）
-2. リポジトリの **Settings → Secrets and variables → Actions** を開く
-3. `NPM_TOKEN` という名前でシークレットを追加
-4. リリースタグ push ごとに自動 publish される
+npmjs.com 側の初回設定（パッケージごとに 1 回）：
+
+1. パッケージ設定を開く: **npmjs.com → @keroway/tdsl-wasm → Settings → Trusted Publisher**
+2. GitHub Actions の publisher を以下の内容で追加：
+   - **Organization or user**: `keroway`
+   - **Repository**: `timeline-dsl`
+   - **Workflow filename**: `release.yml`（ファイル名のみ。完全一致が必要）
+   - **Environment**: 空欄のまま
+   - **Allowed actions**: `npm publish` を有効化
+3. 保存すると、以降のリリースタグ push でトークンなしに自動 publish される
+
+> **初回 publish（新規パッケージのブートストラップ）**: npm では Trusted Publisher を UI で設定する前提としてパッケージが既に存在している必要があります。最初の 1 バージョンだけはローカルから publish してください — `wasm-pack build --target web --release --scope keroway` の後、`cd crates/tdsl-wasm/pkg && npm publish --access public`。その後 Trusted Publisher を登録すれば、以降は CI に任せられます。
 
 手動再 publish が必要な場合（CI 失敗時など）は **Actions → Release → Run workflow** からバージョン番号を入力して実行します。
 

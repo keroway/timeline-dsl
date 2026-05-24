@@ -407,14 +407,22 @@ npm install @keroway/tdsl-wasm
 
 > **Note**: Wikidata imports are not supported in browser/WASM environments. Only static `span`, `event`, and `event_range` items are compiled.
 
-### Setting up `NPM_TOKEN` (maintainers)
+### Publishing via Trusted Publishing / OIDC (maintainers)
 
-To enable automatic publishing in CI, add an npm access token as a GitHub Actions secret named `NPM_TOKEN`:
+CI publishes `@keroway/tdsl-wasm` using npm **Trusted Publishing** (OIDC). No long-lived `NPM_TOKEN` secret is required — the `Release` workflow mints a short-lived OIDC token via `permissions: id-token: write`, and npm generates a provenance attestation automatically.
 
-1. Log in to [npmjs.com](https://www.npmjs.com/) and generate an **Automation** token (Settings → Access Tokens)
-2. Go to the repository's **Settings → Secrets and variables → Actions**
-3. Add a new secret named `NPM_TOKEN` with the token value
-4. Publishing runs automatically on each release tag push
+One-time setup on npmjs.com (per package):
+
+1. Open the package settings: **npmjs.com → @keroway/tdsl-wasm → Settings → Trusted Publisher**
+2. Add a GitHub Actions publisher with:
+   - **Organization or user**: `keroway`
+   - **Repository**: `timeline-dsl`
+   - **Workflow filename**: `release.yml` (filename only, must match exactly)
+   - **Environment**: leave blank
+   - **Allowed actions**: enable `npm publish`
+3. Save. Subsequent release tag pushes publish automatically with no token.
+
+> **First publish (bootstrapping a brand-new package)**: npm requires the package to already exist before you can configure a Trusted Publisher in the UI. For the very first version, publish once locally — `cd crates/tdsl-wasm/pkg && npm publish --access public` after a `wasm-pack build --target web --release --scope keroway` — then add the Trusted Publisher and let CI take over.
 
 To manually re-publish (e.g., if CI failed): go to **Actions → Release → Run workflow** and enter the version number.
 

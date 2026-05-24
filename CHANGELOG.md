@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **npm パッケージに README / LICENSE を同梱**: `crates/tdsl-wasm/README.md`（npm 利用者向けの JS/TS 使用例・API 表）を追加し、`Release` ワークフローで pkg に README と root の MIT `LICENSE` を含めるようにした。これまで `@keroway/tdsl-wasm` の npm ページは README 未設定（"No README data found"）だったのを解消する
+- **npm publish を Trusted Publishing（OIDC）に移行**: `@keroway/tdsl-wasm` の npm 公開を長期トークン（`NPM_TOKEN` / `NODE_AUTH_TOKEN`）方式から npm Trusted Publishing（OIDC）に切り替えた。`Release` ワークフローの `build-wasm` ジョブに `permissions: id-token: write` を付与し、publish 直前に npm CLI を 11.5.1+ に更新する。認証は OIDC で自動取得され、provenance attestation も自動付与される。GitHub Secrets への `NPM_TOKEN` 登録は不要になった。npmjs.com 側の Trusted Publisher 設定手順は README を参照。npm 未設定・障害時に本体（CLI バイナリ / Homebrew）リリースをブロックしない挙動（#314）は `continue-on-error` で維持
+
 ## [1.11.0] - 2026-05-24
 
 ### Added

@@ -102,11 +102,13 @@ jobs:
   build-wasm:
     name: Build WASM package
     runs-on: ubuntu-latest
-    # NPM_TOKEN を job 全体の env に展開し、未設定時は publish step を明示的に skip する。
-    # これにより npm publish の有無に関わらず WASM tarball artifact は生成され、
-    # 後続の GitHub Release / Homebrew 更新がブロックされない。
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    # npm への publish は Trusted Publishing（OIDC）で行う。長期トークン（NPM_TOKEN）は不要。
+    # OIDC トークン発行のため id-token: write が必須。このジョブは checkout と artifact
+    # アップロードしか行わないため、最小権限として contents: read のみ併記する
+    # （job-level permissions は top-level を上書きするため明示が必要）。
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -162,6 +164,12 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           VERSION="${{ steps.version.outputs.value }}"
           cd crates/tdsl-wasm/pkg
+          # npm パッケージページ用の README とライセンスを同梱する。
+          # README はクレート直下のものを wasm-pack が pkg/ にコピーするが、
+          # 確実性のため明示コピーし、LICENSE はリポジトリ root から持ち込む。
+          # npm publish は files 配列に関わらず README / LICENSE を常に同梱する。
+          cp ../README.md README.md
+          cp ../../../LICENSE LICENSE
           node -e "
           const fs = require('fs');
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -175,7 +183,9 @@ jobs:
             tdsl_wasm.d.ts \
             tdsl_wasm_bg.wasm \
             tdsl_wasm_bg.wasm.d.ts \
-            package.json
+            package.json \
+            README.md \
+            LICENSE
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -183,17 +193,18 @@ jobs:
           name: tdsl-wasm-${{ steps.version.outputs.tag }}.tar.gz
           path: tdsl-wasm-${{ steps.version.outputs.tag }}.tar.gz
 
-      - name: Publish to npm
-        if: ${{ env.NPM_TOKEN != '' }}
+      - name: Publish to npm (Trusted Publishing / OIDC)
+        # 認証は id-token: write による OIDC で自動取得され、NODE_AUTH_TOKEN は不要。
+        # provenance attestation も自動付与される。
+        # Trusted Publishing は npm CLI 11.5.1 以降が必須なので、publish 直前に最新へ更新する。
+        # npm 更新・Trusted Publisher 未設定・npm 障害のいずれの失敗でも GitHub Release /
+        # Homebrew 更新をブロックしないよう、更新と publish を 1 ステップにまとめて
+        # continue-on-error にする（失敗時はこのステップが赤くなり気付ける）。
+        continue-on-error: true
         run: |
+          npm install -g npm@latest
           cd crates/tdsl-wasm/pkg
           npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
-
-      - name: Skip npm publish (NPM_TOKEN not set)
-        if: ${{ env.NPM_TOKEN == '' }}
-        run: echo "::notice::NPM_TOKEN is not configured — skipping npm publish. The WASM tarball is still attached to the GitHub Release."
 
   release:
     name: GitHub Release
