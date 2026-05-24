@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-05-24
+
 ### Added
 
 - **`tdsl lsp` サブコマンド（LSP サーバ）を追加**: `tdsl-lsp` クレートを新設し、`tower-lsp 0.20` をベースにした LSP サーバを提供。`textDocument/didOpen`・`didChange` を受けてパースエラー・検証警告を実際の line/col 付きで `publishDiagnostics` として返す。静的 lowering のみ（Wikidata fetch 不要）。ネットワーク不要で判定できる `map` / `apply` の静的参照エラー（未宣言の import alias / template）は offline でも Error として検出する。エンティティ解決が必要なブロックは黙って無視せず、各ブロック位置に Information レベルの診断（「offline 診断では未解決」）を表示する。Completion / Hover / Code Action は別 issue で実装予定（#307）
@@ -15,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`tdsl-core::validate::validate_static_references`**: AST から、ネットワーク不要で判定できる `map` / `apply` の参照エラー（未宣言 import alias / template）をバイト span 付きで収集する新関数。LSP の offline 診断で利用（#307）
 - **`tdsl-core::ir::SourceSpan` に `PartialEq` を追加**（#307）
 - **`tdsl render --format pdf` を追加**: `svg2pdf` / `usvg` 経由でベクター PDF を出力できるようになった。`tdsl-render/pdf` Cargo feature でゲートされており、WASM ビルドへの影響なし。PNG と対称な `PdfError` / `PdfOptions` / `render_pdf` / `svg_to_pdf` API を `tdsl-render` に追加。システムフォントを `fontdb` 経由でロードするため CJK レーンラベルも適切に描画される（#265、ADR-0002）
+- **`tdsl render --format png` に `--dpi` / `--png-scale` オプションを追加**: `PngOptions { dpi, scale_factor }` を `tdsl-render` に追加し、`--dpi <N>`（デフォルト 96）で SVG ユーザー単位からピクセルサイズを `dpi / 96.0` 倍にスケール、`--png-scale <f>` で倍率を直接指定できるようにした。両者は clap の `conflicts_with` で排他制御。HTML/SVG 出力には影響しない（#264）
+- **時間式に整数オフセット演算（`+` / `-`）を追加**: `map` ブロックの時間値式で `start claim(P569).year + 1` / `end claim(P570).year - 5` のような整数オフセットを記述できるようにした。`ClaimExpr` に `offset: Option<i32>`（`None` デフォルトで後方互換）を追加し、lowering 時に year へ加算する。decompile / inspect 出力および WebUI Format でも `+ N` / `- N` 形式で再現される（#148）
 
 ### Changed
 - `tdsl-wasm` is now published to npm as `@keroway/tdsl-wasm` on each release tag push. Install with `npm install @keroway/tdsl-wasm` ([#292])
