@@ -243,7 +243,7 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
 
-      - name: Update formula
+      - name: Regenerate formula
         env:
           VERSION: ${{ github.ref_name }}
           SHA_LINUX: ${{ steps.sha256.outputs.linux_x86_64 }}
@@ -251,14 +251,55 @@ jobs:
           SHA_MACOS_X86: ${{ steps.sha256.outputs.macos_x86_64 }}
           SHA_MACOS_ARM: ${{ steps.sha256.outputs.macos_aarch64 }}
         run: |
+          # formula 全体を毎回生成する。旧 sed+PLACEHOLDER 方式は一度埋めると
+          # placeholder が消え、以降は version しか書き換わらず sha が stale に
+          # なる欠陥があった。全プラットフォームの url/sha を決定的に書き出す。
           TAG="${VERSION#v}"
-          sed -i \
-            -e "s/version \"[^\"]*\"/version \"${TAG}\"/" \
-            -e "s/PLACEHOLDER_LINUX_X86_64_SHA256/${SHA_LINUX}/" \
-            -e "s/PLACEHOLDER_LINUX_AARCH64_SHA256/${SHA_LINUX_ARM}/" \
-            -e "s/PLACEHOLDER_MACOS_X86_64_SHA256/${SHA_MACOS_X86}/" \
-            -e "s/PLACEHOLDER_MACOS_AARCH64_SHA256/${SHA_MACOS_ARM}/" \
-            homebrew-tap/Formula/tdsl.rb
+          cat > homebrew-tap/Formula/tdsl.rb <<FORMULA
+          class Tdsl < Formula
+            desc "Timeline DSL compiler — text-based timelines with Wikidata import"
+            homepage "https://github.com/keroway/timeline-dsl"
+            version "${TAG}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-macos-aarch64.tar.gz"
+                sha256 "${SHA_MACOS_ARM}"
+              else
+                url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-macos-x86_64.tar.gz"
+                sha256 "${SHA_MACOS_X86}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-linux-aarch64.tar.gz"
+                sha256 "${SHA_LINUX_ARM}"
+              else
+                url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-linux-x86_64.tar.gz"
+                sha256 "${SHA_LINUX}"
+              end
+            end
+
+            def install
+              bin.install "tdsl"
+            end
+
+            test do
+              assert_match "tdsl", shell_output("#{bin}/tdsl --version")
+              (testpath/"test.tdsl").write <<~EOS
+                timeline "test" {
+                  unit year;
+                  range 1..100;
+                }
+                lane "main" as main { kind dynasty; order 1; }
+                span main 10..50 "test span" {};
+              EOS
+              assert_match "lanes", shell_output("#{bin}/tdsl build #{testpath}/test.tdsl --pretty")
+            end
+          end
+          FORMULA
 
       - name: Commit and push formula update
         working-directory: homebrew-tap
