@@ -356,6 +356,21 @@ tdsl merge base.tdsl additions.tdsl --output merged.json --pretty
 
 The `timeline` metadata (title / range / calendar) from the first file takes precedence. `lane` entries are collected from all files, and `item` entries are appended in order with duplicate ID detection.
 
+## Language Server (LSP)
+
+`tdsl lsp`
+
+Starts a Language Server Protocol server over stdio. Connect your editor to get real-time diagnostics (parse errors and validation warnings with line/column positions).
+
+```bash
+# Start the LSP server (blocks waiting for JSON-RPC on stdin)
+tdsl lsp
+```
+
+**Supported features (v1.10.x):** `textDocument/publishDiagnostics` — parse errors and validation warnings with accurate line/column numbers.
+
+**Planned in future issues:** Completion, Hover, Goto Definition, Code Actions, VS Code extension LSP client.
+
 ## Lint
 
 `tdsl lint <file> [--fix] [--format text|json]`

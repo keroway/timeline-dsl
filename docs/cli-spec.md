@@ -43,6 +43,7 @@ tdsl [OPTIONS] <COMMAND>
 | [`cache`](#cache) | Wikidata ローカルキャッシュの管理 |
 | [`decompile`](#decompile) | JSON IR を `.tdsl` ソースに逆変換 |
 | [`completions`](#completions) | シェル補完スクリプトを生成 |
+| [`lsp`](#lsp) | LSP サーバを stdio 経由で起動（Diagnostics） |
 
 ---
 
@@ -689,6 +690,67 @@ source ~/.zshrc
 - **レート制限**: Wikidata API にはレート制限があります。大量フェッチが必要な場合は `--offline` で開発し、最終確認時にオンラインビルドを実施してください。
 - **キャッシュ**: 取得結果はデフォルトで `~/.cache/tdsl/` に 24 時間キャッシュされます。`--no-cache` で強制リフレッシュ、`--cache-ttl 0` でキャッシュを無効化できます。
 - **タイムアウト**: ネットワーク環境が遅い場合は `--wikidata-timeout` を増やしてください（例: `--wikidata-timeout 60`）。
+
+---
+
+---
+
+## `lsp`
+
+LSP（Language Server Protocol）サーバを stdio 経由で起動します。
+
+```
+tdsl lsp
+```
+
+### 説明
+
+標準入力（stdin）から JSON-RPC 2.0 メッセージを読み込み、標準出力（stdout）に応答を書き出す LSP サーバとして動作します。
+
+**現バージョンで対応している機能:**
+
+| 機能 | 説明 |
+|---|---|
+| `textDocument/publishDiagnostics` | パースエラー・検証警告・静的参照エラーをリアルタイムで通知 |
+| `textDocument/didOpen` | ドキュメントを開いたときに診断を実行 |
+| `textDocument/didChange` | ドキュメント変更時に診断を再実行（FULL sync） |
+| `textDocument/didClose` | ドキュメントを閉じたときに診断をクリア |
+
+> **`import` / `map` / `apply` ブロックについて**: LSP の診断はネットワークアクセスを伴わない静的解析（offline）で行うため、Wikidata 取得が前提のエンティティ解決は行いません。ただし、ネットワーク不要で判定できる **静的な参照エラー** は offline でも検出します:
+> - `map <alias>.<key>` の `alias` が未宣言（`import ... as <alias>` が存在しない）→ **Error**
+> - `apply <template> to <import>` の `template` / `import` が未宣言 → **Error**
+>
+> エンティティ解決に依存するブロック（参照は正しいが Wikidata 取得が必要なもの）は黙って無視せず、各ブロック位置に **Information レベルの診断**（「offline 診断では未解決」）を表示します。生成されるアイテムの完全な検証は `tdsl build` / `tdsl check` を使用してください。
+
+**今後の別 issue で実装予定の機能:**
+
+- Completion（コード補完）
+- Hover（ホバー情報）
+- Goto Definition（定義ジャンプ）
+- Code Action（クイックフィックス）
+- VS Code 拡張クライアント（エディタ連携）
+
+### エディタ連携
+
+現バージョンでは LSP サーバ（バイナリ）のみ提供します。エディタクライアント（VS Code 拡張の LSP クライアント設定）は別 issue で実装予定です。
+
+Neovim / Helix などの汎用 LSP クライアントでは以下のように手動設定が可能です（設定方法はエディタのドキュメントを参照）:
+
+```
+command: ["tdsl", "lsp"]
+root_markers: ["*.tdsl"]
+filetypes: ["tdsl"]
+```
+
+### 実行例
+
+```bash
+# LSP サーバを起動（stdin 待機でブロックする）
+tdsl lsp
+
+# 最小 JSON-RPC リクエストで動作確認（Content-Length ヘッダ必須）
+echo -e 'Content-Length: 2\r\n\r\n{}' | tdsl lsp
+```
 
 ---
 

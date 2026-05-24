@@ -290,6 +290,13 @@ enum Commands {
         /// Target shell
         shell: clap_complete::Shell,
     },
+
+    /// Start a Language Server Protocol server over stdio (Diagnostics only)
+    ///
+    /// Communicates via stdin/stdout using the LSP JSON-RPC protocol.
+    /// Supported features: textDocument/publishDiagnostics (parse errors + validation warnings).
+    /// Completion, Hover, Goto Definition, and Code Actions will be added in future issues.
+    Lsp,
 }
 
 #[derive(Subcommand)]
@@ -520,12 +527,23 @@ fn main() {
             clap_complete::generate(shell, &mut Cli::command(), "tdsl", &mut std::io::stdout());
             Ok(())
         }
+        Commands::Lsp => cmd_lsp(),
     };
 
     if let Err(e) = result {
         eprintln!("Error: {e}");
         process::exit(1);
     }
+}
+
+/// LSP サーバを stdio 経由で起動する。
+///
+/// tokio ランタイムを構築し、`tdsl_lsp::run_server()` を呼ぶ薄いラッパ。
+/// `tokio::spawn` は tower-lsp の Server 内部で使われるため CLI 層で扱う。
+fn cmd_lsp() -> Result<(), String> {
+    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
+    rt.block_on(tdsl_lsp::run_server());
+    Ok(())
 }
 
 fn read_source(path: &std::path::Path) -> Result<String, String> {

@@ -7,6 +7,7 @@ members = [
     "crates/tdsl-render",
     "crates/tdsl-cli",
     "crates/tdsl-wasm",
+    "crates/tdsl-lsp",
 ]
 
 [workspace.package]
