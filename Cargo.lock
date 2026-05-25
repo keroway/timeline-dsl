@@ -2549,6 +2549,7 @@ dependencies = [
  "serde_json",
  "tdsl-core",
  "tdsl-parser",
+ "tdsl-wikidata",
  "thiserror",
  "tokio",
  "tower-lsp",

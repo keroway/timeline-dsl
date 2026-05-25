@@ -270,6 +270,28 @@ pub fn cache_status(cache_dir: &Path) -> std::io::Result<CacheStatus> {
     })
 }
 
+/// 指定 QID のキャッシュ済みエンティティを読み出す（オフライン・ネットワーク不要）。
+///
+/// `<cache_dir>/get_<qid>_<langs>.json` のうち最初に見つかった有効なファイルを返す。
+/// hover 表示用途のため **TTL は無視** する（古くても取得済み情報を見せる）。
+/// キャッシュ未取得・ディレクトリ不在・パース失敗時は `None`。
+pub fn read_cached_entity(cache_dir: &Path, qid: &str) -> Option<WikidataEntity> {
+    let prefix = format!("get_{qid}_");
+    let entries = std::fs::read_dir(cache_dir).ok()?;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with(&prefix)
+            && name.ends_with(".json")
+            && let Ok(data) = std::fs::read(entry.path())
+            && let Ok(entity) = serde_json::from_slice::<WikidataEntity>(&data)
+        {
+            return Some(entity);
+        }
+    }
+    None
+}
+
 /// キャッシュを削除する。
 ///
 /// `older_than_days` が `Some(n)` の場合、最終更新から `n` 日以上経過したファイルのみを削除する。
@@ -542,6 +564,65 @@ mod tests {
         assert_eq!(deleted, 0);
         let status = cache_status(tmp.path()).unwrap();
         assert_eq!(status.file_count, 1);
+    }
+
+    // ------------------------------------------------------------------
+    // read_cached_entity のテスト
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn read_cached_entity_returns_entity_from_cache_file() {
+        let tmp = TempDir::new().unwrap();
+        let entity = WikidataEntity {
+            id: "Q42".to_string(),
+            labels: HashMap::new(),
+            claims: HashMap::new(),
+        };
+        let data = serde_json::to_vec(&entity).unwrap();
+        // キャッシュファイル名パターン: get_<QID>_<langs>.json
+        std::fs::write(tmp.path().join("get_Q42_ja.json"), &data).unwrap();
+
+        let result = super::read_cached_entity(tmp.path(), "Q42");
+        assert!(
+            result.is_some(),
+            "キャッシュファイルが存在すれば Some を返す"
+        );
+        assert_eq!(result.unwrap().id, "Q42");
+    }
+
+    #[test]
+    fn read_cached_entity_returns_none_when_not_cached() {
+        let tmp = TempDir::new().unwrap();
+        // Q42 のキャッシュファイルなし
+        let result = super::read_cached_entity(tmp.path(), "Q42");
+        assert!(result.is_none(), "キャッシュファイルが無ければ None を返す");
+    }
+
+    #[test]
+    fn read_cached_entity_returns_none_for_nonexistent_cache_dir() {
+        let tmp = TempDir::new().unwrap();
+        let nonexistent = tmp.path().join("no_such_dir");
+        let result = super::read_cached_entity(&nonexistent, "Q42");
+        assert!(result.is_none(), "ディレクトリが存在しなければ None を返す");
+    }
+
+    #[test]
+    fn read_cached_entity_ignores_unrelated_files() {
+        let tmp = TempDir::new().unwrap();
+        // Q7209 はあるが Q42 はない
+        let entity = WikidataEntity {
+            id: "Q7209".to_string(),
+            labels: HashMap::new(),
+            claims: HashMap::new(),
+        };
+        let data = serde_json::to_vec(&entity).unwrap();
+        std::fs::write(tmp.path().join("get_Q7209_ja-en.json"), &data).unwrap();
+
+        let result = super::read_cached_entity(tmp.path(), "Q42");
+        assert!(
+            result.is_none(),
+            "プレフィクスが一致しないファイルは無視する"
+        );
     }
 
     #[test]

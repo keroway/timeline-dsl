@@ -1,8 +1,8 @@
 //! LSP サーバの Backend 実装。
 //!
 //! `tower-lsp` の `LanguageServer` trait を実装し、stdio 経由で LSP クライアントと通信する。
-//! 現バージョンで実装している機能: Diagnostics + Completion。
-//! Hover / Goto / Code Action は別 issue で実装する。
+//! 現バージョンで実装している機能: Diagnostics + Completion + Hover。
+//! Goto / Code Action は別 issue で実装する。
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -10,14 +10,15 @@ use std::sync::Mutex;
 use tower_lsp::jsonrpc::Result as LspResult;
 use tower_lsp::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, InitializeParams, InitializeResult,
-    InitializedParams, MessageType, ServerCapabilities, TextDocumentSyncCapability,
-    TextDocumentSyncKind, Url,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, Hover, HoverParams,
+    HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, MessageType,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::completion::keyword_completions;
 use crate::diagnostics::compute_diagnostics;
+use crate::hover::compute_hover;
 
 /// LSP サーバの Backend 状態。
 ///
@@ -57,7 +58,9 @@ impl LanguageServer for Backend {
                 )),
                 // キーワード補完（文脈非依存・全キーワード返却）
                 completion_provider: Some(CompletionOptions::default()),
-                // Hover / Goto / Code Action は別 issue のスコープ
+                // lane ID / QID のホバー情報表示
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
+                // Goto / Code Action は別 issue のスコープ
                 ..Default::default()
             },
             ..Default::default()
@@ -69,9 +72,23 @@ impl LanguageServer for Backend {
         self.client
             .log_message(
                 MessageType::INFO,
-                "tdsl LSP server initialized (Diagnostics + Completion)",
+                "tdsl LSP server initialized (Diagnostics + Completion + Hover)",
             )
             .await;
+    }
+
+    async fn hover(&self, params: HoverParams) -> LspResult<Option<Hover>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        let source = {
+            // LSP サーバの単一スレッド文脈では panic しない
+            let docs = self.documents.lock().expect("documents lock poisoned");
+            docs.get(uri.as_str()).cloned()
+        };
+        match source {
+            Some(src) => Ok(compute_hover(&src, position)),
+            None => Ok(None),
+        }
     }
 
     async fn completion(&self, _params: CompletionParams) -> LspResult<Option<CompletionResponse>> {
