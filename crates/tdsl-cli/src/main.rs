@@ -291,12 +291,13 @@ enum Commands {
         shell: clap_complete::Shell,
     },
 
-    /// Start a Language Server Protocol server over stdio (Diagnostics + Completion)
+    /// Start a Language Server Protocol server over stdio (Diagnostics + Completion + Hover)
     ///
     /// Communicates via stdin/stdout using the LSP JSON-RPC protocol.
-    /// Supported features: textDocument/publishDiagnostics (parse errors + validation warnings)
-    /// and textDocument/completion (DSL keyword completion).
-    /// Hover, Goto Definition, and Code Actions will be added in future issues.
+    /// Supported features: textDocument/publishDiagnostics (parse errors + validation warnings),
+    /// textDocument/completion (DSL keyword completion), and textDocument/hover
+    /// (lane ID -> lane info, QID -> cached entity info).
+    /// Goto Definition and Code Actions will be added in future issues.
     Lsp,
 }
 
