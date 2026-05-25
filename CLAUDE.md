@@ -104,6 +104,8 @@ VS Code 拡張の `editors/vscode/syntaxes/tdsl.tmLanguage.json` は `npm run bu
 
 詳細は `apps/webui/README.md` の「シンタックスハイライトのキーワード管理」セクションを参照。
 
+Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.ts` をミラーし、ドリフト防止テストで同期を保証する。
+
 ## Wikidataプロパティ（頻用）
 
 | プロパティ | 意味 | DSL式 |
