@@ -631,6 +631,7 @@ mod tests {
                 label: "X".into(),
                 kind: "custom".into(),
                 order: 1,
+                source_span: None,
             }],
             items: vec![Item::Span {
                 id: "s1".into(),
@@ -686,12 +687,14 @@ mod tests {
                     label: "B".into(),
                     kind: "k".into(),
                     order: 20,
+                    source_span: None,
                 },
                 Lane {
                     id: "a".into(),
                     label: "A".into(),
                     kind: "k".into(),
                     order: 10,
+                    source_span: None,
                 },
             ],
             items: vec![],
@@ -859,6 +862,7 @@ mod tests {
                 label: "X".into(),
                 kind: "k".into(),
                 order: 1,
+                source_span: None,
             }],
             items: vec![Item::Event {
                 id: "e1".into(),

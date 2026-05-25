@@ -611,6 +611,7 @@ mod tests {
                 label: "漢".into(),
                 kind: "dynasty".into(),
                 order: 10,
+                source_span: None,
             }],
             items: vec![
                 Item::Span {
@@ -712,6 +713,7 @@ mod tests {
                 label: "漢".into(),
                 kind: "dynasty".into(),
                 order: 10,
+                source_span: None,
             }],
             items: vec![Item::Event {
                 id: "e1".into(),

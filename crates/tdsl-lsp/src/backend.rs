@@ -1,8 +1,7 @@
 //! LSP サーバの Backend 実装。
 //!
 //! `tower-lsp` の `LanguageServer` trait を実装し、stdio 経由で LSP クライアントと通信する。
-//! 現バージョンで実装している機能: Diagnostics + Completion + Hover。
-//! Goto / Code Action は別 issue で実装する。
+//! 現バージョンで実装している機能: Diagnostics + Completion + Hover + Goto Definition。
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -10,14 +9,16 @@ use std::sync::Mutex;
 use tower_lsp::jsonrpc::Result as LspResult;
 use tower_lsp::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, Hover, HoverParams,
-    HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, MessageType,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverParams, HoverProviderCapability, InitializeParams,
+    InitializeResult, InitializedParams, MessageType, OneOf, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::completion::keyword_completions;
 use crate::diagnostics::compute_diagnostics;
+use crate::goto_definition::compute_goto_definition;
 use crate::hover::compute_hover;
 
 /// LSP サーバの Backend 状態。
@@ -60,7 +61,8 @@ impl LanguageServer for Backend {
                 completion_provider: Some(CompletionOptions::default()),
                 // lane ID / QID のホバー情報表示
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
-                // Goto / Code Action は別 issue のスコープ
+                // lane 参照 → lane 宣言位置へのジャンプ
+                definition_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -72,7 +74,7 @@ impl LanguageServer for Backend {
         self.client
             .log_message(
                 MessageType::INFO,
-                "tdsl LSP server initialized (Diagnostics + Completion + Hover)",
+                "tdsl LSP server initialized (Diagnostics + Completion + Hover + Goto Definition)",
             )
             .await;
     }
@@ -87,6 +89,27 @@ impl LanguageServer for Backend {
         };
         match source {
             Some(src) => Ok(compute_hover(&src, position)),
+            None => Ok(None),
+        }
+    }
+
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> LspResult<Option<GotoDefinitionResponse>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let position = params.text_document_position_params.position;
+        let source = {
+            // LSP サーバの単一スレッド文脈では panic しない
+            let docs = self.documents.lock().expect("documents lock poisoned");
+            docs.get(uri.as_str()).cloned()
+        };
+        match source {
+            Some(src) => Ok(compute_goto_definition(&src, position, &uri)),
             None => Ok(None),
         }
     }

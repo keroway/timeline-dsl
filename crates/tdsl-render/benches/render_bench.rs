@@ -37,6 +37,7 @@ fn make_ir(n: usize) -> TimelineIr {
             label: "BenchLane".into(),
             kind: "custom".into(),
             order: 1,
+            source_span: None,
         }],
         items,
         imports: vec![],
