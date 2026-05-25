@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`textDocument/completion` でキーワード補完を実装**: LSP サーバに `textDocument/completion` を追加し、BLOCK / ITEM / MISC の全 DSL キーワードを補完候補として返す（文脈非依存）。`crates/tdsl-lsp/src/keywords.rs` に Rust 側キーワードミラーを新設し、`apps/webui/src/lang-tdsl/keywords.ts`（単一真実源）との同期をドリフト防止テストで保証する (#308)
+
 ### Changed
 
 - **npm パッケージに README / LICENSE を同梱**: `crates/tdsl-wasm/README.md`（npm 利用者向けの JS/TS 使用例・API 表）を追加し、`Release` ワークフローで pkg に README と root の MIT `LICENSE` を含めるようにした。これまで `@keroway/tdsl-wasm` の npm ページは README 未設定（"No README data found"）だったのを解消する

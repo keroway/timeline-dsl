@@ -367,9 +367,9 @@ Starts a Language Server Protocol server over stdio. Connect your editor to get 
 tdsl lsp
 ```
 
-**Supported features (v1.10.x):** `textDocument/publishDiagnostics` — parse errors and validation warnings with accurate line/column numbers.
+**Supported features:** `textDocument/publishDiagnostics` — parse errors and validation warnings with accurate line/column numbers. `textDocument/completion` — keyword completion for all DSL keywords (context-independent).
 
-**Planned in future issues:** Completion, Hover, Goto Definition, Code Actions, VS Code extension LSP client.
+**Planned in future issues:** Hover, Goto Definition, Code Actions, VS Code extension LSP client.
 
 ## Lint
 
