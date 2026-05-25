@@ -5,6 +5,7 @@ pub mod error;
 
 pub use cache::{
     CacheOptions, CacheStatus, CachedWikidataClient, cache_clear, cache_status, default_cache_dir,
+    read_cached_entity,
 };
 pub use client::SearchResult;
 pub use client::WikidataClient;

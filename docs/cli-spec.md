@@ -43,7 +43,7 @@ tdsl [OPTIONS] <COMMAND>
 | [`cache`](#cache) | Wikidata ローカルキャッシュの管理 |
 | [`decompile`](#decompile) | JSON IR を `.tdsl` ソースに逆変換 |
 | [`completions`](#completions) | シェル補完スクリプトを生成 |
-| [`lsp`](#lsp) | LSP サーバを stdio 経由で起動（Diagnostics + Completion） |
+| [`lsp`](#lsp) | LSP サーバを stdio 経由で起動（Diagnostics + Completion + Hover） |
 
 ---
 
@@ -716,6 +716,7 @@ tdsl lsp
 | `textDocument/didChange` | ドキュメント変更時に診断を再実行（FULL sync） |
 | `textDocument/didClose` | ドキュメントを閉じたときに診断をクリア |
 | `textDocument/completion` | DSL キーワード補完候補を返す（文脈非依存・全キーワード） |
+| `textDocument/hover` | lane ID → lane 情報（ラベル・kind・order）/ QID → キャッシュ済みエンティティ情報（offline） |
 
 > **`import` / `map` / `apply` ブロックについて**: LSP の診断はネットワークアクセスを伴わない静的解析（offline）で行うため、Wikidata 取得が前提のエンティティ解決は行いません。ただし、ネットワーク不要で判定できる **静的な参照エラー** は offline でも検出します:
 > - `map <alias>.<key>` の `alias` が未宣言（`import ... as <alias>` が存在しない）→ **Error**
@@ -725,7 +726,6 @@ tdsl lsp
 
 **今後の別 issue で実装予定の機能:**
 
-- Hover（ホバー情報）
 - Goto Definition（定義ジャンプ）
 - Code Action（クイックフィックス）
 - VS Code 拡張クライアント（エディタ連携）

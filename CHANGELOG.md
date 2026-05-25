@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`textDocument/hover` で hover 情報表示を実装**: LSP サーバに `textDocument/hover` を追加。lane ID にカーソルを当てるとラベル・kind・order を、QID にカーソルを当てるとキャッシュ済みエンティティ情報（ラベル・主要 claim 年）をマークダウンで表示する。ネットワーク I/O 不要（offline 前提）。`tdsl-wikidata` に `read_cached_entity` 関数を追加し、TTL 無視でキャッシュ読み出しを可能にした (#309)
 - **`textDocument/completion` でキーワード補完を実装**: LSP サーバに `textDocument/completion` を追加し、BLOCK / ITEM / MISC の全 DSL キーワードを補完候補として返す（文脈非依存）。`crates/tdsl-lsp/src/keywords.rs` に Rust 側キーワードミラーを新設し、`apps/webui/src/lang-tdsl/keywords.ts`（単一真実源）との同期をドリフト防止テストで保証する (#308)
 
 ### Changed
