@@ -307,6 +307,25 @@ pub fn apply_lint_fixes(file: &mut tdsl_parser::ast::File) -> usize {
     fixed
 }
 
+/// ソースをパースして lint 自動修正（[`apply_lint_fixes`] 相当）を適用し、再 emit した
+/// DSL ソース文字列を返す。
+///
+/// - 修正が 1 件以上適用された場合は `Ok(Some(fixed_source))`。
+/// - 修正が 0 件（変更なし）の場合は `Ok(None)`。
+/// - パース失敗時は [`tdsl_parser::error::ParseError`]。
+///
+/// `tdsl lint --fix` と同じく全文を再 emit するため、コメントは整形時に失われる。
+/// LSP の Code Action（quick fix）から全文置換 [`WorkspaceEdit`] を組み立てる用途で使う。
+///
+/// [`WorkspaceEdit`]: https://microsoft.github.io/language-server-protocol/
+pub fn fix_source(source: &str) -> Result<Option<String>, tdsl_parser::error::ParseError> {
+    let mut file = tdsl_parser::parse(source)?;
+    if apply_lint_fixes(&mut file) == 0 {
+        return Ok(None);
+    }
+    Ok(Some(tdsl_parser::format_file(&file)))
+}
+
 fn fix_tags(tags: &mut Vec<String>) -> usize {
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
@@ -599,6 +618,54 @@ event a 10 "E" {};
                 );
             }
         }
+    }
+
+    // ─── fix_source（パース→修正→再 emit）ケース ───────────────────────────────
+
+    #[test]
+    fn fix_source_returns_some_and_clears_fixable_issues() {
+        let src = r#"
+timeline "T" { unit year; range 0..100; }
+lane "A" as a { kind custom; }
+span a 50..10 "S" { tags ["x", "", "x"]; };
+event a 30 "E" {};
+"#;
+        let fixed = fix_source(src).unwrap();
+        let fixed = fixed.expect("expected Some(fixed source) for fixable input");
+
+        // 再パースして fixable 系の issue が解消されていること
+        let reparsed = tdsl_parser::parse(&fixed).unwrap();
+        let issues = lint_issues(&reparsed, &fixed);
+        assert!(
+            !issues.iter().any(|i| matches!(
+                i.code.as_str(),
+                "start_gt_end" | "invalid_tags" | "missing_id"
+            )),
+            "fixable issues should be gone, got: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn fix_source_returns_none_for_clean_source() {
+        let src = r#"
+timeline "T" { unit year; range 0..100; }
+lane "A" as a { kind custom; }
+span a 10..20 "S" { tags ["x", "y"]; id "s1"; };
+"#;
+        let fixed = fix_source(src).unwrap();
+        assert!(
+            fixed.is_none(),
+            "clean source should yield None, got: {fixed:?}"
+        );
+    }
+
+    #[test]
+    fn fix_source_propagates_parse_error() {
+        let src = "this is not valid tdsl {{{";
+        assert!(
+            fix_source(src).is_err(),
+            "invalid source should yield ParseError"
+        );
     }
 
     #[test]

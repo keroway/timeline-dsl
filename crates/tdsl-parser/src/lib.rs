@@ -4,7 +4,7 @@ pub mod error;
 pub mod format;
 
 pub use error::byte_offset_to_line_col;
-pub use format::format_source;
+pub use format::{format_file, format_source};
 
 use pest::Parser;
 use pest_derive::Parser;

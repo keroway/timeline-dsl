@@ -3,7 +3,7 @@
 //! `parse` で得た [`crate::ast::File`] を 2 スペースインデント・ブロック間空行 1 行で
 //! 整形して文字列として返す。コメントは AST に残らないため整形後は消える。
 //!
-//! 公開 API は [`format_source`] のみ。
+//! 公開 API は [`format_source`]（ソース文字列を整形）と [`format_file`]（AST を直接整形）。
 
 use std::fmt::Write;
 
@@ -23,7 +23,11 @@ pub fn format_source(source: &str) -> Result<String, ParseError> {
     Ok(format_file(&file))
 }
 
-fn format_file(file: &File) -> String {
+/// AST（[`File`]）を直接整形して DSL ソース文字列を返す。
+///
+/// `lint --fix` 適用後の AST など、すでにパース済みの AST を再 emit したいときに使う。
+/// 整形ルールは [`format_source`] と同一（2 スペースインデント・ブロック間空行 1 行）。
+pub fn format_file(file: &File) -> String {
     let mut out = String::new();
     for (i, stmt) in file.statements.iter().enumerate() {
         if i > 0 {
