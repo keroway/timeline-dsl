@@ -31,7 +31,7 @@ fn is_qid(word: &str) -> bool {
 ///
 /// `position.character` は UTF-16 コードユニット数であるため、日本語文字を含む行でも
 /// 正しくバイト境界を特定できるよう各 `char` の `len_utf16()` を累積して変換する。
-fn word_at_position(source: &str, position: Position) -> Option<(String, Range)> {
+pub(crate) fn word_at_position(source: &str, position: Position) -> Option<(String, Range)> {
     let line_str = source.lines().nth(position.line as usize)?;
 
     // UTF-16 character オフセット → バイトオフセットに変換
@@ -90,7 +90,7 @@ fn word_at_position(source: &str, position: Position) -> Option<(String, Range)>
 
 /// UTF-16 character オフセット → バイトオフセット変換。
 /// 範囲外の場合は None。
-fn utf16_offset_to_byte(s: &str, utf16_offset: usize) -> Option<usize> {
+pub(crate) fn utf16_offset_to_byte(s: &str, utf16_offset: usize) -> Option<usize> {
     let mut utf16_count = 0usize;
     for (byte_pos, ch) in s.char_indices() {
         if utf16_count >= utf16_offset {
@@ -107,7 +107,7 @@ fn utf16_offset_to_byte(s: &str, utf16_offset: usize) -> Option<usize> {
 }
 
 /// バイトオフセット → UTF-16 character オフセット変換。
-fn byte_offset_to_utf16(s: &str, byte_offset: usize) -> usize {
+pub(crate) fn byte_offset_to_utf16(s: &str, byte_offset: usize) -> usize {
     s[..byte_offset.min(s.len())]
         .chars()
         .map(|c| c.len_utf16())

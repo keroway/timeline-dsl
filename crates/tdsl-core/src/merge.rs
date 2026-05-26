@@ -230,6 +230,7 @@ mod tests {
             label: label.to_string(),
             kind: "custom".to_string(),
             order,
+            source_span: None,
         }
     }
 
