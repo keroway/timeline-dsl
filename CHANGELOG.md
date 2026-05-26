@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`textDocument/codeAction` で lint auto-fix を quick fix として提供**: LSP サーバに `textDocument/codeAction` を追加。fixable な lint issue（`start_gt_end` / `invalid_tags` / `missing_id`）が存在するとき、`tdsl lint --fix` 相当の自動修正を 1 件の quick fix「tdsl: 自動修正可能な lint をすべて修正 (N 件)」として提示する。適用すると `WorkspaceEdit` でドキュメント全文が修正後ソースに置換される（`tdsl lint --fix` と同じ全文再 emit 方式のため、コメントは整形時に失われる）。fixable でない issue（`unknown_lane` / `duplicate_id` / `empty_label`）しか無い場合は quick fix を出さない。ネットワーク I/O 不要（offline 前提）。修正・再 emit ロジックは `tdsl-core::lint::fix_source`（`tdsl-parser::format_file` で AST を再 emit）として公開 API 化し、CLI / LSP で共有する (#311)
+- **`textDocument/codeAction` で lint auto-fix を quick fix として提供**: LSP サーバに `textDocument/codeAction` を追加。fixable な lint issue（`start_gt_end` / `invalid_tags` / `missing_id`）が存在するとき、`tdsl lint --fix` 相当の自動修正を 1 件の quick fix「tdsl: 自動修正可能な lint をすべて修正 (N 件)」として提示する。適用すると `WorkspaceEdit` でドキュメント全文が修正後ソースに置換される（`tdsl lint --fix` と**同一の emitter** を使うため出力は一致する。全文再 emit 方式のためコメントは整形時に失われる）。fixable でない issue（`unknown_lane` / `duplicate_id` / `empty_label`）しか無い場合は quick fix を出さない。ネットワーク I/O 不要（offline 前提）。修正・再 emit ロジックは `tdsl-core::lint::fix_source`（`tdsl-parser::format_file` で AST を再 emit）として公開 API 化し、CLI / LSP で共有する (#311)
+
+### Changed
+
+- **`tdsl lint --fix` の再 emit を正準フォーマッタに統一**: `tdsl lint --fix` の出力を、CLI 独自の emitter から `tdsl-parser` の正準フォーマッタ（`tdsl fmt` / WebUI Format と同じ `format_file`）に統一した。これにより LSP の Code Action（quick fix）と `tdsl lint --fix` が同一の出力になることを保証し、CLI 内に重複していた再 emit ロジック（約 370 行）を削除した。出力スタイルが従来のインライン 1 行から 2 スペースインデントの複数行に変わり、従来の CLI emitter が取りこぼしていた `timeline` の `color_map` ブロックも保持されるようになった (#311)
 
 ## [1.12.0] - 2026-05-27
 
