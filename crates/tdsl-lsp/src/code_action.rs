@@ -8,10 +8,10 @@
 //! - fixable でない issue（`unknown_lane` / `duplicate_id` / `empty_label`）しか無い場合も空 vec。
 //! - ネットワーク I/O は行わない（offline 前提・CI 安全）。
 
-use std::collections::HashMap;
-
 use tower_lsp::lsp_types::{
-    CodeAction, CodeActionKind, CodeActionOrCommand, Position, Range, TextEdit, Url, WorkspaceEdit,
+    CodeAction, CodeActionKind, CodeActionOrCommand, DocumentChanges, OneOf,
+    OptionalVersionedTextDocumentIdentifier, Position, Range, TextDocumentEdit, TextEdit, Url,
+    WorkspaceEdit,
 };
 
 use crate::hover::byte_offset_to_utf16;
@@ -20,7 +20,17 @@ use crate::hover::byte_offset_to_utf16;
 ///
 /// カーソル位置の `range` は現状のロジックでは未使用（全文を対象に lint する）。
 /// fixable な lint issue があり、かつ修正で内容が変化する場合のみ quick fix を 1 件返す。
-pub fn compute_code_actions(source: &str, uri: &Url, _range: Range) -> Vec<CodeActionOrCommand> {
+///
+/// `version` は要求時点のドキュメントバージョン。全文置換は**バージョン付きの
+/// `documentChanges`** として返すため、コードアクション計算後にドキュメントが変更された
+/// 場合は client 側がバージョン不一致を検出し、stale な全文置換の適用を拒否する
+/// （ユーザーの新しい編集を上書きしない）。
+pub fn compute_code_actions(
+    source: &str,
+    uri: &Url,
+    version: i32,
+    _range: Range,
+) -> Vec<CodeActionOrCommand> {
     // パースできなければ Code Action を出さない（診断側でエラー表示される）
     let Ok(file) = tdsl_parser::parse(source) else {
         return Vec::new();
@@ -55,14 +65,21 @@ pub fn compute_code_actions(source: &str, uri: &Url, _range: Range) -> Vec<CodeA
         new_text: fixed,
     };
 
-    let mut changes = HashMap::new();
-    changes.insert(uri.clone(), vec![edit]);
+    // バージョン付き documentChanges として返す。要求時点のバージョンを載せることで、
+    // 計算後に編集されたドキュメントへの stale な全文置換適用を client が拒否する。
+    let document_edit = TextDocumentEdit {
+        text_document: OptionalVersionedTextDocumentIdentifier {
+            uri: uri.clone(),
+            version: Some(version),
+        },
+        edits: vec![OneOf::Left(edit)],
+    };
 
     let action = CodeAction {
         title: format!("tdsl: 自動修正可能な lint をすべて修正 ({fixable_count} 件)"),
         kind: Some(CodeActionKind::QUICKFIX),
         edit: Some(WorkspaceEdit {
-            changes: Some(changes),
+            document_changes: Some(DocumentChanges::Edits(vec![document_edit])),
             ..Default::default()
         }),
         ..Default::default()
@@ -123,7 +140,7 @@ lane "A" as a { kind custom; }
 span a 50..10 "S" { tags ["x", "", "x"]; };
 event a 30 "E" {};
 "#;
-        let actions = compute_code_actions(src, &uri(), whole_range());
+        let actions = compute_code_actions(src, &uri(), 7, whole_range());
         assert_eq!(actions.len(), 1, "expected one quick fix");
 
         let action = extract_action(&actions);
@@ -134,15 +151,33 @@ event a 30 "E" {};
             action.title
         );
 
-        // 置換テキストを再パースすると fixable issue が消えていること
+        // バージョン付き documentChanges として返り、要求時バージョンが載ること
         let edit = action.edit.as_ref().expect("workspace edit present");
-        let changes = edit.changes.as_ref().expect("changes present");
-        let edits = changes.get(&uri()).expect("edits for uri");
-        assert_eq!(edits.len(), 1, "single whole-document edit");
+        let doc_changes = edit
+            .document_changes
+            .as_ref()
+            .expect("document_changes present");
+        let new_text = match doc_changes {
+            DocumentChanges::Edits(edits) => {
+                assert_eq!(edits.len(), 1, "single document edit");
+                let tde = &edits[0];
+                assert_eq!(
+                    tde.text_document.version,
+                    Some(7),
+                    "edit must carry the requested document version"
+                );
+                assert_eq!(tde.edits.len(), 1, "single whole-document edit");
+                match &tde.edits[0] {
+                    OneOf::Left(te) => te.new_text.clone(),
+                    OneOf::Right(_) => panic!("expected plain TextEdit"),
+                }
+            }
+            DocumentChanges::Operations(_) => panic!("expected DocumentChanges::Edits"),
+        };
 
-        let new_text = &edits[0].new_text;
-        let reparsed = tdsl_parser::parse(new_text).unwrap();
-        let issues = tdsl_core::lint::lint_issues(&reparsed, new_text);
+        // 置換テキストを再パースすると fixable issue が消えていること
+        let reparsed = tdsl_parser::parse(&new_text).unwrap();
+        let issues = tdsl_core::lint::lint_issues(&reparsed, &new_text);
         assert!(
             !issues.iter().any(|i| matches!(
                 i.code.as_str(),
@@ -159,7 +194,7 @@ timeline "T" { unit year; range 0..100; }
 lane "A" as a { kind custom; }
 span a 10..20 "S" { tags ["x", "y"]; id "s1"; };
 "#;
-        let actions = compute_code_actions(src, &uri(), whole_range());
+        let actions = compute_code_actions(src, &uri(), 1, whole_range());
         assert!(actions.is_empty(), "clean source should offer no actions");
     }
 
@@ -173,7 +208,7 @@ event ghost 10 "E1" { id "dup"; };
 event a 20 "E2" { id "dup"; };
 event a 30 "" { id "e3"; };
 "#;
-        let actions = compute_code_actions(src, &uri(), whole_range());
+        let actions = compute_code_actions(src, &uri(), 1, whole_range());
         assert!(
             actions.is_empty(),
             "non-fixable-only issues should offer no quick fix, got {} actions",
@@ -183,7 +218,7 @@ event a 30 "" { id "e3"; };
 
     #[test]
     fn no_action_for_unparseable_source() {
-        let actions = compute_code_actions("not valid {{{", &uri(), whole_range());
+        let actions = compute_code_actions("not valid {{{", &uri(), 1, whole_range());
         assert!(
             actions.is_empty(),
             "unparseable source should offer no actions"
