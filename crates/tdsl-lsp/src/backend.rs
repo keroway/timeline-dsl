@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tower_lsp::jsonrpc::Result as LspResult;
 use tower_lsp::lsp_types::{
@@ -40,6 +41,10 @@ struct Backend {
     /// URI → 現在のドキュメント状態（全文 + バージョン）のマップ。
     /// `Mutex` で保護し、各通知ハンドラで排他的に更新する。
     documents: Mutex<HashMap<String, DocumentState>>,
+    /// client が `workspace.workspaceEdit.documentChanges` をサポートするか。
+    /// `initialize` で受け取った capability から設定し、Code Action の `WorkspaceEdit`
+    /// 構築方法（versioned documentChanges / 非バージョンの changes）を切り替える。
+    supports_document_changes: AtomicBool,
 }
 
 impl Backend {
@@ -48,6 +53,8 @@ impl Backend {
             client,
             // Mutex::new は常に成功するため、初期化時の unwrap は安全
             documents: Mutex::new(HashMap::new()),
+            // initialize で client capability に基づき更新する（既定は安全側の false）
+            supports_document_changes: AtomicBool::new(false),
         }
     }
 
@@ -60,7 +67,19 @@ impl Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _params: InitializeParams) -> LspResult<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> LspResult<InitializeResult> {
+        // client が WorkspaceEdit の documentChanges をサポートするか記録する。
+        // 非対応なら Code Action は changes フォールバックで返す（versioned 不可）。
+        let supports_document_changes = params
+            .capabilities
+            .workspace
+            .as_ref()
+            .and_then(|w| w.workspace_edit.as_ref())
+            .and_then(|we| we.document_changes)
+            .unwrap_or(false);
+        self.supports_document_changes
+            .store(supports_document_changes, Ordering::Relaxed);
+
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 // FULL sync: 毎回全文を受け取る（シンプルで確実）
@@ -138,8 +157,15 @@ impl LanguageServer for Backend {
             let docs = self.documents.lock().expect("documents lock poisoned");
             docs.get(uri.as_str()).cloned()
         };
+        let supports_document_changes = self.supports_document_changes.load(Ordering::Relaxed);
         match doc {
-            Some(d) => Ok(Some(compute_code_actions(&d.text, &uri, d.version, range))),
+            Some(d) => Ok(Some(compute_code_actions(
+                &d.text,
+                &uri,
+                d.version,
+                supports_document_changes,
+                range,
+            ))),
             None => Ok(Some(Vec::new())),
         }
     }

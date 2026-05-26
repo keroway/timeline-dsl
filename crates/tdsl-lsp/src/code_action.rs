@@ -8,6 +8,8 @@
 //! - fixable でない issue（`unknown_lane` / `duplicate_id` / `empty_label`）しか無い場合も空 vec。
 //! - ネットワーク I/O は行わない（offline 前提・CI 安全）。
 
+use std::collections::HashMap;
+
 use tower_lsp::lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, DocumentChanges, OneOf,
     OptionalVersionedTextDocumentIdentifier, Position, Range, TextDocumentEdit, TextEdit, Url,
@@ -21,14 +23,17 @@ use crate::hover::byte_offset_to_utf16;
 /// カーソル位置の `range` は現状のロジックでは未使用（全文を対象に lint する）。
 /// fixable な lint issue があり、かつ修正で内容が変化する場合のみ quick fix を 1 件返す。
 ///
-/// `version` は要求時点のドキュメントバージョン。全文置換は**バージョン付きの
-/// `documentChanges`** として返すため、コードアクション計算後にドキュメントが変更された
-/// 場合は client 側がバージョン不一致を検出し、stale な全文置換の適用を拒否する
-/// （ユーザーの新しい編集を上書きしない）。
+/// `version` は要求時点のドキュメントバージョン。`supports_document_changes` が `true`
+/// （client が `workspace.workspaceEdit.documentChanges` をサポート）の場合、全文置換は
+/// **バージョン付きの `documentChanges`** として返すため、コードアクション計算後に
+/// ドキュメントが変更されると client 側がバージョン不一致を検出して stale な全文置換の
+/// 適用を拒否する（ユーザーの新しい編集を上書きしない）。非対応クライアントには
+/// `changes`（バージョン保護なし）にフォールバックする。
 pub fn compute_code_actions(
     source: &str,
     uri: &Url,
     version: i32,
+    supports_document_changes: bool,
     _range: Range,
 ) -> Vec<CodeActionOrCommand> {
     // パースできなければ Code Action を出さない（診断側でエラー表示される）
@@ -65,23 +70,36 @@ pub fn compute_code_actions(
         new_text: fixed,
     };
 
-    // バージョン付き documentChanges として返す。要求時点のバージョンを載せることで、
-    // 計算後に編集されたドキュメントへの stale な全文置換適用を client が拒否する。
-    let document_edit = TextDocumentEdit {
-        text_document: OptionalVersionedTextDocumentIdentifier {
-            uri: uri.clone(),
-            version: Some(version),
-        },
-        edits: vec![OneOf::Left(edit)],
+    let workspace_edit = if supports_document_changes {
+        // バージョン付き documentChanges。要求時点のバージョンを載せることで、計算後に
+        // 編集されたドキュメントへの stale な全文置換適用を client が拒否する。
+        let document_edit = TextDocumentEdit {
+            text_document: OptionalVersionedTextDocumentIdentifier {
+                uri: uri.clone(),
+                version: Some(version),
+            },
+            edits: vec![OneOf::Left(edit)],
+        };
+        WorkspaceEdit {
+            document_changes: Some(DocumentChanges::Edits(vec![document_edit])),
+            ..Default::default()
+        }
+    } else {
+        // documentChanges 非対応クライアントへのフォールバック。
+        // バージョン保護はできないが、`changes` でないと適用されないクライアントのために
+        // 互換経路を残す。
+        let mut changes = HashMap::new();
+        changes.insert(uri.clone(), vec![edit]);
+        WorkspaceEdit {
+            changes: Some(changes),
+            ..Default::default()
+        }
     };
 
     let action = CodeAction {
         title: format!("tdsl: 自動修正可能な lint をすべて修正 ({fixable_count} 件)"),
         kind: Some(CodeActionKind::QUICKFIX),
-        edit: Some(WorkspaceEdit {
-            document_changes: Some(DocumentChanges::Edits(vec![document_edit])),
-            ..Default::default()
-        }),
+        edit: Some(workspace_edit),
         ..Default::default()
     };
 
@@ -140,7 +158,7 @@ lane "A" as a { kind custom; }
 span a 50..10 "S" { tags ["x", "", "x"]; };
 event a 30 "E" {};
 "#;
-        let actions = compute_code_actions(src, &uri(), 7, whole_range());
+        let actions = compute_code_actions(src, &uri(), 7, true, whole_range());
         assert_eq!(actions.len(), 1, "expected one quick fix");
 
         let action = extract_action(&actions);
@@ -188,13 +206,39 @@ event a 30 "E" {};
     }
 
     #[test]
+    fn falls_back_to_changes_when_document_changes_unsupported() {
+        let src = r#"
+timeline "T" { unit year; range 0..100; }
+lane "A" as a { kind custom; }
+event a 30 "E" {};
+"#;
+        let actions = compute_code_actions(src, &uri(), 3, false, whole_range());
+        assert_eq!(actions.len(), 1, "expected one quick fix");
+
+        let action = extract_action(&actions);
+        let edit = action.edit.as_ref().expect("workspace edit present");
+        // 非対応クライアントには changes（バージョン無し）で返す
+        assert!(
+            edit.document_changes.is_none(),
+            "must not emit documentChanges when unsupported"
+        );
+        let changes = edit.changes.as_ref().expect("changes present as fallback");
+        let edits = changes.get(&uri()).expect("edits for uri");
+        assert_eq!(edits.len(), 1, "single whole-document edit");
+        assert!(
+            tdsl_parser::parse(&edits[0].new_text).is_ok(),
+            "fallback edit text must be valid tdsl"
+        );
+    }
+
+    #[test]
     fn no_action_for_clean_source() {
         let src = r#"
 timeline "T" { unit year; range 0..100; }
 lane "A" as a { kind custom; }
 span a 10..20 "S" { tags ["x", "y"]; id "s1"; };
 "#;
-        let actions = compute_code_actions(src, &uri(), 1, whole_range());
+        let actions = compute_code_actions(src, &uri(), 1, true, whole_range());
         assert!(actions.is_empty(), "clean source should offer no actions");
     }
 
@@ -208,7 +252,7 @@ event ghost 10 "E1" { id "dup"; };
 event a 20 "E2" { id "dup"; };
 event a 30 "" { id "e3"; };
 "#;
-        let actions = compute_code_actions(src, &uri(), 1, whole_range());
+        let actions = compute_code_actions(src, &uri(), 1, true, whole_range());
         assert!(
             actions.is_empty(),
             "non-fixable-only issues should offer no quick fix, got {} actions",
@@ -218,7 +262,7 @@ event a 30 "" { id "e3"; };
 
     #[test]
     fn no_action_for_unparseable_source() {
-        let actions = compute_code_actions("not valid {{{", &uri(), 1, whole_range());
+        let actions = compute_code_actions("not valid {{{", &uri(), 1, true, whole_range());
         assert!(
             actions.is_empty(),
             "unparseable source should offer no actions"
