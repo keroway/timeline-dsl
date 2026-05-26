@@ -22,15 +22,24 @@ use crate::diagnostics::compute_diagnostics;
 use crate::goto_definition::compute_goto_definition;
 use crate::hover::compute_hover;
 
+/// 1 ドキュメントの保持状態（全文 + LSP バージョン）。
+///
+/// バージョンは Code Action のバージョン付き `documentChanges` で使い、
+/// 計算後に編集されたドキュメントへの stale な全文置換適用を client に拒否させる。
+#[derive(Clone)]
+struct DocumentState {
+    text: String,
+    version: i32,
+}
+
 /// LSP サーバの Backend 状態。
 ///
-/// FULL sync モードのため毎回全文が送られてくる。
-/// ドキュメントごとのバージョン管理は不要だが、URI ごとにテキストを保持する。
+/// FULL sync モードのため毎回全文が送られてくる。URI ごとに全文とバージョンを保持する。
 struct Backend {
     client: Client,
-    /// URI → 現在のドキュメント全文のマップ。
+    /// URI → 現在のドキュメント状態（全文 + バージョン）のマップ。
     /// `Mutex` で保護し、各通知ハンドラで排他的に更新する。
-    documents: Mutex<HashMap<String, String>>,
+    documents: Mutex<HashMap<String, DocumentState>>,
 }
 
 impl Backend {
@@ -88,7 +97,7 @@ impl LanguageServer for Backend {
         let source = {
             // LSP サーバの単一スレッド文脈では panic しない
             let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).cloned()
+            docs.get(uri.as_str()).map(|d| d.text.clone())
         };
         match source {
             Some(src) => Ok(compute_hover(&src, position)),
@@ -109,7 +118,7 @@ impl LanguageServer for Backend {
         let source = {
             // LSP サーバの単一スレッド文脈では panic しない
             let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).cloned()
+            docs.get(uri.as_str()).map(|d| d.text.clone())
         };
         match source {
             Some(src) => Ok(compute_goto_definition(&src, position, &uri)),
@@ -124,13 +133,13 @@ impl LanguageServer for Backend {
     async fn code_action(&self, params: CodeActionParams) -> LspResult<Option<CodeActionResponse>> {
         let uri = params.text_document.uri.clone();
         let range = params.range;
-        let source = {
+        let doc = {
             // LSP サーバの単一スレッド文脈では panic しない
             let docs = self.documents.lock().expect("documents lock poisoned");
             docs.get(uri.as_str()).cloned()
         };
-        match source {
-            Some(src) => Ok(Some(compute_code_actions(&src, &uri, range))),
+        match doc {
+            Some(d) => Ok(Some(compute_code_actions(&d.text, &uri, d.version, range))),
             None => Ok(Some(Vec::new())),
         }
     }
@@ -148,7 +157,13 @@ impl LanguageServer for Backend {
         {
             // Mutex のロック取得。LSP サーバの単一スレッド文脈では panic しない
             let mut docs = self.documents.lock().expect("documents lock poisoned");
-            docs.insert(uri.to_string(), text.clone());
+            docs.insert(
+                uri.to_string(),
+                DocumentState {
+                    text: text.clone(),
+                    version,
+                },
+            );
         }
 
         self.run_diagnostics(uri, text, Some(version)).await;
@@ -172,7 +187,13 @@ impl LanguageServer for Backend {
 
         {
             let mut docs = self.documents.lock().expect("documents lock poisoned");
-            docs.insert(uri.to_string(), text.clone());
+            docs.insert(
+                uri.to_string(),
+                DocumentState {
+                    text: text.clone(),
+                    version,
+                },
+            );
         }
 
         self.run_diagnostics(uri, text, Some(version)).await;
