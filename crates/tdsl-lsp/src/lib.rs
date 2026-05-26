@@ -11,6 +11,7 @@
 //! - `textDocument/definition`: lane 参照位置 → lane 宣言位置へのジャンプ
 
 pub mod backend;
+pub mod code_action;
 pub mod completion;
 pub mod diagnostics;
 pub mod goto_definition;

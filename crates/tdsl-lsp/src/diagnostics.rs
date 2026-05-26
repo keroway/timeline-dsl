@@ -3,8 +3,9 @@
 //! ネットワーク不要・LSP サーバ非依存で単体テスト可能。
 //! `Backend` の `did_open` / `did_change` からのみ呼ばれることを想定する。
 
+use tdsl_core::lint::LintSeverity;
 use tdsl_parser::ast::{Span, Statement};
-use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
+use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range};
 
 /// LSP の `Position` を生成する（0-based）。
 ///
@@ -123,6 +124,35 @@ pub fn compute_diagnostics(source: &str) -> Vec<Diagnostic> {
                 ..Default::default()
             }));
 
+            // lint issues（start_gt_end, missing_id, invalid_tags 等）を診断に追加する。
+            // 行全体の range にする（col は行頭 0、行末は u32::MAX で近似）。
+            let lint_issues = tdsl_core::lint::lint_issues(&file, source);
+            diags.extend(lint_issues.iter().map(|issue| {
+                let line_0based = (issue.line as u32).saturating_sub(1);
+                let severity = match issue.severity {
+                    LintSeverity::Error => DiagnosticSeverity::ERROR,
+                    LintSeverity::Warning => DiagnosticSeverity::WARNING,
+                };
+                Diagnostic {
+                    range: Range {
+                        start: Position {
+                            line: line_0based,
+                            character: 0,
+                        },
+                        end: Position {
+                            line: line_0based,
+                            character: u32::MAX,
+                        },
+                    },
+                    severity: Some(severity),
+                    code: Some(NumberOrString::String(issue.code.clone())),
+                    source: Some("tdsl-lint".to_string()),
+                    message: issue.message.clone(),
+                    data: Some(serde_json::json!({"fixable": issue.fixable})),
+                    ..Default::default()
+                }
+            }));
+
             // offline 診断は Wikidata fetch を行わないため、import/map/apply ブロックは
             // エンティティ解決されない（pass3/pass4 が走らない）。silent に握りつぶさず、
             // 各ブロック位置に「offline では未検証」である旨を Information 診断として明示する。
@@ -192,10 +222,11 @@ mod tests {
     #[test]
     fn valid_dsl_produces_no_diagnostics() {
         // span の文法: span <lane_id> <start>..<end> "label" { ... }
+        // id を明示して missing_id lint を回避する
         let src = r#"
 timeline "test" { title "test"; unit year; range 0..2000; calendar proleptic_gregorian; }
 lane "lane1" as l1 { kind custom; order 10; }
-span l1 100..200 "foo" {};
+span l1 100..200 "foo" { id "span:l1:100"; };
 "#;
         let diags = compute_diagnostics(src);
         assert!(
