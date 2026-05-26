@@ -58,6 +58,7 @@ mod tests {
                 label: "漢".into(),
                 kind: "dynasty".into(),
                 order: 10,
+                source_span: None,
             }],
             items: vec![Item::Span {
                 id: "span:han".into(),
@@ -123,12 +124,14 @@ mod tests {
                     label: "B".into(),
                     kind: "dynasty".into(),
                     order: 20,
+                    source_span: None,
                 },
                 Lane {
                     id: "a".into(),
                     label: "A".into(),
                     kind: "dynasty".into(),
                     order: 10,
+                    source_span: None,
                 },
             ],
             items: vec![],
@@ -179,6 +182,7 @@ mod tests {
                 label: "政治".into(),
                 kind: "custom".into(),
                 order: 1,
+                source_span: None,
             }],
             items: vec![Item::Event {
                 id: "event:politics:100".into(),
@@ -215,6 +219,7 @@ mod tests {
                 label: "戦争".into(),
                 kind: "custom".into(),
                 order: 1,
+                source_span: None,
             }],
             items: vec![Item::EventRange {
                 id: "event_range:war:100".into(),
@@ -304,6 +309,7 @@ mod tests {
                 label: "漢".into(),
                 kind: "dynasty".into(),
                 order: 10,
+                source_span: None,
             }],
             items: vec![
                 Item::Span {
@@ -368,6 +374,7 @@ mod tests {
                 label: "WW2".into(),
                 kind: "conflict".into(),
                 order: 10,
+                source_span: None,
             }],
             items: vec![
                 Item::Span {

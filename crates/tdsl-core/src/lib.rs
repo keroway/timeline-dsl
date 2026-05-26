@@ -520,6 +520,7 @@ event_range war 1939-09..1945-09 "WW2" { id "event_range:war:1939"; };
                 label: "A".into(),
                 kind: "dynasty".into(),
                 order: 1,
+                source_span: None,
             }],
             items: vec![ir::Item::Span {
                 id: "span:a:200".into(),
@@ -564,6 +565,7 @@ event_range war 1939-09..1945-09 "WW2" { id "event_range:war:1939"; };
                 label: "A".into(),
                 kind: "dynasty".into(),
                 order: 1,
+                source_span: None,
             }],
             items: vec![ir::Item::EventRange {
                 id: "event_range:a:300".into(),
@@ -608,6 +610,7 @@ event_range war 1939-09..1945-09 "WW2" { id "event_range:war:1939"; };
                 label: "A".into(),
                 kind: "dynasty".into(),
                 order: 1,
+                source_span: None,
             }],
             items: vec![ir::Item::Span {
                 id: "span:a:100".into(),

@@ -68,6 +68,9 @@ pub struct Lane {
     pub kind: String,
     /// 表示順（小さいほど上に配置）。
     pub order: i64,
+    /// DSL ソース上の lane 宣言位置（Goto Definition 用）。ソーステキストを渡した場合のみ付与。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_span: Option<SourceSpan>,
 }
 
 /// 年表アイテムを表す tagged enum。

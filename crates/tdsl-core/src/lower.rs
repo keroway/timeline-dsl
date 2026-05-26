@@ -27,7 +27,7 @@ pub fn lower_static_with_source(
 ) -> Result<TimelineIr, Vec<LoweringError>> {
     let line_offsets = source.map(build_line_offsets);
     let mut ctx = LoweringContext::new();
-    ctx.pass1_declarations(file);
+    ctx.pass1_declarations(file, line_offsets.as_deref());
     ctx.pass2_static_items(file, line_offsets.as_deref());
     ctx.finish()
 }
@@ -51,7 +51,7 @@ pub async fn lower_with_wikidata_and_source(
 ) -> Result<TimelineIr, Vec<LoweringError>> {
     let line_offsets = source.map(build_line_offsets);
     let mut ctx = LoweringContext::new();
-    ctx.pass1_declarations(file);
+    ctx.pass1_declarations(file, line_offsets.as_deref());
     ctx.pass2_static_items(file, line_offsets.as_deref());
     ctx.pass3_resolve_imports(file, client).await;
     ctx.pass4_apply_maps(file);
@@ -151,7 +151,7 @@ impl LoweringContext {
     }
 
     /// Pass 1: Collect timeline meta and lane declarations.
-    fn pass1_declarations(&mut self, file: &ast::File) {
+    fn pass1_declarations(&mut self, file: &ast::File, line_offsets: Option<&[usize]>) {
         for stmt in &file.statements {
             match &stmt.node {
                 ast::Statement::Timeline(t) => {
@@ -210,11 +210,21 @@ impl LoweringContext {
                         self.errors.push(LoweringError::DuplicateLane(id.clone()));
                         continue;
                     }
+                    let source_span = line_offsets.map(|lo| {
+                        let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
+                        let (_, col_end) = offset_to_line_col(stmt.span.end, lo);
+                        SourceSpan {
+                            line,
+                            col_start,
+                            col_end,
+                        }
+                    });
                     let lane = Lane {
                         id: id.clone(),
                         label: l.label.clone(),
                         kind: l.kind.clone().unwrap_or_else(|| "custom".to_string()),
                         order: l.order.unwrap_or(0),
+                        source_span,
                     };
                     self.lane_order.push(id.clone());
                     self.lanes_map.insert(id, lane);
