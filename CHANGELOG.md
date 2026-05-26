@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-05-27
+
 ### Added
 
+- **`textDocument/definition` で lane 宣言へのジャンプを実装**: LSP サーバに `textDocument/definition` を追加。lane を参照している箇所（`span` / `event` / `event_range` の `lane` 指定、`map` の `lane` プロパティ）にカーソルを当てて Goto Definition を実行すると、対応する `lane` 宣言の位置にジャンプする。`tdsl-core::ir::Lane` に宣言位置を保持する `source_span: Option<SourceSpan>`（ソーステキストを渡した場合のみ付与、JSON 互換のため `skip_serializing_if`）を追加し、参照箇所の解決はソーステキストの静的解析で行う。ネットワーク I/O 不要（offline 前提）(#310)
 - **`textDocument/hover` で hover 情報表示を実装**: LSP サーバに `textDocument/hover` を追加。lane ID にカーソルを当てるとラベル・kind・order を、QID にカーソルを当てるとキャッシュ済みエンティティ情報（ラベル・主要 claim 年）をマークダウンで表示する。ネットワーク I/O 不要（offline 前提）。`tdsl-wikidata` に `read_cached_entity` 関数を追加し、TTL 無視でキャッシュ読み出しを可能にした (#309)
 - **`textDocument/completion` でキーワード補完を実装**: LSP サーバに `textDocument/completion` を追加し、BLOCK / ITEM / MISC の全 DSL キーワードを補完候補として返す（文脈非依存）。`crates/tdsl-lsp/src/keywords.rs` に Rust 側キーワードミラーを新設し、`apps/webui/src/lang-tdsl/keywords.ts`（単一真実源）との同期をドリフト防止テストで保証する (#308)
 
@@ -16,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **npm パッケージに README / LICENSE を同梱**: `crates/tdsl-wasm/README.md`（npm 利用者向けの JS/TS 使用例・API 表）を追加し、`Release` ワークフローで pkg に README と root の MIT `LICENSE` を含めるようにした。これまで `@keroway/tdsl-wasm` の npm ページは README 未設定（"No README data found"）だったのを解消する
 - **npm publish を Trusted Publishing（OIDC）に移行**: `@keroway/tdsl-wasm` の npm 公開を長期トークン（`NPM_TOKEN` / `NODE_AUTH_TOKEN`）方式から npm Trusted Publishing（OIDC）に切り替えた。`Release` ワークフローの `build-wasm` ジョブに `permissions: id-token: write` を付与し、publish 直前に npm CLI を 11.5.1+ に更新する。認証は OIDC で自動取得され、provenance attestation も自動付与される。GitHub Secrets への `NPM_TOKEN` 登録は不要になった。npmjs.com 側の Trusted Publisher 設定手順は README を参照。npm 未設定・障害時に本体（CLI バイナリ / Homebrew）リリースをブロックしない挙動（#314）は `continue-on-error` で維持
+- **リリースワークフローの安定化**: Homebrew formula を毎回 4 プラットフォーム分の sha256 で完全再生成する方式に変更し、初回更新以降 sha が stale になる欠陥・aarch64-linux バイナリが無効・トップレベル URL がバージョン固定だったバグを解消（#315）。npm publish が未設定トークンや障害時でも本体（CLI バイナリ / Homebrew）リリースをブロックしないよう修正（#314）
+
+### Internal
+
+- **`tdsl-cli` の `main.rs` をサブコマンド別モジュールに分割**: 約 3000 行に肥大化していた `main.rs` を clap 引数定義と `fn main()` ディスパッチのみ（約 540 行）に整理し、各サブコマンドを `commands/` 配下の独立モジュールへ分割。共有ヘルパーを `commands/mod.rs` に集約。CLI の挙動・出力フォーマットは不変（#317）
+- **lint ロジックを `tdsl-cli` から `tdsl-core` へ抽出**: `tdsl lint` / `tdsl lint --fix` の検出・修正ロジックを `tdsl-core::lint`（`LintIssue` / `LintSeverity` / `lint_issues` / `apply_lint_fixes`）として公開 API 化し、CLI / LSP 双方から再利用可能にした。LSP Code Action（#311）実装の前提リファクタ。振る舞い・出力・終了コードは現状と完全一致（#318）
 
 ## [1.11.0] - 2026-05-24
 
