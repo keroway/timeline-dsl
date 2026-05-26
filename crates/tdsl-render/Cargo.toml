@@ -16,7 +16,7 @@ pdf = ["dep:svg2pdf", "dep:thiserror"]
 
 [dependencies]
 tdsl-core = { path = "../tdsl-core", default-features = false }
-resvg = { version = "0.45", optional = true }
+resvg = { version = "0.47", optional = true }
 svg2pdf = { version = "0.13", optional = true }
 thiserror = { workspace = true, optional = true }
 
