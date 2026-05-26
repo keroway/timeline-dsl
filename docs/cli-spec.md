@@ -43,7 +43,7 @@ tdsl [OPTIONS] <COMMAND>
 | [`cache`](#cache) | Wikidata ローカルキャッシュの管理 |
 | [`decompile`](#decompile) | JSON IR を `.tdsl` ソースに逆変換 |
 | [`completions`](#completions) | シェル補完スクリプトを生成 |
-| [`lsp`](#lsp) | LSP サーバを stdio 経由で起動（Diagnostics + Completion + Hover） |
+| [`lsp`](#lsp) | LSP サーバを stdio 経由で起動（Diagnostics + Completion + Hover + Goto Definition + Code Action） |
 
 ---
 
@@ -717,6 +717,8 @@ tdsl lsp
 | `textDocument/didClose` | ドキュメントを閉じたときに診断をクリア |
 | `textDocument/completion` | DSL キーワード補完候補を返す（文脈非依存・全キーワード） |
 | `textDocument/hover` | lane ID → lane 情報（ラベル・kind・order）/ QID → キャッシュ済みエンティティ情報（offline） |
+| `textDocument/definition` | lane 参照位置 → lane 宣言位置へのジャンプ |
+| `textDocument/codeAction` | `tdsl lint --fix` 相当の自動修正を quick fix として提示（全文置換・offline） |
 
 > **`import` / `map` / `apply` ブロックについて**: LSP の診断はネットワークアクセスを伴わない静的解析（offline）で行うため、Wikidata 取得が前提のエンティティ解決は行いません。ただし、ネットワーク不要で判定できる **静的な参照エラー** は offline でも検出します:
 > - `map <alias>.<key>` の `alias` が未宣言（`import ... as <alias>` が存在しない）→ **Error**
@@ -726,8 +728,9 @@ tdsl lsp
 
 **今後の別 issue で実装予定の機能:**
 
-- Goto Definition（定義ジャンプ）
-- Code Action（クイックフィックス）
+- Find References（`textDocument/references`・lane ID の全参照検索）
+- Rename Symbol（`textDocument/rename`・lane ID の一括リネーム）
+- Document Symbols（`textDocument/documentSymbol`・アウトライン表示）
 - VS Code 拡張クライアント（エディタ連携）
 
 ### エディタ連携
