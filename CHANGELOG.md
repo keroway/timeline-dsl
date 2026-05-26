@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`textDocument/codeAction` で lint auto-fix を quick fix として提供**: LSP サーバに `textDocument/codeAction` を追加。fixable な lint issue（`start_gt_end` / `invalid_tags` / `missing_id`）が存在するとき、`tdsl lint --fix` 相当の自動修正を 1 件の quick fix「tdsl: 自動修正可能な lint をすべて修正 (N 件)」として提示する。適用すると `WorkspaceEdit` でドキュメント全文が修正後ソースに置換される（`tdsl lint --fix` と**同一の emitter** を使うため出力は一致する。全文再 emit 方式のためコメントは整形時に失われる）。fixable でない issue（`unknown_lane` / `duplicate_id` / `empty_label`）しか無い場合は quick fix を出さない。ネットワーク I/O 不要（offline 前提）。修正・再 emit ロジックは `tdsl-core::lint::fix_source`（`tdsl-parser::format_file` で AST を再 emit）として公開 API 化し、CLI / LSP で共有する (#311)
+- **`textDocument/codeAction` で lint auto-fix を quick fix として提供**: LSP サーバに `textDocument/codeAction` を追加。fixable な lint issue（`start_gt_end` / `invalid_tags` / `missing_id`）が存在するとき、`tdsl lint --fix` 相当の自動修正を 1 件の quick fix「tdsl: 自動修正可能な lint をすべて修正 (N 件)」として提示する。適用すると `WorkspaceEdit` でドキュメント全文が修正後ソースに置換される（`tdsl lint --fix` と**同一の emitter** を使うため出力は一致する。全文再 emit 方式のためコメントは整形時に失われる）。fixable でない issue（`unknown_lane` / `duplicate_id` / `empty_label`）しか無い場合は quick fix を出さない。全文置換はドキュメントバージョン付きの `documentChanges` として返すため、コードアクション計算後に編集された場合は client がバージョン不一致を検出して stale な置換の適用を拒否する（新しい編集を上書きしない）。ネットワーク I/O 不要（offline 前提）。修正・再 emit ロジックは `tdsl-core::lint::fix_source`（`tdsl-parser::format_file` で AST を再 emit）として公開 API 化し、CLI / LSP で共有する (#311)
 
 ### Changed
 
