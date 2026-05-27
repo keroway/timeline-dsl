@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 ドキュメント / DSL 仕様
+    url: https://keroway.github.io/timeline-dsl/
+    about: 使い方・DSL 文法・CLI の仕様はまずドキュメントを確認してください。
+  - name: 🔒 セキュリティ脆弱性の報告
+    url: https://github.com/keroway/timeline-dsl/security/advisories/new
+    about: 脆弱性は公開 Issue ではなく、非公開のセキュリティアドバイザリから報告してください。
