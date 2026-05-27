@@ -1,7 +1,7 @@
 //! LSP サーバの Backend 実装。
 //!
 //! `tower-lsp` の `LanguageServer` trait を実装し、stdio 経由で LSP クライアントと通信する。
-//! 現バージョンで実装している機能: Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols。
+//! 現バージョンで実装している機能: Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References。
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -13,8 +13,8 @@ use tower_lsp::lsp_types::{
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverParams, HoverProviderCapability, InitializeParams,
-    InitializeResult, InitializedParams, MessageType, OneOf, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    InitializeResult, InitializedParams, Location, MessageType, OneOf, ReferenceParams,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -22,6 +22,7 @@ use crate::code_action::compute_code_actions;
 use crate::completion::keyword_completions;
 use crate::diagnostics::compute_diagnostics;
 use crate::document_symbols::compute_document_symbols;
+use crate::find_references::compute_references;
 use crate::goto_definition::compute_goto_definition;
 use crate::hover::compute_hover;
 
@@ -98,6 +99,8 @@ impl LanguageServer for Backend {
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 // アウトライン / ブレッドクラム / シンボル検索のためのドキュメントシンボル
                 document_symbol_provider: Some(OneOf::Left(true)),
+                // lane ID の全参照位置を返す
+                references_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -109,7 +112,7 @@ impl LanguageServer for Backend {
         self.client
             .log_message(
                 MessageType::INFO,
-                "tdsl LSP server initialized (Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols)",
+                "tdsl LSP server initialized (Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References)",
             )
             .await;
     }
@@ -189,6 +192,26 @@ impl LanguageServer for Backend {
                 let syms = compute_document_symbols(&src);
                 Ok(Some(DocumentSymbolResponse::Nested(syms)))
             }
+            None => Ok(None),
+        }
+    }
+
+    async fn references(&self, params: ReferenceParams) -> LspResult<Option<Vec<Location>>> {
+        let uri = params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let include_declaration = params.context.include_declaration;
+        let source = {
+            // LSP サーバの単一スレッド文脈では panic しない
+            let docs = self.documents.lock().expect("documents lock poisoned");
+            docs.get(uri.as_str()).map(|d| d.text.clone())
+        };
+        match source {
+            Some(src) => Ok(compute_references(
+                &src,
+                position,
+                include_declaration,
+                &uri,
+            )),
             None => Ok(None),
         }
     }
