@@ -1,20 +1,21 @@
 //! LSP サーバの Backend 実装。
 //!
 //! `tower-lsp` の `LanguageServer` trait を実装し、stdio 経由で LSP クライアントと通信する。
-//! 現バージョンで実装している機能: Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References。
+//! 現バージョンで実装している機能: Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References + Rename。
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tower_lsp::jsonrpc::Result as LspResult;
+use tower_lsp::jsonrpc::{self, Result as LspResult};
 use tower_lsp::lsp_types::{
     CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionOptions,
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverParams, HoverProviderCapability, InitializeParams,
-    InitializeResult, InitializedParams, Location, MessageType, OneOf, ReferenceParams,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    InitializeResult, InitializedParams, Location, MessageType, OneOf, PrepareRenameResponse,
+    ReferenceParams, RenameOptions, RenameParams, ServerCapabilities, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkspaceEdit,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -25,6 +26,7 @@ use crate::document_symbols::compute_document_symbols;
 use crate::find_references::compute_references;
 use crate::goto_definition::compute_goto_definition;
 use crate::hover::compute_hover;
+use crate::rename::{compute_prepare_rename, compute_rename};
 
 /// 1 ドキュメントの保持状態（全文 + LSP バージョン）。
 ///
@@ -101,6 +103,12 @@ impl LanguageServer for Backend {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 // lane ID の全参照位置を返す
                 references_provider: Some(OneOf::Left(true)),
+                // lane ID のリネーム（宣言と全参照を一括置換）
+                // prepare_provider: true を指定して prepareRename を有効化する
+                rename_provider: Some(OneOf::Right(RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: Default::default(),
+                })),
                 ..Default::default()
             },
             ..Default::default()
@@ -112,7 +120,7 @@ impl LanguageServer for Backend {
         self.client
             .log_message(
                 MessageType::INFO,
-                "tdsl LSP server initialized (Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References)",
+                "tdsl LSP server initialized (Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References + Rename)",
             )
             .await;
     }
@@ -212,6 +220,48 @@ impl LanguageServer for Backend {
                 include_declaration,
                 &uri,
             )),
+            None => Ok(None),
+        }
+    }
+
+    async fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> LspResult<Option<PrepareRenameResponse>> {
+        let uri = params.text_document.uri;
+        let position = params.position;
+        let source = {
+            // LSP サーバの単一スレッド文脈では panic しない
+            let docs = self.documents.lock().expect("documents lock poisoned");
+            docs.get(uri.as_str()).map(|d| d.text.clone())
+        };
+        match source {
+            Some(src) => {
+                Ok(compute_prepare_rename(&src, position).map(PrepareRenameResponse::Range))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn rename(&self, params: RenameParams) -> LspResult<Option<WorkspaceEdit>> {
+        let uri = params.text_document_position.text_document.uri.clone();
+        let position = params.text_document_position.position;
+        let new_name = params.new_name.clone();
+        let source = {
+            // LSP サーバの単一スレッド文脈では panic しない
+            let docs = self.documents.lock().expect("documents lock poisoned");
+            docs.get(uri.as_str()).map(|d| d.text.clone())
+        };
+        match source {
+            Some(src) => match compute_rename(&src, position, &new_name, &uri) {
+                Ok(edit) => Ok(Some(edit)),
+                Err(msg) => Err(jsonrpc::Error {
+                    // LSP spec §3.16: rename 拒否には ServerError(-32803) を使う
+                    code: jsonrpc::ErrorCode::ServerError(-32803),
+                    message: msg.into(),
+                    data: None,
+                }),
+            },
             None => Ok(None),
         }
     }
