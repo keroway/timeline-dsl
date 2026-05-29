@@ -13,7 +13,7 @@ pub mod pdf;
 pub mod png;
 pub mod svg;
 
-pub use layout::{LayoutModel, RenderOptions, Theme};
+pub use layout::{LayoutModel, Orientation, RenderOptions, Theme};
 #[cfg(feature = "pdf")]
 pub use pdf::{PdfError, PdfOptions, render_pdf, svg_to_pdf};
 #[cfg(feature = "png")]
@@ -448,6 +448,168 @@ mod tests {
         assert!(
             svg.contains("Arial, sans-serif"),
             "custom font_family must appear in SVG style"
+        );
+    }
+
+    // ─── 垂直レイアウト テスト ──────────────────────────────────────────
+
+    #[test]
+    fn vertical_layout_dimensions_are_swapped() {
+        // 垂直レイアウトでは time_span が高さ方向に反映され、
+        // lanes が幅方向に積まれる (水平と total_width/total_height が入れ替わる)。
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "vert test".into(),
+                unit: "year".into(),
+                range: (0, 1000),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![
+                Lane {
+                    id: "a".into(),
+                    label: "A".into(),
+                    kind: "k".into(),
+                    order: 1,
+                    source_span: None,
+                },
+                Lane {
+                    id: "b".into(),
+                    label: "B".into(),
+                    kind: "k".into(),
+                    order: 2,
+                    source_span: None,
+                },
+            ],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts_h = RenderOptions::default(); // horizontal
+        let opts_v = RenderOptions {
+            orientation: Orientation::Vertical,
+            ..RenderOptions::default()
+        };
+        let layout_h = LayoutModel::compute(&ir, opts_h.clone());
+        let layout_v = LayoutModel::compute(&ir, opts_v.clone());
+
+        // 水平: 幅 = left_gutter + 1000*scale + right_margin
+        //       高さ = top_margin + 2*lane_height + bottom_margin
+        let expected_h_w = opts_h.left_gutter + 1000.0 * opts_h.scale + opts_h.right_margin;
+        let expected_h_h = opts_h.top_margin + 2.0 * opts_h.lane_height + opts_h.bottom_margin;
+        assert!(
+            (layout_h.total_width - expected_h_w).abs() < 0.01,
+            "horizontal width mismatch: {} vs {}",
+            layout_h.total_width,
+            expected_h_w
+        );
+        assert!(
+            (layout_h.total_height - expected_h_h).abs() < 0.01,
+            "horizontal height mismatch: {} vs {}",
+            layout_h.total_height,
+            expected_h_h
+        );
+
+        // 垂直: 幅 = left_gutter + 2*lane_height + right_margin
+        //       高さ = top_margin + 1000*scale + bottom_margin
+        let expected_v_w = opts_v.left_gutter + 2.0 * opts_v.lane_height + opts_v.right_margin;
+        let expected_v_h = opts_v.top_margin + 1000.0 * opts_v.scale + opts_v.bottom_margin;
+        assert!(
+            (layout_v.total_width - expected_v_w).abs() < 0.01,
+            "vertical width mismatch: {} vs {}",
+            layout_v.total_width,
+            expected_v_w
+        );
+        assert!(
+            (layout_v.total_height - expected_v_h).abs() < 0.01,
+            "vertical height mismatch: {} vs {}",
+            layout_v.total_height,
+            expected_v_h
+        );
+
+        // 垂直では水平と幅・高さが入れ替わっている（大小関係）
+        assert!(
+            layout_v.total_height > layout_v.total_width,
+            "vertical: height should exceed width for a long time span with few lanes"
+        );
+    }
+
+    #[test]
+    fn vertical_svg_contains_expected_orientation_markers() {
+        // 垂直 SVG が時間軸ティックを Y 方向に配置することを確認する:
+        // - 水平軸のベースライン (y1=y2 の水平線) の代わりに垂直ベースライン (x1=x2) が含まれる
+        // - レーンラベルが上部に配置される (y 値が top_margin 付近)
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            orientation: Orientation::Vertical,
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts.clone());
+        // SVG の基本構造
+        assert!(svg.starts_with("<svg"), "SVG should start with <svg");
+        assert!(svg.contains("</svg>"), "SVG should end with </svg>");
+        // 垂直ベースライン: x1=x2 (左端の縦線) が存在するはず
+        assert!(
+            svg.contains(r#"class="tdsl-axis-baseline""#),
+            "vertical SVG must contain axis baseline element"
+        );
+        // span アイテムが含まれる
+        assert!(svg.contains("tdsl-span"), "should contain span element");
+    }
+
+    #[test]
+    fn vertical_svg_span_item_dimensions_are_vertical() {
+        // 垂直レイアウトでは Span の height (時間軸方向) が width より大きくなる (長い span の場合)
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "v-span".into(),
+                unit: "year".into(),
+                range: (0, 500),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "k".into(),
+                order: 1,
+                source_span: None,
+            }],
+            items: vec![Item::Span {
+                id: "s1".into(),
+                lane: "x".into(),
+                start: 100,
+                end: 400,
+                label: "long span".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                end_month: None,
+                end_day: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            orientation: Orientation::Vertical,
+            scale: 2.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let span = layout.items.iter().find_map(|i| match i {
+            crate::layout::LaidItem::Span { width, height, .. } => Some((*width, *height)),
+            _ => None,
+        });
+        let (w, h) = span.expect("span should be laid out");
+        // 垂直レイアウトでは height (時間方向) >> width (レーン幅方向)
+        assert!(
+            h > w,
+            "vertical span height ({h}) should exceed width ({w}) for a multi-century span"
         );
     }
 

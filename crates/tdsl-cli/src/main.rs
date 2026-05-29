@@ -211,6 +211,10 @@ enum Commands {
         /// Tag-to-color mapping (e.g. "war=#cc0000,dynasty=#3366cc")
         #[arg(long)]
         color_map: Option<String>,
+
+        /// Timeline orientation (horizontal or vertical)
+        #[arg(long, value_enum, default_value_t = OrientationArg::Horizontal)]
+        orientation: OrientationArg,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -378,6 +382,22 @@ enum ThemeArg {
     Pastel,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+enum OrientationArg {
+    #[default]
+    Horizontal,
+    Vertical,
+}
+
+impl OrientationArg {
+    fn into_orientation(self) -> tdsl_render::layout::Orientation {
+        match self {
+            OrientationArg::Horizontal => tdsl_render::layout::Orientation::Horizontal,
+            OrientationArg::Vertical => tdsl_render::layout::Orientation::Vertical,
+        }
+    }
+}
+
 #[derive(ValueEnum, Clone, Default, Debug)]
 enum RenderFormat {
     #[default]
@@ -491,6 +511,7 @@ fn main() {
             no_cache,
             cache_ttl,
             color_map,
+            orientation,
         } => commands::render::cmd_render(
             &input,
             output.as_deref(),
@@ -510,6 +531,7 @@ fn main() {
                 ttl: std::time::Duration::from_secs(cache_ttl),
             },
             color_map.as_deref(),
+            orientation,
             wikidata_timeout,
         ),
         Commands::Init {
