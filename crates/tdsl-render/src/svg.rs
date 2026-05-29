@@ -1,21 +1,8 @@
-use std::collections::HashMap;
 use std::fmt::Write;
 
 use tdsl_core::ir::Item;
 
-use crate::layout::{LaidItem, LayoutModel};
-
-/// Colorblind-friendly 8-color palette for per-lane fill colors.
-const LANE_PALETTE: &[&str] = &[
-    "#4682B4", // steel blue
-    "#E67E22", // orange
-    "#27AE60", // green
-    "#8E44AD", // purple
-    "#E74C3C", // red
-    "#1ABC9C", // teal
-    "#F39C12", // amber
-    "#2980B9", // blue
-];
+use crate::layout::{LaidItem, LayoutModel, format_year, month_abbr};
 
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
 pub fn render_svg(layout: &LayoutModel) -> String {
@@ -45,35 +32,18 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     )
     .unwrap();
 
-    // Build lane_id → palette color map from ordered lane list.
-    let lane_color: HashMap<&str, &str> = layout
-        .lanes_ordered
-        .iter()
-        .enumerate()
-        .map(|(idx, lane)| (lane.id.as_str(), LANE_PALETTE[idx % LANE_PALETTE.len()]))
-        .collect();
-
     render_lane_bands(&mut s, layout);
     render_axis(&mut s, layout);
     render_lane_labels(&mut s, layout);
-    render_items(
-        &mut s,
-        layout,
-        &lane_color,
-        &layout.opts.color_map,
-        layout.opts.interactive,
-    );
+    render_items(&mut s, layout);
 
     writeln!(s, "</svg>").unwrap();
     s
 }
 
 fn render_lane_bands(s: &mut String, layout: &LayoutModel) {
-    let x = layout.opts.left_gutter;
-    let width = layout.total_width - x - layout.opts.right_margin;
-    for (idx, lane) in layout.lanes_ordered.iter().enumerate() {
-        let y = layout.opts.top_margin + idx as f64 * layout.opts.lane_height;
-        let class = if idx % 2 == 0 {
+    for band in &layout.lane_bands {
+        let class = if band.even {
             "tdsl-lane-band-even"
         } else {
             "tdsl-lane-band-odd"
@@ -81,14 +51,12 @@ fn render_lane_bands(s: &mut String, layout: &LayoutModel) {
         writeln!(
             s,
             r#"  <rect class="{class}" x="{x}" y="{y}" width="{w}" height="{h}"/>"#,
-            x = fmt_f(x),
-            y = fmt_f(y),
-            w = fmt_f(width),
-            h = fmt_f(layout.opts.lane_height),
+            x = fmt_f(band.x),
+            y = fmt_f(band.y),
+            w = fmt_f(band.width),
+            h = fmt_f(band.height),
         )
         .unwrap();
-        // Invisible bottom border for subtle lane separation.
-        let _ = lane;
     }
 }
 
@@ -205,32 +173,7 @@ fn render_lane_labels(s: &mut String, layout: &LayoutModel) {
     }
 }
 
-fn resolve_item_color(
-    tags: &[String],
-    color_map: &HashMap<String, String>,
-    lane_fallback: &str,
-    lane_color: &HashMap<&str, &str>,
-) -> String {
-    // Tag-based override takes priority: use the first matching tag.
-    for tag in tags {
-        if let Some(color) = color_map.get(tag.as_str()) {
-            return color.clone();
-        }
-    }
-    lane_color
-        .get(lane_fallback)
-        .copied()
-        .unwrap_or("#4682B4")
-        .to_string()
-}
-
-fn render_items(
-    s: &mut String,
-    layout: &LayoutModel,
-    lane_color: &HashMap<&str, &str>,
-    color_map: &HashMap<String, String>,
-    interactive: bool,
-) {
+fn render_items(s: &mut String, layout: &LayoutModel) {
     for laid in &layout.items {
         match laid {
             LaidItem::Span {
@@ -239,15 +182,14 @@ fn render_items(
                 y,
                 width,
                 height,
+                color,
+                tooltip,
             } => {
-                let raw_tip = item_tooltip(item);
-                let tip = escape_xml(&raw_tip);
-                let tip_attr = escape_xml_attr(&raw_tip);
+                let tip = escape_xml(tooltip);
+                let tip_attr = escape_xml_attr(tooltip);
                 let lane_id = item_lane_id(item);
-                let tags = item_tags(item);
-                let fill = resolve_item_color(tags, color_map, lane_id, lane_color);
-                let fill_style = format!("fill:{fill};");
-                let data_attrs = if interactive {
+                let fill_style = format!("fill:{color};");
+                let data_attrs = if layout.opts.interactive {
                     build_data_attrs(item, lane_id)
                 } else {
                     String::new()
@@ -275,15 +217,14 @@ fn render_items(
                 y,
                 width,
                 height,
+                color,
+                tooltip,
             } => {
-                let raw_tip = item_tooltip(item);
-                let tip = escape_xml(&raw_tip);
-                let tip_attr = escape_xml_attr(&raw_tip);
+                let tip = escape_xml(tooltip);
+                let tip_attr = escape_xml_attr(tooltip);
                 let lane_id = item_lane_id(item);
-                let tags = item_tags(item);
-                let fill = resolve_item_color(tags, color_map, lane_id, lane_color);
-                let fill_style = format!("fill:{fill};fill-opacity:0.75;");
-                let data_attrs = if interactive {
+                let fill_style = format!("fill:{color};fill-opacity:0.75;");
+                let data_attrs = if layout.opts.interactive {
                     build_data_attrs(item, lane_id)
                 } else {
                     String::new()
@@ -308,20 +249,19 @@ fn render_items(
                 y_top,
                 y_bottom,
                 y_dot,
+                color,
+                tooltip,
             } => {
                 // An invisible wide hit-rect makes hovering the thin stem / small dot feasible.
-                let raw_tip = item_tooltip(item);
-                let tip = escape_xml(&raw_tip);
-                let tip_attr = escape_xml_attr(&raw_tip);
+                let tip = escape_xml(tooltip);
+                let tip_attr = escape_xml_attr(tooltip);
                 let lane_id = item_lane_id(item);
-                let tags = item_tags(item);
-                let fill = resolve_item_color(tags, color_map, lane_id, lane_color);
-                let dot_style = format!("fill:{fill};");
+                let dot_style = format!("fill:{color};");
                 let hit_x = *x - 8.0;
                 let hit_w = 16.0;
                 let hit_y = *y_top;
                 let hit_h = (y_bottom - y_top).max(20.0);
-                let data_attrs = if interactive {
+                let data_attrs = if layout.opts.interactive {
                     build_data_attrs(item, lane_id)
                 } else {
                     String::new()
@@ -351,12 +291,6 @@ fn render_items(
 fn item_lane_id(item: &Item) -> &str {
     match item {
         Item::Span { lane, .. } | Item::Event { lane, .. } | Item::EventRange { lane, .. } => lane,
-    }
-}
-
-fn item_tags(item: &Item) -> &[String] {
-    match item {
-        Item::Span { tags, .. } | Item::Event { tags, .. } | Item::EventRange { tags, .. } => tags,
     }
 }
 
@@ -427,126 +361,6 @@ fn item_label(item: &Item) -> &str {
     }
 }
 
-fn item_tooltip(item: &Item) -> String {
-    let mut lines = Vec::new();
-    match item {
-        Item::Span {
-            label,
-            start,
-            end,
-            tags,
-            source,
-            origin,
-            id,
-            start_month,
-            start_day,
-            end_month,
-            end_day,
-            ..
-        } => {
-            lines.push(label.to_string());
-            lines.push(format!(
-                "{}〜{}",
-                format_date(*start, *start_month, *start_day),
-                format_date(*end, *end_month, *end_day),
-            ));
-            push_common(&mut lines, tags, source, origin, id);
-        }
-        Item::Event {
-            label,
-            time,
-            tags,
-            source,
-            origin,
-            id,
-            time_month,
-            time_day,
-            ..
-        } => {
-            lines.push(label.to_string());
-            lines.push(format_date(*time, *time_month, *time_day));
-            push_common(&mut lines, tags, source, origin, id);
-        }
-        Item::EventRange {
-            label,
-            start,
-            end,
-            tags,
-            source,
-            origin,
-            id,
-            start_month,
-            start_day,
-            end_month,
-            end_day,
-            ..
-        } => {
-            lines.push(label.to_string());
-            lines.push(format!(
-                "{}〜{}",
-                format_date(*start, *start_month, *start_day),
-                format_date(*end, *end_month, *end_day),
-            ));
-            push_common(&mut lines, tags, source, origin, id);
-        }
-    }
-    lines.join("\n")
-}
-
-fn push_common(
-    lines: &mut Vec<String>,
-    tags: &[String],
-    source: &Option<String>,
-    origin: &Option<String>,
-    id: &str,
-) {
-    if !tags.is_empty() {
-        lines.push(format!("tags: {}", tags.join(", ")));
-    }
-    if let Some(src) = source {
-        lines.push(format!("source: {src}"));
-    }
-    if let Some(org) = origin {
-        lines.push(format!("origin: {org}"));
-    }
-    lines.push(format!("id: {id}"));
-}
-
-fn format_year(year: i64) -> String {
-    if year < 0 {
-        format!("BC{}", -year)
-    } else {
-        format!("{year}")
-    }
-}
-
-fn month_abbr(m: u8) -> &'static str {
-    match m {
-        1 => "Jan",
-        2 => "Feb",
-        3 => "Mar",
-        4 => "Apr",
-        5 => "May",
-        6 => "Jun",
-        7 => "Jul",
-        8 => "Aug",
-        9 => "Sep",
-        10 => "Oct",
-        11 => "Nov",
-        12 => "Dec",
-        _ => "?",
-    }
-}
-
-fn format_date(year: i64, month: Option<u8>, day: Option<u8>) -> String {
-    let y = format_year(year);
-    match (month, day) {
-        (Some(m), Some(d)) => format!("{} {} {}", y, month_abbr(m), d),
-        (Some(m), None) => format!("{} {}", y, month_abbr(m)),
-        _ => y,
-    }
-}
-
 /// Escape for SVG/XML text content and attribute values.
 fn escape_xml(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -593,7 +407,7 @@ fn fmt_f(v: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::RenderOptions;
+    use crate::layout::{RenderOptions, format_date, format_year};
     use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
 
     fn sample_ir() -> TimelineIr {
