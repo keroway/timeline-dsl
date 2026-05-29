@@ -2,6 +2,20 @@ use std::collections::HashMap;
 
 use tdsl_core::ir::{Item, Lane, TimelineIr, end_frac, start_frac};
 
+/// Colorblind-friendly 8-color palette for per-lane fill colors.
+///
+/// Single source of truth for palette shared by all emitters.
+pub(crate) const LANE_PALETTE: &[&str] = &[
+    "#4682B4", // steel blue
+    "#E67E22", // orange
+    "#27AE60", // green
+    "#8E44AD", // purple
+    "#E74C3C", // red
+    "#1ABC9C", // teal
+    "#F39C12", // amber
+    "#2980B9", // blue
+];
+
 /// Color/style theme for HTML output.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum Theme {
@@ -57,7 +71,21 @@ impl Default for RenderOptions {
     }
 }
 
+/// Pre-computed lane background band geometry.
+#[derive(Debug, Clone)]
+pub struct LaneBandModel {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    /// `true` for even-indexed lanes (0-based), `false` for odd.
+    pub even: bool,
+}
+
 /// Item kind in its laid-out form (y offset from lane center already applied).
+///
+/// `color` is the resolved CSS color string (from tag overrides or lane palette).
+/// `tooltip` is the formatted tooltip text before XML escaping.
 #[derive(Debug, Clone)]
 pub enum LaidItem<'a> {
     Span {
@@ -66,6 +94,10 @@ pub enum LaidItem<'a> {
         y: f64,
         width: f64,
         height: f64,
+        /// Resolved CSS color (e.g. `"#4682B4"`).
+        color: String,
+        /// Formatted tooltip text (XML-unescaped).
+        tooltip: String,
     },
     EventRange {
         item: &'a Item,
@@ -73,6 +105,10 @@ pub enum LaidItem<'a> {
         y: f64,
         width: f64,
         height: f64,
+        /// Resolved CSS color (base; emitters may add fill-opacity).
+        color: String,
+        /// Formatted tooltip text (XML-unescaped).
+        tooltip: String,
     },
     Event {
         item: &'a Item,
@@ -80,6 +116,10 @@ pub enum LaidItem<'a> {
         y_top: f64,
         y_bottom: f64,
         y_dot: f64,
+        /// Resolved CSS color.
+        color: String,
+        /// Formatted tooltip text (XML-unescaped).
+        tooltip: String,
     },
 }
 
@@ -95,6 +135,10 @@ pub struct LayoutModel<'a> {
     pub lane_y: HashMap<String, f64>,
     pub tick_step: i64,
     pub items: Vec<LaidItem<'a>>,
+    /// Pre-computed lane background bands (index-ordered, same order as `lanes_ordered`).
+    pub lane_bands: Vec<LaneBandModel>,
+    /// Mapping from lane ID to resolved CSS color (palette-assigned).
+    pub lane_colors: HashMap<String, String>,
 }
 
 impl<'a> LayoutModel<'a> {
@@ -126,12 +170,41 @@ impl<'a> LayoutModel<'a> {
 
         let tick_step = pick_tick_step(year_max - year_min, opts.scale, AXIS_LABEL_PX);
 
+        // lane_colors: palette-assigned CSS color per lane ID.
+        let lane_colors: HashMap<String, String> = lanes_ordered
+            .iter()
+            .enumerate()
+            .map(|(idx, lane)| {
+                (
+                    lane.id.clone(),
+                    LANE_PALETTE[idx % LANE_PALETTE.len()].to_string(),
+                )
+            })
+            .collect();
+
+        // lane_bands: background band geometry per lane.
+        let content_width = total_width - opts.left_gutter - opts.right_margin;
+        let lane_bands: Vec<LaneBandModel> = lanes_ordered
+            .iter()
+            .enumerate()
+            .map(|(idx, _lane)| LaneBandModel {
+                x: opts.left_gutter,
+                y: opts.top_margin + idx as f64 * opts.lane_height,
+                width: content_width,
+                height: opts.lane_height,
+                even: idx % 2 == 0,
+            })
+            .collect();
+
         let mut items = Vec::new();
         for item in &ir.items {
             let lane_id = item_lane_id(item);
             let Some(&lane_cy) = lane_y.get(lane_id) else {
                 continue;
             };
+            let item_tags = get_item_tags(item);
+            let color = resolve_item_color(item_tags, &opts.color_map, lane_id, &lane_colors);
+            let tooltip = item_tooltip(item);
             match item {
                 Item::Span {
                     start,
@@ -153,6 +226,8 @@ impl<'a> LayoutModel<'a> {
                         y: lane_cy - SPAN_HALF_H,
                         width,
                         height: SPAN_HALF_H * 2.0,
+                        color,
+                        tooltip,
                     });
                 }
                 Item::EventRange {
@@ -174,6 +249,8 @@ impl<'a> LayoutModel<'a> {
                         y: lane_cy + EVENT_RANGE_Y_OFFSET,
                         width,
                         height: EVENT_RANGE_H,
+                        color,
+                        tooltip,
                     });
                 }
                 Item::Event {
@@ -193,6 +270,8 @@ impl<'a> LayoutModel<'a> {
                         y_top: lane_cy - EVENT_STEM_H,
                         y_bottom: lane_cy + EVENT_STEM_H,
                         y_dot: lane_cy,
+                        color,
+                        tooltip,
                     });
                 }
             }
@@ -209,6 +288,8 @@ impl<'a> LayoutModel<'a> {
             lane_y,
             tick_step,
             items,
+            lane_bands,
+            lane_colors,
         }
     }
 
@@ -328,6 +409,154 @@ fn item_lane_id(item: &Item) -> &str {
     match item {
         Item::Span { lane, .. } | Item::Event { lane, .. } | Item::EventRange { lane, .. } => lane,
     }
+}
+
+fn get_item_tags(item: &Item) -> &[String] {
+    match item {
+        Item::Span { tags, .. } | Item::Event { tags, .. } | Item::EventRange { tags, .. } => tags,
+    }
+}
+
+/// Resolve item fill color: tag overrides take priority over lane palette.
+pub(crate) fn resolve_item_color(
+    tags: &[String],
+    color_map: &HashMap<String, String>,
+    lane_id: &str,
+    lane_colors: &HashMap<String, String>,
+) -> String {
+    for tag in tags {
+        if let Some(color) = color_map.get(tag.as_str()) {
+            return color.clone();
+        }
+    }
+    lane_colors
+        .get(lane_id)
+        .cloned()
+        .unwrap_or_else(|| "#4682B4".to_string())
+}
+
+/// Format a year for display: negative years get a "BC" prefix.
+pub(crate) fn format_year(year: i64) -> String {
+    if year < 0 {
+        format!("BC{}", -year)
+    } else {
+        format!("{year}")
+    }
+}
+
+/// Short three-letter English month abbreviation.
+pub(crate) fn month_abbr(m: u8) -> &'static str {
+    match m {
+        1 => "Jan",
+        2 => "Feb",
+        3 => "Mar",
+        4 => "Apr",
+        5 => "May",
+        6 => "Jun",
+        7 => "Jul",
+        8 => "Aug",
+        9 => "Sep",
+        10 => "Oct",
+        11 => "Nov",
+        12 => "Dec",
+        _ => "?",
+    }
+}
+
+/// Format a date for display, with optional month and day precision.
+pub(crate) fn format_date(year: i64, month: Option<u8>, day: Option<u8>) -> String {
+    let y = format_year(year);
+    match (month, day) {
+        (Some(m), Some(d)) => format!("{} {} {}", y, month_abbr(m), d),
+        (Some(m), None) => format!("{} {}", y, month_abbr(m)),
+        _ => y,
+    }
+}
+
+fn push_common(
+    lines: &mut Vec<String>,
+    tags: &[String],
+    source: &Option<String>,
+    origin: &Option<String>,
+    id: &str,
+) {
+    if !tags.is_empty() {
+        lines.push(format!("tags: {}", tags.join(", ")));
+    }
+    if let Some(src) = source {
+        lines.push(format!("source: {src}"));
+    }
+    if let Some(org) = origin {
+        lines.push(format!("origin: {org}"));
+    }
+    lines.push(format!("id: {id}"));
+}
+
+/// Build the tooltip text for an item (XML-unescaped).
+fn item_tooltip(item: &Item) -> String {
+    let mut lines = Vec::new();
+    match item {
+        Item::Span {
+            label,
+            start,
+            end,
+            tags,
+            source,
+            origin,
+            id,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
+            ..
+        } => {
+            lines.push(label.to_string());
+            lines.push(format!(
+                "{}〜{}",
+                format_date(*start, *start_month, *start_day),
+                format_date(*end, *end_month, *end_day),
+            ));
+            push_common(&mut lines, tags, source, origin, id);
+        }
+        Item::Event {
+            label,
+            time,
+            tags,
+            source,
+            origin,
+            id,
+            time_month,
+            time_day,
+            ..
+        } => {
+            lines.push(label.to_string());
+            lines.push(format_date(*time, *time_month, *time_day));
+            push_common(&mut lines, tags, source, origin, id);
+        }
+        Item::EventRange {
+            label,
+            start,
+            end,
+            tags,
+            source,
+            origin,
+            id,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
+            ..
+        } => {
+            lines.push(label.to_string());
+            lines.push(format!(
+                "{}〜{}",
+                format_date(*start, *start_month, *start_day),
+                format_date(*end, *end_month, *end_day),
+            ));
+            push_common(&mut lines, tags, source, origin, id);
+        }
+    }
+    lines.join("\n")
 }
 
 fn year_to_x(year: i64, year_min: i64, scale: f64, left_gutter: f64) -> f64 {
