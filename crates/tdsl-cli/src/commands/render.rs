@@ -1,4 +1,4 @@
-use crate::{RenderFormat, ThemeArg};
+use crate::{OrientationArg, RenderFormat, ThemeArg};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn cmd_render(
@@ -17,6 +17,7 @@ pub(crate) fn cmd_render(
     offline: bool,
     cache_opts: tdsl_wikidata::CacheOptions,
     color_map_raw: Option<&str>,
+    orientation: OrientationArg,
     wikidata_timeout: std::time::Duration,
 ) -> Result<(), String> {
     let ir = super::build::load_ir(input, offline, cache_opts, wikidata_timeout)?;
@@ -46,6 +47,7 @@ pub(crate) fn cmd_render(
         custom_css,
         color_map,
         interactive,
+        orientation: orientation.into_orientation(),
         ..Default::default()
     };
 

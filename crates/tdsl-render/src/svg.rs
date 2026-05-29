@@ -61,6 +61,14 @@ fn render_lane_bands(s: &mut String, layout: &LayoutModel) {
 }
 
 fn render_axis(s: &mut String, layout: &LayoutModel) {
+    if layout.is_vertical() {
+        render_axis_vertical(s, layout);
+    } else {
+        render_axis_horizontal(s, layout);
+    }
+}
+
+fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) {
     let top = layout.opts.top_margin;
     let bottom = layout.total_height - layout.opts.bottom_margin;
 
@@ -158,18 +166,72 @@ fn render_axis(s: &mut String, layout: &LayoutModel) {
     }
 }
 
-fn render_lane_labels(s: &mut String, layout: &LayoutModel) {
-    for lane in &layout.lanes_ordered {
-        let y = layout.lane_y[&lane.id];
+fn render_axis_vertical(s: &mut String, layout: &LayoutModel) {
+    let left = layout.opts.left_gutter;
+    let right = layout.total_width - layout.opts.right_margin;
+
+    // Vertical baseline on the left side.
+    let baseline_x = left - 4.0;
+    writeln!(
+        s,
+        r#"  <line class="tdsl-axis-baseline" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
+        x = fmt_f(baseline_x),
+        y1 = fmt_f(layout.opts.top_margin),
+        y2 = fmt_f(layout.total_height - layout.opts.bottom_margin),
+    )
+    .unwrap();
+
+    for year in layout.ticks() {
+        let y = layout.year_to_primary(year);
+        // Horizontal grid line across the full chart body.
         writeln!(
             s,
-            r#"  <text class="tdsl-lane-label" data-lane="{lane_id}" x="{x}" y="{y}" text-anchor="end" dominant-baseline="middle">{label}</text>"#,
-            lane_id = escape_xml_attr(&lane.id),
-            x = fmt_f(layout.opts.left_gutter - 8.0),
+            r#"  <line class="tdsl-axis-tick" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}"/>"#,
+            x1 = fmt_f(left),
             y = fmt_f(y),
-            label = escape_xml(&lane.label),
+            x2 = fmt_f(right),
         )
         .unwrap();
+        let label = format_year(year);
+        writeln!(
+            s,
+            r#"  <text class="tdsl-axis-text" x="{x}" y="{y}" text-anchor="end" dominant-baseline="middle">{label}</text>"#,
+            x = fmt_f(left - 8.0),
+            y = fmt_f(y),
+            label = escape_xml(&label),
+        )
+        .unwrap();
+    }
+}
+
+fn render_lane_labels(s: &mut String, layout: &LayoutModel) {
+    if layout.is_vertical() {
+        for lane in &layout.lanes_ordered {
+            // In vertical layout, lane_y stores the center X of the lane column.
+            let cx = layout.lane_y[&lane.id];
+            writeln!(
+                s,
+                r#"  <text class="tdsl-lane-label" data-lane="{lane_id}" x="{x}" y="{y}" text-anchor="middle">{label}</text>"#,
+                lane_id = escape_xml_attr(&lane.id),
+                x = fmt_f(cx),
+                y = fmt_f(layout.opts.top_margin - 8.0),
+                label = escape_xml(&lane.label),
+            )
+            .unwrap();
+        }
+    } else {
+        for lane in &layout.lanes_ordered {
+            let y = layout.lane_y[&lane.id];
+            writeln!(
+                s,
+                r#"  <text class="tdsl-lane-label" data-lane="{lane_id}" x="{x}" y="{y}" text-anchor="end" dominant-baseline="middle">{label}</text>"#,
+                lane_id = escape_xml_attr(&lane.id),
+                x = fmt_f(layout.opts.left_gutter - 8.0),
+                y = fmt_f(y),
+                label = escape_xml(&lane.label),
+            )
+            .unwrap();
+        }
     }
 }
 
@@ -257,32 +319,58 @@ fn render_items(s: &mut String, layout: &LayoutModel) {
                 let tip_attr = escape_xml_attr(tooltip);
                 let lane_id = item_lane_id(item);
                 let dot_style = format!("fill:{color};");
-                let hit_x = *x - 8.0;
-                let hit_w = 16.0;
-                let hit_y = *y_top;
-                let hit_h = (y_bottom - y_top).max(20.0);
                 let data_attrs = if layout.opts.interactive {
                     build_data_attrs(item, lane_id)
                 } else {
                     String::new()
                 };
-                writeln!(
-                    s,
-                    r#"  <g class="tdsl-item tdsl-item-event" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"><title>{tip}</title></line><circle class="tdsl-event-dot" style="{dot_style}" cx="{x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
-                    tip = tip,
-                    tip_attr = tip_attr,
-                    dot_style = dot_style,
-                    data_attrs = data_attrs,
-                    hx = fmt_f(hit_x),
-                    hy = fmt_f(hit_y),
-                    hw = fmt_f(hit_w),
-                    hh = fmt_f(hit_h),
-                    x = fmt_f(*x),
-                    y1 = fmt_f(*y_top),
-                    y2 = fmt_f(*y_bottom),
-                    cy = fmt_f(*y_dot),
-                )
-                .unwrap();
+                if layout.is_vertical() {
+                    // Vertical layout: `x` = lane center X, `y_top`/`y_bottom`/`y_dot` = Y coords.
+                    // Stem is horizontal (same Y, x varies from y_top to y_bottom — reusing field names).
+                    let hit_x = *y_top;
+                    let hit_y = *x - 8.0;
+                    let hit_w = (y_bottom - y_top).max(20.0);
+                    let hit_h = 16.0;
+                    writeln!(
+                        s,
+                        r#"  <g class="tdsl-item tdsl-item-event" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x1}" y1="{cy}" x2="{x2}" y2="{cy}"><title>{tip}</title></line><circle class="tdsl-event-dot" style="{dot_style}" cx="{dot_x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
+                        tip = tip,
+                        tip_attr = tip_attr,
+                        dot_style = dot_style,
+                        data_attrs = data_attrs,
+                        hx = fmt_f(hit_x),
+                        hy = fmt_f(hit_y),
+                        hw = fmt_f(hit_w),
+                        hh = fmt_f(hit_h),
+                        x1 = fmt_f(*y_top),
+                        x2 = fmt_f(*y_bottom),
+                        cy = fmt_f(*x),
+                        dot_x = fmt_f(*y_dot),
+                    )
+                    .unwrap();
+                } else {
+                    let hit_x = *x - 8.0;
+                    let hit_w = 16.0;
+                    let hit_y = *y_top;
+                    let hit_h = (y_bottom - y_top).max(20.0);
+                    writeln!(
+                        s,
+                        r#"  <g class="tdsl-item tdsl-item-event" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"><title>{tip}</title></line><circle class="tdsl-event-dot" style="{dot_style}" cx="{x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
+                        tip = tip,
+                        tip_attr = tip_attr,
+                        dot_style = dot_style,
+                        data_attrs = data_attrs,
+                        hx = fmt_f(hit_x),
+                        hy = fmt_f(hit_y),
+                        hw = fmt_f(hit_w),
+                        hh = fmt_f(hit_h),
+                        x = fmt_f(*x),
+                        y1 = fmt_f(*y_top),
+                        y2 = fmt_f(*y_bottom),
+                        cy = fmt_f(*y_dot),
+                    )
+                    .unwrap();
+                }
             }
         }
     }
