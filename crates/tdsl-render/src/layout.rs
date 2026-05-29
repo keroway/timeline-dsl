@@ -16,6 +16,16 @@ pub(crate) const LANE_PALETTE: &[&str] = &[
     "#2980B9", // blue
 ];
 
+/// Timeline layout orientation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Orientation {
+    /// Time axis runs left→right; lanes are stacked top→bottom. (default)
+    #[default]
+    Horizontal,
+    /// Time axis runs top→bottom; lanes are arranged left→right.
+    Vertical,
+}
+
 /// Color/style theme for HTML output.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum Theme {
@@ -51,6 +61,8 @@ pub struct RenderOptions {
     pub interactive: bool,
     /// Custom font-family CSS value for SVG text. When None, uses the built-in CJK-friendly stack.
     pub font_family: Option<String>,
+    /// Timeline layout orientation: horizontal (default) or vertical.
+    pub orientation: Orientation,
 }
 
 impl Default for RenderOptions {
@@ -67,6 +79,7 @@ impl Default for RenderOptions {
             color_map: std::collections::HashMap::new(),
             interactive: false,
             font_family: None,
+            orientation: Orientation::Horizontal,
         }
     }
 }
@@ -157,16 +170,38 @@ impl<'a> LayoutModel<'a> {
         let mut lanes_ordered: Vec<&Lane> = ir.lanes.iter().collect();
         lanes_ordered.sort_by_key(|l| (l.order, l.id.clone()));
 
+        let is_vertical = opts.orientation == Orientation::Vertical;
+        let n_lanes = lanes_ordered.len();
+        let time_span = (year_max - year_min) as f64;
+
+        // lane_y stores:
+        //   horizontal → lane center Y coordinate
+        //   vertical   → lane center X coordinate (reusing the same field for "lane primary axis")
         let mut lane_y = HashMap::new();
-        for (idx, lane) in lanes_ordered.iter().enumerate() {
-            let center = opts.top_margin + (idx as f64 + 0.5) * opts.lane_height;
-            lane_y.insert(lane.id.clone(), center);
+        if is_vertical {
+            for (idx, lane) in lanes_ordered.iter().enumerate() {
+                // left_gutter is reserved for the time-axis labels on the left; lanes go rightward.
+                let center = opts.left_gutter + (idx as f64 + 0.5) * opts.lane_height;
+                lane_y.insert(lane.id.clone(), center);
+            }
+        } else {
+            for (idx, lane) in lanes_ordered.iter().enumerate() {
+                let center = opts.top_margin + (idx as f64 + 0.5) * opts.lane_height;
+                lane_y.insert(lane.id.clone(), center);
+            }
         }
 
-        let total_width =
-            opts.left_gutter + (year_max - year_min) as f64 * opts.scale + opts.right_margin;
-        let total_height =
-            opts.top_margin + lanes_ordered.len() as f64 * opts.lane_height + opts.bottom_margin;
+        let (total_width, total_height) = if is_vertical {
+            // vertical: time axis is Y, lanes are X columns.
+            // lane_height is reused as the lane column width.
+            let w = opts.left_gutter + n_lanes as f64 * opts.lane_height + opts.right_margin;
+            let h = opts.top_margin + time_span * opts.scale + opts.bottom_margin;
+            (w, h)
+        } else {
+            let w = opts.left_gutter + time_span * opts.scale + opts.right_margin;
+            let h = opts.top_margin + n_lanes as f64 * opts.lane_height + opts.bottom_margin;
+            (w, h)
+        };
 
         let tick_step = pick_tick_step(year_max - year_min, opts.scale, AXIS_LABEL_PX);
 
@@ -183,97 +218,65 @@ impl<'a> LayoutModel<'a> {
             .collect();
 
         // lane_bands: background band geometry per lane.
-        let content_width = total_width - opts.left_gutter - opts.right_margin;
-        let lane_bands: Vec<LaneBandModel> = lanes_ordered
-            .iter()
-            .enumerate()
-            .map(|(idx, _lane)| LaneBandModel {
-                x: opts.left_gutter,
-                y: opts.top_margin + idx as f64 * opts.lane_height,
-                width: content_width,
-                height: opts.lane_height,
-                even: idx % 2 == 0,
-            })
-            .collect();
+        let lane_bands: Vec<LaneBandModel> = if is_vertical {
+            let content_height = total_height - opts.top_margin - opts.bottom_margin;
+            lanes_ordered
+                .iter()
+                .enumerate()
+                .map(|(idx, _lane)| LaneBandModel {
+                    x: opts.left_gutter + idx as f64 * opts.lane_height,
+                    y: opts.top_margin,
+                    width: opts.lane_height,
+                    height: content_height,
+                    even: idx % 2 == 0,
+                })
+                .collect()
+        } else {
+            let content_width = total_width - opts.left_gutter - opts.right_margin;
+            lanes_ordered
+                .iter()
+                .enumerate()
+                .map(|(idx, _lane)| LaneBandModel {
+                    x: opts.left_gutter,
+                    y: opts.top_margin + idx as f64 * opts.lane_height,
+                    width: content_width,
+                    height: opts.lane_height,
+                    even: idx % 2 == 0,
+                })
+                .collect()
+        };
 
         let mut items = Vec::new();
         for item in &ir.items {
             let lane_id = item_lane_id(item);
-            let Some(&lane_cy) = lane_y.get(lane_id) else {
+            let Some(&lane_primary) = lane_y.get(lane_id) else {
                 continue;
             };
             let item_tags = get_item_tags(item);
             let color = resolve_item_color(item_tags, &opts.color_map, lane_id, &lane_colors);
             let tooltip = item_tooltip(item);
-            match item {
-                Item::Span {
-                    start,
-                    end,
-                    start_month,
-                    start_day,
-                    end_month,
-                    end_day,
-                    ..
-                } => {
-                    // 仕様 §1.4: start は year/月の頭、end は year/月の末日を採用（混在精度補完）
-                    let sf = start_frac(*start, *start_month, *start_day);
-                    let ef = end_frac(*end, *end_month, *end_day);
-                    let (x, width) =
-                        span_x_width_frac(sf, ef, year_min, year_max, opts.scale, opts.left_gutter);
-                    items.push(LaidItem::Span {
-                        item,
-                        x,
-                        y: lane_cy - SPAN_HALF_H,
-                        width,
-                        height: SPAN_HALF_H * 2.0,
-                        color,
-                        tooltip,
-                    });
-                }
-                Item::EventRange {
-                    start,
-                    end,
-                    start_month,
-                    start_day,
-                    end_month,
-                    end_day,
-                    ..
-                } => {
-                    let sf = start_frac(*start, *start_month, *start_day);
-                    let ef = end_frac(*end, *end_month, *end_day);
-                    let (x, width) =
-                        span_x_width_frac(sf, ef, year_min, year_max, opts.scale, opts.left_gutter);
-                    items.push(LaidItem::EventRange {
-                        item,
-                        x,
-                        y: lane_cy + EVENT_RANGE_Y_OFFSET,
-                        width,
-                        height: EVENT_RANGE_H,
-                        color,
-                        tooltip,
-                    });
-                }
-                Item::Event {
-                    time,
-                    time_month,
-                    time_day,
-                    ..
-                } => {
-                    if !year_in_range(*time, year_min, year_max) {
-                        continue;
-                    }
-                    let frac = to_year_frac(*time, *time_month, *time_day);
-                    let x = frac_to_x(frac, year_min, opts.scale, opts.left_gutter);
-                    items.push(LaidItem::Event {
-                        item,
-                        x,
-                        y_top: lane_cy - EVENT_STEM_H,
-                        y_bottom: lane_cy + EVENT_STEM_H,
-                        y_dot: lane_cy,
-                        color,
-                        tooltip,
-                    });
-                }
+            if is_vertical {
+                compute_item_vertical(
+                    item,
+                    &mut items,
+                    lane_primary,
+                    year_min,
+                    year_max,
+                    &opts,
+                    color,
+                    tooltip,
+                );
+            } else {
+                compute_item_horizontal(
+                    item,
+                    &mut items,
+                    lane_primary,
+                    year_min,
+                    year_max,
+                    &opts,
+                    color,
+                    tooltip,
+                );
             }
         }
 
@@ -290,6 +293,23 @@ impl<'a> LayoutModel<'a> {
             items,
             lane_bands,
             lane_colors,
+        }
+    }
+
+    /// Returns `true` when the layout uses a vertical (top-to-bottom time axis) orientation.
+    pub fn is_vertical(&self) -> bool {
+        self.opts.orientation == Orientation::Vertical
+    }
+
+    /// Convert a year to the primary axis coordinate.
+    ///
+    /// - Horizontal: returns the X coordinate.
+    /// - Vertical:   returns the Y coordinate.
+    pub fn year_to_primary(&self, year: i64) -> f64 {
+        if self.is_vertical() {
+            self.opts.top_margin + (year - self.year_min) as f64 * self.opts.scale
+        } else {
+            year_to_x(year, self.year_min, self.opts.scale, self.opts.left_gutter)
         }
     }
 
@@ -394,6 +414,199 @@ impl<'a> LayoutModel<'a> {
             y += step;
         }
         ticks
+    }
+}
+
+// --- item layout helpers ---
+
+#[allow(clippy::too_many_arguments)]
+fn compute_item_horizontal<'a>(
+    item: &'a Item,
+    items: &mut Vec<LaidItem<'a>>,
+    lane_cy: f64,
+    year_min: i64,
+    year_max: i64,
+    opts: &RenderOptions,
+    color: String,
+    tooltip: String,
+) {
+    match item {
+        Item::Span {
+            start,
+            end,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
+            ..
+        } => {
+            // 仕様 §1.4: start は year/月の頭、end は year/月の末日を採用（混在精度補完）
+            let sf = start_frac(*start, *start_month, *start_day);
+            let ef = end_frac(*end, *end_month, *end_day);
+            let (x, width) =
+                span_x_width_frac(sf, ef, year_min, year_max, opts.scale, opts.left_gutter);
+            items.push(LaidItem::Span {
+                item,
+                x,
+                y: lane_cy - SPAN_HALF_H,
+                width,
+                height: SPAN_HALF_H * 2.0,
+                color,
+                tooltip,
+            });
+        }
+        Item::EventRange {
+            start,
+            end,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
+            ..
+        } => {
+            let sf = start_frac(*start, *start_month, *start_day);
+            let ef = end_frac(*end, *end_month, *end_day);
+            let (x, width) =
+                span_x_width_frac(sf, ef, year_min, year_max, opts.scale, opts.left_gutter);
+            items.push(LaidItem::EventRange {
+                item,
+                x,
+                y: lane_cy + EVENT_RANGE_Y_OFFSET,
+                width,
+                height: EVENT_RANGE_H,
+                color,
+                tooltip,
+            });
+        }
+        Item::Event {
+            time,
+            time_month,
+            time_day,
+            ..
+        } => {
+            if !year_in_range(*time, year_min, year_max) {
+                return;
+            }
+            let frac = to_year_frac(*time, *time_month, *time_day);
+            let x = frac_to_x(frac, year_min, opts.scale, opts.left_gutter);
+            items.push(LaidItem::Event {
+                item,
+                x,
+                y_top: lane_cy - EVENT_STEM_H,
+                y_bottom: lane_cy + EVENT_STEM_H,
+                y_dot: lane_cy,
+                color,
+                tooltip,
+            });
+        }
+    }
+}
+
+/// Compute item coordinates for vertical layout.
+///
+/// In vertical orientation:
+/// - `lane_primary` is the lane's center X coordinate.
+/// - `LaidItem::Span { x, y, width, height }`:
+///   - x = lane_primary - SPAN_HALF_H (left edge of the band)
+///   - y = top_margin + (start_frac - year_min) * scale
+///   - width = SPAN_HALF_H * 2
+///   - height = (end_frac - start_frac) * scale
+/// - `LaidItem::Event { x, y_top, y_bottom, y_dot }`:
+///   - The fields are repurposed: x = lane_primary, y_top/y_bottom = stem extents (Y),
+///     y_dot = dot Y. The SVG emitter switches to a horizontal stem when `is_vertical()`.
+#[allow(clippy::too_many_arguments)]
+fn compute_item_vertical<'a>(
+    item: &'a Item,
+    items: &mut Vec<LaidItem<'a>>,
+    lane_primary: f64,
+    year_min: i64,
+    year_max: i64,
+    opts: &RenderOptions,
+    color: String,
+    tooltip: String,
+) {
+    match item {
+        Item::Span {
+            start,
+            end,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
+            ..
+        } => {
+            let sf = start_frac(*start, *start_month, *start_day);
+            let ef = end_frac(*end, *end_month, *end_day);
+            let (y, height) = span_y_height_frac_vertical(
+                sf,
+                ef,
+                year_min,
+                year_max,
+                opts.scale,
+                opts.top_margin,
+            );
+            items.push(LaidItem::Span {
+                item,
+                x: lane_primary - SPAN_HALF_H,
+                y,
+                width: SPAN_HALF_H * 2.0,
+                height,
+                color,
+                tooltip,
+            });
+        }
+        Item::EventRange {
+            start,
+            end,
+            start_month,
+            start_day,
+            end_month,
+            end_day,
+            ..
+        } => {
+            let sf = start_frac(*start, *start_month, *start_day);
+            let ef = end_frac(*end, *end_month, *end_day);
+            let (y, height) = span_y_height_frac_vertical(
+                sf,
+                ef,
+                year_min,
+                year_max,
+                opts.scale,
+                opts.top_margin,
+            );
+            items.push(LaidItem::EventRange {
+                item,
+                x: lane_primary - EVENT_RANGE_H / 2.0,
+                y,
+                width: EVENT_RANGE_H,
+                height,
+                color,
+                tooltip,
+            });
+        }
+        Item::Event {
+            time,
+            time_month,
+            time_day,
+            ..
+        } => {
+            if !year_in_range(*time, year_min, year_max) {
+                return;
+            }
+            let frac = to_year_frac(*time, *time_month, *time_day);
+            let y_dot = opts.top_margin + (frac - year_min as f64) * opts.scale;
+            // For vertical events, `x` = lane center, `y_top`/`y_bottom` are Y extents of the stem.
+            // The SVG emitter checks is_vertical() and draws a horizontal stem instead.
+            items.push(LaidItem::Event {
+                item,
+                x: lane_primary,
+                y_top: y_dot - EVENT_STEM_H,
+                y_bottom: y_dot + EVENT_STEM_H,
+                y_dot,
+                color,
+                tooltip,
+            });
+        }
     }
 }
 
@@ -597,6 +810,26 @@ fn span_x_width_frac(
         return (frac_to_x(start_frac, year_min, scale, left_gutter), 0.0);
     }
     (frac_to_x(s, year_min, scale, left_gutter), (e - s) * scale)
+}
+
+/// Compute (y, height) for a span/event-range in vertical layout.
+fn span_y_height_frac_vertical(
+    start_frac: f64,
+    end_frac: f64,
+    year_min: i64,
+    year_max: i64,
+    scale: f64,
+    top_margin: f64,
+) -> (f64, f64) {
+    let s = start_frac.max(year_min as f64);
+    let e = end_frac.min(year_max as f64);
+    if e < s {
+        let y = top_margin + (start_frac - year_min as f64) * scale;
+        return (y, 0.0);
+    }
+    let y = top_margin + (s - year_min as f64) * scale;
+    let height = (e - s) * scale;
+    (y, height)
 }
 
 fn derive_range_from_items(ir: &TimelineIr) -> Option<(i64, i64)> {
