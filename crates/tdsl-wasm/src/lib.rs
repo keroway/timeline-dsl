@@ -93,6 +93,7 @@ mod tests {
                 label: "A".into(),
                 kind: "custom".into(),
                 order: 1,
+                group: None,
                 source_span: None,
             }],
             items: vec![Item::Span {

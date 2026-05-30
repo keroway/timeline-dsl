@@ -27,6 +27,13 @@ pub fn build_file(pairs: Pairs<'_, Rule>) -> Result<File> {
                     span,
                 });
             }
+            Rule::group_decl => {
+                let span = pair_span(&pair);
+                statements.push(Spanned {
+                    node: Statement::Group(build_group(pair)?),
+                    span,
+                });
+            }
             Rule::span_decl => {
                 let span = pair_span(&pair);
                 statements.push(Spanned {
@@ -157,6 +164,20 @@ fn build_lane(pair: Pair<'_, Rule>) -> Result<LaneDecl> {
         }
     }
     Ok(decl)
+}
+
+// ─── Group ──────────────────────────────────────────────────
+
+fn build_group(pair: Pair<'_, Rule>) -> Result<GroupDecl> {
+    let mut inner = pair.into_inner();
+    let label = extract_string_literal(&inner.next().unwrap());
+    let mut lanes = Vec::new();
+    for item in inner {
+        if item.as_rule() == Rule::lane_decl {
+            lanes.push(build_lane(item)?);
+        }
+    }
+    Ok(GroupDecl { label, lanes })
 }
 
 // ─── Span ───────────────────────────────────────────────────

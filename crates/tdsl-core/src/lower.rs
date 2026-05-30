@@ -196,38 +196,12 @@ impl LoweringContext {
                     });
                 }
                 ast::Statement::Lane(l) => {
-                    let id = l.alias.clone().unwrap_or_else(|| {
-                        let s = slug(&l.label);
-                        if s.is_empty() {
-                            let auto = format!("lane_{}", self.lane_auto_id);
-                            self.lane_auto_id += 1;
-                            auto
-                        } else {
-                            s
-                        }
-                    });
-                    if self.lanes_map.contains_key(&id) {
-                        self.errors.push(LoweringError::DuplicateLane(id.clone()));
-                        continue;
+                    self.lower_lane_decl(l, None, &stmt.span, line_offsets);
+                }
+                ast::Statement::Group(g) => {
+                    for l in &g.lanes {
+                        self.lower_lane_decl(l, Some(&g.label), &stmt.span, line_offsets);
                     }
-                    let source_span = line_offsets.map(|lo| {
-                        let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
-                        let (_, col_end) = offset_to_line_col(stmt.span.end, lo);
-                        SourceSpan {
-                            line,
-                            col_start,
-                            col_end,
-                        }
-                    });
-                    let lane = Lane {
-                        id: id.clone(),
-                        label: l.label.clone(),
-                        kind: l.kind.clone().unwrap_or_else(|| "custom".to_string()),
-                        order: l.order.unwrap_or(0),
-                        source_span,
-                    };
-                    self.lane_order.push(id.clone());
-                    self.lanes_map.insert(id, lane);
                 }
                 ast::Statement::Template(t) => {
                     let key = t.alias.clone().unwrap_or_else(|| t.name.clone());
@@ -244,6 +218,48 @@ impl LoweringContext {
         if self.meta.is_none() {
             self.errors.push(LoweringError::NoTimeline);
         }
+    }
+
+    fn lower_lane_decl(
+        &mut self,
+        l: &ast::LaneDecl,
+        group: Option<&str>,
+        stmt_span: &ast::Span,
+        line_offsets: Option<&[usize]>,
+    ) {
+        let id = l.alias.clone().unwrap_or_else(|| {
+            let s = slug(&l.label);
+            if s.is_empty() {
+                let auto = format!("lane_{}", self.lane_auto_id);
+                self.lane_auto_id += 1;
+                auto
+            } else {
+                s
+            }
+        });
+        if self.lanes_map.contains_key(&id) {
+            self.errors.push(LoweringError::DuplicateLane(id.clone()));
+            return;
+        }
+        let source_span = line_offsets.map(|lo| {
+            let (line, col_start) = offset_to_line_col(stmt_span.start, lo);
+            let (_, col_end) = offset_to_line_col(stmt_span.end, lo);
+            SourceSpan {
+                line,
+                col_start,
+                col_end,
+            }
+        });
+        let lane = Lane {
+            id: id.clone(),
+            label: l.label.clone(),
+            kind: l.kind.clone().unwrap_or_else(|| "custom".to_string()),
+            order: l.order.unwrap_or(0),
+            group: group.map(|s| s.to_string()),
+            source_span,
+        };
+        self.lane_order.push(id.clone());
+        self.lanes_map.insert(id, lane);
     }
 
     /// Pass 2: Lower static items (span, event, event_range).
