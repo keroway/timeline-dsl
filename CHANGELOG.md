@@ -7,13 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-05-30
+
 ### Added
 
 - **`textDocument/codeAction` で lint auto-fix を quick fix として提供**: LSP サーバに `textDocument/codeAction` を追加。fixable な lint issue（`start_gt_end` / `invalid_tags` / `missing_id`）が存在するとき、`tdsl lint --fix` 相当の自動修正を 1 件の quick fix「tdsl: 自動修正可能な lint をすべて修正 (N 件)」として提示する。適用すると `WorkspaceEdit` でドキュメント全文が修正後ソースに置換される（`tdsl lint --fix` と**同一の emitter** を使うため出力は一致する。全文再 emit 方式のためコメントは整形時に失われる）。fixable でない issue（`unknown_lane` / `duplicate_id` / `empty_label`）しか無い場合は quick fix を出さない。client が `workspace.workspaceEdit.documentChanges` をサポートする場合、全文置換はドキュメントバージョン付きの `documentChanges` として返すため、コードアクション計算後に編集された場合は client がバージョン不一致を検出して stale な置換の適用を拒否する（新しい編集を上書きしない）。非対応クライアントには `changes`（バージョン保護なし）にフォールバックする。ネットワーク I/O 不要（offline 前提）。修正・再 emit ロジックは `tdsl-core::lint::fix_source`（`tdsl-parser::format_file` で AST を再 emit）として公開 API 化し、CLI / LSP で共有する (#311)
+- **`tdsl render --orientation vertical`（垂直レイアウト）を追加**: `tdsl render` に `--orientation horizontal|vertical` オプションを追加し、時間軸を縦方向（上→下）に描画する垂直レイアウトをサポートした。`tdsl-render` の `RenderOptions` に `Orientation`（`Horizontal` / `Vertical`）を追加し、`LayoutModel` が向きに応じてレーン軸と時間軸を入れ替える。SVG / HTML / インタラクティブ HTML / PNG / PDF の全出力形式に対応。デフォルトは `Horizontal` で既存の出力・`.tdsl` ファイルは不変（後方互換）(#320)
+- **`textDocument/references` で lane ID の全参照位置を返す**: LSP サーバに `textDocument/references` を追加。lane の宣言または参照箇所にカーソルを当てると、その lane ID の全参照位置（`lane` 宣言・`span` / `event` / `event_range` の `lane` 指定・`map` の `lane` プロパティ）を返す。`includeDeclaration` の指定を尊重する。ソーステキストの静的解析で解決し、ネットワーク I/O 不要（offline 前提）(#331)
+- **`textDocument/rename` / `prepareRename` で lane ID の一括リネーム**: LSP サーバに `textDocument/rename` と `prepareRename` を追加。lane ID を宣言・全参照箇所まとめて `WorkspaceEdit` で一括置換する。`prepareRename` でリネーム可能な範囲を事前検証し、lane ID 以外（キーワード・文字列リテラル等）の上ではリネームを拒否する。ネットワーク I/O 不要（offline 前提）(#332)
+- **`textDocument/documentSymbol` で階層シンボルを提供**: LSP サーバに `textDocument/documentSymbol` を追加。`timeline`（Module）> `lane`（Namespace）> `span` / `event` / `event_range`（Array / Event）の階層構造でドキュメントシンボルを返す。`source_span` を用いた正確な Range（CJK を含む UTF-16 オフセット対応）を付与する。パース不能・IR エラー時は黙ってフォールバックせず空リストを返す。ネットワーク I/O 不要（offline 前提）(#333)
 
 ### Changed
 
 - **`tdsl lint --fix` の再 emit を正準フォーマッタに統一**: `tdsl lint --fix` の出力を、CLI 独自の emitter から `tdsl-parser` の正準フォーマッタ（`tdsl fmt` / WebUI Format と同じ `format_file`）に統一した。これにより LSP の Code Action（quick fix）と `tdsl lint --fix` が同一の出力になることを保証し、CLI 内に重複していた再 emit ロジック（約 370 行）を削除した。出力スタイルが従来のインライン 1 行から 2 スペースインデントの複数行に変わり、従来の CLI emitter が取りこぼしていた `timeline` の `color_map` ブロックも保持されるようになった (#311)
+
+### Internal
+
+- **`tdsl-core/src/lib.rs` を機能別テストモジュールに分割**: 約 2000 行に肥大化していた `lib.rs` 末尾の統合テストを `tests/{helpers,lower_static,lower_wikidata,validation}.rs` に分割し、`tests/mod.rs` から束ねる構成に整理した。プロダクションコード・テスト内容・挙動は不変（#319）
+- **レンダリングのレイアウトエンジンを `LayoutModel` に集約**: `LaneBandModel`・色解決（`resolve_item_color` + レーンパレット）・ツールチップ生成（`item_tooltip` / `format_year` / `format_date` 等）を `svg.rs` から `layout.rs` の `LayoutModel` へ移動し、各 `LaidItem` に解決済みの `color` / `tooltip` を事前計算して持たせた。`svg.rs` は pre-resolved なプリミティブを SVG XML に変換するだけになった。出力は不変（既存テスト・e2e smoke 通過）(#322)
 
 ## [1.12.0] - 2026-05-27
 
@@ -277,6 +288,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.13.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.12.0...v1.13.0
+[1.12.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.11.0...v1.12.0
+[1.11.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.10.1...v1.11.0
 [1.10.1]: https://github.com/keroway/timeline-dsl/releases/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.8.0...v1.9.0

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-05-30
+
+### Changed
+
+- Sync extension version with timeline-dsl v1.13.0 release
+
 ## [1.12.0] - 2026-05-27
 
 ### Changed
