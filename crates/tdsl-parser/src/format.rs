@@ -9,9 +9,9 @@ use std::fmt::Write;
 
 use crate::ast::{
     ApplyBlock, ClaimExpr, CompareOp, EventDecl, EventRangeDecl, FieldPriorityConfig,
-    FieldStrategy, File, FilterExpr, FilterOperand, ImportBlock, ImportItem, ItemProps, LabelExpr,
-    LaneDecl, MapBlock, MapExpr, MapProp, MapTargetType, ReimportPolicy, SourceRef, SpanDecl,
-    Statement, TemplateBlock, TimelineBlock,
+    FieldStrategy, File, FilterExpr, FilterOperand, GroupDecl, ImportBlock, ImportItem, ItemProps,
+    LabelExpr, LaneDecl, MapBlock, MapExpr, MapProp, MapTargetType, ReimportPolicy, SourceRef,
+    SpanDecl, Statement, TemplateBlock, TimelineBlock,
 };
 use crate::error::ParseError;
 
@@ -46,6 +46,7 @@ fn write_statement(out: &mut String, stmt: &Statement) {
     match stmt {
         Statement::Timeline(b) => write_timeline(out, b),
         Statement::Lane(b) => write_lane(out, b),
+        Statement::Group(b) => write_group(out, b),
         Statement::Span(b) => write_span(out, b),
         Statement::Event(b) => write_event(out, b),
         Statement::EventRange(b) => write_event_range(out, b),
@@ -54,6 +55,19 @@ fn write_statement(out: &mut String, stmt: &Statement) {
         Statement::Template(b) => write_template(out, b),
         Statement::Apply(b) => write_apply(out, b),
     }
+}
+
+fn write_group(out: &mut String, b: &GroupDecl) {
+    writeln!(out, r#"group "{}" {{"#, escape_string(&b.label)).unwrap();
+    for lane in &b.lanes {
+        // インデントして lane を emit する
+        let mut lane_out = String::new();
+        write_lane(&mut lane_out, lane);
+        for line in lane_out.lines() {
+            writeln!(out, "{INDENT}{line}").unwrap();
+        }
+    }
+    writeln!(out, "}}").unwrap();
 }
 
 // ─── timeline ────────────────────────────────────────────────────────────────

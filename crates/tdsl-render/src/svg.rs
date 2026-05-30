@@ -33,6 +33,7 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     .unwrap();
 
     render_lane_bands(&mut s, layout);
+    render_group_headers(&mut s, layout);
     render_axis(&mut s, layout);
     render_lane_labels(&mut s, layout);
     render_items(&mut s, layout);
@@ -201,6 +202,59 @@ fn render_axis_vertical(s: &mut String, layout: &LayoutModel) {
             label = escape_xml(&label),
         )
         .unwrap();
+    }
+}
+
+fn render_group_headers(s: &mut String, layout: &LayoutModel) {
+    // 各グループの先頭レーン（最も小さい y 座標 = 最上部）を特定してヘッダーを描画する。
+    // グループ名をキーに、先頭レーンの lane_y を集める。
+    let mut group_top: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
+    for lane in &layout.lanes_ordered {
+        let Some(group) = lane.group.as_deref() else {
+            continue;
+        };
+        let center = layout.lane_y[&lane.id];
+        let top = center - layout.opts.lane_height / 2.0;
+        let entry = group_top.entry(group).or_insert(top);
+        if top < *entry {
+            *entry = top;
+        }
+    }
+    if group_top.is_empty() {
+        return;
+    }
+
+    // グループ先頭位置に区切り線とラベルを描画する。
+    for (group_label, top_y) in &group_top {
+        let label = escape_xml(group_label);
+        if layout.is_vertical() {
+            // 垂直レイアウト: グループ内の一番左のレーン列の上にラベルを出す。
+            writeln!(
+                s,
+                r#"  <text class="tdsl-group-label" x="{x}" y="{y}" text-anchor="middle" font-weight="bold" font-size="11">{label}</text>"#,
+                x = fmt_f(*top_y + layout.opts.lane_height / 2.0),
+                y = fmt_f(layout.opts.top_margin - 20.0),
+            )
+            .unwrap();
+        } else {
+            // 水平レイアウト: バンドの上辺に区切り線とラベルを描画する。
+            let x2 = layout.total_width - layout.opts.right_margin;
+            writeln!(
+                s,
+                r##"  <line class="tdsl-group-separator" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" stroke="#aaa" stroke-width="1"/>  "##,
+                x1 = fmt_f(0.0),
+                y = fmt_f(*top_y),
+                x2 = fmt_f(x2),
+            )
+            .unwrap();
+            writeln!(
+                s,
+                r#"  <text class="tdsl-group-label" x="{x}" y="{y}" text-anchor="middle" font-weight="bold" font-size="11">{label}</text>"#,
+                x = fmt_f(layout.opts.left_gutter / 2.0),
+                y = fmt_f(top_y - 3.0),
+            )
+            .unwrap();
+        }
     }
 }
 
@@ -513,6 +567,7 @@ mod tests {
                 label: "漢".into(),
                 kind: "dynasty".into(),
                 order: 10,
+                group: None,
                 source_span: None,
             }],
             items: vec![
@@ -615,6 +670,7 @@ mod tests {
                 label: "漢".into(),
                 kind: "dynasty".into(),
                 order: 10,
+                group: None,
                 source_span: None,
             }],
             items: vec![Item::Event {

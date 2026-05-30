@@ -1,5 +1,5 @@
 export const BLOCK_KEYWORDS = [
-  "timeline", "lane", "import", "map", "template", "apply", "color_map", "policy",
+  "timeline", "lane", "group", "import", "map", "template", "apply", "color_map", "policy",
 ]
 
 export const ITEM_KEYWORDS = [

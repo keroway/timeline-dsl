@@ -181,6 +181,7 @@ mod tests {
                 label: "Lane A".to_string(),
                 kind: "dynasty".to_string(),
                 order: 10,
+                group: None,
                 source_span: None,
             }],
             items: vec![
@@ -342,6 +343,7 @@ mod tests {
                 label: "X".to_string(),
                 kind: "custom".to_string(),
                 order: 1,
+                group: None,
                 source_span: None,
             }],
             items: vec![],

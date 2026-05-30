@@ -93,6 +93,7 @@ mod tests {
                 label: "漢".into(),
                 kind: "dynasty".into(),
                 order: 10,
+                group: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
