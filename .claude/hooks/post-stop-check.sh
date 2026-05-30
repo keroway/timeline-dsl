@@ -176,12 +176,30 @@ if [ "$RUST_CHANGED" -eq 1 ]; then
 fi
 
 if [ "$WEBUI_CHANGED" -eq 1 ]; then
-  if [ -d apps/webui ] && command -v npm >/dev/null 2>&1; then
-    run_step "apps/webui" "npm run lint (apps/webui)" npm run --silent lint
+  if command -v npm >/dev/null 2>&1; then
+    # worktree では node_modules が存在しないため、main repo の apps/webui を優先する。
+    # git rev-parse --git-common-dir は main repo の .git を返す（worktree では別パス）。
+    WEBUI_DIR="$PROJECT_DIR/apps/webui"
+    if [ ! -d "$WEBUI_DIR/node_modules" ]; then
+      GIT_COMMON_DIR="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+      if [ -n "$GIT_COMMON_DIR" ]; then
+        MAIN_ROOT="$(cd "${GIT_COMMON_DIR}/.." 2>/dev/null && pwd || true)"
+        if [ -d "${MAIN_ROOT}/apps/webui/node_modules" ]; then
+          WEBUI_DIR="${MAIN_ROOT}/apps/webui"
+        fi
+      fi
+    fi
+    if [ -d "$WEBUI_DIR" ]; then
+      run_step "$WEBUI_DIR" "npm run lint (apps/webui)" npm run --silent lint
+    else
+      FAILED=1
+      append_report ""
+      append_report "❌ apps/webui ディレクトリが見つかりません。WebUI が変更されているのに検証できませんでした。"
+    fi
   else
     FAILED=1
     append_report ""
-    append_report "❌ apps/webui または npm が見つかりません。WebUI が変更されているのに検証できませんでした。"
+    append_report "❌ npm が見つかりません。WebUI が変更されているのに検証できませんでした。"
   fi
 fi
 
