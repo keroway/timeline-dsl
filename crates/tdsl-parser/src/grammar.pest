@@ -5,6 +5,7 @@ file = { SOI ~ statement* ~ EOI }
 statement = _{
     timeline_block
   | lane_decl
+  | group_decl
   | span_decl
   | event_decl
   | event_range_decl
@@ -39,6 +40,11 @@ lane_prop = _{
 }
 kind_prop  = { "kind" ~ ident ~ ";" }
 order_prop = { "order" ~ integer ~ ";" }
+
+// ─── Group Declaration ──────────────────────────────────────
+group_decl = {
+    "group" ~ string_literal ~ "{" ~ lane_decl+ ~ "}"
+}
 
 // ─── Span Declaration ───────────────────────────────────────
 span_decl = {

@@ -746,3 +746,88 @@ fn lower_static_json_omits_source_span_when_none() {
         "JSON without source should omit 'source_span'"
     );
 }
+
+// ─── group ブロックの lowering テスト ───────────────────────────
+
+#[test]
+fn lower_group_lanes_carry_group_field() {
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        group "古代" {
+            lane "秦" as qin {}
+            lane "漢" as han {}
+        }
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let qin = ir.lanes.iter().find(|l| l.id == "qin").unwrap();
+    let han = ir.lanes.iter().find(|l| l.id == "han").unwrap();
+    assert_eq!(qin.group.as_deref(), Some("古代"));
+    assert_eq!(han.group.as_deref(), Some("古代"));
+}
+
+#[test]
+fn lower_standalone_lane_has_no_group() {
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        lane "独立" as standalone {}
+        group "G" { lane "G1" as g1 {} }
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let standalone = ir.lanes.iter().find(|l| l.id == "standalone").unwrap();
+    let g1 = ir.lanes.iter().find(|l| l.id == "g1").unwrap();
+    assert!(
+        standalone.group.is_none(),
+        "standalone lane must have no group"
+    );
+    assert_eq!(g1.group.as_deref(), Some("G"));
+}
+
+#[test]
+fn lower_group_field_absent_in_json_for_standalone_lanes() {
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        lane "独立" as standalone {}
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let json = serde_json::to_string(&ir).unwrap();
+    assert!(
+        !json.contains("\"group\""),
+        "JSON must not contain 'group' field when all lanes are standalone"
+    );
+}
+
+#[test]
+fn lower_group_field_present_in_json_when_group_set() {
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        group "グループA" { lane "A1" as a1 {} }
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let json = serde_json::to_string(&ir).unwrap();
+    assert!(
+        json.contains("\"group\""),
+        "JSON must contain 'group' field when a lane belongs to a group"
+    );
+    assert!(json.contains("グループA"));
+}
+
+#[test]
+fn lower_group_duplicate_lane_id_is_error() {
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        group "G" {
+            lane "A" as dup {}
+        }
+        lane "B" as dup {}
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let result = lower::lower_static(&file);
+    assert!(
+        result.is_err(),
+        "duplicate lane id across group and standalone must fail"
+    );
+}

@@ -12,6 +12,7 @@
 pub const BLOCK_KEYWORDS: &[&str] = &[
     "timeline",
     "lane",
+    "group",
     "import",
     "map",
     "template",

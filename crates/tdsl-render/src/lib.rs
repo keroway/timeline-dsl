@@ -58,6 +58,7 @@ mod tests {
                 label: "漢".into(),
                 kind: "dynasty".into(),
                 order: 10,
+                group: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -124,6 +125,7 @@ mod tests {
                     label: "B".into(),
                     kind: "dynasty".into(),
                     order: 20,
+                    group: None,
                     source_span: None,
                 },
                 Lane {
@@ -131,6 +133,7 @@ mod tests {
                     label: "A".into(),
                     kind: "dynasty".into(),
                     order: 10,
+                    group: None,
                     source_span: None,
                 },
             ],
@@ -182,6 +185,7 @@ mod tests {
                 label: "政治".into(),
                 kind: "custom".into(),
                 order: 1,
+                group: None,
                 source_span: None,
             }],
             items: vec![Item::Event {
@@ -219,6 +223,7 @@ mod tests {
                 label: "戦争".into(),
                 kind: "custom".into(),
                 order: 1,
+                group: None,
                 source_span: None,
             }],
             items: vec![Item::EventRange {
@@ -309,6 +314,7 @@ mod tests {
                 label: "漢".into(),
                 kind: "dynasty".into(),
                 order: 10,
+                group: None,
                 source_span: None,
             }],
             items: vec![
@@ -374,6 +380,7 @@ mod tests {
                 label: "WW2".into(),
                 kind: "conflict".into(),
                 order: 10,
+                group: None,
                 source_span: None,
             }],
             items: vec![
@@ -472,6 +479,7 @@ mod tests {
                     label: "A".into(),
                     kind: "k".into(),
                     order: 1,
+                    group: None,
                     source_span: None,
                 },
                 Lane {
@@ -479,6 +487,7 @@ mod tests {
                     label: "B".into(),
                     kind: "k".into(),
                     order: 2,
+                    group: None,
                     source_span: None,
                 },
             ],
@@ -575,6 +584,7 @@ mod tests {
                 label: "X".into(),
                 kind: "k".into(),
                 order: 1,
+                group: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -633,6 +643,94 @@ mod tests {
         assert!(
             !html_default.contains("tdsl-legend"),
             "non-interactive mode must not include legend"
+        );
+    }
+
+    // ─── group ヘッダー描画テスト ────────────────────────────────
+
+    fn grouped_ir() -> TimelineIr {
+        TimelineIr {
+            meta: Meta {
+                title: "グループテスト".into(),
+                unit: "year".into(),
+                range: (0, 100),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![
+                Lane {
+                    id: "a".into(),
+                    label: "A".into(),
+                    kind: "custom".into(),
+                    order: 1,
+                    group: Some("グループ1".into()),
+                    source_span: None,
+                },
+                Lane {
+                    id: "b".into(),
+                    label: "B".into(),
+                    kind: "custom".into(),
+                    order: 2,
+                    group: Some("グループ1".into()),
+                    source_span: None,
+                },
+                Lane {
+                    id: "c".into(),
+                    label: "C".into(),
+                    kind: "custom".into(),
+                    order: 10,
+                    group: None,
+                    source_span: None,
+                },
+            ],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        }
+    }
+
+    #[test]
+    fn render_svg_grouped_lanes_contains_group_label() {
+        let ir = grouped_ir();
+        let svg = render_svg_only(&ir, RenderOptions::default());
+        assert!(
+            svg.contains("グループ1"),
+            "SVG must contain the group label 'グループ1'"
+        );
+        assert!(
+            svg.contains("tdsl-group-label"),
+            "SVG must contain the tdsl-group-label class"
+        );
+    }
+
+    #[test]
+    fn render_svg_no_group_label_when_no_groups() {
+        let ir = sample_ir();
+        let svg = render_svg_only(&ir, RenderOptions::default());
+        assert!(
+            !svg.contains("tdsl-group-label"),
+            "SVG must not contain group labels when no lanes have groups"
+        );
+    }
+
+    #[test]
+    fn render_svg_group_separator_present() {
+        let ir = grouped_ir();
+        let svg = render_svg_only(&ir, RenderOptions::default());
+        assert!(
+            svg.contains("tdsl-group-separator"),
+            "SVG must contain the tdsl-group-separator element"
+        );
+    }
+
+    #[test]
+    fn render_html_grouped_lanes_contains_group_label() {
+        let ir = grouped_ir();
+        let html = render_html(&ir, RenderOptions::default());
+        assert!(
+            html.contains("グループ1"),
+            "HTML must contain the group label 'グループ1'"
         );
     }
 }

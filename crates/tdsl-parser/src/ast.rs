@@ -23,6 +23,7 @@ pub struct File {
 pub enum Statement {
     Timeline(TimelineBlock),
     Lane(LaneDecl),
+    Group(GroupDecl),
     Span(SpanDecl),
     Event(EventDecl),
     EventRange(EventRangeDecl),
@@ -121,6 +122,13 @@ pub struct LaneDecl {
     pub alias: Option<String>,
     pub kind: Option<String>,
     pub order: Option<i64>,
+}
+
+/// `group "名前" { lane ... }` 宣言のAST表現。
+#[derive(Debug, Clone, PartialEq)]
+pub struct GroupDecl {
+    pub label: String,
+    pub lanes: Vec<LaneDecl>,
 }
 
 // ─── Items ──────────────────────────────────────────────────

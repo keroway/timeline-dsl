@@ -1350,4 +1350,68 @@ timeline "t" {
             "UnknownPolicy は source_location = None"
         );
     }
+
+    // ─── group ブロック ───────────────────────────────────────────
+
+    #[test]
+    fn parse_group_with_two_lanes() {
+        let src = r#"
+            group "古代" {
+                lane "秦" as qin {}
+                lane "漢" as han { kind dynasty; order 10; }
+            }
+        "#;
+        let file = parse(src).expect("group with two lanes must parse");
+        assert_eq!(file.statements.len(), 1);
+        match &file.statements[0].node {
+            ast::Statement::Group(g) => {
+                assert_eq!(g.label, "古代");
+                assert_eq!(g.lanes.len(), 2);
+                assert_eq!(g.lanes[0].label, "秦");
+                assert_eq!(g.lanes[0].alias.as_deref(), Some("qin"));
+                assert_eq!(g.lanes[1].label, "漢");
+                assert_eq!(g.lanes[1].kind.as_deref(), Some("dynasty"));
+            }
+            other => panic!("expected Group, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_group_single_lane() {
+        let src = r#"group "単一" { lane "A" as a {} }"#;
+        let file = parse(src).expect("group with single lane must parse");
+        match &file.statements[0].node {
+            ast::Statement::Group(g) => {
+                assert_eq!(g.label, "単一");
+                assert_eq!(g.lanes.len(), 1);
+            }
+            other => panic!("expected Group, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_group_mixed_with_other_statements() {
+        let src = r#"
+            lane "独立" as standalone {}
+            group "グループ" {
+                lane "子A" as child_a {}
+            }
+            lane "独立2" as standalone2 {}
+        "#;
+        let file = parse(src).expect("group mixed with lanes must parse");
+        assert_eq!(file.statements.len(), 3);
+        assert!(matches!(file.statements[0].node, ast::Statement::Lane(_)));
+        assert!(matches!(file.statements[1].node, ast::Statement::Group(_)));
+        assert!(matches!(file.statements[2].node, ast::Statement::Lane(_)));
+    }
+
+    #[test]
+    fn parse_group_without_lanes_fails() {
+        // group ブロックには lane が 1 つ以上必要（grammar: lane_decl+）
+        let src = r#"group "空" {}"#;
+        assert!(
+            parse(src).is_err(),
+            "group without any lane must fail to parse"
+        );
+    }
 }
