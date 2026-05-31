@@ -53,6 +53,11 @@ pub async fn lower_with_wikidata_and_source(
     let mut ctx = LoweringContext::new();
     ctx.pass1_declarations(file, line_offsets.as_deref());
     ctx.pass2_static_items(file, line_offsets.as_deref());
+    // Wikidata フェッチ前に early exit: pass1/pass2 のエラー（未宣言lane等）を即返す。
+    // これにより offline でも未宣言 lane を即座に報告でき、不要な API 呼び出しを回避する。
+    if !ctx.errors.is_empty() {
+        return Err(ctx.errors);
+    }
     ctx.pass3_resolve_imports(file, client).await;
     ctx.pass4_apply_maps(file);
     ctx.finish()
