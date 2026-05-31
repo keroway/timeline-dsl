@@ -824,3 +824,50 @@ async fn eval_claim_expr_zero_offset_is_noop() {
         _ => panic!("expected Span"),
     }
 }
+
+#[tokio::test]
+async fn unknown_lane_stops_before_wikidata_fetch() {
+    // 未宣言 lane があるとき、Wikidata フェッチ前に early exit して UnknownLane を返す。
+    // MockWikidataClient は空（Q99999 不在）なので、pass3 が実行されると
+    // LoweringError::Wikidata(NotFound) が追加される。
+    // early exit が正しく機能すれば Wikidata エラーは含まれない。
+    let src = r#"
+        timeline "Test" { unit year; range 0..2000; }
+        lane "A" as a { kind dynasty; }
+
+        span nonexistent_lane 100..200 "Foo" {};
+
+        import wikidata as wd {
+            entity Q99999 as some_entity;
+        }
+
+        map wd.some_entity to span {
+            lane a;
+            start claim(P571).year;
+            end claim(P576).year;
+            label label@ja;
+        }
+    "#;
+
+    let file = tdsl_parser::parse(src).unwrap();
+    let client = MockWikidataClient {
+        entities: HashMap::new(),
+        query_results: vec![],
+    };
+
+    let result = lower::lower_with_wikidata(&file, &client).await;
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, error::LoweringError::UnknownLane(_))),
+        "UnknownLane エラーが含まれていること"
+    );
+    assert!(
+        !errors
+            .iter()
+            .any(|e| matches!(e, error::LoweringError::Wikidata(_))),
+        "Wikidata フェッチは UnknownLane エラー検出後は実行されないこと"
+    );
+}
