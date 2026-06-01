@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- examples の IR JSON・SVG 出力を insta スナップショットで固定（#372）
+
 ## [1.13.0] - 2026-05-30
 
 ### Added

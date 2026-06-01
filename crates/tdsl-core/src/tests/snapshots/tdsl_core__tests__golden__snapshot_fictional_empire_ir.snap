@@ -1,0 +1,78 @@
+---
+source: crates/tdsl-core/src/tests/golden.rs
+assertion_line: 58
+expression: ir
+---
+{
+  "meta": {
+    "title": "ルメリア帝国年表",
+    "unit": "year",
+    "range": [
+      1000,
+      1300
+    ],
+    "calendar": "proleptic_gregorian"
+  },
+  "lanes": [
+    {
+      "id": "kingdom",
+      "label": "王国",
+      "kind": "custom",
+      "order": 10
+    },
+    {
+      "id": "incidents",
+      "label": "事件",
+      "kind": "custom",
+      "order": 20
+    }
+  ],
+  "items": [
+    {
+      "type": "span",
+      "id": "span:arcadia",
+      "lane": "kingdom",
+      "start": 1001,
+      "end": 1180,
+      "label": "アルカディア王国",
+      "tags": [
+        "dynasty",
+        "fictional"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:knights",
+      "lane": "incidents",
+      "time": 1042,
+      "label": "竜騎士団の創設",
+      "tags": [
+        "founding",
+        "fictional"
+      ]
+    },
+    {
+      "type": "event_range",
+      "id": "range:black_mist",
+      "lane": "incidents",
+      "start": 1175,
+      "end": 1180,
+      "label": "黒霧戦争",
+      "tags": [
+        "war",
+        "fictional"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:rebuild",
+      "lane": "incidents",
+      "time": 1201,
+      "label": "王都再建宣言",
+      "tags": [
+        "reform",
+        "fictional"
+      ]
+    }
+  ]
+}

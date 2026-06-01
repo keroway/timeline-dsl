@@ -1,0 +1,315 @@
+---
+source: crates/tdsl-core/src/tests/golden.rs
+assertion_line: 50
+expression: ir
+---
+{
+  "meta": {
+    "title": "科学技術の発明・発見年表",
+    "unit": "year",
+    "range": [
+      1400,
+      2000
+    ],
+    "calendar": "proleptic_gregorian"
+  },
+  "lanes": [
+    {
+      "id": "invention",
+      "label": "発明",
+      "kind": "event",
+      "order": 10
+    },
+    {
+      "id": "discovery",
+      "label": "発見",
+      "kind": "event",
+      "order": 20
+    },
+    {
+      "id": "communication",
+      "label": "通信",
+      "kind": "event",
+      "order": 30
+    },
+    {
+      "id": "computing",
+      "label": "計算機",
+      "kind": "event",
+      "order": 40
+    }
+  ],
+  "items": [
+    {
+      "type": "event",
+      "id": "event:invention:1450",
+      "lane": "invention",
+      "time": 1450,
+      "label": "グーテンベルクの活版印刷術",
+      "tags": [
+        "mechanical",
+        "printing"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:invention:1590",
+      "lane": "invention",
+      "time": 1590,
+      "label": "複式顕微鏡の発明",
+      "tags": [
+        "optical"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:invention:1609",
+      "lane": "invention",
+      "time": 1609,
+      "label": "ガリレオの望遠鏡",
+      "tags": [
+        "optical"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:invention:1769",
+      "lane": "invention",
+      "time": 1769,
+      "label": "ワットの蒸気機関改良",
+      "tags": [
+        "mechanical",
+        "industrial"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:invention:1804",
+      "lane": "invention",
+      "time": 1804,
+      "label": "蒸気機関車（トレビシック）",
+      "tags": [
+        "mechanical",
+        "transport"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:invention:1885",
+      "lane": "invention",
+      "time": 1885,
+      "label": "ガソリン自動車（ベンツ）",
+      "tags": [
+        "mechanical",
+        "transport"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:invention:1903",
+      "lane": "invention",
+      "time": 1903,
+      "label": "ライト兄弟の動力飛行",
+      "tags": [
+        "mechanical",
+        "transport"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:discovery:1820",
+      "lane": "discovery",
+      "time": 1820,
+      "label": "電磁気の発見（エルステッド）",
+      "tags": [
+        "electrical"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:invention:1831",
+      "lane": "invention",
+      "time": 1831,
+      "label": "電磁誘導（ファラデー）",
+      "tags": [
+        "electrical"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:invention:1879",
+      "lane": "invention",
+      "time": 1879,
+      "label": "白熱電球（エジソン）",
+      "tags": [
+        "electrical"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:discovery:1895",
+      "lane": "discovery",
+      "time": 1895,
+      "label": "X線の発見（レントゲン）",
+      "tags": [
+        "physics"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:discovery:1896",
+      "lane": "discovery",
+      "time": 1896,
+      "label": "放射能の発見（ベクレル）",
+      "tags": [
+        "physics"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:communication:1837",
+      "lane": "communication",
+      "time": 1837,
+      "label": "電信機の実用化（モールス）",
+      "tags": [
+        "telegraph"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:communication:1876",
+      "lane": "communication",
+      "time": 1876,
+      "label": "電話の発明（ベル）",
+      "tags": [
+        "telephone"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:communication:1895",
+      "lane": "communication",
+      "time": 1895,
+      "label": "無線通信の発明（マルコーニ）",
+      "tags": [
+        "radio"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:communication:1920",
+      "lane": "communication",
+      "time": 1920,
+      "label": "ラジオ放送開始",
+      "tags": [
+        "radio",
+        "broadcast"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:communication:1969",
+      "lane": "communication",
+      "time": 1969,
+      "label": "ARPANET（インターネットの原型）",
+      "tags": [
+        "internet"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:communication:1991",
+      "lane": "communication",
+      "time": 1991,
+      "label": "World Wide Web 公開（バーナーズ＝リー）",
+      "tags": [
+        "internet",
+        "web"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:computing:1822",
+      "lane": "computing",
+      "time": 1822,
+      "label": "差分機関（チャールズ・バベッジ）",
+      "tags": [
+        "mechanical"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:computing:1936",
+      "lane": "computing",
+      "time": 1936,
+      "label": "チューリングマシン（理論）",
+      "tags": [
+        "theory"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:computing:1945",
+      "lane": "computing",
+      "time": 1945,
+      "label": "ENIAC（世界初の汎用電子計算機）",
+      "tags": [
+        "hardware"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:computing:1971",
+      "lane": "computing",
+      "time": 1971,
+      "label": "マイクロプロセッサ（インテル 4004）",
+      "tags": [
+        "hardware",
+        "chip"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:computing:1981",
+      "lane": "computing",
+      "time": 1981,
+      "label": "IBM PC 発売",
+      "tags": [
+        "hardware",
+        "personal"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:computing:1994",
+      "lane": "computing",
+      "time": 1994,
+      "label": "Linux 1.0 リリース",
+      "tags": [
+        "software",
+        "os"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:discovery:1859",
+      "lane": "discovery",
+      "time": 1859,
+      "label": "進化論（ダーウィン『種の起源』）",
+      "tags": [
+        "biology"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:discovery:1953",
+      "lane": "discovery",
+      "time": 1953,
+      "label": "DNA二重らせん構造の解明",
+      "tags": [
+        "biology",
+        "genetics"
+      ]
+    }
+  ]
+}

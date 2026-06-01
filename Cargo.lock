@@ -2635,9 +2635,11 @@ name = "tdsl-render"
 version = "1.13.0"
 dependencies = [
  "criterion",
+ "insta",
  "resvg 0.47.0",
  "svg2pdf",
  "tdsl-core",
+ "tdsl-parser",
  "thiserror",
 ]
 
