@@ -256,6 +256,29 @@ enum Commands {
         append: Option<PathBuf>,
     },
 
+    /// Format a .tdsl file with canonical style (2-space indent, blank line between blocks).
+    ///
+    /// By default the formatted source is written to stdout.
+    /// Use --write to update the file in-place, or --check (for CI) to exit non-zero when
+    /// the file is not already formatted.
+    ///
+    /// NOTE: comments (`//` and `/* */`) are lost during formatting because they are
+    /// stripped at the grammar level (COMMENT is a silent rule). A full comment-preserving
+    /// formatter is tracked in a separate issue.
+    Fmt {
+        /// Input .tdsl file path
+        #[arg(value_name = "FILE")]
+        input: PathBuf,
+
+        /// Exit non-zero when the file is not formatted (do not modify the file). CI-friendly.
+        #[arg(long, default_value_t = false, conflicts_with = "write")]
+        check: bool,
+
+        /// Overwrite the file with the formatted source in-place.
+        #[arg(long, default_value_t = false, conflicts_with = "check")]
+        write: bool,
+    },
+
     /// Lint a .tdsl file and optionally apply safe fixes
     Lint {
         /// Input .tdsl file path
@@ -546,6 +569,11 @@ fn main() {
             output,
             append,
         } => commands::init::cmd_import_csv(&input, output.as_deref(), append.as_deref()),
+        Commands::Fmt {
+            input,
+            check,
+            write,
+        } => commands::fmt::cmd_fmt(&input, check, write),
         Commands::Lint { input, fix, format } => commands::lint::cmd_lint(&input, fix, format),
         Commands::Cache { action } => commands::cache::cmd_cache(action),
         Commands::Decompile { input, output } => {

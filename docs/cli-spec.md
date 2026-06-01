@@ -39,6 +39,7 @@ tdsl [OPTIONS] <COMMAND>
 | [`render`](#render) | `.tdsl` をスタンドアロン HTML/SVG/PNG/PDF 年表にレンダリング |
 | [`init`](#init) | 手動編集用の最小 `.tdsl` テンプレートを生成 |
 | [`import-csv`](#import-csv) | CSV から年表アイテムを取り込む |
+| [`fmt`](#fmt) | `.tdsl` ファイルを正準フォーマット |
 | [`lint`](#lint) | `.tdsl` ファイルのリントと自動修正 |
 | [`cache`](#cache) | Wikidata ローカルキャッシュの管理 |
 | [`decompile`](#decompile) | JSON IR を `.tdsl` ソースに逆変換 |
@@ -568,6 +569,47 @@ tdsl lint examples/china_dynasties.tdsl --fix
 
 # CI 向けに JSON 出力
 tdsl lint examples/china_dynasties.tdsl --format json
+```
+
+---
+
+## `fmt`
+
+`.tdsl` ファイルを正準スタイル（2 スペースインデント・ブロック間空行 1 行）にフォーマットします。
+デフォルトでは整形結果を標準出力に出力します。`--write` でファイルを上書き、`--check` で CI 用の差分チェックができます。
+
+> **制約**: 現状フォーマットするとコメント（`//`・`/* */`）は失われます（grammar で COMMENT が silent のため）。根治は別 issue で対応予定。
+
+```
+tdsl fmt [OPTIONS] <FILE>
+```
+
+### 引数
+
+| 引数 | 説明 |
+|---|---|
+| `<FILE>` | 入力 `.tdsl` ファイルのパス |
+
+### オプション
+
+| オプション | 説明 | デフォルト |
+|---|---|---|
+| `--check` | フォーマットが必要な場合に非ゼロ終了する（ファイルは変更しない）。CI 向け | — |
+| `--write` | 整形結果でファイルを上書きする | — |
+
+`--check` と `--write` は同時に指定できません。
+
+### 実行例
+
+```bash
+# 整形結果を標準出力に表示
+tdsl fmt examples/china_dynasties.tdsl
+
+# ファイルを上書き
+tdsl fmt examples/china_dynasties.tdsl --write
+
+# CI でフォーマット差分チェック（差分があれば exit 1）
+tdsl fmt examples/china_dynasties.tdsl --check
 ```
 
 ---
