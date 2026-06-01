@@ -238,6 +238,14 @@ map wd.han_dynasty to span {
 }
 ```
 
+`map <alias> to <target_type> { ... }` の `<target_type>` には **`span` / `event` / `event_range` のいずれか**のみを指定できます。これ以外の値（例: `timeline`・`item`）を書くとパースエラー `Unknown map target type '<値>' (expected one of: span, event, event_range)` になります（[error-catalog の E004](./error-catalog.md#e004-不明な-map-ターゲット型) を参照）。
+
+| target_type | 生成されるアイテム種別 | 必須の時間プロパティ |
+|---|---|---|
+| `span` | 期間（開始〜終了） | `start` / `end` |
+| `event` | 点イベント | `time` |
+| `event_range` | 範囲イベント | `start` / `end` |
+
 > `source` はインポートされたアイテムに `wd:<entity_id>` として自動付与されます。`map` ブロック内での明示指定は廃止されています。
 
 | プロパティ | 説明 |

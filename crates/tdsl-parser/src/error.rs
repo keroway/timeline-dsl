@@ -11,7 +11,7 @@ pub enum ParseError {
     #[error("Unknown re-import policy: {0}")]
     UnknownPolicy(String),
 
-    #[error("Unknown map target type: {0} (expected span, event, or event_range)")]
+    #[error("Unknown map target type '{0}' (expected one of: span, event, event_range)")]
     UnknownTargetType(String),
 
     #[error("Unexpected rule {rule} at {location}")]
