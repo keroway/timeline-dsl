@@ -90,19 +90,27 @@ span dynasty -206..-9 "秦"
 
 ### E004: 不明な map ターゲット型
 
-**メッセージ**: `Unknown map target type: {value} (expected span, event, or event_range)`
+**メッセージ**: `Unknown map target type '{value}' (expected one of: span, event, event_range)`
 
-**原因**: `map` ブロックの `target_type` に `span` / `event` / `event_range` 以外の値が指定されています。
+**原因**: `map <alias> to <target_type> { ... }` の `<target_type>` に `span` / `event` / `event_range` 以外の値が指定されています。
 
-**修正方法**: `target_type` は `span`・`event`・`event_range` のいずれかを指定してください。
+**修正方法**: `<target_type>` は `span`・`event`・`event_range` のいずれかを指定してください（`to` の直後に置きます）。
 
-```
-# 誤り
-map wd.item { target_type: "timeline" }
+```tdsl
+# 誤り（timeline は target_type として無効）
+map wd.han_dynasty to timeline {
+    lane han;
+}
 
 # 正しい
-map wd.item { target_type: span }
+map wd.han_dynasty to span {
+    lane han;
+    start claim(P571).year;
+    end claim(P576).year;
+}
 ```
+
+> `target_type` ごとの生成アイテム種別・必須プロパティは [dsl-spec の map セクション](./dsl-spec.md#map) を参照してください。
 
 ---
 
