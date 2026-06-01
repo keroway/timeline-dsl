@@ -215,6 +215,10 @@ enum Commands {
         /// Timeline orientation (horizontal or vertical)
         #[arg(long, value_enum, default_value_t = OrientationArg::Horizontal)]
         orientation: OrientationArg,
+
+        /// Auxiliary grid lines: none (default), decade, year, or month
+        #[arg(long, value_enum, default_value_t = GridStyleArg::None)]
+        grid: GridStyleArg,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -422,6 +426,26 @@ impl OrientationArg {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+enum GridStyleArg {
+    #[default]
+    None,
+    Decade,
+    Year,
+    Month,
+}
+
+impl GridStyleArg {
+    fn into_grid_style(self) -> tdsl_render::layout::GridStyle {
+        match self {
+            GridStyleArg::None => tdsl_render::layout::GridStyle::None,
+            GridStyleArg::Decade => tdsl_render::layout::GridStyle::Decade,
+            GridStyleArg::Year => tdsl_render::layout::GridStyle::Year,
+            GridStyleArg::Month => tdsl_render::layout::GridStyle::Month,
+        }
+    }
+}
+
 #[derive(ValueEnum, Clone, Default, Debug)]
 enum RenderFormat {
     #[default]
@@ -536,6 +560,7 @@ fn main() {
             cache_ttl,
             color_map,
             orientation,
+            grid,
         } => commands::render::cmd_render(
             &input,
             output.as_deref(),
@@ -556,6 +581,7 @@ fn main() {
             },
             color_map.as_deref(),
             orientation,
+            grid,
             wikidata_timeout,
         ),
         Commands::Init {

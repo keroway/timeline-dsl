@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`tdsl render --grid` オプションを追加（SVG 時間軸グリッド線）**: `RenderOptions` に `GridStyle`（`None` / `Decade` / `Year` / `Month`）を追加し、`tdsl render --grid decade|year|month|none` で補助グリッド線を描画できるようにした。水平・垂直レイアウト両対応。グリッド線は薄く（`stroke-opacity: 0.4`）描画し、支援技術に読み上げさせないよう `role="presentation"` を付与。デフォルトは `none` で既存 SVG 出力は不変（後方互換）(#353)
 - **`tdsl fmt` サブコマンドを追加**: `.tdsl` ファイルを正準スタイル（2 スペースインデント・ブロック間空行 1 行）にフォーマットする。デフォルトで整形結果を標準出力に出力。`--write` でファイルを上書き、`--check` で差分があれば非ゼロ終了（CI 向け）。`--check` と `--write` は排他。フォーマットには WebUI Format / `tdsl lint --fix` と同一の emitter（`tdsl_parser::format_source`）を使用する。現状フォーマットするとコメント（`//`・`/* */`）は失われる（grammar で COMMENT が silent のため。根治は別 issue で対応予定）(#351)
 - examples の IR JSON・SVG 出力を insta スナップショットで固定（#372）
 

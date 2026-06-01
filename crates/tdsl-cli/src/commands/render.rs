@@ -1,4 +1,4 @@
-use crate::{OrientationArg, RenderFormat, ThemeArg};
+use crate::{GridStyleArg, OrientationArg, RenderFormat, ThemeArg};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn cmd_render(
@@ -18,6 +18,7 @@ pub(crate) fn cmd_render(
     cache_opts: tdsl_wikidata::CacheOptions,
     color_map_raw: Option<&str>,
     orientation: OrientationArg,
+    grid: GridStyleArg,
     wikidata_timeout: std::time::Duration,
 ) -> Result<(), String> {
     let ir = super::build::load_ir(input, offline, cache_opts, wikidata_timeout)?;
@@ -48,6 +49,7 @@ pub(crate) fn cmd_render(
         color_map,
         interactive,
         orientation: orientation.into_orientation(),
+        grid: grid.into_grid_style(),
         ..Default::default()
     };
 
