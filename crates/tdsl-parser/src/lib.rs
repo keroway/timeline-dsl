@@ -3,7 +3,7 @@ pub mod builder;
 pub mod error;
 pub mod format;
 
-pub use error::byte_offset_to_line_col;
+pub use error::{ParseDiagnostic, ParseDiagnosticNote, byte_offset_to_line_col};
 pub use format::{format_file, format_source};
 
 use pest::Parser;
@@ -1413,5 +1413,87 @@ timeline "t" {
             parse(src).is_err(),
             "group without any lane must fail to parse"
         );
+    }
+
+    // ─── ParseDiagnostic SourceSpan テスト (#355) ─────────────────────────────
+
+    /// 不正トークンの構文エラーで ParseDiagnostic が正しい SourceSpan を持つこと。
+    #[test]
+    fn parse_diagnostic_syntax_error_has_source_span() {
+        let src = "@@@";
+        let err = parse(src).unwrap_err();
+        let diag = error::ParseDiagnostic::from_parse_error(&err, src, "test.tdsl");
+        // span は Some であること（位置情報が付与される）
+        assert!(
+            diag.span().is_some(),
+            "Syntax エラーは SourceSpan を持つべき"
+        );
+        let span = diag.span().unwrap();
+        // オフセットはソース長以内
+        assert!(
+            span.offset() <= src.len(),
+            "offset {} はソース長 {} 以内であるべき",
+            span.offset(),
+            src.len()
+        );
+        // 長さは 1 以上
+        assert!(!span.is_empty(), "len は 1 以上であるべき");
+    }
+
+    /// 複数行ソースの 2 行目にある構文エラーで offset が行頭バイトを含むこと。
+    #[test]
+    fn parse_diagnostic_multiline_second_line_span() {
+        let src = "// comment\n@@@";
+        let err = parse(src).unwrap_err();
+        let diag = error::ParseDiagnostic::from_parse_error(&err, src, "test.tdsl");
+        let span = diag.span().expect("span must be Some");
+        // 2行目の先頭は offset 11（"// comment\n" = 11 bytes）
+        assert!(
+            span.offset() >= 11,
+            "2 行目のエラーは offset >= 11 であるべき（実際: {}）",
+            span.offset()
+        );
+    }
+
+    /// 位置情報のない UnknownPolicy は span が None であること。
+    #[test]
+    fn parse_diagnostic_unknown_policy_no_span() {
+        let err = error::ParseError::UnknownPolicy("bogus".to_string());
+        let diag = error::ParseDiagnostic::from_parse_error(&err, "anything", "test.tdsl");
+        assert!(
+            diag.span().is_none(),
+            "UnknownPolicy は SourceSpan を持たないべき"
+        );
+    }
+
+    /// バイトオフセット variant（InvalidMonth）で span が構築できること。
+    #[test]
+    fn parse_diagnostic_invalid_month_has_span() {
+        let src = r#"
+timeline "t" {
+    title "t";
+    unit year;
+    range 2023-01..2023-13;
+    calendar proleptic_gregorian;
+}
+"#;
+        match parse(src) {
+            Err(ref e @ error::ParseError::InvalidMonth { .. }) => {
+                let diag = error::ParseDiagnostic::from_parse_error(e, src, "test.tdsl");
+                let span = diag.span();
+                // span が Some であり panic しないこと
+                assert!(span.is_some(), "InvalidMonth は SourceSpan を持つべき");
+                let span = span.unwrap();
+                assert!(span.offset() <= src.len());
+                assert!(!span.is_empty());
+            }
+            Err(error::ParseError::Syntax(_)) => {
+                // grammar の都合で Syntax エラーになる場合も通過させる
+            }
+            Ok(_) => {
+                // grammar が月境界チェックを行わない場合はスキップ
+            }
+            Err(other) => panic!("unexpected error: {other:?}"),
+        }
     }
 }

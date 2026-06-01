@@ -1,3 +1,4 @@
+use miette::{Diagnostic, LabeledSpan, NamedSource, SourceSpan};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -22,6 +23,107 @@ pub enum ParseError {
 
     #[error("Invalid day at {location}: {value} (expected 1-31)")]
     InvalidDay { value: u32, location: String },
+}
+
+/// miette の fancy レポート（キャレット付きスニペット）を生成するための診断ラッパー。
+///
+/// CLI 層でのみ使用する。ライブラリ API では `ParseError` を直接返す。
+/// `source` テキストを添付することで miette がキャレット行を表示できる。
+#[derive(Debug, Error, Diagnostic)]
+#[error("{message}")]
+#[diagnostic(
+    code(tdsl::parse_error),
+    help("DSL 仕様書 docs/dsl-spec.md を確認してください")
+)]
+pub struct ParseDiagnostic {
+    message: String,
+    #[source_code]
+    src: NamedSource<String>,
+    #[label("ここに問題があります")]
+    span: Option<SourceSpan>,
+    /// キャレットなしの追加ラベル（スパン情報がない variant 向け）
+    #[related]
+    related: Vec<ParseDiagnosticNote>,
+}
+
+/// キャレットなしの補足情報（位置情報のない ParseError variant 用）。
+#[derive(Debug, Error, Diagnostic)]
+#[error("{note}")]
+pub struct ParseDiagnosticNote {
+    note: String,
+}
+
+impl ParseDiagnostic {
+    /// `ParseError` と DSL ソース文字列からキャレット付き診断を構築する。
+    ///
+    /// - `Syntax` variant: pest の `InputLocation` からバイトオフセットを取得して `SourceSpan` を構成する。
+    /// - バイトオフセット variant（`InvalidInt` 等）: `location` フィールドの `"start:end"` 文字列を使う。
+    /// - 位置情報のない variant（`UnknownPolicy` 等）: スパンなしで表示する。
+    pub fn from_parse_error(err: &ParseError, src: &str, filename: &str) -> Self {
+        let message = err.to_string();
+        let named_src = NamedSource::new(filename, src.to_owned());
+
+        let span = Self::extract_span(err, src);
+
+        ParseDiagnostic {
+            message,
+            src: named_src,
+            span,
+            related: Vec::new(),
+        }
+    }
+
+    fn extract_span(err: &ParseError, src: &str) -> Option<SourceSpan> {
+        match err {
+            ParseError::Syntax(pest_err) => {
+                use pest::error::InputLocation;
+                match pest_err.location {
+                    InputLocation::Pos(offset) => {
+                        // 単一位置: 長さ 1 のスパン（それ以上は文脈がないため）
+                        let offset = offset.min(src.len().saturating_sub(1));
+                        Some(SourceSpan::from((offset, 1usize)))
+                    }
+                    InputLocation::Span((start, end)) => {
+                        let start = start.min(src.len());
+                        let end = end.min(src.len());
+                        let len = end.saturating_sub(start).max(1);
+                        Some(SourceSpan::from((start, len)))
+                    }
+                }
+            }
+            ParseError::InvalidInt { location, .. }
+            | ParseError::UnexpectedRule { location, .. }
+            | ParseError::InvalidMonth { location, .. }
+            | ParseError::InvalidDay { location, .. } => parse_byte_range_to_span(location, src),
+            ParseError::UnknownPolicy(_) | ParseError::UnknownTargetType(_) => None,
+        }
+    }
+
+    /// `SourceSpan` を返す（テストおよびカスタム表示向け）。
+    pub fn span(&self) -> Option<SourceSpan> {
+        self.span
+    }
+
+    /// 複数の `LabeledSpan` を返す（miette ラベル表示向け補助メソッド）。
+    pub fn labels(&self) -> Option<Box<dyn Iterator<Item = LabeledSpan> + '_>> {
+        let span = self.span?;
+        Some(Box::new(std::iter::once(LabeledSpan::new(
+            Some("ここに問題があります".to_owned()),
+            span.offset(),
+            span.len(),
+        ))))
+    }
+}
+
+/// `"start:end"` 形式のバイトオフセット文字列を `SourceSpan` に変換する（内部ヘルパ）。
+fn parse_byte_range_to_span(location: &str, src: &str) -> Option<SourceSpan> {
+    let (start_str, end_str) = location.split_once(':')?;
+    let start_byte: usize = start_str.trim().parse().ok()?;
+    let end_byte: usize = end_str.trim().parse().ok()?;
+    let start = start_byte.min(src.len());
+    let end = end_byte.min(src.len());
+    let len = end.saturating_sub(start).max(1);
+    Some(SourceSpan::from((start, len)))
 }
 
 /// DSL ソース内の位置情報（1-based 行番号・列番号）。
