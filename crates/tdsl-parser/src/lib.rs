@@ -502,8 +502,20 @@ mod tests {
                 lane a;
             }
         "#;
-        let result = parse(src);
-        assert!(result.is_err());
+        let err = parse(src).expect_err("unknown target_type should fail to parse");
+        assert!(
+            matches!(&err, error::ParseError::UnknownTargetType(v) if v == "unknown_type"),
+            "expected UnknownTargetType(\"unknown_type\"), got: {err:?}"
+        );
+        // メッセージは許容値と実際の値の双方を提示する
+        let msg = err.to_string();
+        assert!(
+            msg.contains("unknown_type")
+                && msg.contains("span")
+                && msg.contains("event")
+                && msg.contains("event_range"),
+            "error message should list the invalid value and all allowed types, got: {msg}"
+        );
     }
 
     // ─── Edge cases ──────────────────────────────────────────────────────────
