@@ -367,9 +367,9 @@ stdio 経由で LSP サーバを起動します。エディタから接続する
 tdsl lsp
 ```
 
-**対応機能:** `textDocument/publishDiagnostics` — パースエラーと検証警告を実際の行/列位置付きで通知。`textDocument/completion` — DSL キーワード補完候補を返す（文脈非依存・全キーワード）。`textDocument/hover` — lane ID にカーソルを当てるとラベル・kind・order を、QID にカーソルを当てるとキャッシュ済みエンティティ情報を表示（offline、ネットワーク不要）。
+**対応機能:** `textDocument/publishDiagnostics` — パースエラーと検証警告を実際の行/列位置付きで通知。`textDocument/completion` — DSL キーワード補完候補を返す（文脈非依存・全キーワード）。`textDocument/hover` — lane ID にカーソルを当てるとラベル・kind・order を、QID にカーソルを当てるとキャッシュ済みエンティティ情報を表示（offline、ネットワーク不要）。`textDocument/definition` — lane 参照から宣言位置へジャンプ。`textDocument/references` / `rename` / `prepareRename` — lane ID の全参照検索・一括リネーム。`textDocument/documentSymbol` — timeline / lane / アイテムのアウトライン。`textDocument/codeAction` — `lint --fix` 相当の quick fix。`textDocument/formatting` — ソースの正準フォーマット（コメントは保持されない。`tdsl fmt` と同じ）。
 
-**今後の別 issue で実装予定:** Goto Definition、Code Actions、VS Code 拡張の LSP クライアント。
+**今後の別 issue で実装予定:** VS Code 拡張の LSP クライアント（エディタ連携）。
 
 ## Lint
 

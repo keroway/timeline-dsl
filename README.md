@@ -367,9 +367,9 @@ Starts a Language Server Protocol server over stdio. Connect your editor to get 
 tdsl lsp
 ```
 
-**Supported features:** `textDocument/publishDiagnostics` — parse errors and validation warnings with accurate line/column numbers. `textDocument/completion` — keyword completion for all DSL keywords (context-independent). `textDocument/hover` — hover over a lane ID to see its label/kind/order; hover over a QID to see cached entity info (offline, no network required).
+**Supported features:** `textDocument/publishDiagnostics` — parse errors and validation warnings with accurate line/column numbers. `textDocument/completion` — keyword completion for all DSL keywords (context-independent). `textDocument/hover` — hover over a lane ID to see its label/kind/order; hover over a QID to see cached entity info (offline, no network required). `textDocument/definition` — jump from a lane reference to its declaration. `textDocument/references` / `rename` / `prepareRename` — find or rename all references to a lane ID. `textDocument/documentSymbol` — outline of timeline / lanes / items. `textDocument/codeAction` — `lint --fix` quick fixes. `textDocument/formatting` — canonical source formatting (comments are not preserved, same as `tdsl fmt`).
 
-**Planned in future issues:** Goto Definition, Code Actions, VS Code extension LSP client.
+**Planned in future issues:** VS Code extension LSP client (editor integration).
 
 ## Lint
 
