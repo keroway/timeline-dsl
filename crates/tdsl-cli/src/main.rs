@@ -559,7 +559,11 @@ fn main() {
     };
 
     if let Err(e) = result {
-        eprintln!("Error: {e}");
+        // ParseError は commands::check::print_parse_error で miette 出力済みのため
+        // 空文字列の場合は重複出力を避けて終了コードだけ設定する。
+        if !e.is_empty() {
+            eprintln!("Error: {e}");
+        }
         process::exit(1);
     }
 }
