@@ -15,7 +15,33 @@
 
 **原因**: DSLの文法に違反した記述があります。トークンの欠落、括弧の不一致、未知のキーワードなどが該当します。
 
-**修正方法**: エラーメッセージに含まれる行番号・列番号を確認し、その位置の記述を `docs/dsl-spec.md` の文法仕様と照合してください。
+**修正方法**: `tdsl check` / `tdsl build` はエラー行とその下にキャレット（`^`）でエラー箇所を強調表示します。表示位置を確認し、その記述を `docs/dsl-spec.md` の文法仕様と照合してください。
+
+**表示例（v1.14.0 以降: miette キャレット表示）**
+
+before（v1.13.0 以前）:
+```
+Error: Syntax error:  --> 1:1
+  |
+1 | xyzzy "bad" {
+  | ^---
+  |
+  = expected file
+```
+
+after（v1.14.0 以降）:
+```
+tdsl::parse_error
+
+  × 構文エラー: expected EOI, timeline_block, lane_decl, ...
+   ╭─[myfile.tdsl:1:1]
+ 1 │ xyzzy "bad" {
+   · ┬
+   · ╰── ここに問題があります
+ 2 │   title "T";
+   ╰────
+  help: DSL 仕様書 docs/dsl-spec.md を確認してください
+```
 
 ```
 # 誤り例
