@@ -535,6 +535,31 @@ bash scripts/e2e-smoke.sh
 cargo bench --workspace
 ```
 
+### コードカバレッジ
+
+CI はプッシュおよびプルリクエスト時に [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov) でコードカバレッジを計測します。カバレッジレポート（lcov 形式）は CI 実行の `coverage-report` アーティファクトとして保存されます。
+
+**カバレッジ目標値（目安。ゲートとして強制はしていない）:**
+
+| クレート | 目標 |
+|---|---|
+| `tdsl-parser` | 70%以上 |
+| `tdsl-core` | 60%以上 |
+| `tdsl-render` | 50%以上 |
+
+**主要な未カバー経路**（今後改善予定）:
+
+- `tdsl-wikidata`: HTTP エラーハンドリング分岐（レート制限 / 5xx リトライロジック）— ネットワークまたはモック HTTP サーバが必要
+- `tdsl-render`: PDF レンダリングパス（`svg2pdf` 変換）— 外部バイナリに依存するためユニットテストでスキップ
+- `tdsl-cli`: `build` / `merge` サブコマンドの `--offline` フラグおよびオフラインフォールバック分岐
+
+ローカルでカバレッジを計測するには（`cargo-llvm-cov` が必要）:
+
+```bash
+cargo install cargo-llvm-cov
+cargo llvm-cov --workspace --all-targets --summary-only
+```
+
 ## ライセンス
 
 ### このソフトウェア

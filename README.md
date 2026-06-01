@@ -535,6 +535,31 @@ bash scripts/e2e-smoke.sh
 cargo bench --workspace
 ```
 
+### Code Coverage
+
+CI measures code coverage using [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov) on every push and pull request. The coverage report (lcov format) is uploaded as the `coverage-report` artifact in the CI run.
+
+**Coverage targets (guidelines, not enforced gates):**
+
+| Crate | Target |
+|---|---|
+| `tdsl-parser` | 70%+ |
+| `tdsl-core` | 60%+ |
+| `tdsl-render` | 50%+ |
+
+**Known uncovered paths** (areas to improve in future issues):
+
+- `tdsl-wikidata`: HTTP error handling branches (rate-limit / 5xx retry logic) — requires live network or mock HTTP server
+- `tdsl-render`: PDF rendering path (`svg2pdf` conversion) — depends on external binary, skipped in unit tests
+- `tdsl-cli`: offline fallback and `--offline` flag branches in `build` / `merge` subcommands
+
+To run coverage locally (requires `cargo-llvm-cov`):
+
+```bash
+cargo install cargo-llvm-cov
+cargo llvm-cov --workspace --all-targets --summary-only
+```
+
 ## License
 
 ### This software
