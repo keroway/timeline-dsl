@@ -22,18 +22,23 @@ pub use png::{PngError, PngOptions, render_png, svg_to_png};
 use tdsl_core::ir::TimelineIr;
 
 /// Render the given IR as a standalone HTML document string.
-pub fn render_html(ir: &TimelineIr, opts: RenderOptions) -> String {
+pub fn render_html(ir: &TimelineIr, opts: RenderOptions) -> Result<String, std::fmt::Error> {
     let layout = LayoutModel::compute(ir, opts.clone());
-    let svg = svg::render_svg(&layout);
+    let svg = svg::render_svg(&layout)?;
     if opts.interactive {
-        html::wrap_html_interactive(&svg, &ir.meta.title, &opts, &ir.lanes)
+        Ok(html::wrap_html_interactive(
+            &svg,
+            &ir.meta.title,
+            &opts,
+            &ir.lanes,
+        ))
     } else {
-        html::wrap_html(&svg, &ir.meta.title, &opts)
+        Ok(html::wrap_html(&svg, &ir.meta.title, &opts))
     }
 }
 
 /// Render the given IR as a standalone SVG string.
-pub fn render_svg_only(ir: &TimelineIr, opts: RenderOptions) -> String {
+pub fn render_svg_only(ir: &TimelineIr, opts: RenderOptions) -> Result<String, std::fmt::Error> {
     let layout = LayoutModel::compute(ir, opts);
     svg::render_svg(&layout)
 }
@@ -84,7 +89,7 @@ mod tests {
     #[test]
     fn render_html_produces_complete_document() {
         let ir = sample_ir();
-        let html = render_html(&ir, RenderOptions::default());
+        let html = render_html(&ir, RenderOptions::default()).unwrap();
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains("<svg"));
         assert!(html.contains("</svg>"));
@@ -97,14 +102,14 @@ mod tests {
     #[test]
     fn render_html_contains_lane_label() {
         let ir = sample_ir();
-        let html = render_html(&ir, RenderOptions::default());
+        let html = render_html(&ir, RenderOptions::default()).unwrap();
         assert!(html.contains("漢"));
     }
 
     #[test]
     fn render_html_contains_span_label() {
         let ir = sample_ir();
-        let html = render_html(&ir, RenderOptions::default());
+        let html = render_html(&ir, RenderOptions::default()).unwrap();
         assert!(html.contains("漢"));
     }
 
@@ -141,7 +146,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let html = render_html(&ir, RenderOptions::default());
+        let html = render_html(&ir, RenderOptions::default()).unwrap();
         // Both lanes should appear in output
         let pos_a = html.find(">A<").or_else(|| html.find("A</"));
         let pos_b = html.find(">B<").or_else(|| html.find("B</"));
@@ -165,7 +170,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let html = render_html(&ir, RenderOptions::default());
+        let html = render_html(&ir, RenderOptions::default()).unwrap();
         assert!(html.contains("Empty"));
     }
 
@@ -203,7 +208,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let html = render_html(&ir, RenderOptions::default());
+        let html = render_html(&ir, RenderOptions::default()).unwrap();
         assert!(html.contains("即位"));
     }
 
@@ -244,7 +249,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let html = render_html(&ir, RenderOptions::default());
+        let html = render_html(&ir, RenderOptions::default()).unwrap();
         assert!(html.contains("大乱"));
     }
 
@@ -259,8 +264,8 @@ mod tests {
             scale: 5.0,
             ..RenderOptions::default()
         };
-        let narrow = render_html(&ir, opts_narrow);
-        let wide = render_html(&ir, opts_wide);
+        let narrow = render_html(&ir, opts_narrow).unwrap();
+        let wide = render_html(&ir, opts_wide).unwrap();
         // wider scale → larger viewBox width
         assert_ne!(narrow, wide);
     }
@@ -272,7 +277,7 @@ mod tests {
             interactive: true,
             ..RenderOptions::default()
         };
-        let html = render_html(&ir, opts);
+        let html = render_html(&ir, opts).unwrap();
         assert!(
             html.contains("<script>"),
             "interactive mode must include <script>"
@@ -349,7 +354,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let svg = render_svg_only(&ir, RenderOptions::default());
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
         // SVG の基本構造
         assert!(svg.starts_with("<svg"), "SVG should start with <svg");
         assert!(svg.contains("</svg>"), "SVG should end with </svg>");
@@ -415,7 +420,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let svg = render_svg_only(&ir, RenderOptions::default());
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
         assert!(svg.starts_with("<svg"), "SVG should start with <svg");
         assert!(svg.contains("tdsl-span"), "should contain span element");
         assert!(
@@ -433,7 +438,7 @@ mod tests {
     #[test]
     fn render_svg_has_tdsl_root_class_on_root_element() {
         let ir = sample_ir();
-        let svg = render_svg_only(&ir, RenderOptions::default());
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
         assert!(
             svg.contains(r#"class="tdsl-root""#),
             "SVG root must have class=tdsl-root for CSS scoping"
@@ -451,7 +456,7 @@ mod tests {
             font_family: Some("Arial, sans-serif".to_string()),
             ..RenderOptions::default()
         };
-        let svg = render_svg_only(&ir, opts);
+        let svg = render_svg_only(&ir, opts).unwrap();
         assert!(
             svg.contains("Arial, sans-serif"),
             "custom font_family must appear in SVG style"
@@ -554,7 +559,7 @@ mod tests {
             orientation: Orientation::Vertical,
             ..RenderOptions::default()
         };
-        let svg = render_svg_only(&ir, opts.clone());
+        let svg = render_svg_only(&ir, opts.clone()).unwrap();
         // SVG の基本構造
         assert!(svg.starts_with("<svg"), "SVG should start with <svg");
         assert!(svg.contains("</svg>"), "SVG should end with </svg>");
@@ -631,8 +636,8 @@ mod tests {
             interactive: false,
             ..RenderOptions::default()
         };
-        let html_default = render_html(&ir, opts_default);
-        let html_explicit = render_html(&ir, opts_explicit);
+        let html_default = render_html(&ir, opts_default).unwrap();
+        let html_explicit = render_html(&ir, opts_explicit).unwrap();
         // interactive:false (default) should produce identical output to explicit false
         assert_eq!(html_default, html_explicit);
         // should NOT include interactive-only elements
@@ -693,7 +698,7 @@ mod tests {
     #[test]
     fn render_svg_grouped_lanes_contains_group_label() {
         let ir = grouped_ir();
-        let svg = render_svg_only(&ir, RenderOptions::default());
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
         assert!(
             svg.contains("グループ1"),
             "SVG must contain the group label 'グループ1'"
@@ -707,7 +712,7 @@ mod tests {
     #[test]
     fn render_svg_no_group_label_when_no_groups() {
         let ir = sample_ir();
-        let svg = render_svg_only(&ir, RenderOptions::default());
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
         assert!(
             !svg.contains("tdsl-group-label"),
             "SVG must not contain group labels when no lanes have groups"
@@ -717,7 +722,7 @@ mod tests {
     #[test]
     fn render_svg_group_separator_present() {
         let ir = grouped_ir();
-        let svg = render_svg_only(&ir, RenderOptions::default());
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
         assert!(
             svg.contains("tdsl-group-separator"),
             "SVG must contain the tdsl-group-separator element"
@@ -727,7 +732,7 @@ mod tests {
     #[test]
     fn render_html_grouped_lanes_contains_group_label() {
         let ir = grouped_ir();
-        let html = render_html(&ir, RenderOptions::default());
+        let html = render_html(&ir, RenderOptions::default()).unwrap();
         assert!(
             html.contains("グループ1"),
             "HTML must contain the group label 'グループ1'"
