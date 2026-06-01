@@ -3,6 +3,7 @@ pub(crate) mod cache;
 pub(crate) mod check;
 pub(crate) mod decompile;
 pub(crate) mod fetch;
+pub(crate) mod fmt;
 pub(crate) mod init;
 pub(crate) mod lint;
 pub(crate) mod lsp;

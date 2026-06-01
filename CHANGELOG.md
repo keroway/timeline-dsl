@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`tdsl fmt` サブコマンドを追加**: `.tdsl` ファイルを正準スタイル（2 スペースインデント・ブロック間空行 1 行）にフォーマットする。デフォルトで整形結果を標準出力に出力。`--write` でファイルを上書き、`--check` で差分があれば非ゼロ終了（CI 向け）。`--check` と `--write` は排他。フォーマットには WebUI Format / `tdsl lint --fix` と同一の emitter（`tdsl_parser::format_source`）を使用する。現状フォーマットするとコメント（`//`・`/* */`）は失われる（grammar で COMMENT が silent のため。根治は別 issue で対応予定）(#351)
+
 ## [1.13.0] - 2026-05-30
 
 ### Added

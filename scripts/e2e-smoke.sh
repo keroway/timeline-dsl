@@ -15,9 +15,9 @@ assert_fails() {
   fi
 }
 
-echo "[e2e] verify CLI help includes all 12 documented commands"
+echo "[e2e] verify CLI help includes all 13 documented commands"
 cargo run -q -p tdsl-cli -- --help >"$TMP_DIR/help.txt"
-for cmd in build check ast fetch search inspect resolve scaffold render init import-csv lint; do
+for cmd in build check ast fetch search inspect resolve scaffold render init import-csv lint fmt; do
   grep -Eq "[[:space:]]${cmd}[[:space:]]" "$TMP_DIR/help.txt"
 done
 
@@ -127,6 +127,36 @@ cargo run -q -p tdsl-cli -- build "$TMP_DIR/manual.tdsl" --pretty --output "$TMP
 test -s "$TMP_DIR/manual.json"
 cargo run -q -p tdsl-cli -- render "$TMP_DIR/manual.tdsl" --output "$TMP_DIR/manual.html"
 test -s "$TMP_DIR/manual.html"
+
+# ---- tdsl fmt ---------------------------------------------------------------
+echo "[e2e] fmt: format static example to stdout"
+cargo run -q -p tdsl-cli -- fmt examples/china_dynasties.tdsl >"$TMP_DIR/fmt_out.tdsl"
+test -s "$TMP_DIR/fmt_out.tdsl"
+grep -Eq "timeline|lane|span" "$TMP_DIR/fmt_out.tdsl"
+
+echo "[e2e] fmt --check: already-formatted file exits 0"
+# フォーマット済みファイルに対して --check は成功するはず
+cargo run -q -p tdsl-cli -- fmt "$TMP_DIR/fmt_out.tdsl" --check
+
+echo "[e2e] fmt --check: unformatted file exits non-zero"
+# インデントを崩した入力を作成
+cat > "$TMP_DIR/unformatted.tdsl" <<'TDSL'
+timeline "T" {title "T";unit year;range 1900..2000;}
+lane "A" as a {kind custom;order 1;}
+TDSL
+assert_fails cargo run -q -p tdsl-cli -- fmt "$TMP_DIR/unformatted.tdsl" --check
+
+echo "[e2e] fmt --write: rewrites file in-place"
+cp "$TMP_DIR/unformatted.tdsl" "$TMP_DIR/to_write.tdsl"
+cargo run -q -p tdsl-cli -- fmt "$TMP_DIR/to_write.tdsl" --write
+cargo run -q -p tdsl-cli -- fmt "$TMP_DIR/to_write.tdsl" --check
+
+echo "[e2e] fmt: idempotent (fmt output re-formatted equals itself)"
+cargo run -q -p tdsl-cli -- fmt "$TMP_DIR/fmt_out.tdsl" >"$TMP_DIR/fmt_out2.tdsl"
+diff "$TMP_DIR/fmt_out.tdsl" "$TMP_DIR/fmt_out2.tdsl"
+
+echo "[e2e] fmt: parse error exits non-zero"
+assert_fails cargo run -q -p tdsl-cli -- fmt tests/fixtures/invalid_syntax.tdsl
 
 # ---- tdsl lint (no --fix) ---------------------------------------------------
 echo "[e2e] lint: plain lint on examples"
