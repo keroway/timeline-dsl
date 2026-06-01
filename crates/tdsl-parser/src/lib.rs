@@ -3,7 +3,7 @@ pub mod builder;
 pub mod error;
 pub mod format;
 
-pub use error::{ParseDiagnostic, ParseDiagnosticNote, byte_offset_to_line_col};
+pub use error::{ParseDiagnostic, byte_offset_to_line_col};
 pub use format::{format_file, format_source};
 
 use pest::Parser;

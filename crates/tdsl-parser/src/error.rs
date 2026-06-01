@@ -1,4 +1,4 @@
-use miette::{Diagnostic, LabeledSpan, NamedSource, SourceSpan};
+use miette::{Diagnostic, NamedSource, SourceSpan};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -41,26 +41,24 @@ pub struct ParseDiagnostic {
     src: NamedSource<String>,
     #[label("ここに問題があります")]
     span: Option<SourceSpan>,
-    /// キャレットなしの追加ラベル（スパン情報がない variant 向け）
-    #[related]
-    related: Vec<ParseDiagnosticNote>,
-}
-
-/// キャレットなしの補足情報（位置情報のない ParseError variant 用）。
-#[derive(Debug, Error, Diagnostic)]
-#[error("{note}")]
-pub struct ParseDiagnosticNote {
-    note: String,
 }
 
 impl ParseDiagnostic {
     /// `ParseError` と DSL ソース文字列からキャレット付き診断を構築する。
     ///
-    /// - `Syntax` variant: pest の `InputLocation` からバイトオフセットを取得して `SourceSpan` を構成する。
+    /// - `Syntax` variant: pest の `variant.message()` から簡潔な説明文のみを取得する。
+    ///   位置・スニペットは miette のキャレット描画に委ねる（pest の整形文字列は使わない）。
     /// - バイトオフセット variant（`InvalidInt` 等）: `location` フィールドの `"start:end"` 文字列を使う。
     /// - 位置情報のない variant（`UnknownPolicy` 等）: スパンなしで表示する。
     pub fn from_parse_error(err: &ParseError, src: &str, filename: &str) -> Self {
-        let message = err.to_string();
+        let message = match err {
+            // pest の完全整形文字列（位置・スニペット込み）は使わず、
+            // variant.message() で "expected ..." の一行説明だけを取り出す。
+            ParseError::Syntax(pest_err) => {
+                format!("構文エラー: {}", pest_err.variant.message())
+            }
+            other => other.to_string(),
+        };
         let named_src = NamedSource::new(filename, src.to_owned());
 
         let span = Self::extract_span(err, src);
@@ -69,7 +67,6 @@ impl ParseDiagnostic {
             message,
             src: named_src,
             span,
-            related: Vec::new(),
         }
     }
 
@@ -102,16 +99,6 @@ impl ParseDiagnostic {
     /// `SourceSpan` を返す（テストおよびカスタム表示向け）。
     pub fn span(&self) -> Option<SourceSpan> {
         self.span
-    }
-
-    /// 複数の `LabeledSpan` を返す（miette ラベル表示向け補助メソッド）。
-    pub fn labels(&self) -> Option<Box<dyn Iterator<Item = LabeledSpan> + '_>> {
-        let span = self.span?;
-        Some(Box::new(std::iter::once(LabeledSpan::new(
-            Some("ここに問題があります".to_owned()),
-            span.offset(),
-            span.len(),
-        ))))
     }
 }
 

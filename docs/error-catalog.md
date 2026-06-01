@@ -33,12 +33,7 @@ after（v1.14.0 以降）:
 ```
 tdsl::parse_error
 
-  × Syntax error:  --> 1:1
-  │   |
-  │ 1 | xyzzy "bad" {
-  │   | ^---
-  │   |
-  │   = expected file
+  × 構文エラー: expected EOI, timeline_block, lane_decl, ...
    ╭─[myfile.tdsl:1:1]
  1 │ xyzzy "bad" {
    · ┬
