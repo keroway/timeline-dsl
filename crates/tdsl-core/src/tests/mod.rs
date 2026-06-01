@@ -1,3 +1,4 @@
+mod golden;
 #[cfg(feature = "wikidata")]
 mod helpers;
 mod lower_static;

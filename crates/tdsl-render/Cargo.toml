@@ -22,6 +22,9 @@ thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
+insta = { version = "1", features = ["yaml"] }
+tdsl-parser = { path = "../tdsl-parser" }
+tdsl-core = { path = "../tdsl-core", default-features = false }
 
 [[bench]]
 name = "render_bench"

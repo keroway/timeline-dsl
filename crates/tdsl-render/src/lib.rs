@@ -738,4 +738,30 @@ mod tests {
             "HTML must contain the group label 'グループ1'"
         );
     }
+
+    // ─── Golden SVG snapshot tests ─────────────────────────────────────────
+
+    /// Read an example file relative to the workspace root.
+    fn read_example(name: &str) -> String {
+        let path = format!("../../examples/{name}");
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read {path}: {e}"))
+    }
+
+    #[test]
+    fn snapshot_china_dynasties_svg() {
+        let src = read_example("china_dynasties.tdsl");
+        let file = tdsl_parser::parse(&src).unwrap();
+        let ir = tdsl_core::lower::lower_static(&file).unwrap();
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        insta::assert_snapshot!(svg);
+    }
+
+    #[test]
+    fn snapshot_world_wars_svg() {
+        let src = read_example("world_wars.tdsl");
+        let file = tdsl_parser::parse(&src).unwrap();
+        let ir = tdsl_core::lower::lower_static(&file).unwrap();
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        insta::assert_snapshot!(svg);
+    }
 }

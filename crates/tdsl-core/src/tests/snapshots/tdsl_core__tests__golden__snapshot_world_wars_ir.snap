@@ -1,0 +1,229 @@
+---
+source: crates/tdsl-core/src/tests/golden.rs
+assertion_line: 42
+expression: ir
+---
+{
+  "meta": {
+    "title": "近代戦争年表（第一次・第二次世界大戦）",
+    "unit": "year",
+    "range": [
+      1900,
+      1950
+    ],
+    "calendar": "proleptic_gregorian"
+  },
+  "lanes": [
+    {
+      "id": "war",
+      "label": "戦争",
+      "kind": "event",
+      "order": 10
+    },
+    {
+      "id": "politics",
+      "label": "政治",
+      "kind": "event",
+      "order": 20
+    },
+    {
+      "id": "society",
+      "label": "社会",
+      "kind": "event",
+      "order": 30
+    }
+  ],
+  "items": [
+    {
+      "type": "event_range",
+      "id": "range:wwi",
+      "lane": "war",
+      "start": 1914,
+      "end": 1918,
+      "label": "第一次世界大戦",
+      "tags": [
+        "war",
+        "wwi"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:war:1914",
+      "lane": "war",
+      "time": 1914,
+      "label": "サラエボ事件（開戦の引き金）",
+      "tags": [
+        "wwi"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:politics:1917",
+      "lane": "politics",
+      "time": 1917,
+      "label": "ロシア革命",
+      "tags": [
+        "wwi",
+        "revolution"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:war:1918",
+      "lane": "war",
+      "time": 1918,
+      "label": "第一次世界大戦終結",
+      "tags": [
+        "wwi"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:politics:1919",
+      "lane": "politics",
+      "time": 1919,
+      "label": "パリ講和会議・ヴェルサイユ条約",
+      "tags": [
+        "wwi",
+        "treaty"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:politics:1929",
+      "lane": "politics",
+      "time": 1929,
+      "label": "世界恐慌",
+      "tags": [
+        "economy"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:politics:1933",
+      "lane": "politics",
+      "time": 1933,
+      "label": "ナチス政権樹立",
+      "tags": [
+        "politics"
+      ]
+    },
+    {
+      "type": "event_range",
+      "id": "range:wwii",
+      "lane": "war",
+      "start": 1939,
+      "end": 1945,
+      "label": "第二次世界大戦",
+      "tags": [
+        "war",
+        "wwii"
+      ]
+    },
+    {
+      "type": "event_range",
+      "id": "range:pacific_war",
+      "lane": "war",
+      "start": 1941,
+      "end": 1945,
+      "label": "太平洋戦争",
+      "tags": [
+        "war",
+        "wwii",
+        "pacific"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:war:1939",
+      "lane": "war",
+      "time": 1939,
+      "label": "ドイツ、ポーランド侵攻（WWII開戦）",
+      "tags": [
+        "wwii"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:war:1940",
+      "lane": "war",
+      "time": 1940,
+      "label": "ダンケルク撤退・フランス陥落",
+      "tags": [
+        "wwii"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:war:1941",
+      "lane": "war",
+      "time": 1941,
+      "label": "独ソ戦開始・日本の真珠湾攻撃",
+      "tags": [
+        "wwii"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:war:1942",
+      "lane": "war",
+      "time": 1942,
+      "label": "ミッドウェー海戦・スターリングラード攻防戦",
+      "tags": [
+        "wwii"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:war:1944",
+      "lane": "war",
+      "time": 1944,
+      "label": "ノルマンディー上陸作戦",
+      "tags": [
+        "wwii"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:war:1945",
+      "lane": "war",
+      "time": 1945,
+      "label": "第二次世界大戦終結",
+      "tags": [
+        "wwii"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:society:1945",
+      "lane": "society",
+      "time": 1945,
+      "label": "国際連合設立",
+      "tags": [
+        "wwii",
+        "international"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:society:1918",
+      "lane": "society",
+      "time": 1918,
+      "label": "スペイン風邪（パンデミック）",
+      "tags": [
+        "pandemic",
+        "wwi"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:society:1920",
+      "lane": "society",
+      "time": 1920,
+      "label": "国際連盟発足",
+      "tags": [
+        "international"
+      ]
+    }
+  ]
+}

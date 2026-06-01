@@ -1,0 +1,114 @@
+---
+source: crates/tdsl-core/src/tests/golden.rs
+assertion_line: 66
+expression: ir
+---
+{
+  "meta": {
+    "title": "Apollo 11 Mission",
+    "unit": "day",
+    "range": [
+      1969,
+      1969
+    ],
+    "range_start_month": 7,
+    "range_start_day": 15,
+    "range_end_month": 7,
+    "range_end_day": 25,
+    "calendar": "proleptic_gregorian"
+  },
+  "lanes": [
+    {
+      "id": "mission",
+      "label": "ミッション",
+      "kind": "custom",
+      "order": 1
+    },
+    {
+      "id": "events",
+      "label": "重要イベント",
+      "kind": "custom",
+      "order": 2
+    }
+  ],
+  "items": [
+    {
+      "type": "span",
+      "id": "span:mission:1969-07-16",
+      "lane": "mission",
+      "start": 1969,
+      "end": 1969,
+      "label": "ミッション期間",
+      "tags": [
+        "mission"
+      ],
+      "start_month": 7,
+      "start_day": 16,
+      "end_month": 7,
+      "end_day": 24
+    },
+    {
+      "type": "event",
+      "id": "event:events:1969-07-16",
+      "lane": "events",
+      "time": 1969,
+      "label": "サターンV打ち上げ",
+      "tags": [
+        "launch"
+      ],
+      "time_month": 7,
+      "time_day": 16
+    },
+    {
+      "type": "event",
+      "id": "event:events:1969-07-19",
+      "lane": "events",
+      "time": 1969,
+      "label": "月軌道投入",
+      "time_month": 7,
+      "time_day": 19
+    },
+    {
+      "type": "event",
+      "id": "event:events:1969-07-20",
+      "lane": "events",
+      "time": 1969,
+      "label": "月面着陸",
+      "tags": [
+        "highlight"
+      ],
+      "time_month": 7,
+      "time_day": 20
+    },
+    {
+      "type": "event",
+      "id": "event:events:1969-07-21",
+      "lane": "events",
+      "time": 1969,
+      "label": "船外活動 (EVA)",
+      "time_month": 7,
+      "time_day": 21
+    },
+    {
+      "type": "event",
+      "id": "event:events:1969-07-22",
+      "lane": "events",
+      "time": 1969,
+      "label": "月面離陸",
+      "time_month": 7,
+      "time_day": 22
+    },
+    {
+      "type": "event",
+      "id": "event:events:1969-07-24",
+      "lane": "events",
+      "time": 1969,
+      "label": "地球帰還",
+      "tags": [
+        "highlight"
+      ],
+      "time_month": 7,
+      "time_day": 24
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+---
+source: crates/tdsl-core/src/tests/golden.rs
+assertion_line: 26
+expression: ir
+---
+{
+  "meta": {
+    "title": "中国王朝年表",
+    "unit": "year",
+    "range": [
+      -500,
+      2000
+    ],
+    "calendar": "proleptic_gregorian"
+  },
+  "lanes": [
+    {
+      "id": "qin",
+      "label": "秦",
+      "kind": "dynasty",
+      "order": 10
+    },
+    {
+      "id": "han",
+      "label": "漢",
+      "kind": "dynasty",
+      "order": 20
+    },
+    {
+      "id": "sanguo",
+      "label": "三国",
+      "kind": "dynasty",
+      "order": 30
+    }
+  ],
+  "items": [
+    {
+      "type": "span",
+      "id": "span:qin",
+      "lane": "qin",
+      "start": -221,
+      "end": -206,
+      "label": "秦",
+      "tags": [
+        "dynasty"
+      ],
+      "source": "wd:Q7183"
+    },
+    {
+      "type": "span",
+      "id": "span:han",
+      "lane": "han",
+      "start": -206,
+      "end": 220,
+      "label": "漢",
+      "tags": [
+        "dynasty"
+      ],
+      "source": "wd:Q7209"
+    },
+    {
+      "type": "span",
+      "id": "span:sanguo",
+      "lane": "sanguo",
+      "start": 220,
+      "end": 280,
+      "label": "三国時代",
+      "tags": [
+        "dynasty"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:qin:-221",
+      "lane": "qin",
+      "time": -221,
+      "label": "秦の天下統一"
+    },
+    {
+      "type": "event",
+      "id": "event:han:-209",
+      "lane": "han",
+      "time": -209,
+      "label": "陳勝・呉広の乱"
+    },
+    {
+      "type": "event",
+      "id": "event:han:-202",
+      "lane": "han",
+      "time": -202,
+      "label": "垓下の戦い"
+    },
+    {
+      "type": "event_range",
+      "id": "event_range:han:184",
+      "lane": "han",
+      "start": 184,
+      "end": 204,
+      "label": "黄巾の乱",
+      "tags": [
+        "war"
+      ]
+    },
+    {
+      "type": "event_range",
+      "id": "event_range:sanguo:228",
+      "lane": "sanguo",
+      "start": 228,
+      "end": 234,
+      "label": "諸葛亮の北伐",
+      "tags": [
+        "war"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "wd:Q7183",
+      "provider": "wd",
+      "license": "CC0"
+    },
+    {
+      "id": "wd:Q7209",
+      "provider": "wd",
+      "license": "CC0"
+    }
+  ]
+}
