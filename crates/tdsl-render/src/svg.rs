@@ -5,7 +5,7 @@ use tdsl_core::ir::Item;
 use crate::layout::{LaidItem, LayoutModel, format_year, month_abbr};
 
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
-pub fn render_svg(layout: &LayoutModel) -> String {
+pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
     let mut s = String::new();
     let w = layout.total_width;
     let h = layout.total_height;
@@ -15,8 +15,7 @@ pub fn render_svg(layout: &LayoutModel) -> String {
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img" aria-label="timeline" class="tdsl-root">"#,
         w = fmt_f(w),
         h = fmt_f(h)
-    )
-    .unwrap();
+    )?;
 
     let font_family = layout
         .opts
@@ -29,20 +28,19 @@ pub fn render_svg(layout: &LayoutModel) -> String {
     writeln!(
         s,
         r#"  <style>.tdsl-root text {{ font-family: {font_family}; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }} .tdsl-axis-day-tick {{ stroke: #ddd; stroke-width: 1; }} .tdsl-axis-day-text {{ font-size: 9px; fill: #888; }}</style>"#
-    )
-    .unwrap();
+    )?;
 
-    render_lane_bands(&mut s, layout);
-    render_group_headers(&mut s, layout);
-    render_axis(&mut s, layout);
-    render_lane_labels(&mut s, layout);
-    render_items(&mut s, layout);
+    render_lane_bands(&mut s, layout)?;
+    render_group_headers(&mut s, layout)?;
+    render_axis(&mut s, layout)?;
+    render_lane_labels(&mut s, layout)?;
+    render_items(&mut s, layout)?;
 
-    writeln!(s, "</svg>").unwrap();
-    s
+    writeln!(s, "</svg>")?;
+    Ok(s)
 }
 
-fn render_lane_bands(s: &mut String, layout: &LayoutModel) {
+fn render_lane_bands(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     for band in &layout.lane_bands {
         let class = if band.even {
             "tdsl-lane-band-even"
@@ -56,20 +54,20 @@ fn render_lane_bands(s: &mut String, layout: &LayoutModel) {
             y = fmt_f(band.y),
             w = fmt_f(band.width),
             h = fmt_f(band.height),
-        )
-        .unwrap();
+        )?;
     }
+    Ok(())
 }
 
-fn render_axis(s: &mut String, layout: &LayoutModel) {
+fn render_axis(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     if layout.is_vertical() {
-        render_axis_vertical(s, layout);
+        render_axis_vertical(s, layout)
     } else {
-        render_axis_horizontal(s, layout);
+        render_axis_horizontal(s, layout)
     }
 }
 
-fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) {
+fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     let top = layout.opts.top_margin;
     let bottom = layout.total_height - layout.opts.bottom_margin;
 
@@ -81,8 +79,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) {
         x1 = fmt_f(layout.opts.left_gutter),
         y = fmt_f(baseline_y),
         x2 = fmt_f(layout.total_width - layout.opts.right_margin),
-    )
-    .unwrap();
+    )?;
 
     for year in layout.ticks() {
         let x = layout.year_to_x(year);
@@ -93,8 +90,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) {
             x = fmt_f(x),
             y1 = fmt_f(top),
             y2 = fmt_f(bottom),
-        )
-        .unwrap();
+        )?;
         let label = format_year(year);
         writeln!(
             s,
@@ -102,8 +98,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) {
             x = fmt_f(x),
             y = fmt_f(top - 8.0),
             label = escape_xml(&label),
-        )
-        .unwrap();
+        )?;
     }
 
     // Month minor ticks (unit=month only, hidden when scale too small).
@@ -116,8 +111,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) {
             x = fmt_f(x),
             y1 = fmt_f(baseline_y - 3.0),
             y2 = fmt_f(baseline_y),
-        )
-        .unwrap();
+        )?;
         if px_per_month >= 20.0 {
             let label = month_abbr(month);
             writeln!(
@@ -125,8 +119,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) {
                 r#"  <text class="tdsl-axis-text tdsl-axis-month-text" x="{x}" y="{y}" text-anchor="middle">{label}</text>"#,
                 x = fmt_f(x),
                 y = fmt_f(baseline_y - 5.0),
-            )
-            .unwrap();
+            )?;
         }
     }
 
@@ -141,8 +134,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) {
             x = fmt_f(x),
             y1 = fmt_f(baseline_y - 2.0),
             y2 = fmt_f(baseline_y),
-        )
-        .unwrap();
+        )?;
         if day == 1 && pixels_per_day >= 1.5 {
             // 月またぎラベル: YYYY-MM
             let label = format!("{year:04}-{month:02}");
@@ -152,8 +144,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) {
                 x = fmt_f(x),
                 y = fmt_f(baseline_y - 5.0),
                 label = escape_xml(&label),
-            )
-            .unwrap();
+            )?;
         } else if pixels_per_day >= 8.0 {
             // 日番号ラベル（密度が十分なときのみ）
             writeln!(
@@ -161,13 +152,13 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) {
                 r#"  <text class="tdsl-axis-text tdsl-axis-day-text" x="{x}" y="{y}" text-anchor="middle">{day}</text>"#,
                 x = fmt_f(x),
                 y = fmt_f(baseline_y - 5.0),
-            )
-            .unwrap();
+            )?;
         }
     }
+    Ok(())
 }
 
-fn render_axis_vertical(s: &mut String, layout: &LayoutModel) {
+fn render_axis_vertical(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     let left = layout.opts.left_gutter;
     let right = layout.total_width - layout.opts.right_margin;
 
@@ -179,8 +170,7 @@ fn render_axis_vertical(s: &mut String, layout: &LayoutModel) {
         x = fmt_f(baseline_x),
         y1 = fmt_f(layout.opts.top_margin),
         y2 = fmt_f(layout.total_height - layout.opts.bottom_margin),
-    )
-    .unwrap();
+    )?;
 
     for year in layout.ticks() {
         let y = layout.year_to_primary(year);
@@ -191,8 +181,7 @@ fn render_axis_vertical(s: &mut String, layout: &LayoutModel) {
             x1 = fmt_f(left),
             y = fmt_f(y),
             x2 = fmt_f(right),
-        )
-        .unwrap();
+        )?;
         let label = format_year(year);
         writeln!(
             s,
@@ -200,12 +189,12 @@ fn render_axis_vertical(s: &mut String, layout: &LayoutModel) {
             x = fmt_f(left - 8.0),
             y = fmt_f(y),
             label = escape_xml(&label),
-        )
-        .unwrap();
+        )?;
     }
+    Ok(())
 }
 
-fn render_group_headers(s: &mut String, layout: &LayoutModel) {
+fn render_group_headers(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     // 各グループの先頭レーン（最も小さい y 座標 = 最上部）を特定してヘッダーを描画する。
     // グループ名をキーに、先頭レーンの lane_y を集める。
     let mut group_top: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
@@ -221,7 +210,7 @@ fn render_group_headers(s: &mut String, layout: &LayoutModel) {
         }
     }
     if group_top.is_empty() {
-        return;
+        return Ok(());
     }
 
     // グループ先頭位置に区切り線とラベルを描画する。
@@ -234,8 +223,7 @@ fn render_group_headers(s: &mut String, layout: &LayoutModel) {
                 r#"  <text class="tdsl-group-label" x="{x}" y="{y}" text-anchor="middle" font-weight="bold" font-size="11">{label}</text>"#,
                 x = fmt_f(*top_y + layout.opts.lane_height / 2.0),
                 y = fmt_f(layout.opts.top_margin - 20.0),
-            )
-            .unwrap();
+            )?;
         } else {
             // 水平レイアウト: バンドの上辺に区切り線とラベルを描画する。
             let x2 = layout.total_width - layout.opts.right_margin;
@@ -245,20 +233,19 @@ fn render_group_headers(s: &mut String, layout: &LayoutModel) {
                 x1 = fmt_f(0.0),
                 y = fmt_f(*top_y),
                 x2 = fmt_f(x2),
-            )
-            .unwrap();
+            )?;
             writeln!(
                 s,
                 r#"  <text class="tdsl-group-label" x="{x}" y="{y}" text-anchor="middle" font-weight="bold" font-size="11">{label}</text>"#,
                 x = fmt_f(layout.opts.left_gutter / 2.0),
                 y = fmt_f(top_y - 3.0),
-            )
-            .unwrap();
+            )?;
         }
     }
+    Ok(())
 }
 
-fn render_lane_labels(s: &mut String, layout: &LayoutModel) {
+fn render_lane_labels(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     if layout.is_vertical() {
         for lane in &layout.lanes_ordered {
             // In vertical layout, lane_y stores the center X of the lane column.
@@ -270,8 +257,7 @@ fn render_lane_labels(s: &mut String, layout: &LayoutModel) {
                 x = fmt_f(cx),
                 y = fmt_f(layout.opts.top_margin - 8.0),
                 label = escape_xml(&lane.label),
-            )
-            .unwrap();
+            )?;
         }
     } else {
         for lane in &layout.lanes_ordered {
@@ -283,13 +269,13 @@ fn render_lane_labels(s: &mut String, layout: &LayoutModel) {
                 x = fmt_f(layout.opts.left_gutter - 8.0),
                 y = fmt_f(y),
                 label = escape_xml(&lane.label),
-            )
-            .unwrap();
+            )?;
         }
     }
+    Ok(())
 }
 
-fn render_items(s: &mut String, layout: &LayoutModel) {
+fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     for laid in &layout.items {
         match laid {
             LaidItem::Span {
@@ -324,8 +310,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) {
                     tx = fmt_f(*x + 4.0),
                     ty = fmt_f(*y + height / 2.0),
                     label = escape_xml(item_label(item)),
-                )
-                .unwrap();
+                )?;
             }
             LaidItem::EventRange {
                 item,
@@ -356,8 +341,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) {
                     y = fmt_f(*y),
                     w = fmt_f(*width),
                     h = fmt_f(*height),
-                )
-                .unwrap();
+                )?;
             }
             LaidItem::Event {
                 item,
@@ -400,8 +384,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) {
                         x2 = fmt_f(*y_bottom),
                         cy = fmt_f(*x),
                         dot_x = fmt_f(*y_dot),
-                    )
-                    .unwrap();
+                    )?;
                 } else {
                     let hit_x = *x - 8.0;
                     let hit_w = 16.0;
@@ -422,12 +405,12 @@ fn render_items(s: &mut String, layout: &LayoutModel) {
                         y1 = fmt_f(*y_top),
                         y2 = fmt_f(*y_bottom),
                         cy = fmt_f(*y_dot),
-                    )
-                    .unwrap();
+                    )?;
                 }
             }
         }
     }
+    Ok(())
 }
 
 fn item_lane_id(item: &Item) -> &str {
@@ -608,7 +591,7 @@ mod tests {
     fn svg_contains_core_elements() {
         let ir = sample_ir();
         let layout = LayoutModel::compute(&ir, RenderOptions::default());
-        let svg = render_svg(&layout);
+        let svg = render_svg(&layout).unwrap();
         assert!(svg.contains("<svg"));
         assert!(svg.contains("</svg>"));
         assert!(svg.contains("<rect"));
@@ -622,7 +605,7 @@ mod tests {
         let mut ir = sample_ir();
         ir.lanes[0].label = "<danger> & \"quoted\"".into();
         let layout = LayoutModel::compute(&ir, RenderOptions::default());
-        let svg = render_svg(&layout);
+        let svg = render_svg(&layout).unwrap();
         assert!(svg.contains("&lt;danger&gt;"));
         assert!(svg.contains("&amp;"));
         assert!(svg.contains("&quot;"));
@@ -633,7 +616,7 @@ mod tests {
     fn svg_includes_tooltip_via_title_element() {
         let ir = sample_ir();
         let layout = LayoutModel::compute(&ir, RenderOptions::default());
-        let svg = render_svg(&layout);
+        let svg = render_svg(&layout).unwrap();
         assert!(svg.contains("<title>"));
         assert!(svg.contains("wd:Q7209"));
         assert!(svg.contains(r#"data-tdsl-tooltip="漢&#10;BC206〜220"#));
@@ -689,7 +672,7 @@ mod tests {
             sources: vec![],
         };
         let layout = LayoutModel::compute(&ir, RenderOptions::default());
-        let svg = render_svg(&layout);
+        let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("BC206 Feb"),
             "expected 'BC206 Feb' in tooltip, got:\n{svg}"
@@ -708,7 +691,7 @@ mod tests {
             ..RenderOptions::default()
         };
         let layout = LayoutModel::compute(&ir, opts);
-        let svg = render_svg(&layout);
+        let svg = render_svg(&layout).unwrap();
         // The span item has tag "dynasty", so its fill must use the color_map color.
         assert!(
             svg.contains("fill:#cc0000;"),
