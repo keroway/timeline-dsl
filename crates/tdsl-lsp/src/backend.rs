@@ -1,7 +1,7 @@
 //! LSP サーバの Backend 実装。
 //!
 //! `tower-lsp` の `LanguageServer` trait を実装し、stdio 経由で LSP クライアントと通信する。
-//! 現バージョンで実装している機能: Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References + Rename。
+//! 現バージョンで実装している機能: Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References + Rename + Formatting。
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -11,11 +11,12 @@ use tower_lsp::jsonrpc::{self, Result as LspResult};
 use tower_lsp::lsp_types::{
     CodeActionParams, CodeActionProviderCapability, CodeActionResponse, CompletionOptions,
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverParams, HoverProviderCapability, InitializeParams,
-    InitializeResult, InitializedParams, Location, MessageType, OneOf, PrepareRenameResponse,
-    ReferenceParams, RenameOptions, RenameParams, ServerCapabilities, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkspaceEdit,
+    DidOpenTextDocumentParams, DocumentFormattingParams, DocumentSymbolParams,
+    DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
+    HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, Location,
+    MessageType, OneOf, PrepareRenameResponse, ReferenceParams, RenameOptions, RenameParams,
+    ServerCapabilities, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -24,6 +25,7 @@ use crate::completion::keyword_completions;
 use crate::diagnostics::compute_diagnostics;
 use crate::document_symbols::compute_document_symbols;
 use crate::find_references::compute_references;
+use crate::formatting::compute_formatting;
 use crate::goto_definition::compute_goto_definition;
 use crate::hover::compute_hover;
 use crate::rename::{compute_prepare_rename, compute_rename};
@@ -109,6 +111,8 @@ impl LanguageServer for Backend {
                     prepare_provider: Some(true),
                     work_done_progress_options: Default::default(),
                 })),
+                // ドキュメント全体のフォーマット（2 スペースインデント・ブロック間空行 1 行）
+                document_formatting_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -120,7 +124,7 @@ impl LanguageServer for Backend {
         self.client
             .log_message(
                 MessageType::INFO,
-                "tdsl LSP server initialized (Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References + Rename)",
+                "tdsl LSP server initialized (Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References + Rename + Formatting)",
             )
             .await;
     }
@@ -262,6 +266,22 @@ impl LanguageServer for Backend {
                     data: None,
                 }),
             },
+            None => Ok(None),
+        }
+    }
+
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> LspResult<Option<Vec<TextEdit>>> {
+        let uri = params.text_document.uri;
+        let source = {
+            // LSP サーバの単一スレッド文脈では panic しない
+            let docs = self.documents.lock().expect("documents lock poisoned");
+            docs.get(uri.as_str()).map(|d| d.text.clone())
+        };
+        match source {
+            Some(src) => Ok(compute_formatting(&src)),
             None => Ok(None),
         }
     }

@@ -43,7 +43,7 @@ tdsl [OPTIONS] <COMMAND>
 | [`cache`](#cache) | Wikidata ローカルキャッシュの管理 |
 | [`decompile`](#decompile) | JSON IR を `.tdsl` ソースに逆変換 |
 | [`completions`](#completions) | シェル補完スクリプトを生成 |
-| [`lsp`](#lsp) | LSP サーバを stdio 経由で起動（Diagnostics + Completion + Hover + Goto Definition + Code Action） |
+| [`lsp`](#lsp) | LSP サーバを stdio 経由で起動（Diagnostics + Completion + Hover + Goto Definition + Code Action + Document Symbols + Find References + Rename + Formatting） |
 
 ---
 
@@ -719,6 +719,11 @@ tdsl lsp
 | `textDocument/hover` | lane ID → lane 情報（ラベル・kind・order）/ QID → キャッシュ済みエンティティ情報（offline） |
 | `textDocument/definition` | lane 参照位置 → lane 宣言位置へのジャンプ |
 | `textDocument/codeAction` | `tdsl lint --fix` 相当の自動修正を quick fix として提示（全文置換・offline） |
+| `textDocument/documentSymbol` | timeline / lane / アイテムの階層シンボルを返す（アウトライン・ブレッドクラム表示） |
+| `textDocument/references` | lane ID の全参照位置を返す（`includeDeclaration` で宣言含む／含まないを制御） |
+| `textDocument/rename` | lane ID の宣言＋全参照を新名称に一括置換（明示的 `as <alias>` 限定） |
+| `textDocument/prepareRename` | リネーム対象の妥当性検証（`as` 省略 lane は拒否） |
+| `textDocument/formatting` | DSL ソースを正準形（2 スペースインデント・ブロック間空行 1 行）に整形する全文置換 TextEdit を返す |
 
 > **`import` / `map` / `apply` ブロックについて**: LSP の診断はネットワークアクセスを伴わない静的解析（offline）で行うため、Wikidata 取得が前提のエンティティ解決は行いません。ただし、ネットワーク不要で判定できる **静的な参照エラー** は offline でも検出します:
 > - `map <alias>.<key>` の `alias` が未宣言（`import ... as <alias>` が存在しない）→ **Error**
@@ -726,11 +731,10 @@ tdsl lsp
 >
 > エンティティ解決に依存するブロック（参照は正しいが Wikidata 取得が必要なもの）は黙って無視せず、各ブロック位置に **Information レベルの診断**（「offline 診断では未解決」）を表示します。生成されるアイテムの完全な検証は `tdsl build` / `tdsl check` を使用してください。
 
+> **フォーマットとコメントについて**: `textDocument/formatting` は `tdsl_parser::format_source` を使って AST を再 emit するため、**コメント（`//` 行コメント・`/* */` ブロックコメント）は AST に残らず整形後に消去されます**。コメントが重要な場合は整形を適用しないでください。
+
 **今後の別 issue で実装予定の機能:**
 
-- Find References（`textDocument/references`・lane ID の全参照検索）
-- Rename Symbol（`textDocument/rename`・lane ID の一括リネーム）
-- Document Symbols（`textDocument/documentSymbol`・アウトライン表示）
 - VS Code 拡張クライアント（エディタ連携）
 
 ### エディタ連携
