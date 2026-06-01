@@ -20,6 +20,8 @@ use crate::svg;
 /// Errors that can occur while rasterizing the timeline SVG to PNG.
 #[derive(Debug, Error)]
 pub enum PngError {
+    #[error("SVG formatting failed: {0}")]
+    Fmt(#[from] std::fmt::Error),
     #[error("failed to parse intermediate SVG: {0}")]
     Parse(#[from] resvg::usvg::Error),
     #[error("failed to allocate pixmap of size {width}x{height}")]
@@ -76,7 +78,7 @@ pub fn render_png(
     png_opts: PngOptions,
 ) -> Result<Vec<u8>, PngError> {
     let layout = LayoutModel::compute(ir, opts);
-    let svg_str = svg::render_svg(&layout);
+    let svg_str = svg::render_svg(&layout)?;
     svg_to_png(&svg_str, png_opts)
 }
 

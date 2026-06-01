@@ -256,6 +256,29 @@ enum Commands {
         append: Option<PathBuf>,
     },
 
+    /// Format a .tdsl file with canonical style (2-space indent, blank line between blocks).
+    ///
+    /// By default the formatted source is written to stdout.
+    /// Use --write to update the file in-place, or --check (for CI) to exit non-zero when
+    /// the file is not already formatted.
+    ///
+    /// NOTE: comments (`//` and `/* */`) are lost during formatting because they are
+    /// stripped at the grammar level (COMMENT is a silent rule). A full comment-preserving
+    /// formatter is tracked in a separate issue.
+    Fmt {
+        /// Input .tdsl file path
+        #[arg(value_name = "FILE")]
+        input: PathBuf,
+
+        /// Exit non-zero when the file is not formatted (do not modify the file). CI-friendly.
+        #[arg(long, default_value_t = false, conflicts_with = "write")]
+        check: bool,
+
+        /// Overwrite the file with the formatted source in-place.
+        #[arg(long, default_value_t = false, conflicts_with = "check")]
+        write: bool,
+    },
+
     /// Lint a .tdsl file and optionally apply safe fixes
     Lint {
         /// Input .tdsl file path
@@ -293,13 +316,14 @@ enum Commands {
         shell: clap_complete::Shell,
     },
 
-    /// Start a Language Server Protocol server over stdio (Diagnostics + Completion + Hover)
+    /// Start a Language Server Protocol server over stdio
     ///
     /// Communicates via stdin/stdout using the LSP JSON-RPC protocol.
-    /// Supported features: textDocument/publishDiagnostics (parse errors + validation warnings),
-    /// textDocument/completion (DSL keyword completion), and textDocument/hover
-    /// (lane ID -> lane info, QID -> cached entity info).
-    /// Goto Definition and Code Actions will be added in future issues.
+    /// Supported features: textDocument/publishDiagnostics (parse errors + validation
+    /// warnings), completion (DSL keyword completion), hover (lane ID -> lane info,
+    /// QID -> cached entity info), definition, references, rename, documentSymbol,
+    /// codeAction (lint --fix quick fixes), and formatting (canonical source
+    /// formatting; comments are not preserved).
     Lsp,
 }
 
@@ -546,6 +570,11 @@ fn main() {
             output,
             append,
         } => commands::init::cmd_import_csv(&input, output.as_deref(), append.as_deref()),
+        Commands::Fmt {
+            input,
+            check,
+            write,
+        } => commands::fmt::cmd_fmt(&input, check, write),
         Commands::Lint { input, fix, format } => commands::lint::cmd_lint(&input, fix, format),
         Commands::Cache { action } => commands::cache::cmd_cache(action),
         Commands::Decompile { input, output } => {
@@ -559,7 +588,11 @@ fn main() {
     };
 
     if let Err(e) = result {
-        eprintln!("Error: {e}");
+        // ParseError は commands::check::print_parse_error で miette 出力済みのため
+        // 空文字列の場合は重複出力を避けて終了コードだけ設定する。
+        if !e.is_empty() {
+            eprintln!("Error: {e}");
+        }
         process::exit(1);
     }
 }

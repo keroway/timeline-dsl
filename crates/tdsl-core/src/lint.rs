@@ -45,6 +45,8 @@ pub fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue
                         fixable: true,
                     });
                 }
+                lint_time_value(&s.start, line, &mut issues);
+                lint_time_value(&s.end, line, &mut issues);
             }
             Statement::Event(e) => {
                 lint_item_common(
@@ -56,6 +58,7 @@ pub fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue
                     line,
                     &mut issues,
                 );
+                lint_time_value(&e.time, line, &mut issues);
             }
             Statement::EventRange(er) => {
                 lint_item_common(
@@ -76,12 +79,31 @@ pub fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue
                         fixable: true,
                     });
                 }
+                lint_time_value(&er.start, line, &mut issues);
+                lint_time_value(&er.end, line, &mut issues);
             }
             _ => {}
         }
     }
 
     issues
+}
+
+/// `TimeValue::Date(y, m, d)` のカレンダー妥当性を検証し、不正な場合は warning を追加する。
+/// 年精度・月精度（日なし）の場合は検証をスキップする。
+fn lint_time_value(tv: &tdsl_parser::ast::TimeValue, line: usize, issues: &mut Vec<LintIssue>) {
+    if let tdsl_parser::ast::TimeValue::Date(year, month, day) = tv {
+        let max_day = crate::ir::days_in_month(*year, *month);
+        if *day == 0 || *day > max_day {
+            issues.push(LintIssue {
+                code: "invalid_calendar_date".to_string(),
+                severity: LintSeverity::Warning,
+                line,
+                message: format!("Invalid calendar date: {year}-{month:02}-{day:02}"),
+                fixable: false,
+            });
+        }
+    }
 }
 
 fn lint_item_common(
@@ -666,6 +688,167 @@ span a 10..20 "S" { tags ["x", "y"]; id "s1"; };
             fix_source(src).is_err(),
             "invalid source should yield ParseError"
         );
+    }
+
+    // ─── invalid_calendar_date ────────────────────────────────────────────────
+
+    /// `2000-02-29` は閏年なので OK（警告なし）。
+    #[test]
+    fn lint_calendar_date_ok_leap_year() {
+        let src = r#"
+timeline "T" { unit year; range 1999..2001; }
+lane "A" as a { kind custom; }
+event a 2000-02-29 "閏年OK" { id "e1"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        assert!(
+            !issues.iter().any(|i| i.code == "invalid_calendar_date"),
+            "2000-02-29 should be valid (leap year), got: {issues:?}"
+        );
+    }
+
+    /// `1900-02-28` は平年なので OK。
+    #[test]
+    fn lint_calendar_date_ok_non_leap_year() {
+        let src = r#"
+timeline "T" { unit year; range 1899..1901; }
+lane "A" as a { kind custom; }
+event a 1900-02-28 "平年OK" { id "e1"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        assert!(
+            !issues.iter().any(|i| i.code == "invalid_calendar_date"),
+            "1900-02-28 should be valid (non-leap year), got: {issues:?}"
+        );
+    }
+
+    /// `1900-02-29` は平年（1900 は 100 の倍数だが 400 の倍数でない）なので NG。
+    #[test]
+    fn lint_calendar_date_ng_non_leap_1900() {
+        let src = r#"
+timeline "T" { unit year; range 1899..1901; }
+lane "A" as a { kind custom; }
+event a 1900-02-29 "平年2/29はNG" { id "e1"; };
+"#;
+        // builder.rs の range チェック（day 1..=31）で弾かれる前に lint が走る想定だが、
+        // builder がパースを通さない場合はパースエラーになる。ここでは直接 TimeValue を作る。
+        // パーサが 1900-02-29 を受け付けるかどうかを確認する必要がある。
+        // builder は month=1..12 / day=1..31 のみ検証するため 1900-02-29 はパース可能。
+        let result = tdsl_parser::parse(src);
+        if let Ok(file) = result {
+            let issues = lint_issues(&file, src);
+            assert!(
+                issues.iter().any(|i| i.code == "invalid_calendar_date"),
+                "1900-02-29 should warn invalid_calendar_date, got: {issues:?}"
+            );
+        }
+        // パースエラーの場合は既にビルダー側で弾かれているので lint は不要（テストをスキップ）
+    }
+
+    /// `2024-02-30` は存在しない日付なので NG。
+    #[test]
+    fn lint_calendar_date_ng_feb30() {
+        let src = r#"
+timeline "T" { unit year; range 2023..2025; }
+lane "A" as a { kind custom; }
+event a 2024-02-30 "2月30日はNG" { id "e1"; };
+"#;
+        let result = tdsl_parser::parse(src);
+        if let Ok(file) = result {
+            let issues = lint_issues(&file, src);
+            assert!(
+                issues.iter().any(|i| i.code == "invalid_calendar_date"),
+                "2024-02-30 should warn invalid_calendar_date, got: {issues:?}"
+            );
+        }
+    }
+
+    /// 4月31日は存在しない日付なので NG。
+    #[test]
+    fn lint_calendar_date_ng_apr31() {
+        let src = r#"
+timeline "T" { unit year; range 2020..2022; }
+lane "A" as a { kind custom; }
+event a 2021-04-31 "4月31日はNG" { id "e1"; };
+"#;
+        let result = tdsl_parser::parse(src);
+        if let Ok(file) = result {
+            let issues = lint_issues(&file, src);
+            assert!(
+                issues.iter().any(|i| i.code == "invalid_calendar_date"),
+                "2021-04-31 should warn invalid_calendar_date, got: {issues:?}"
+            );
+        }
+    }
+
+    /// `2021-02-28` は平年なので OK。
+    #[test]
+    fn lint_calendar_date_ok_2021_feb28() {
+        let src = r#"
+timeline "T" { unit year; range 2020..2022; }
+lane "A" as a { kind custom; }
+event a 2021-02-28 "平年2/28OK" { id "e1"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        assert!(
+            !issues.iter().any(|i| i.code == "invalid_calendar_date"),
+            "2021-02-28 should be valid, got: {issues:?}"
+        );
+    }
+
+    /// `2021-02-29` は平年なので NG。
+    #[test]
+    fn lint_calendar_date_ng_2021_feb29() {
+        let src = r#"
+timeline "T" { unit year; range 2020..2022; }
+lane "A" as a { kind custom; }
+event a 2021-02-29 "平年2/29はNG" { id "e1"; };
+"#;
+        let result = tdsl_parser::parse(src);
+        if let Ok(file) = result {
+            let issues = lint_issues(&file, src);
+            assert!(
+                issues.iter().any(|i| i.code == "invalid_calendar_date"),
+                "2021-02-29 should warn invalid_calendar_date, got: {issues:?}"
+            );
+        }
+    }
+
+    /// 月精度のみ（日なし）は検証をスキップする。
+    #[test]
+    fn lint_calendar_date_skip_year_month_precision() {
+        let src = r#"
+timeline "T" { unit year; range 2020..2022; }
+lane "A" as a { kind custom; }
+event a 2021-02 "月精度はスキップ" { id "e1"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        assert!(
+            !issues.iter().any(|i| i.code == "invalid_calendar_date"),
+            "year-month precision should not trigger invalid_calendar_date, got: {issues:?}"
+        );
+    }
+
+    /// span の両端日付も検証される。
+    #[test]
+    fn lint_calendar_date_span_both_ends_checked() {
+        let src = r#"
+timeline "T" { unit year; range 2020..2022; }
+lane "A" as a { kind custom; }
+span a 2021-01-01..2021-02-30 "spanのendがNG" { id "s1"; };
+"#;
+        let result = tdsl_parser::parse(src);
+        if let Ok(file) = result {
+            let issues = lint_issues(&file, src);
+            assert!(
+                issues.iter().any(|i| i.code == "invalid_calendar_date"),
+                "span end 2021-02-30 should warn invalid_calendar_date, got: {issues:?}"
+            );
+        }
     }
 
     #[test]

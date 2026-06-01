@@ -15,7 +15,33 @@
 
 **原因**: DSLの文法に違反した記述があります。トークンの欠落、括弧の不一致、未知のキーワードなどが該当します。
 
-**修正方法**: エラーメッセージに含まれる行番号・列番号を確認し、その位置の記述を `docs/dsl-spec.md` の文法仕様と照合してください。
+**修正方法**: `tdsl check` / `tdsl build` はエラー行とその下にキャレット（`^`）でエラー箇所を強調表示します。表示位置を確認し、その記述を `docs/dsl-spec.md` の文法仕様と照合してください。
+
+**表示例（v1.14.0 以降: miette キャレット表示）**
+
+before（v1.13.0 以前）:
+```
+Error: Syntax error:  --> 1:1
+  |
+1 | xyzzy "bad" {
+  | ^---
+  |
+  = expected file
+```
+
+after（v1.14.0 以降）:
+```
+tdsl::parse_error
+
+  × 構文エラー: expected EOI, timeline_block, lane_decl, ...
+   ╭─[myfile.tdsl:1:1]
+ 1 │ xyzzy "bad" {
+   · ┬
+   · ╰── ここに問題があります
+ 2 │   title "T";
+   ╰────
+  help: DSL 仕様書 docs/dsl-spec.md を確認してください
+```
 
 ```
 # 誤り例
@@ -64,19 +90,27 @@ span dynasty -206..-9 "秦"
 
 ### E004: 不明な map ターゲット型
 
-**メッセージ**: `Unknown map target type: {value} (expected span, event, or event_range)`
+**メッセージ**: `Unknown map target type '{value}' (expected one of: span, event, event_range)`
 
-**原因**: `map` ブロックの `target_type` に `span` / `event` / `event_range` 以外の値が指定されています。
+**原因**: `map <alias> to <target_type> { ... }` の `<target_type>` に `span` / `event` / `event_range` 以外の値が指定されています。
 
-**修正方法**: `target_type` は `span`・`event`・`event_range` のいずれかを指定してください。
+**修正方法**: `<target_type>` は `span`・`event`・`event_range` のいずれかを指定してください（`to` の直後に置きます）。
 
-```
-# 誤り
-map wd.item { target_type: "timeline" }
+```tdsl
+# 誤り（timeline は target_type として無効）
+map wd.han_dynasty to timeline {
+    lane han;
+}
 
 # 正しい
-map wd.item { target_type: span }
+map wd.han_dynasty to span {
+    lane han;
+    start claim(P571).year;
+    end claim(P576).year;
+}
 ```
+
+> `target_type` ごとの生成アイテム種別・必須プロパティは [dsl-spec の map セクション](./dsl-spec.md#map) を参照してください。
 
 ---
 
@@ -417,6 +451,30 @@ span dynasty -206..-9 "秦" {
   id: qin
 }
 ```
+
+---
+
+### WARN: invalid_calendar_date — 無効なカレンダー日付
+
+**メッセージ**: `Invalid calendar date: YYYY-MM-DD`
+
+**原因**: `YYYY-MM-DD` 形式の日付が実在しません。典型的なケースとして以下があります。
+- 2月30日・2月31日（2月は28日または29日まで）
+- 4月・6月・9月・11月の31日（これらの月は30日まで）
+- 閏年でない年の2月29日（例: `1900-02-29`、`2021-02-29`）
+
+**修正方法**: 正しいカレンダー日付に修正してください。閏年は「4で割り切れる かつ（100で割り切れない または 400で割り切れる）」年です。`2000-02-29` は有効、`1900-02-29` は無効です。
+
+```tdsl
+# 誤り（2月は最大29日まで。2024年は閏年だが30日は存在しない）
+event events 2024-02-30 "存在しない日付"
+
+# 正しい
+event events 2024-02-29 "2024年は閏年"
+event events 2024-03-01 "3月1日"
+```
+
+**備考**: パーサは日付の値域（月は 1〜12、日は 1〜31）のみを検証します。カレンダー上の実在確認（うるう年判定・月末日確認）は lint の責務です。月精度のみの指定（例: `2024-02`）は検証対象外です。
 
 ---
 

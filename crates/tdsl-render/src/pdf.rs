@@ -22,6 +22,8 @@ use crate::svg;
 /// Errors that can occur while converting the timeline SVG to a PDF.
 #[derive(Debug, Error)]
 pub enum PdfError {
+    #[error("SVG formatting failed: {0}")]
+    Fmt(#[from] std::fmt::Error),
     #[error("failed to parse intermediate SVG: {0}")]
     Parse(#[from] svg2pdf::usvg::Error),
     #[error("failed to convert SVG to PDF: {0}")]
@@ -49,7 +51,7 @@ pub fn render_pdf(
     pdf_opts: PdfOptions,
 ) -> Result<Vec<u8>, PdfError> {
     let layout = LayoutModel::compute(ir, opts);
-    let svg_str = svg::render_svg(&layout);
+    let svg_str = svg::render_svg(&layout)?;
     svg_to_pdf(&svg_str, pdf_opts)
 }
 

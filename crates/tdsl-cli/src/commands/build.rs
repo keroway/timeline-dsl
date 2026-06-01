@@ -56,7 +56,11 @@ pub(crate) fn load_ir(
     wikidata_timeout: std::time::Duration,
 ) -> Result<tdsl_core::ir::TimelineIr, String> {
     let source = super::read_source(input)?;
-    let file = tdsl_parser::parse(&source).map_err(|e| e.to_string())?;
+    let filename = input.display().to_string();
+    let file = tdsl_parser::parse(&source).map_err(|e| {
+        super::check::print_parse_error(&e, &source, &filename);
+        String::new()
+    })?;
 
     let ir = if offline {
         tdsl_core::lower::lower_static(&file)

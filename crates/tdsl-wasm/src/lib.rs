@@ -69,7 +69,8 @@ pub fn render_svg_from_source(source: &str, scale: f64) -> Result<String, JsValu
             scale: computed_scale,
             ..RenderOptions::default()
         },
-    );
+    )
+    .map_err(|e| JsValue::from_str(&e.to_string()))?;
     Ok(svg)
 }
 
@@ -154,7 +155,8 @@ mod tests {
                 scale: auto_scale_for_span(12.0),
                 ..RenderOptions::default()
             },
-        );
+        )
+        .unwrap();
         let w = extract_svg_width(&svg);
         assert!(w >= 700.0, "span=12 SVG width should be ≥700px, got {w}");
     }
@@ -169,7 +171,8 @@ mod tests {
                 scale: auto_scale_for_span(125.0),
                 ..RenderOptions::default()
             },
-        );
+        )
+        .unwrap();
         let w = extract_svg_width(&svg);
         assert!(
             (w - 1140.0).abs() < 1.0,
@@ -187,7 +190,8 @@ mod tests {
                 scale: auto_scale_for_span(5000.0),
                 ..RenderOptions::default()
             },
-        );
+        )
+        .unwrap();
         let w = extract_svg_width(&svg);
         assert!(
             (w - 2640.0).abs() < 1.0,
@@ -326,7 +330,7 @@ pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
         let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
         JsValue::from_str(&msgs.join("\n"))
     })?;
-    Ok(render_html(&ir, RenderOptions::default()))
+    render_html(&ir, RenderOptions::default()).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 /// Diagnostic severity level.
