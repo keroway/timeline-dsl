@@ -752,7 +752,7 @@ mod tests {
         let src = read_example("china_dynasties.tdsl");
         let file = tdsl_parser::parse(&src).unwrap();
         let ir = tdsl_core::lower::lower_static(&file).unwrap();
-        let svg = render_svg_only(&ir, RenderOptions::default());
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
         insta::assert_snapshot!(svg);
     }
 
@@ -761,7 +761,7 @@ mod tests {
         let src = read_example("world_wars.tdsl");
         let file = tdsl_parser::parse(&src).unwrap();
         let ir = tdsl_core::lower::lower_static(&file).unwrap();
-        let svg = render_svg_only(&ir, RenderOptions::default());
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
         insta::assert_snapshot!(svg);
     }
 }
