@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use tdsl_core::ir::Item;
 
-use crate::layout::{LaidItem, LayoutModel, format_year, month_abbr};
+use crate::layout::{GridStyle, LaidItem, LayoutModel, format_year, month_abbr};
 
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
 pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
@@ -32,6 +32,7 @@ pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
 
     render_lane_bands(&mut s, layout)?;
     render_group_headers(&mut s, layout)?;
+    render_grid_lines(&mut s, layout)?;
     render_axis(&mut s, layout)?;
     render_lane_labels(&mut s, layout)?;
     render_items(&mut s, layout)?;
@@ -55,6 +56,53 @@ fn render_lane_bands(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
             w = fmt_f(band.width),
             h = fmt_f(band.height),
         )?;
+    }
+    Ok(())
+}
+
+/// Render auxiliary grid lines behind the chart content.
+///
+/// Grid lines are purely decorative (`role="presentation"`) and are drawn at
+/// the intervals dictated by `layout.opts.grid`. When `GridStyle::None` this
+/// function writes nothing, guaranteeing that existing SVG output is unchanged.
+fn render_grid_lines(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
+    if layout.opts.grid == GridStyle::None {
+        return Ok(());
+    }
+
+    let positions = layout.grid_positions();
+    if positions.is_empty() {
+        return Ok(());
+    }
+
+    if layout.is_vertical() {
+        // Vertical layout: time axis is Y; grid lines are horizontal.
+        let x1 = layout.opts.left_gutter;
+        let x2 = layout.total_width - layout.opts.right_margin;
+        for frac in &positions {
+            let y = layout.opts.top_margin + (frac - layout.year_min as f64) * layout.opts.scale;
+            writeln!(
+                s,
+                r##"  <line class="tdsl-grid-line" role="presentation" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" stroke="#ccc" stroke-width="1" stroke-opacity="0.4"/>"##,
+                x1 = fmt_f(x1),
+                y = fmt_f(y),
+                x2 = fmt_f(x2),
+            )?;
+        }
+    } else {
+        // Horizontal layout: time axis is X; grid lines are vertical.
+        let y1 = layout.opts.top_margin;
+        let y2 = layout.total_height - layout.opts.bottom_margin;
+        for frac in &positions {
+            let x = layout.opts.left_gutter + (frac - layout.year_min as f64) * layout.opts.scale;
+            writeln!(
+                s,
+                r##"  <line class="tdsl-grid-line" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="#ccc" stroke-width="1" stroke-opacity="0.4"/>"##,
+                x = fmt_f(x),
+                y1 = fmt_f(y1),
+                y2 = fmt_f(y2),
+            )?;
+        }
     }
     Ok(())
 }
@@ -532,7 +580,7 @@ fn fmt_f(v: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::{RenderOptions, format_date, format_year};
+    use crate::layout::{GridStyle, Orientation, RenderOptions, format_date, format_year};
     use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
 
     fn sample_ir() -> TimelineIr {
@@ -696,6 +744,145 @@ mod tests {
         assert!(
             svg.contains("fill:#cc0000;"),
             "expected fill:#cc0000; in SVG, got:\n{svg}"
+        );
+    }
+
+    // ─── GridStyle テスト ────────────────────────────────────────────────────
+
+    #[test]
+    fn grid_none_produces_no_grid_lines() {
+        // GridStyle::None (default) must not output any tdsl-grid-line element.
+        let ir = sample_ir();
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            !svg.contains("tdsl-grid-line"),
+            "GridStyle::None must produce no grid lines, got:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn grid_none_svg_output_unchanged() {
+        // Explicitly setting GridStyle::None must produce identical output to the default.
+        let ir = sample_ir();
+        let default_svg = render_svg(&LayoutModel::compute(&ir, RenderOptions::default())).unwrap();
+        let explicit_none_svg = render_svg(&LayoutModel::compute(
+            &ir,
+            RenderOptions {
+                grid: GridStyle::None,
+                ..RenderOptions::default()
+            },
+        ))
+        .unwrap();
+        assert_eq!(
+            default_svg, explicit_none_svg,
+            "explicit GridStyle::None must produce identical SVG to default"
+        );
+    }
+
+    #[test]
+    fn grid_decade_horizontal_produces_grid_lines() {
+        // GridStyle::Decade must output tdsl-grid-line elements in horizontal layout.
+        let ir = sample_ir(); // range -300..300 → many decade boundaries
+        let opts = RenderOptions {
+            grid: GridStyle::Decade,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-grid-line"),
+            "GridStyle::Decade (horizontal) must produce grid lines"
+        );
+        // role=presentation must be set for accessibility
+        assert!(
+            svg.contains(r#"role="presentation""#),
+            "grid lines must have role=presentation"
+        );
+    }
+
+    #[test]
+    fn grid_year_horizontal_produces_grid_lines() {
+        // GridStyle::Year must output tdsl-grid-line elements.
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            grid: GridStyle::Year,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-grid-line"),
+            "GridStyle::Year (horizontal) must produce grid lines"
+        );
+    }
+
+    #[test]
+    fn grid_month_horizontal_produces_grid_lines() {
+        // GridStyle::Month must output tdsl-grid-line elements.
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            grid: GridStyle::Month,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-grid-line"),
+            "GridStyle::Month (horizontal) must produce grid lines"
+        );
+    }
+
+    #[test]
+    fn grid_decade_vertical_produces_horizontal_grid_lines() {
+        // GridStyle::Decade on a vertical layout must output horizontal grid lines
+        // (i.e. x1 != x2, y1 == y2 for each grid line).
+        let ir = sample_ir(); // range -300..300
+        let opts = RenderOptions {
+            grid: GridStyle::Decade,
+            orientation: Orientation::Vertical,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-grid-line"),
+            "GridStyle::Decade (vertical) must produce grid lines"
+        );
+    }
+
+    #[test]
+    fn grid_year_vertical_produces_grid_lines() {
+        // GridStyle::Year on a vertical layout must output grid lines.
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            grid: GridStyle::Year,
+            orientation: Orientation::Vertical,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-grid-line"),
+            "GridStyle::Year (vertical) must produce grid lines"
+        );
+    }
+
+    #[test]
+    fn grid_lines_appear_before_axis_in_output() {
+        // Grid lines must be drawn before the axis tick so they render behind tick marks.
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            grid: GridStyle::Decade,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        let grid_pos = svg.find("tdsl-grid-line").expect("grid line must exist");
+        let axis_pos = svg.find("tdsl-axis-tick").expect("axis tick must exist");
+        assert!(
+            grid_pos < axis_pos,
+            "grid lines must appear before axis ticks in SVG output (z-order)"
         );
     }
 }
