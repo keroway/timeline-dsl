@@ -1,0 +1,127 @@
+---
+source: crates/tdsl-core/src/tests/golden.rs
+assertion_line: 74
+expression: ir
+---
+{
+  "meta": {
+    "title": "インターネット・Web 年表",
+    "unit": "year",
+    "range": [
+      1990,
+      2020
+    ],
+    "calendar": "proleptic_gregorian"
+  },
+  "lanes": [
+    {
+      "id": "web",
+      "label": "Web",
+      "kind": "event",
+      "order": 10
+    },
+    {
+      "id": "platform",
+      "label": "プラットフォーム",
+      "kind": "event",
+      "order": 20
+    },
+    {
+      "id": "sns",
+      "label": "SNS",
+      "kind": "event",
+      "order": 30
+    }
+  ],
+  "items": [
+    {
+      "type": "event",
+      "id": "event:web:1991",
+      "lane": "web",
+      "time": 1991,
+      "label": "World Wide Web 公開",
+      "tags": [
+        "web",
+        "standards"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:web:1993",
+      "lane": "web",
+      "time": 1993,
+      "label": "Mosaic 公開",
+      "tags": [
+        "web",
+        "browser"
+      ]
+    },
+    {
+      "type": "span",
+      "id": "span:browser_wars",
+      "lane": "web",
+      "start": 1995,
+      "end": 2001,
+      "label": "第一次ブラウザ戦争",
+      "tags": [
+        "web",
+        "browser"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:web:2008",
+      "lane": "web",
+      "time": 2008,
+      "label": "Google Chrome 公開",
+      "tags": [
+        "web",
+        "browser"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:platform:1998",
+      "lane": "platform",
+      "time": 1998,
+      "label": "Google 創業",
+      "tags": [
+        "search",
+        "platform"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:platform:2007",
+      "lane": "platform",
+      "time": 2007,
+      "label": "iPhone 発表",
+      "tags": [
+        "mobile",
+        "platform"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:sns:2004",
+      "lane": "sns",
+      "time": 2004,
+      "label": "Facebook 公開",
+      "tags": [
+        "social",
+        "sns"
+      ]
+    },
+    {
+      "type": "event",
+      "id": "event:sns:2006",
+      "lane": "sns",
+      "time": 2006,
+      "label": "Twitter 公開",
+      "tags": [
+        "social",
+        "sns"
+      ]
+    }
+  ]
+}
