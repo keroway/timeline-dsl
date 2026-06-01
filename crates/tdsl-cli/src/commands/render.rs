@@ -52,8 +52,16 @@ pub(crate) fn cmd_render(
     };
 
     match format {
-        RenderFormat::Html => write_render_text(&tdsl_render::render_html(&ir, opts), output),
-        RenderFormat::Svg => write_render_text(&tdsl_render::render_svg_only(&ir, opts), output),
+        RenderFormat::Html => {
+            let html = tdsl_render::render_html(&ir, opts)
+                .map_err(|e| format!("HTML rendering failed: {e}"))?;
+            write_render_text(&html, output)
+        }
+        RenderFormat::Svg => {
+            let svg = tdsl_render::render_svg_only(&ir, opts)
+                .map_err(|e| format!("SVG rendering failed: {e}"))?;
+            write_render_text(&svg, output)
+        }
         RenderFormat::Png => {
             let png_opts = tdsl_render::PngOptions {
                 dpi: dpi.unwrap_or(96),
