@@ -389,6 +389,8 @@ tdsl render [OPTIONS] <FILE>
 | `--no-cache` | ローカルキャッシュをバイパス | — |
 | `--cache-ttl <CACHE_TTL>` | キャッシュ有効期限（秒） | `86400`（24h）|
 | `--color-map <COLOR_MAP>` | タグ→色マッピング（例: `war=#cc0000,dynasty=#3366cc`） | — |
+| `--orientation <ORIENTATION>` | 時間軸方向（`horizontal` / `vertical`） | `horizontal` |
+| `--grid <GRID>` | 補助グリッド線（`none` / `decade` / `year` / `month`）。`none` でグリッド無効（デフォルト）。`decade` = 10年ごと、`year` = 1年ごと、`month` = 月ごとの薄い補助線を描画 | `none` |
 
 ### 実行例
 
@@ -424,6 +426,12 @@ tdsl render examples/china_dynasties.tdsl \
 
 # Wikidata 連携ありでレンダリング
 tdsl render examples/china_with_import.tdsl --output china_wd.html
+
+# 10年グリッド線付きで SVG に出力
+tdsl render examples/china_dynasties.tdsl --format svg --grid decade --output china_grid.svg
+
+# 年単位グリッド線付きで HTML に出力（短期年表向け）
+tdsl render examples/world_wars.tdsl --grid year --output wars_grid.html
 ```
 
 ---

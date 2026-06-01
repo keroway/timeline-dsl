@@ -36,6 +36,27 @@ pub enum Theme {
     Pastel,
 }
 
+/// Grid line style for the time axis.
+///
+/// Auxiliary grid lines are drawn at regular intervals to improve readability
+/// on long timelines. `None` disables all grid lines (default, preserves
+/// existing SVG output unchanged).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum GridStyle {
+    /// No grid lines (default). SVG output is identical to pre-grid behavior.
+    #[default]
+    None,
+    /// Grid lines every 10 years.
+    Decade,
+    /// Grid lines every year.
+    Year,
+    /// Grid lines every month.
+    ///
+    /// Note: month-grid uses 1/12-year intervals regardless of item precision.
+    /// This is a visual aid only and does not require `unit = "month"`.
+    Month,
+}
+
 /// Rendering options. Pixel dimensions and styling parameters.
 #[derive(Debug, Clone)]
 pub struct RenderOptions {
@@ -63,6 +84,8 @@ pub struct RenderOptions {
     pub font_family: Option<String>,
     /// Timeline layout orientation: horizontal (default) or vertical.
     pub orientation: Orientation,
+    /// Auxiliary grid line style. `None` (default) disables grid lines entirely.
+    pub grid: GridStyle,
 }
 
 impl Default for RenderOptions {
@@ -80,6 +103,7 @@ impl Default for RenderOptions {
             interactive: false,
             font_family: None,
             orientation: Orientation::Horizontal,
+            grid: GridStyle::None,
         }
     }
 }
@@ -414,6 +438,47 @@ impl<'a> LayoutModel<'a> {
             y += step;
         }
         ticks
+    }
+
+    /// Grid line positions for the current `GridStyle`.
+    ///
+    /// Returns fractional year values (f64) covering [year_min, year_max].
+    /// - `GridStyle::None`   → empty (no grid lines drawn)
+    /// - `GridStyle::Decade` → one position per 10 years
+    /// - `GridStyle::Year`   → one position per year
+    /// - `GridStyle::Month`  → one position per 1/12 year (12 per year)
+    ///
+    /// Positions that coincide with existing axis ticks are included; the SVG
+    /// renderer draws grid lines behind tick marks so duplicates are invisible.
+    pub fn grid_positions(&self) -> Vec<f64> {
+        match self.opts.grid {
+            GridStyle::None => Vec::new(),
+            GridStyle::Decade => {
+                let first = div_floor(self.year_min, 10) * 10;
+                let mut positions = Vec::new();
+                let mut y = first;
+                while y <= self.year_max {
+                    if y >= self.year_min {
+                        positions.push(y as f64);
+                    }
+                    y += 10;
+                }
+                positions
+            }
+            GridStyle::Year => (self.year_min..=self.year_max).map(|y| y as f64).collect(),
+            GridStyle::Month => {
+                let mut positions = Vec::new();
+                for year in self.year_min..=self.year_max {
+                    for month in 0u8..12 {
+                        let frac = year as f64 + month as f64 / 12.0;
+                        if frac >= self.year_min as f64 && frac <= self.year_max as f64 {
+                            positions.push(frac);
+                        }
+                    }
+                }
+                positions
+            }
+        }
     }
 }
 
