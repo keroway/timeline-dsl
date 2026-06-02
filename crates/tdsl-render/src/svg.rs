@@ -50,7 +50,7 @@ fn render_lane_bands(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
         };
         writeln!(
             s,
-            r#"  <rect class="{class}" x="{x}" y="{y}" width="{w}" height="{h}"/>"#,
+            r#"  <rect class="{class}" role="presentation" aria-hidden="true" x="{x}" y="{y}" width="{w}" height="{h}"/>"#,
             x = fmt_f(band.x),
             y = fmt_f(band.y),
             w = fmt_f(band.width),
@@ -123,7 +123,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) -> std::fmt::Res
     let baseline_y = top - 4.0;
     writeln!(
         s,
-        r#"  <line class="tdsl-axis-baseline" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}"/>"#,
+        r#"  <line class="tdsl-axis-baseline" role="presentation" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}"/>"#,
         x1 = fmt_f(layout.opts.left_gutter),
         y = fmt_f(baseline_y),
         x2 = fmt_f(layout.total_width - layout.opts.right_margin),
@@ -134,7 +134,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) -> std::fmt::Res
         // Vertical grid line across the full chart body.
         writeln!(
             s,
-            r#"  <line class="tdsl-axis-tick" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
+            r#"  <line class="tdsl-axis-tick" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
             x = fmt_f(x),
             y1 = fmt_f(top),
             y2 = fmt_f(bottom),
@@ -155,7 +155,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) -> std::fmt::Res
         let x = layout.frac_year_to_x(year, month);
         writeln!(
             s,
-            r#"  <line class="tdsl-axis-month-tick" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
+            r#"  <line class="tdsl-axis-month-tick" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
             x = fmt_f(x),
             y1 = fmt_f(baseline_y - 3.0),
             y2 = fmt_f(baseline_y),
@@ -178,7 +178,7 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) -> std::fmt::Res
         let x = layout.day_frac_to_x(year, month, day);
         writeln!(
             s,
-            r#"  <line class="tdsl-axis-day-tick" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
+            r#"  <line class="tdsl-axis-day-tick" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
             x = fmt_f(x),
             y1 = fmt_f(baseline_y - 2.0),
             y2 = fmt_f(baseline_y),
@@ -214,7 +214,7 @@ fn render_axis_vertical(s: &mut String, layout: &LayoutModel) -> std::fmt::Resul
     let baseline_x = left - 4.0;
     writeln!(
         s,
-        r#"  <line class="tdsl-axis-baseline" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
+        r#"  <line class="tdsl-axis-baseline" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
         x = fmt_f(baseline_x),
         y1 = fmt_f(layout.opts.top_margin),
         y2 = fmt_f(layout.total_height - layout.opts.bottom_margin),
@@ -225,7 +225,7 @@ fn render_axis_vertical(s: &mut String, layout: &LayoutModel) -> std::fmt::Resul
         // Horizontal grid line across the full chart body.
         writeln!(
             s,
-            r#"  <line class="tdsl-axis-tick" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}"/>"#,
+            r#"  <line class="tdsl-axis-tick" role="presentation" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}"/>"#,
             x1 = fmt_f(left),
             y = fmt_f(y),
             x2 = fmt_f(right),
@@ -277,7 +277,7 @@ fn render_group_headers(s: &mut String, layout: &LayoutModel) -> std::fmt::Resul
             let x2 = layout.total_width - layout.opts.right_margin;
             writeln!(
                 s,
-                r##"  <line class="tdsl-group-separator" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" stroke="#aaa" stroke-width="1"/>  "##,
+                r##"  <line class="tdsl-group-separator" role="presentation" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" stroke="#aaa" stroke-width="1"/>  "##,
                 x1 = fmt_f(0.0),
                 y = fmt_f(*top_y),
                 x2 = fmt_f(x2),
@@ -338,6 +338,13 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 let tip = escape_xml(tooltip);
                 let tip_attr = escape_xml_attr(tooltip);
                 let lane_id = item_lane_id(item);
+                let lane_label = layout
+                    .lanes_ordered
+                    .iter()
+                    .find(|l| l.id == lane_id)
+                    .map(|l| l.label.as_str())
+                    .unwrap_or(lane_id);
+                let aria_label = escape_xml_attr(&item_aria_label(item, tooltip, lane_label));
                 let fill_style = format!("fill:{color};");
                 let data_attrs = if layout.opts.interactive {
                     build_data_attrs(item, lane_id)
@@ -346,7 +353,8 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 };
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-span" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect><text class="tdsl-item-label" x="{tx}" y="{ty}" dominant-baseline="middle">{label}</text></g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-span" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect><text class="tdsl-item-label" x="{tx}" y="{ty}" dominant-baseline="middle">{label}</text></g>"#,
+                    aria_label = aria_label,
                     tip = tip,
                     tip_attr = tip_attr,
                     fill_style = fill_style,
@@ -372,6 +380,13 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 let tip = escape_xml(tooltip);
                 let tip_attr = escape_xml_attr(tooltip);
                 let lane_id = item_lane_id(item);
+                let lane_label = layout
+                    .lanes_ordered
+                    .iter()
+                    .find(|l| l.id == lane_id)
+                    .map(|l| l.label.as_str())
+                    .unwrap_or(lane_id);
+                let aria_label = escape_xml_attr(&item_aria_label(item, tooltip, lane_label));
                 let fill_style = format!("fill:{color};fill-opacity:0.75;");
                 let data_attrs = if layout.opts.interactive {
                     build_data_attrs(item, lane_id)
@@ -380,7 +395,8 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 };
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-event-range" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
+                    aria_label = aria_label,
                     tip = tip,
                     tip_attr = tip_attr,
                     fill_style = fill_style,
@@ -404,6 +420,13 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 let tip = escape_xml(tooltip);
                 let tip_attr = escape_xml_attr(tooltip);
                 let lane_id = item_lane_id(item);
+                let lane_label = layout
+                    .lanes_ordered
+                    .iter()
+                    .find(|l| l.id == lane_id)
+                    .map(|l| l.label.as_str())
+                    .unwrap_or(lane_id);
+                let aria_label = escape_xml_attr(&item_aria_label(item, tooltip, lane_label));
                 let dot_style = format!("fill:{color};");
                 let data_attrs = if layout.opts.interactive {
                     build_data_attrs(item, lane_id)
@@ -419,7 +442,8 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     let hit_h = 16.0;
                     writeln!(
                         s,
-                        r#"  <g class="tdsl-item tdsl-item-event" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x1}" y1="{cy}" x2="{x2}" y2="{cy}"><title>{tip}</title></line><circle class="tdsl-event-dot" style="{dot_style}" cx="{dot_x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
+                        r#"  <g class="tdsl-item tdsl-item-event" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x1}" y1="{cy}" x2="{x2}" y2="{cy}"><title>{tip}</title></line><circle class="tdsl-event-dot" style="{dot_style}" cx="{dot_x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
+                        aria_label = aria_label,
                         tip = tip,
                         tip_attr = tip_attr,
                         dot_style = dot_style,
@@ -440,7 +464,8 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     let hit_h = (y_bottom - y_top).max(20.0);
                     writeln!(
                         s,
-                        r#"  <g class="tdsl-item tdsl-item-event" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"><title>{tip}</title></line><circle class="tdsl-event-dot" style="{dot_style}" cx="{x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
+                        r#"  <g class="tdsl-item tdsl-item-event" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-hit" x="{hx}" y="{hy}" width="{hw}" height="{hh}"><title>{tip}</title></rect><line class="tdsl-event-stem" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"><title>{tip}</title></line><circle class="tdsl-event-dot" style="{dot_style}" cx="{x}" cy="{cy}" r="4"><title>{tip}</title></circle></g>"#,
+                        aria_label = aria_label,
                         tip = tip,
                         tip_attr = tip_attr,
                         dot_style = dot_style,
@@ -532,6 +557,20 @@ fn item_label(item: &Item) -> &str {
             label
         }
     }
+}
+
+/// Build the ARIA label string for a timeline item.
+///
+/// Format: `"<type>: <tooltip_on_one_line>、レーン: <lane_label>"`
+/// Newlines in the tooltip are replaced with `、` for a compact single-line value.
+fn item_aria_label(item: &Item, tooltip: &str, lane_label: &str) -> String {
+    let type_str = match item {
+        Item::Span { .. } => "スパン",
+        Item::Event { .. } => "イベント",
+        Item::EventRange { .. } => "期間イベント",
+    };
+    let info = tooltip.replace('\n', "、");
+    format!("{type_str}: {info}、レーン: {lane_label}")
 }
 
 /// Escape for SVG/XML text content and attribute values.
@@ -669,6 +708,130 @@ mod tests {
         assert!(svg.contains("wd:Q7209"));
         assert!(svg.contains(r#"data-tdsl-tooltip="漢&#10;BC206〜220"#));
         assert!(svg.contains(r#"tabindex="0""#));
+        // ARIA attributes
+        assert!(
+            svg.contains(r#"role="group""#),
+            "items must have role=group"
+        );
+        assert!(
+            svg.contains(r#"aria-label=""#),
+            "items must have aria-label"
+        );
+        assert!(
+            svg.contains(r#"role="presentation""#),
+            "decorative elements must have role=presentation"
+        );
+    }
+
+    #[test]
+    fn aria_attributes_on_items() {
+        let ir = sample_ir();
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let svg = render_svg(&layout).unwrap();
+
+        // Span item: <g> に role=group と aria-label が含まれる
+        assert!(
+            svg.contains(r#"class="tdsl-item tdsl-item-span" role="group" aria-label=""#),
+            "span item must have role=group and aria-label"
+        );
+        // aria-label に "スパン" が含まれる
+        assert!(
+            svg.contains("スパン:"),
+            "span aria-label must contain type prefix 'スパン:'"
+        );
+        // aria-label に期間情報が含まれる (BC206 と 220 の両方)
+        assert!(
+            svg.contains("BC206"),
+            "span aria-label must contain start year"
+        );
+        // aria-label に "レーン:" が含まれる
+        assert!(
+            svg.contains("レーン:"),
+            "aria-label must contain lane label reference"
+        );
+        // Event item: <g> に role=group と aria-label が含まれる
+        assert!(
+            svg.contains(r#"class="tdsl-item tdsl-item-event" role="group" aria-label=""#),
+            "event item must have role=group and aria-label"
+        );
+        // event aria-label に "イベント" が含まれる
+        assert!(
+            svg.contains("イベント:"),
+            "event aria-label must contain type prefix 'イベント:'"
+        );
+
+        // lane band の rect に role=presentation が含まれる
+        assert!(
+            svg.contains(r#"class="tdsl-lane-band-even" role="presentation" aria-hidden="true""#),
+            "lane band rect must have role=presentation and aria-hidden=true"
+        );
+
+        // 軸の line に role=presentation が含まれる
+        assert!(
+            svg.contains(r#"class="tdsl-axis-baseline" role="presentation""#),
+            "axis baseline must have role=presentation"
+        );
+        assert!(
+            svg.contains(r#"class="tdsl-axis-tick" role="presentation""#),
+            "axis tick must have role=presentation"
+        );
+    }
+
+    #[test]
+    fn aria_attributes_on_event_range() {
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "test".into(),
+                unit: "year".into(),
+                range: (0, 500),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "war".into(),
+                label: "戦争".into(),
+                kind: "custom".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::EventRange {
+                id: "er1".into(),
+                lane: "war".into(),
+                start: 100,
+                end: 200,
+                label: "大乱".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                end_month: None,
+                end_day: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let svg = render_svg(&layout).unwrap();
+
+        // event_range の <g> に role=group と aria-label が含まれる
+        assert!(
+            svg.contains(r#"class="tdsl-item tdsl-item-event-range" role="group" aria-label=""#),
+            "event_range item must have role=group and aria-label"
+        );
+        // aria-label に "期間イベント" が含まれる
+        assert!(
+            svg.contains("期間イベント:"),
+            "event_range aria-label must contain type prefix '期間イベント:'"
+        );
+        // aria-label に レーン名 "戦争" が含まれる
+        assert!(
+            svg.contains("戦争"),
+            "event_range aria-label must contain lane label"
+        );
     }
 
     #[test]
