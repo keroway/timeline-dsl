@@ -45,7 +45,9 @@ const svg = render_svg_from_source(source, 0);
 // Render to a standalone HTML document.
 const html = render_html_from_source(source);
 
-// Lint / diagnostics: returns a JSON array [{severity, message, line, col}] (0-indexed).
+// Lint / diagnostics: returns a JSON array [{severity, message, line, col}].
+// line/col are 1-based when a source position is available; diagnostics without
+// a position (e.g. unknown-lane lowering errors) report line: 0, col: 0.
 const diagnostics = JSON.parse(check_source(source));
 
 // Re-emit normalized source (2-space indent). Comments are not preserved.
@@ -60,7 +62,7 @@ const formatted = format_source(source);
 | `compile_to_ir` | `(source: string) => string` | Compile to JSON IR. Throws on compile error. |
 | `render_svg_from_source` | `(source: string, scale: number) => string` | Render SVG. `scale` = pixels-per-year; pass `0` for auto. |
 | `render_html_from_source` | `(source: string) => string` | Render a standalone HTML document. |
-| `check_source` | `(source: string) => string` | Diagnostics as a JSON array `[{severity, message, line, col}]`. |
+| `check_source` | `(source: string) => string` | Diagnostics as a JSON array `[{severity, message, line, col}]`. `line`/`col` are 1-based when a position is available, else `0`. |
 | `format_source` | `(source: string) => string` | Re-emit normalized source from the AST. |
 
 Full TypeScript definitions ship with the package (`tdsl_wasm.d.ts`).

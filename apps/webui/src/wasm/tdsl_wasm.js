@@ -4,7 +4,13 @@
  * Check TDSL source and return diagnostics as JSON.
  *
  * Returns a JSON array of diagnostic objects: `[{severity, message, line, col}]`.
- * `severity` is `"error"` or `"warning"`. `line`/`col` are 0-indexed.
+ * `severity` is `"error"` or `"warning"`.
+ *
+ * `line`/`col` are **1-based** when a source position is available (parse errors via
+ * `ParseError::source_location`, validation warnings via the item's `source_span`),
+ * matching the IR `SourceSpan` numbering used by `render_svg_from_source`'s `data-line`
+ * attributes. Diagnostics that carry no position (lowering errors such as unknown-lane
+ * references) report `line: 0, col: 0`; the WebUI treats a `0` line as non-clickable.
  *
  * **Note on `import` blocks**: `import wikidata` blocks are not resolved in the browser
  * (no network access). Unresolved imports are **silently skipped** — they produce no
