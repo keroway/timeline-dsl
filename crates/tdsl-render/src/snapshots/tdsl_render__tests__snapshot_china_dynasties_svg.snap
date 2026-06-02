@@ -213,46 +213,46 @@ expression: svg
   <text class="tdsl-lane-label" data-lane="qin" x="112" y="70" text-anchor="end" dominant-baseline="middle">秦</text>
   <text class="tdsl-lane-label" data-lane="han" x="112" y="130" text-anchor="end" dominant-baseline="middle">漢</text>
   <text class="tdsl-lane-label" data-lane="sanguo" x="112" y="190" text-anchor="end" dominant-baseline="middle">三国</text>
-  <g class="tdsl-item tdsl-item-span" role="group" aria-label="スパン: 秦、BC221〜BC206、tags: dynasty、source: wd:Q7183、id: span:qin、レーン: 秦" tabindex="0" data-tdsl-tooltip="秦&#10;BC221〜BC206&#10;tags: dynasty&#10;source: wd:Q7183&#10;id: span:qin"><rect class="tdsl-span" style="fill:#4682B4;" x="678" y="58" width="32.00" height="24" rx="3"><title>秦
+  <g class="tdsl-item tdsl-item-span" role="group" aria-label="スパン: 秦、BC221〜BC206、tags: dynasty、source: wd:Q7183、id: span:qin、レーン: 秦" tabindex="0" data-tdsl-tooltip="秦&#10;BC221〜BC206&#10;tags: dynasty&#10;source: wd:Q7183&#10;id: span:qin" data-lane="qin" data-tags="dynasty"><rect class="tdsl-span" style="fill:#4682B4;" x="678" y="58" width="32.00" height="24" rx="3"><title>秦
 BC221〜BC206
 tags: dynasty
 source: wd:Q7183
 id: span:qin</title></rect><text class="tdsl-item-label" x="682" y="70" dominant-baseline="middle">秦</text></g>
-  <g class="tdsl-item tdsl-item-span" role="group" aria-label="スパン: 漢、BC206〜220、tags: dynasty、source: wd:Q7209、id: span:han、レーン: 漢" tabindex="0" data-tdsl-tooltip="漢&#10;BC206〜220&#10;tags: dynasty&#10;source: wd:Q7209&#10;id: span:han"><rect class="tdsl-span" style="fill:#E67E22;" x="708" y="118" width="854.00" height="24" rx="3"><title>漢
+  <g class="tdsl-item tdsl-item-span" role="group" aria-label="スパン: 漢、BC206〜220、tags: dynasty、source: wd:Q7209、id: span:han、レーン: 漢" tabindex="0" data-tdsl-tooltip="漢&#10;BC206〜220&#10;tags: dynasty&#10;source: wd:Q7209&#10;id: span:han" data-lane="han" data-tags="dynasty"><rect class="tdsl-span" style="fill:#E67E22;" x="708" y="118" width="854.00" height="24" rx="3"><title>漢
 BC206〜220
 tags: dynasty
 source: wd:Q7209
 id: span:han</title></rect><text class="tdsl-item-label" x="712" y="130" dominant-baseline="middle">漢</text></g>
-  <g class="tdsl-item tdsl-item-span" role="group" aria-label="スパン: 三国時代、220〜280、tags: dynasty、id: span:sanguo、レーン: 三国" tabindex="0" data-tdsl-tooltip="三国時代&#10;220〜280&#10;tags: dynasty&#10;id: span:sanguo"><rect class="tdsl-span" style="fill:#27AE60;" x="1560" y="178" width="122.00" height="24" rx="3"><title>三国時代
+  <g class="tdsl-item tdsl-item-span" role="group" aria-label="スパン: 三国時代、220〜280、tags: dynasty、id: span:sanguo、レーン: 三国" tabindex="0" data-tdsl-tooltip="三国時代&#10;220〜280&#10;tags: dynasty&#10;id: span:sanguo" data-lane="sanguo" data-tags="dynasty"><rect class="tdsl-span" style="fill:#27AE60;" x="1560" y="178" width="122.00" height="24" rx="3"><title>三国時代
 220〜280
 tags: dynasty
 id: span:sanguo</title></rect><text class="tdsl-item-label" x="1564" y="190" dominant-baseline="middle">三国時代</text></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 秦の天下統一、BC221、id: event:qin:-221、レーン: 秦" tabindex="0" data-tdsl-tooltip="秦の天下統一&#10;BC221&#10;id: event:qin:-221"><rect class="tdsl-event-hit" x="670" y="50" width="16" height="40"><title>秦の天下統一
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 秦の天下統一、BC221、id: event:qin:-221、レーン: 秦" tabindex="0" data-tdsl-tooltip="秦の天下統一&#10;BC221&#10;id: event:qin:-221" data-lane="qin"><rect class="tdsl-event-hit" x="670" y="50" width="16" height="40"><title>秦の天下統一
 BC221
 id: event:qin:-221</title></rect><line class="tdsl-event-stem" x1="678" y1="50" x2="678" y2="90"><title>秦の天下統一
 BC221
 id: event:qin:-221</title></line><circle class="tdsl-event-dot" style="fill:#4682B4;" cx="678" cy="70" r="4"><title>秦の天下統一
 BC221
 id: event:qin:-221</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 陳勝・呉広の乱、BC209、id: event:han:-209、レーン: 漢" tabindex="0" data-tdsl-tooltip="陳勝・呉広の乱&#10;BC209&#10;id: event:han:-209"><rect class="tdsl-event-hit" x="694" y="110" width="16" height="40"><title>陳勝・呉広の乱
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 陳勝・呉広の乱、BC209、id: event:han:-209、レーン: 漢" tabindex="0" data-tdsl-tooltip="陳勝・呉広の乱&#10;BC209&#10;id: event:han:-209" data-lane="han"><rect class="tdsl-event-hit" x="694" y="110" width="16" height="40"><title>陳勝・呉広の乱
 BC209
 id: event:han:-209</title></rect><line class="tdsl-event-stem" x1="702" y1="110" x2="702" y2="150"><title>陳勝・呉広の乱
 BC209
 id: event:han:-209</title></line><circle class="tdsl-event-dot" style="fill:#E67E22;" cx="702" cy="130" r="4"><title>陳勝・呉広の乱
 BC209
 id: event:han:-209</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 垓下の戦い、BC202、id: event:han:-202、レーン: 漢" tabindex="0" data-tdsl-tooltip="垓下の戦い&#10;BC202&#10;id: event:han:-202"><rect class="tdsl-event-hit" x="708" y="110" width="16" height="40"><title>垓下の戦い
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 垓下の戦い、BC202、id: event:han:-202、レーン: 漢" tabindex="0" data-tdsl-tooltip="垓下の戦い&#10;BC202&#10;id: event:han:-202" data-lane="han"><rect class="tdsl-event-hit" x="708" y="110" width="16" height="40"><title>垓下の戦い
 BC202
 id: event:han:-202</title></rect><line class="tdsl-event-stem" x1="716" y1="110" x2="716" y2="150"><title>垓下の戦い
 BC202
 id: event:han:-202</title></line><circle class="tdsl-event-dot" style="fill:#E67E22;" cx="716" cy="130" r="4"><title>垓下の戦い
 BC202
 id: event:han:-202</title></circle></g>
-  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 黄巾の乱、184〜204、tags: war、id: event_range:han:184、レーン: 漢" tabindex="0" data-tdsl-tooltip="黄巾の乱&#10;184〜204&#10;tags: war&#10;id: event_range:han:184"><rect class="tdsl-event-range" style="fill:#E67E22;fill-opacity:0.75;" x="1488" y="144" width="42.00" height="10" rx="2"><title>黄巾の乱
+  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 黄巾の乱、184〜204、tags: war、id: event_range:han:184、レーン: 漢" tabindex="0" data-tdsl-tooltip="黄巾の乱&#10;184〜204&#10;tags: war&#10;id: event_range:han:184" data-lane="han" data-tags="war"><rect class="tdsl-event-range" style="fill:#E67E22;fill-opacity:0.75;" x="1488" y="144" width="42.00" height="10" rx="2"><title>黄巾の乱
 184〜204
 tags: war
 id: event_range:han:184</title></rect></g>
-  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 諸葛亮の北伐、228〜234、tags: war、id: event_range:sanguo:228、レーン: 三国" tabindex="0" data-tdsl-tooltip="諸葛亮の北伐&#10;228〜234&#10;tags: war&#10;id: event_range:sanguo:228"><rect class="tdsl-event-range" style="fill:#27AE60;fill-opacity:0.75;" x="1576" y="204" width="14.00" height="10" rx="2"><title>諸葛亮の北伐
+  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 諸葛亮の北伐、228〜234、tags: war、id: event_range:sanguo:228、レーン: 三国" tabindex="0" data-tdsl-tooltip="諸葛亮の北伐&#10;228〜234&#10;tags: war&#10;id: event_range:sanguo:228" data-lane="sanguo" data-tags="war"><rect class="tdsl-event-range" style="fill:#27AE60;fill-opacity:0.75;" x="1576" y="204" width="14.00" height="10" rx="2"><title>諸葛亮の北伐
 228〜234
 tags: war
 id: event_range:sanguo:228</title></rect></g>
