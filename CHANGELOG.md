@@ -7,12 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-06-02
+
 ### Added
 
-- **SVG の各アイテムに ARIA 属性を付与しアクセシビリティを改善**: span / event / event_range の `<g>` に `role="group"` と `aria-label="<種別>: <情報>、レーン: <レーン名>"` を付与。レーン帯背景・軸罫線・グリッド線・グループ区切り線等の装飾要素に `role="presentation"` / `aria-hidden="true"` を付与し、スクリーンリーダーへの不要な読み上げを抑制する。SVG ルートの `role="img" aria-label="timeline"` は既存のまま維持。`docs/styling.md` にアクセシビリティ方針を追記 (#354)
-- **CI にコードカバレッジ計測ジョブを追加**: `.github/workflows/ci.yml` に `coverage` ジョブを追加。`cargo-llvm-cov` を使ってプッシュ・PR 時に全クレートのカバレッジを計測し、lcov 形式のレポートを `coverage-report` アーティファクトとして 30 日間保存する。目標値を README に記載（`tdsl-parser` 70%+、`tdsl-core` 60%+、`tdsl-render` 50%+）。既存のテストジョブは変更なし (#371)
-- **`tdsl render --grid` オプションを追加（SVG 時間軸グリッド線）**: `RenderOptions` に `GridStyle`（`None` / `Decade` / `Year` / `Month`）を追加し、`tdsl render --grid decade|year|month|none` で補助グリッド線を描画できるようにした。水平・垂直レイアウト両対応。グリッド線は薄く（`stroke-opacity: 0.4`）描画し、支援技術に読み上げさせないよう `role="presentation"` を付与。デフォルトは `none` で既存 SVG 出力は不変（後方互換）(#353)
 - **`tdsl fmt` サブコマンドを追加**: `.tdsl` ファイルを正準スタイル（2 スペースインデント・ブロック間空行 1 行）にフォーマットする。デフォルトで整形結果を標準出力に出力。`--write` でファイルを上書き、`--check` で差分があれば非ゼロ終了（CI 向け）。`--check` と `--write` は排他。フォーマットには WebUI Format / `tdsl lint --fix` と同一の emitter（`tdsl_parser::format_source`）を使用する。現状フォーマットするとコメント（`//`・`/* */`）は失われる（grammar で COMMENT が silent のため。根治は別 issue で対応予定）(#351)
+- **LSP に `textDocument/formatting` を実装**: LSP サーバが `tdsl_parser::format_source` による全文置換 `TextEdit` を返すようにした。パースエラー時・差分なし時は `None` を返し、UTF-16 末尾 `Position` を正確に計算する。`tdsl fmt` / WebUI Format と同一の正準フォーマッタを使用するため出力は一致する。ネットワーク I/O 不要（offline 前提）(#352)
+- **`tdsl render --grid` オプションを追加（SVG 時間軸グリッド線）**: `RenderOptions` に `GridStyle`（`None` / `Decade` / `Year` / `Month`）を追加し、`tdsl render --grid decade|year|month|none` で補助グリッド線を描画できるようにした。水平・垂直レイアウト両対応。グリッド線は薄く（`stroke-opacity: 0.4`）描画し、支援技術に読み上げさせないよう `role="presentation"` を付与。デフォルトは `none` で既存 SVG 出力は不変（後方互換）(#353)
+- **SVG の各アイテムに ARIA 属性を付与しアクセシビリティを改善**: span / event / event_range の `<g>` に `role="group"` と `aria-label="<種別>: <情報>、レーン: <レーン名>"` を付与。レーン帯背景・軸罫線・グリッド線・グループ区切り線等の装飾要素に `role="presentation"` / `aria-hidden="true"` を付与し、スクリーンリーダーへの不要な読み上げを抑制する。SVG ルートの `role="img" aria-label="timeline"` は既存のまま維持。`docs/styling.md` にアクセシビリティ方針を追記 (#354)
+- **構文エラーを miette キャレットで強調表示**: `tdsl-parser` に `ParseDiagnostic` ラッパーを追加し、pest の `InputLocation` からバイトオフセット→`SourceSpan` を構成。CLI（`check` / `build`）で `ParseError` 発生時に miette の fancy レポート（キャレット付きスニペット）を stderr に出力するようにした。pest スニペットと miette スニペットの二重描画は解消済み。ライブラリ API（`ParseError`）は変更なしで後方互換を維持 (#355)
+
+### Changed
+
+- **未宣言 lane を Wikidata フェッチ前に early exit で検出**: lowering の pass1/pass2 でエラー（未宣言 lane 参照等）が出た場合、Wikidata フェッチを行わずに即座に `UnknownLane` を返すようにした。offline でも未宣言 lane を即報告でき、不要な API 呼び出しを回避する (#357)
+- **`map` の `target_type` 制約を docs に明示しエラーメッセージを改善**: `target_type` が `span` / `event` / `event_range` のみ許可されることを `docs/dsl-spec.md` / `docs/error-catalog.md` に明記し、不正値に対するパースエラーメッセージを改善した (#358)
+
+### Fixed
+
+- **lint で無効なカレンダー日付（2 月 30 日等）を検出**: span / event / event_range の Date 精度の日付をカレンダー妥当性チェックし、2 月 30 日・4 月 31 日・非閏年の 2 月 29 日などを `invalid_calendar_date` warning として報告する。チェックには `ir.rs` の `days_in_month` / `is_leap_year` を再利用し、外部依存は追加しない (#350)
+
+### Internal
+
+- **SVG レンダリングの `unwrap()` を `fmt::Result` 伝播に置き換え**: `render_svg` と各描画ヘルパを `-> std::fmt::Result` / `-> Result<String, std::fmt::Error>` に変更し、`writeln!(...).unwrap()` を `?` に統一。`PdfError` / `PngError` に `Fmt(#[from] std::fmt::Error)` を追加。CLI・WASM の呼び出し側を `map_err` で伝播。本番コードの `unwrap()` は 24 → 0 箇所。出力 byte は不変 (#356)
+- **CI にコードカバレッジ計測ジョブを追加**: `.github/workflows/ci.yml` に `coverage` ジョブを追加。`cargo-llvm-cov` を使ってプッシュ・PR 時に全クレートのカバレッジを計測し、lcov 形式のレポートを `coverage-report` アーティファクトとして 30 日間保存する。目標値を README に記載（`tdsl-parser` 70%+、`tdsl-core` 60%+、`tdsl-render` 50%+）。既存のテストジョブは変更なし (#371)
 - examples の IR JSON・SVG 出力を insta スナップショットで固定（#372）
 
 ## [1.13.0] - 2026-05-30
