@@ -172,6 +172,53 @@ tdsl render my_timeline.tdsl --theme dark --custom-css accents.css --output out.
 
 ---
 
+## アクセシビリティ方針
+
+`tdsl render` が出力するSVGは、スクリーンリーダー等の支援技術に対応するための ARIA 属性を付与しています。
+
+### SVGルート
+
+```xml
+<svg ... role="img" aria-label="timeline" ...>
+```
+
+SVG 全体を `role="img"` として宣言し、`aria-label="timeline"` でコンテンツの目的を伝えます。
+
+### アイテム要素（span / event / event_range）
+
+各アイテムの `<g>` 要素に `role="group"` と `aria-label` を付与します。
+
+```xml
+<g class="tdsl-item tdsl-item-span"
+   role="group"
+   aria-label="スパン: 漢、BC206〜220、source: wd:Q7209、id: span:han、レーン: 漢"
+   tabindex="0" ...>
+```
+
+`aria-label` の形式: `"<種別>: <ツールチップ情報（改行を「、」に変換）>、レーン: <レーン名>"`
+
+- 種別は `スパン` / `イベント` / `期間イベント` のいずれか
+- ツールチップの改行は `、` に変換されて 1 行に収められる
+- `<title>` 要素はブラウザのツールチップ表示用のフォールバックとして残す
+
+### 装飾要素
+
+スクリーンリーダーに読み上げさせる必要のない装飾要素には `role="presentation"` および `aria-hidden="true"` を付与します。
+
+| 要素 | 付与属性 |
+|---|---|
+| レーン帯背景 `<rect class="tdsl-lane-band-*">` | `role="presentation" aria-hidden="true"` |
+| 時間軸ベースライン `<line class="tdsl-axis-baseline">` | `role="presentation"` |
+| 目盛り線 `<line class="tdsl-axis-tick">` | `role="presentation"` |
+| 月目盛り線 `<line class="tdsl-axis-month-tick">` | `role="presentation"` |
+| 日目盛り線 `<line class="tdsl-axis-day-tick">` | `role="presentation"` |
+| グリッド線 `<line class="tdsl-grid-line">` | `role="presentation"` |
+| グループ区切り線 `<line class="tdsl-group-separator">` | `role="presentation"` |
+
+軸ラベルテキスト（`<text class="tdsl-axis-text">`）やレーン名テキスト（`<text class="tdsl-lane-label">`）は意味のある内容のため、これらには `role="presentation"` を付与しません。
+
+---
+
 ## 注意事項
 
 ### SVGの `fill` / `stroke` はCSSの `color` とは別プロパティ
