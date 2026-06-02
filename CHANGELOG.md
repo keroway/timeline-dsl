@@ -314,6 +314,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.14.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.10.1...v1.11.0
