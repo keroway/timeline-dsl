@@ -92,7 +92,7 @@
     },
     "keyword-block": {
       "name": "keyword.control.block.tdsl",
-      "match": "\\b(timeline|lane|import|map|template|apply|color_map|policy)\\b"
+      "match": "\\b(timeline|lane|group|import|map|template|apply|color_map|policy)\\b"
     },
     "keyword-item": {
       "name": "keyword.other.item.tdsl",

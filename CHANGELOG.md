@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **WASM `check_source` に正確な行・列を付与**: これまで全 Diagnostic で `line: 0, col: 0` をハードコードしていたため WebUI 診断パネルからエラー箇所へジャンプできなかった。パースエラーは `ParseError::source_location`、validation 警告はアイテムの `source_span` から **1-based** の行・列を取り出して Diagnostic に反映するようにした（IR `SourceSpan` / `render_svg_from_source` の `data-line` 属性と同じ番号付け）。これにより WebUI 診断パネルのクリックで該当行へジャンプできる。位置情報を持たない lowering エラー（未宣言 lane 等）は従来どおり `line: 0, col: 0`（クリック不可）。診断 JSON の形状（`severity` / `message` / `line` / `col`）は不変 (#386)
+
 ## [1.14.0] - 2026-06-02
 
 ### Added

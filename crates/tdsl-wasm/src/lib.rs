@@ -319,6 +319,70 @@ span a 80..10 "Inverted" {};
             "no diagnostics expected for valid source"
         );
     }
+
+    // ─── check_source line/col population (issue #386) ────────────────────────
+
+    #[test]
+    fn check_source_parse_error_has_accurate_line_col() {
+        // span のラベルが閉じておらず 4 行目で構文エラーになるソース。
+        let src = "timeline \"T\" {\n    unit year;\n    range 0..100;\n}\nlane \"A\" as a {}\nspan a 10..50 \"unterminated;\n";
+        let json = check_source(src);
+        let diags: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        assert_eq!(diags.len(), 1, "expected a single parse error diagnostic");
+        let d = &diags[0];
+        assert_eq!(d["severity"], "error");
+        let line = d["line"].as_u64().expect("line is a number");
+        let col = d["col"].as_u64().expect("col is a number");
+        assert!(
+            line >= 1,
+            "parse error must carry a 1-based line, got {line}"
+        );
+        assert!(col >= 1, "parse error must carry a 1-based col, got {col}");
+    }
+
+    #[test]
+    fn check_source_validation_warning_has_span_line() {
+        // 6 行目の反転 span（80..10）が validation 警告になる。
+        let src = "timeline \"T\" {\n    unit year;\n    range 0..100;\n}\nlane \"A\" as a {}\nspan a 80..10 \"Inverted\" {};\n";
+        let json = check_source(src);
+        let diags: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        assert!(!diags.is_empty(), "inverted span should warn");
+        let warning = diags
+            .iter()
+            .find(|d| d["severity"] == "warning")
+            .expect("expected a warning diagnostic");
+        let line = warning["line"].as_u64().expect("line is a number");
+        assert_eq!(
+            line, 6,
+            "inverted span warning should point at its source line (6), got {line}"
+        );
+        assert!(
+            warning["col"].as_u64().expect("col is a number") >= 1,
+            "warning col should be 1-based"
+        );
+    }
+
+    #[test]
+    fn check_source_lowering_error_without_span_reports_zero() {
+        // 未宣言 lane は LoweringError（span なし）→ line/col は 0 のまま。
+        let src = "timeline \"T\" {\n    unit year;\n    range 0..100;\n}\nspan nonexistent 10..50 \"Bad\" {};\n";
+        let json = check_source(src);
+        let diags: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        assert!(!diags.is_empty(), "unknown lane should produce an error");
+        let err = diags
+            .iter()
+            .find(|d| d["severity"] == "error")
+            .expect("expected an error diagnostic");
+        assert_eq!(
+            err["line"].as_u64().unwrap(),
+            0,
+            "position-less lowering error reports line 0"
+        );
+        assert_eq!(err["col"].as_u64().unwrap(), 0);
+    }
 }
 
 /// Render standalone HTML from TDSL source (static items only).
@@ -353,7 +417,13 @@ struct Diagnostic {
 /// Check TDSL source and return diagnostics as JSON.
 ///
 /// Returns a JSON array of diagnostic objects: `[{severity, message, line, col}]`.
-/// `severity` is `"error"` or `"warning"`. `line`/`col` are 0-indexed.
+/// `severity` is `"error"` or `"warning"`.
+///
+/// `line`/`col` are **1-based** when a source position is available (parse errors via
+/// `ParseError::source_location`, validation warnings via the item's `source_span`),
+/// matching the IR `SourceSpan` numbering used by `render_svg_from_source`'s `data-line`
+/// attributes. Diagnostics that carry no position (lowering errors such as unknown-lane
+/// references) report `line: 0, col: 0`; the WebUI treats a `0` line as non-clickable.
 ///
 /// **Note on `import` blocks**: `import wikidata` blocks are not resolved in the browser
 /// (no network access). Unresolved imports are **silently skipped** — they produce no
@@ -366,11 +436,16 @@ pub fn check_source(source: &str) -> String {
     let file = match tdsl_parser::parse(source) {
         Ok(f) => f,
         Err(e) => {
+            // パースエラーは pest の line_col / バイトオフセットから 1-based 位置を取得する。
+            // 位置を持たない variant（UnknownPolicy 等）は 0/0 のまま。
+            let (line, col) = e
+                .source_location(source)
+                .map_or((0, 0), |loc| (loc.line, loc.col));
             diagnostics.push(Diagnostic {
                 severity: Severity::Error,
                 message: e.to_string(),
-                line: 0,
-                col: 0,
+                line,
+                col,
             });
             return serde_json::to_string(&diagnostics).unwrap_or_else(|_| "[]".to_string());
         }
@@ -378,18 +453,21 @@ pub fn check_source(source: &str) -> String {
 
     match lower_static_with_source(&file, Some(source)) {
         Ok(ir) => {
-            // Lowering succeeded — collect validation warnings
-            let warnings = tdsl_core::validate::validate(&ir);
-            for w in warnings {
+            // Lowering succeeded — collect validation warnings with their source spans.
+            // アイテムに紐付く警告は source_span（1-based line/col_start）を反映し、
+            // range 整合性など紐付かない警告は 0/0 のまま。
+            for diag in tdsl_core::validate::validate_with_spans(&ir) {
+                let (line, col) = diag.span.map_or((0, 0), |span| (span.line, span.col_start));
                 diagnostics.push(Diagnostic {
                     severity: Severity::Warning,
-                    message: w,
-                    line: 0,
-                    col: 0,
+                    message: diag.message,
+                    line,
+                    col,
                 });
             }
         }
         Err(errors) => {
+            // LoweringError は現状ソース span を保持しないため位置は 0/0。
             for e in errors {
                 diagnostics.push(Diagnostic {
                     severity: Severity::Error,
