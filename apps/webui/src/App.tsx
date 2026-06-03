@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type MouseEvent } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { tdsl } from './lang-tdsl'
+import { tdslHover } from './lang-tdsl/hover'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, Decoration, ViewPlugin, type ViewUpdate, type DecorationSet } from '@codemirror/view'
 import { StateEffect, StateField } from '@codemirror/state'
@@ -351,12 +352,21 @@ function makeTdslCompletionSource(getSource: () => string) {
     const laneIds = [...src.matchAll(/\blane\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
       label: m[1], type: 'variable' as const, detail: 'lane id',
     }))
-    const importAliases = [...src.matchAll(/\bimport\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
-      label: m[1], type: 'variable' as const, detail: 'import alias',
+    // import wikidata as <alias> { entity Q… as <alias>; query "…" as <alias>; }
+    // map ブロックは `wd.<entity/query alias>` で参照するため、それらと
+    // インポート元エイリアスの両方を候補に出す（実文法はクォート無し）。
+    const importSources = [...src.matchAll(/\bimport\s+\w+\s+as\s+(\w+)\s*\{/g)].map((m) => ({
+      label: m[1], type: 'variable' as const, detail: 'import source',
+    }))
+    const entityAliases = [...src.matchAll(/\bentity\s+Q\d+\s+as\s+(\w+)/g)].map((m) => ({
+      label: m[1], type: 'variable' as const, detail: 'entity alias',
+    }))
+    const queryAliases = [...src.matchAll(/\bquery\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
+      label: m[1], type: 'variable' as const, detail: 'query alias',
     }))
     return {
       from: word.from,
-      options: [...TDSL_SNIPPETS, ...STATIC_KEYWORDS, ...laneIds, ...importAliases],
+      options: [...TDSL_SNIPPETS, ...STATIC_KEYWORDS, ...laneIds, ...importSources, ...entityAliases, ...queryAliases],
     }
   }
 }
@@ -1313,6 +1323,7 @@ function App() {
               search({ top: true }),
               bracketMatching(),
               autocompletion({ override: [makeTdslCompletionSource(() => source)] }),
+              tdslHover(() => source),
               lineHighlightField,
               cursorLineExtension,
               tdslLinterExtension,
