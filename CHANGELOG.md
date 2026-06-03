@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **WebUI の CodeMirror に Hover ツールチップを追加**: エディタ上の識別子・キーワードにカーソルを当てると定義情報を表示する。lane ID にはラベル / kind / order、import エイリアス・entity・query エイリアスにはインポート元（Wikidata エンティティ QID 等）、キーワードには簡潔な説明を表示する。解析はソースの静的解析（補完と同じ正規表現方式）で行い WASM 往復は不要。一定遅延（300ms）後に表示し、マウス移動で消える。タッチ環境は対象外（ポインタ前提）。LSP サーバの `textDocument/hover`（#309）に相当する機能を、LSP を使わない WebUI に提供する。あわせて補完の import エイリアス抽出が実文法（`import wikidata as wd` / `entity Q… as alias` / `query "…" as alias`）にマッチしていなかったバグを修正し、entity / query エイリアスと import 元を正しく候補に出すようにした (#363)
+
 ### Fixed
 
 - **WASM `check_source` に正確な行・列を付与**: これまで全 Diagnostic で `line: 0, col: 0` をハードコードしていたため WebUI 診断パネルからエラー箇所へジャンプできなかった。パースエラーは `ParseError::source_location`、validation 警告はアイテムの `source_span` から **1-based** の行・列を取り出して Diagnostic に反映するようにした（IR `SourceSpan` / `render_svg_from_source` の `data-line` 属性と同じ番号付け）。これにより WebUI 診断パネルのクリックで該当行へジャンプできる。位置情報を持たない lowering エラー（未宣言 lane 等）は従来どおり `line: 0, col: 0`（クリック不可）。診断 JSON の形状（`severity` / `message` / `line` / `col`）は不変 (#386)

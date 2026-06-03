@@ -864,6 +864,46 @@ body,
   white-space: pre-line;
 }
 
+/* CodeMirror hover tooltip (lang-tdsl/hover.ts) */
+.cm-tooltip.cm-tooltip-hover {
+  border: none;
+  background: transparent;
+}
+.tdsl-hover-tooltip {
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  border: 1px solid var(--tooltip-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  max-width: 320px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.tdsl-hover-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.tdsl-hover-kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--tooltip-border);
+  color: var(--tooltip-text);
+  opacity: 0.85;
+}
+.tdsl-hover-title {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-weight: 600;
+}
+.tdsl-hover-body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
 /* Keyboard shortcut modal */
 .modal-overlay {
   position: fixed;
