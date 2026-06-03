@@ -351,12 +351,13 @@ function makeTdslCompletionSource(getSource: () => string) {
     // しか参照されない。ドットを含むトークンでは**ドット以降だけ**を補完対象にし、
     // `from` をドットの直後に置くことで `wd.` プレフィックスを保持する
     // （`from` を語頭に置くと候補挿入時に `wd.` ごと置換されて消えてしまう）。
-    const dotted = context.matchBefore(/\w+\.\w*/)
+    // TDSL ident はハイフンを含みうる（grammar.pest: [A-Za-z_][\w-]*）。
+    const dotted = context.matchBefore(/[\w-]+\.[\w-]*/)
     if (dotted) {
-      const entityAliases = [...src.matchAll(/\bentity\s+Q\d+\s+as\s+(\w+)/g)].map((m) => ({
+      const entityAliases = [...src.matchAll(/\bentity\s+Q\d+\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
         label: m[1], type: 'variable' as const, detail: 'entity alias',
       }))
-      const queryAliases = [...src.matchAll(/\bquery\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
+      const queryAliases = [...src.matchAll(/\bquery\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
         label: m[1], type: 'variable' as const, detail: 'query alias',
       }))
       return {
@@ -367,12 +368,13 @@ function makeTdslCompletionSource(getSource: () => string) {
 
     // ドット無しトークン: スニペット・キーワード・lane id・import 元エイリアス
     // （いずれも単独で参照される）。実文法は `import wikidata as wd { … }`。
-    const word = context.matchBefore(/\w+/)
+    // ident 先頭は英字/アンダースコア限定（数値リテラル `-206` 等を拾わない）。
+    const word = context.matchBefore(/[A-Za-z_][\w-]*/)
     if (!word || (word.from === word.to && !context.explicit)) return null
-    const laneIds = [...src.matchAll(/\blane\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
+    const laneIds = [...src.matchAll(/\blane\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
       label: m[1], type: 'variable' as const, detail: 'lane id',
     }))
-    const importSources = [...src.matchAll(/\bimport\s+\w+\s+as\s+(\w+)\s*\{/g)].map((m) => ({
+    const importSources = [...src.matchAll(/\bimport\s+[A-Za-z_][\w-]*\s+as\s+([A-Za-z_][\w-]*)\s*\{/g)].map((m) => ({
       label: m[1], type: 'variable' as const, detail: 'import source',
     }))
     return {

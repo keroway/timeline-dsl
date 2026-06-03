@@ -71,30 +71,31 @@ interface SourceModel {
 function analyzeSource(src: string): SourceModel {
   const lanes = new Map<string, LaneInfo>()
   // lane "label" as id { kind X; order N; }
-  for (const m of src.matchAll(/\blane\s+"([^"]*)"\s+as\s+(\w+)\s*\{([^}]*)\}/g)) {
+  // ident は grammar.pest 通り 2 文字目以降にハイフンを許す（[A-Za-z_][\w-]*）。
+  for (const m of src.matchAll(/\blane\s+"([^"]*)"\s+as\s+([A-Za-z_][\w-]*)\s*\{([^}]*)\}/g)) {
     const [, label, id, body] = m
-    const kind = body.match(/\bkind\s+(\w+)/)?.[1]
+    const kind = body.match(/\bkind\s+([A-Za-z_][\w-]*)/)?.[1]
     const order = body.match(/\border\s+(-?\d+)/)?.[1]
     lanes.set(id, { label, kind, order })
   }
 
   const importSources = new Map<string, ImportSourceInfo>()
   // import wikidata as wd {
-  for (const m of src.matchAll(/\bimport\s+(\w+)\s+as\s+(\w+)\s*\{/g)) {
+  for (const m of src.matchAll(/\bimport\s+([A-Za-z_][\w-]*)\s+as\s+([A-Za-z_][\w-]*)\s*\{/g)) {
     const [, sourceName, alias] = m
     importSources.set(alias, { sourceName })
   }
 
   const entities = new Map<string, EntityInfo>()
   // entity Q123 as alias;
-  for (const m of src.matchAll(/\bentity\s+(Q\d+)\s+as\s+(\w+)/g)) {
+  for (const m of src.matchAll(/\bentity\s+(Q\d+)\s+as\s+([A-Za-z_][\w-]*)/g)) {
     const [, qid, alias] = m
     entities.set(alias, { qid })
   }
 
   const queries = new Map<string, QueryInfo>()
   // query "..." as alias;
-  for (const m of src.matchAll(/\bquery\s+"[^"]*"\s+as\s+(\w+)/g)) {
+  for (const m of src.matchAll(/\bquery\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g)) {
     queries.set(m[1], {})
   }
 
@@ -146,15 +147,17 @@ export function tdslHover(getSource: () => string): Extension {
   return hoverTooltip((view, pos): Tooltip | null => {
     const { text, from } = view.state.doc.lineAt(pos)
     const rel = pos - from
-    // Identify the identifier token under the cursor.
+    // Identify the identifier token under the cursor. TDSL idents allow hyphens
+    // after the first char (grammar.pest: [A-Za-z_][\w-]*), so include `-` when
+    // expanding the token, then require a valid leading char (rejects `-206`).
     let start = rel
     let end = rel
-    const isWord = (c: string) => /[A-Za-z0-9_]/.test(c)
+    const isWord = (c: string) => /[A-Za-z0-9_-]/.test(c)
     while (start > 0 && isWord(text[start - 1])) start--
     while (end < text.length && isWord(text[end])) end++
     if (start === end) return null
     const word = text.slice(start, end)
-    if (!/^[A-Za-z_]\w*$/.test(word)) return null
+    if (!/^[A-Za-z_][\w-]*$/.test(word)) return null
 
     const tipFrom = from + start
     const tipTo = from + end
