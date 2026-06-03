@@ -826,13 +826,29 @@ impl LoweringContext {
 
 // ─── Expression Evaluation ──────────────────────────────────
 
-/// Evaluate a map expression with `??` fallback (e.g. `claim(P580).year ?? claim(P571).year`).
-/// Returns the first `Some` from the fallback list.
+/// Evaluate a map expression with `??` fallback.
+/// Supports claim chains (`claim(P580).year ?? claim(P571).year`) and literal fallbacks
+/// (`claim(P580).year ?? 9999`). Returns the first resolved value.
 #[cfg(feature = "wikidata")]
 fn eval_map_expr(expr: &ast::MapExpr, entity: &WikidataEntity) -> Option<TimePoint> {
-    expr.fallbacks
-        .iter()
-        .find_map(|ce| eval_claim_expr(ce, entity))
+    for fb in &expr.fallbacks {
+        match fb {
+            ast::MapFallback::Claim(ce) => {
+                if let Some(tp) = eval_claim_expr(ce, entity) {
+                    return Some(tp);
+                }
+            }
+            ast::MapFallback::Literal(n) => {
+                return Some(TimePoint {
+                    year: *n,
+                    month: None,
+                    day: None,
+                    precision: 9,
+                });
+            }
+        }
+    }
+    None
 }
 
 /// Evaluate a single claim expression (e.g. `claim(P571).year`) against a Wikidata entity.

@@ -529,6 +529,94 @@ async fn eval_map_expr_all_missing_skips_item() {
     assert_eq!(ir.items.len(), 0);
 }
 
+// ─── literal fallback in map_expr (issue #359) ─────────────
+
+#[tokio::test]
+async fn eval_map_expr_literal_fallback_used_when_claim_missing() {
+    // claim(P580) が存在しない → リテラル 9999 が採用される
+    let src = r#"
+        timeline "Test" { unit year; range -500..10000; }
+        lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+        import wikidata as wd {
+            entity Q1 as x;
+        }
+
+        map wd.x to span {
+            lane dynasty;
+            start claim(P580).year ?? 0;
+            end claim(P582).year ?? 9999;
+            label label@ja;
+        }
+    "#;
+
+    let file = tdsl_parser::parse(src).unwrap();
+    // make_entity は P571/P576 のみを持つ — P580/P582 は欠損
+    let entity = make_entity("Q1", "テスト", 100, 200);
+    let mut entities = HashMap::new();
+    entities.insert("Q1".to_string(), entity);
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+    assert_eq!(ir.items.len(), 1);
+    match &ir.items[0] {
+        ir::Item::Span { start, end, .. } => {
+            assert_eq!(*start, 0); // リテラルフォールバック 0
+            assert_eq!(*end, 9999); // リテラルフォールバック 9999
+        }
+        _ => panic!("expected Span"),
+    }
+}
+
+#[tokio::test]
+async fn eval_map_expr_claim_wins_over_literal_fallback() {
+    // claim(P580) が存在する場合はリテラルフォールバックを使わない
+    let src = r#"
+        timeline "Test" { unit year; range -500..10000; }
+        lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+        import wikidata as wd {
+            entity Q1 as x;
+        }
+
+        map wd.x to span {
+            lane dynasty;
+            start claim(P580).year ?? 0;
+            end claim(P582).year ?? 9999;
+            label label@ja;
+        }
+    "#;
+
+    let file = tdsl_parser::parse(src).unwrap();
+    let mut entity = make_entity("Q1", "テスト", 100, 200);
+    // P580/P582 を明示的に追加する
+    entity
+        .claims
+        .insert("P580".to_string(), vec![make_time_statement("P580", 150)]);
+    entity
+        .claims
+        .insert("P582".to_string(), vec![make_time_statement("P582", 350)]);
+    let mut entities = HashMap::new();
+    entities.insert("Q1".to_string(), entity);
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+    assert_eq!(ir.items.len(), 1);
+    match &ir.items[0] {
+        ir::Item::Span { start, end, .. } => {
+            assert_eq!(*start, 150); // P580 の値を使用（リテラル 0 ではない）
+            assert_eq!(*end, 350); // P582 の値を使用（リテラル 9999 ではない）
+        }
+        _ => panic!("expected Span"),
+    }
+}
+
 // ─── filter clause (issue #142) ─────────────────────────
 
 #[tokio::test]
