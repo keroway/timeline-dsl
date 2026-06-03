@@ -346,27 +346,38 @@ const STATIC_KEYWORDS = [
 
 function makeTdslCompletionSource(getSource: () => string) {
   return function tdslCompletions(context: CompletionContext): CompletionResult | null {
-    const word = context.matchBefore(/[\w.]+/)
-    if (!word || (word.from === word.to && !context.explicit)) return null
     const src = getSource()
+    // entity / query エイリアスは map ブロックで `wd.<alias>` の形（import 元.別名）で
+    // しか参照されない。ドットを含むトークンでは**ドット以降だけ**を補完対象にし、
+    // `from` をドットの直後に置くことで `wd.` プレフィックスを保持する
+    // （`from` を語頭に置くと候補挿入時に `wd.` ごと置換されて消えてしまう）。
+    const dotted = context.matchBefore(/\w+\.\w*/)
+    if (dotted) {
+      const entityAliases = [...src.matchAll(/\bentity\s+Q\d+\s+as\s+(\w+)/g)].map((m) => ({
+        label: m[1], type: 'variable' as const, detail: 'entity alias',
+      }))
+      const queryAliases = [...src.matchAll(/\bquery\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
+        label: m[1], type: 'variable' as const, detail: 'query alias',
+      }))
+      return {
+        from: dotted.from + dotted.text.indexOf('.') + 1,
+        options: [...entityAliases, ...queryAliases],
+      }
+    }
+
+    // ドット無しトークン: スニペット・キーワード・lane id・import 元エイリアス
+    // （いずれも単独で参照される）。実文法は `import wikidata as wd { … }`。
+    const word = context.matchBefore(/\w+/)
+    if (!word || (word.from === word.to && !context.explicit)) return null
     const laneIds = [...src.matchAll(/\blane\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
       label: m[1], type: 'variable' as const, detail: 'lane id',
     }))
-    // import wikidata as <alias> { entity Q… as <alias>; query "…" as <alias>; }
-    // map ブロックは `wd.<entity/query alias>` で参照するため、それらと
-    // インポート元エイリアスの両方を候補に出す（実文法はクォート無し）。
     const importSources = [...src.matchAll(/\bimport\s+\w+\s+as\s+(\w+)\s*\{/g)].map((m) => ({
       label: m[1], type: 'variable' as const, detail: 'import source',
     }))
-    const entityAliases = [...src.matchAll(/\bentity\s+Q\d+\s+as\s+(\w+)/g)].map((m) => ({
-      label: m[1], type: 'variable' as const, detail: 'entity alias',
-    }))
-    const queryAliases = [...src.matchAll(/\bquery\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
-      label: m[1], type: 'variable' as const, detail: 'query alias',
-    }))
     return {
       from: word.from,
-      options: [...TDSL_SNIPPETS, ...STATIC_KEYWORDS, ...laneIds, ...importSources, ...entityAliases, ...queryAliases],
+      options: [...TDSL_SNIPPETS, ...STATIC_KEYWORDS, ...laneIds, ...importSources],
     }
   }
 }
