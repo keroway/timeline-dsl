@@ -158,6 +158,7 @@ function svgToPngBlob(svg: string, whiteBg: boolean): Promise<Blob> {
 
 const DEBOUNCE_MS = 500
 const EDITOR_SOURCE_KEY = 'tdsl:editor:source'
+const FILTER_STATE_KEY = 'tdsl:filter-state'
 
 type ColorScheme = 'dark' | 'light'
 type ThemePreference = 'auto' | 'light' | 'dark'
@@ -229,6 +230,8 @@ function resolveColorScheme(pref: ThemePreference, systemScheme: ColorScheme): C
 
 type LegendItem = { lane: string; label: string; color: string }
 
+type FilterState = { hiddenLanes: Set<string>; tagSearch: string }
+
 type SelectedItem = {
   label: string
   type: string
@@ -255,6 +258,29 @@ function extractLegend(container: Element): LegendItem[] {
     result.push({ lane, label, color: colorMap.get(lane) || '#888' })
   })
   return result
+}
+
+function extractTags(container: Element): string[] {
+  const tags = new Set<string>()
+  container.querySelectorAll<Element>('[data-tags]').forEach((el) => {
+    const raw = el.getAttribute('data-tags') || ''
+    raw.split(',').forEach((t) => { if (t.trim()) tags.add(t.trim()) })
+  })
+  return [...tags].sort()
+}
+
+function loadFilterState(): FilterState {
+  try {
+    const saved = sessionStorage.getItem(FILTER_STATE_KEY)
+    if (saved) {
+      const parsed = JSON.parse(saved) as { hiddenLanes?: string[]; tagSearch?: string }
+      return {
+        hiddenLanes: new Set(parsed.hiddenLanes ?? []),
+        tagSearch: parsed.tagSearch ?? '',
+      }
+    }
+  } catch { /* ignore */ }
+  return { hiddenLanes: new Set(), tagSearch: '' }
 }
 
 // ─── TDSL keyword completions & snippets ─────────────────────────────────────
@@ -431,10 +457,13 @@ function App() {
   const dragRef = useRef<{ mx: number; my: number; px: number; py: number } | null>(null)
   const didDragRef = useRef(false)
 
-  // Legend & detail panel
+  // Legend, filter & detail panel
   const [showLegend, setShowLegend] = useState(false)
   const [legendItems, setLegendItems] = useState<LegendItem[]>([])
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
+  const [showFilterPanel, setShowFilterPanel] = useState(false)
+  const [filterState, setFilterState] = useState<FilterState>(loadFilterState)
+  const [allTags, setAllTags] = useState<string[]>([])
 
   function applyTransform(t: { x: number; y: number; s: number }) {
     panZoomRef.current = t
@@ -602,16 +631,17 @@ function App() {
     return () => preview.removeEventListener('wheel', onWheel)
   }, [])
 
-  // Extract legend after SVG renders into DOM; also restore cursor highlight
+  // Extract legend and tags after SVG renders into DOM; also restore cursor highlight
   useEffect(() => {
     if (!svgContent) {
-      requestAnimationFrame(() => setLegendItems([]))
+      requestAnimationFrame(() => { setLegendItems([]); setAllTags([]) })
       return
     }
     requestAnimationFrame(() => {
       const container = svgContainerRef.current
       if (container) {
         setLegendItems(extractLegend(container))
+        setAllTags(extractTags(container))
         // SVG再描画後にカーソル行ハイライトを復元（直接DOM操作）
         const currentLine = cursorLineRef.current
         if (currentLine > 0) {
@@ -627,6 +657,35 @@ function App() {
       }
     })
   }, [svgContent])
+
+  // Apply filter state to SVG DOM (opacity control)
+  useEffect(() => {
+    const container = svgContainerRef.current
+    if (!container) return
+    const tagFilter = filterState.tagSearch.trim().toLowerCase()
+    container.querySelectorAll<HTMLElement>('.tdsl-item').forEach((el) => {
+      const lane = el.getAttribute('data-lane') ?? ''
+      const rawTags = el.getAttribute('data-tags') ?? ''
+      const tags = rawTags ? rawTags.split(',').map((t) => t.trim()) : []
+      const laneHidden = filterState.hiddenLanes.has(lane)
+      const tagNoMatch = tagFilter !== '' && !tags.some((t) => t.toLowerCase().includes(tagFilter))
+      el.style.opacity = laneHidden || tagNoMatch ? '0.12' : ''
+    })
+    container.querySelectorAll<HTMLElement>('.tdsl-lane-label[data-lane]').forEach((el) => {
+      const lane = el.getAttribute('data-lane') ?? ''
+      el.style.opacity = filterState.hiddenLanes.has(lane) ? '0.3' : ''
+    })
+  }, [filterState, svgContent])
+
+  // Persist filter state to sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(FILTER_STATE_KEY, JSON.stringify({
+        hiddenLanes: [...filterState.hiddenLanes],
+        tagSearch: filterState.tagSearch,
+      }))
+    } catch { /* ignore */ }
+  }, [filterState])
 
   // Split pane drag (document-level to prevent losing track when cursor leaves divider)
   useEffect(() => {
@@ -1276,6 +1335,13 @@ function App() {
                 >
                   {showLegend ? '凡例 ✕' : '凡例'}
                 </button>
+                <button
+                  className={`btn btn-preview-ctrl${filterState.hiddenLanes.size > 0 || filterState.tagSearch ? ' btn-preview-ctrl-active' : ''}`}
+                  onClick={() => setShowFilterPanel((v) => !v)}
+                  title="フィルタパネルを表示/非表示"
+                >
+                  {showFilterPanel ? 'フィルタ ✕' : 'フィルタ'}
+                </button>
               </>
             )}
             <button
@@ -1297,6 +1363,55 @@ function App() {
                   <span className="legend-label">{item.label}</span>
                 </div>
               ))}
+            </div>
+          )}
+          {/* Filter panel */}
+          {showFilterPanel && legendItems.length > 0 && (
+            <div className="filter-panel">
+              <div className="filter-header">フィルタ</div>
+              <div className="filter-section">
+                <div className="filter-section-title">レーン</div>
+                {legendItems.map((item) => (
+                  <label key={item.lane} className="filter-item">
+                    <input
+                      type="checkbox"
+                      checked={!filterState.hiddenLanes.has(item.lane)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        setFilterState((prev) => {
+                          const next = new Set(prev.hiddenLanes)
+                          if (e.target.checked) next.delete(item.lane)
+                          else next.add(item.lane)
+                          return { ...prev, hiddenLanes: next }
+                        })
+                      }}
+                    />
+                    <span className="filter-swatch" style={{ background: item.color }} />
+                    <span className="filter-label">{item.label}</span>
+                  </label>
+                ))}
+              </div>
+              {allTags.length > 0 && (
+                <div className="filter-section">
+                  <div className="filter-section-title">タグ検索</div>
+                  <input
+                    type="text"
+                    className="filter-tag-input"
+                    value={filterState.tagSearch}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setFilterState((prev) => ({ ...prev, tagSearch: e.target.value }))
+                    }
+                    placeholder="タグ名で絞り込み"
+                  />
+                </div>
+              )}
+              {(filterState.hiddenLanes.size > 0 || filterState.tagSearch) && (
+                <button
+                  className="filter-reset-btn"
+                  onClick={() => setFilterState({ hiddenLanes: new Set(), tagSearch: '' })}
+                >
+                  リセット
+                </button>
+              )}
             </div>
           )}
           {/* Selected item detail panel */}

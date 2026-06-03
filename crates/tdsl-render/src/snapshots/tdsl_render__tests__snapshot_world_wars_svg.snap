@@ -17,11 +17,11 @@ expression: svg
   <text class="tdsl-lane-label" data-lane="war" x="112" y="70" text-anchor="end" dominant-baseline="middle">戦争</text>
   <text class="tdsl-lane-label" data-lane="politics" x="112" y="130" text-anchor="end" dominant-baseline="middle">政治</text>
   <text class="tdsl-lane-label" data-lane="society" x="112" y="190" text-anchor="end" dominant-baseline="middle">社会</text>
-  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 第一次世界大戦、1914〜1918、tags: war, wwi、id: range:wwi、レーン: 戦争" tabindex="0" data-tdsl-tooltip="第一次世界大戦&#10;1914〜1918&#10;tags: war, wwi&#10;id: range:wwi"><rect class="tdsl-event-range" style="fill:#4682B4;fill-opacity:0.75;" x="148" y="84" width="10.00" height="10" rx="2"><title>第一次世界大戦
+  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 第一次世界大戦、1914〜1918、tags: war, wwi、id: range:wwi、レーン: 戦争" tabindex="0" data-tdsl-tooltip="第一次世界大戦&#10;1914〜1918&#10;tags: war, wwi&#10;id: range:wwi" data-lane="war" data-tags="war,wwi"><rect class="tdsl-event-range" style="fill:#4682B4;fill-opacity:0.75;" x="148" y="84" width="10.00" height="10" rx="2"><title>第一次世界大戦
 1914〜1918
 tags: war, wwi
 id: range:wwi</title></rect></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: サラエボ事件（開戦の引き金）、1914、tags: wwi、id: event:war:1914、レーン: 戦争" tabindex="0" data-tdsl-tooltip="サラエボ事件（開戦の引き金）&#10;1914&#10;tags: wwi&#10;id: event:war:1914"><rect class="tdsl-event-hit" x="140" y="50" width="16" height="40"><title>サラエボ事件（開戦の引き金）
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: サラエボ事件（開戦の引き金）、1914、tags: wwi、id: event:war:1914、レーン: 戦争" tabindex="0" data-tdsl-tooltip="サラエボ事件（開戦の引き金）&#10;1914&#10;tags: wwi&#10;id: event:war:1914" data-lane="war" data-tags="wwi"><rect class="tdsl-event-hit" x="140" y="50" width="16" height="40"><title>サラエボ事件（開戦の引き金）
 1914
 tags: wwi
 id: event:war:1914</title></rect><line class="tdsl-event-stem" x1="148" y1="50" x2="148" y2="90"><title>サラエボ事件（開戦の引き金）
@@ -31,7 +31,7 @@ id: event:war:1914</title></line><circle class="tdsl-event-dot" style="fill:#468
 1914
 tags: wwi
 id: event:war:1914</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ロシア革命、1917、tags: wwi, revolution、id: event:politics:1917、レーン: 政治" tabindex="0" data-tdsl-tooltip="ロシア革命&#10;1917&#10;tags: wwi, revolution&#10;id: event:politics:1917"><rect class="tdsl-event-hit" x="146" y="110" width="16" height="40"><title>ロシア革命
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ロシア革命、1917、tags: wwi, revolution、id: event:politics:1917、レーン: 政治" tabindex="0" data-tdsl-tooltip="ロシア革命&#10;1917&#10;tags: wwi, revolution&#10;id: event:politics:1917" data-lane="politics" data-tags="wwi,revolution"><rect class="tdsl-event-hit" x="146" y="110" width="16" height="40"><title>ロシア革命
 1917
 tags: wwi, revolution
 id: event:politics:1917</title></rect><line class="tdsl-event-stem" x1="154" y1="110" x2="154" y2="150"><title>ロシア革命
@@ -41,7 +41,7 @@ id: event:politics:1917</title></line><circle class="tdsl-event-dot" style="fill
 1917
 tags: wwi, revolution
 id: event:politics:1917</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 第一次世界大戦終結、1918、tags: wwi、id: event:war:1918、レーン: 戦争" tabindex="0" data-tdsl-tooltip="第一次世界大戦終結&#10;1918&#10;tags: wwi&#10;id: event:war:1918"><rect class="tdsl-event-hit" x="148" y="50" width="16" height="40"><title>第一次世界大戦終結
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 第一次世界大戦終結、1918、tags: wwi、id: event:war:1918、レーン: 戦争" tabindex="0" data-tdsl-tooltip="第一次世界大戦終結&#10;1918&#10;tags: wwi&#10;id: event:war:1918" data-lane="war" data-tags="wwi"><rect class="tdsl-event-hit" x="148" y="50" width="16" height="40"><title>第一次世界大戦終結
 1918
 tags: wwi
 id: event:war:1918</title></rect><line class="tdsl-event-stem" x1="156" y1="50" x2="156" y2="90"><title>第一次世界大戦終結
@@ -51,7 +51,7 @@ id: event:war:1918</title></line><circle class="tdsl-event-dot" style="fill:#468
 1918
 tags: wwi
 id: event:war:1918</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: パリ講和会議・ヴェルサイユ条約、1919、tags: wwi, treaty、id: event:politics:1919、レーン: 政治" tabindex="0" data-tdsl-tooltip="パリ講和会議・ヴェルサイユ条約&#10;1919&#10;tags: wwi, treaty&#10;id: event:politics:1919"><rect class="tdsl-event-hit" x="150" y="110" width="16" height="40"><title>パリ講和会議・ヴェルサイユ条約
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: パリ講和会議・ヴェルサイユ条約、1919、tags: wwi, treaty、id: event:politics:1919、レーン: 政治" tabindex="0" data-tdsl-tooltip="パリ講和会議・ヴェルサイユ条約&#10;1919&#10;tags: wwi, treaty&#10;id: event:politics:1919" data-lane="politics" data-tags="wwi,treaty"><rect class="tdsl-event-hit" x="150" y="110" width="16" height="40"><title>パリ講和会議・ヴェルサイユ条約
 1919
 tags: wwi, treaty
 id: event:politics:1919</title></rect><line class="tdsl-event-stem" x1="158" y1="110" x2="158" y2="150"><title>パリ講和会議・ヴェルサイユ条約
@@ -61,7 +61,7 @@ id: event:politics:1919</title></line><circle class="tdsl-event-dot" style="fill
 1919
 tags: wwi, treaty
 id: event:politics:1919</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 世界恐慌、1929、tags: economy、id: event:politics:1929、レーン: 政治" tabindex="0" data-tdsl-tooltip="世界恐慌&#10;1929&#10;tags: economy&#10;id: event:politics:1929"><rect class="tdsl-event-hit" x="170" y="110" width="16" height="40"><title>世界恐慌
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 世界恐慌、1929、tags: economy、id: event:politics:1929、レーン: 政治" tabindex="0" data-tdsl-tooltip="世界恐慌&#10;1929&#10;tags: economy&#10;id: event:politics:1929" data-lane="politics" data-tags="economy"><rect class="tdsl-event-hit" x="170" y="110" width="16" height="40"><title>世界恐慌
 1929
 tags: economy
 id: event:politics:1929</title></rect><line class="tdsl-event-stem" x1="178" y1="110" x2="178" y2="150"><title>世界恐慌
@@ -71,7 +71,7 @@ id: event:politics:1929</title></line><circle class="tdsl-event-dot" style="fill
 1929
 tags: economy
 id: event:politics:1929</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ナチス政権樹立、1933、tags: politics、id: event:politics:1933、レーン: 政治" tabindex="0" data-tdsl-tooltip="ナチス政権樹立&#10;1933&#10;tags: politics&#10;id: event:politics:1933"><rect class="tdsl-event-hit" x="178" y="110" width="16" height="40"><title>ナチス政権樹立
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ナチス政権樹立、1933、tags: politics、id: event:politics:1933、レーン: 政治" tabindex="0" data-tdsl-tooltip="ナチス政権樹立&#10;1933&#10;tags: politics&#10;id: event:politics:1933" data-lane="politics" data-tags="politics"><rect class="tdsl-event-hit" x="178" y="110" width="16" height="40"><title>ナチス政権樹立
 1933
 tags: politics
 id: event:politics:1933</title></rect><line class="tdsl-event-stem" x1="186" y1="110" x2="186" y2="150"><title>ナチス政権樹立
@@ -81,15 +81,15 @@ id: event:politics:1933</title></line><circle class="tdsl-event-dot" style="fill
 1933
 tags: politics
 id: event:politics:1933</title></circle></g>
-  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 第二次世界大戦、1939〜1945、tags: war, wwii、id: range:wwii、レーン: 戦争" tabindex="0" data-tdsl-tooltip="第二次世界大戦&#10;1939〜1945&#10;tags: war, wwii&#10;id: range:wwii"><rect class="tdsl-event-range" style="fill:#4682B4;fill-opacity:0.75;" x="198" y="84" width="14.00" height="10" rx="2"><title>第二次世界大戦
+  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 第二次世界大戦、1939〜1945、tags: war, wwii、id: range:wwii、レーン: 戦争" tabindex="0" data-tdsl-tooltip="第二次世界大戦&#10;1939〜1945&#10;tags: war, wwii&#10;id: range:wwii" data-lane="war" data-tags="war,wwii"><rect class="tdsl-event-range" style="fill:#4682B4;fill-opacity:0.75;" x="198" y="84" width="14.00" height="10" rx="2"><title>第二次世界大戦
 1939〜1945
 tags: war, wwii
 id: range:wwii</title></rect></g>
-  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 太平洋戦争、1941〜1945、tags: war, wwii, pacific、id: range:pacific_war、レーン: 戦争" tabindex="0" data-tdsl-tooltip="太平洋戦争&#10;1941〜1945&#10;tags: war, wwii, pacific&#10;id: range:pacific_war"><rect class="tdsl-event-range" style="fill:#4682B4;fill-opacity:0.75;" x="202" y="84" width="10.00" height="10" rx="2"><title>太平洋戦争
+  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 太平洋戦争、1941〜1945、tags: war, wwii, pacific、id: range:pacific_war、レーン: 戦争" tabindex="0" data-tdsl-tooltip="太平洋戦争&#10;1941〜1945&#10;tags: war, wwii, pacific&#10;id: range:pacific_war" data-lane="war" data-tags="war,wwii,pacific"><rect class="tdsl-event-range" style="fill:#4682B4;fill-opacity:0.75;" x="202" y="84" width="10.00" height="10" rx="2"><title>太平洋戦争
 1941〜1945
 tags: war, wwii, pacific
 id: range:pacific_war</title></rect></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ドイツ、ポーランド侵攻（WWII開戦）、1939、tags: wwii、id: event:war:1939、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ドイツ、ポーランド侵攻（WWII開戦）&#10;1939&#10;tags: wwii&#10;id: event:war:1939"><rect class="tdsl-event-hit" x="190" y="50" width="16" height="40"><title>ドイツ、ポーランド侵攻（WWII開戦）
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ドイツ、ポーランド侵攻（WWII開戦）、1939、tags: wwii、id: event:war:1939、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ドイツ、ポーランド侵攻（WWII開戦）&#10;1939&#10;tags: wwii&#10;id: event:war:1939" data-lane="war" data-tags="wwii"><rect class="tdsl-event-hit" x="190" y="50" width="16" height="40"><title>ドイツ、ポーランド侵攻（WWII開戦）
 1939
 tags: wwii
 id: event:war:1939</title></rect><line class="tdsl-event-stem" x1="198" y1="50" x2="198" y2="90"><title>ドイツ、ポーランド侵攻（WWII開戦）
@@ -99,7 +99,7 @@ id: event:war:1939</title></line><circle class="tdsl-event-dot" style="fill:#468
 1939
 tags: wwii
 id: event:war:1939</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ダンケルク撤退・フランス陥落、1940、tags: wwii、id: event:war:1940、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ダンケルク撤退・フランス陥落&#10;1940&#10;tags: wwii&#10;id: event:war:1940"><rect class="tdsl-event-hit" x="192" y="50" width="16" height="40"><title>ダンケルク撤退・フランス陥落
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ダンケルク撤退・フランス陥落、1940、tags: wwii、id: event:war:1940、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ダンケルク撤退・フランス陥落&#10;1940&#10;tags: wwii&#10;id: event:war:1940" data-lane="war" data-tags="wwii"><rect class="tdsl-event-hit" x="192" y="50" width="16" height="40"><title>ダンケルク撤退・フランス陥落
 1940
 tags: wwii
 id: event:war:1940</title></rect><line class="tdsl-event-stem" x1="200" y1="50" x2="200" y2="90"><title>ダンケルク撤退・フランス陥落
@@ -109,7 +109,7 @@ id: event:war:1940</title></line><circle class="tdsl-event-dot" style="fill:#468
 1940
 tags: wwii
 id: event:war:1940</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 独ソ戦開始・日本の真珠湾攻撃、1941、tags: wwii、id: event:war:1941、レーン: 戦争" tabindex="0" data-tdsl-tooltip="独ソ戦開始・日本の真珠湾攻撃&#10;1941&#10;tags: wwii&#10;id: event:war:1941"><rect class="tdsl-event-hit" x="194" y="50" width="16" height="40"><title>独ソ戦開始・日本の真珠湾攻撃
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 独ソ戦開始・日本の真珠湾攻撃、1941、tags: wwii、id: event:war:1941、レーン: 戦争" tabindex="0" data-tdsl-tooltip="独ソ戦開始・日本の真珠湾攻撃&#10;1941&#10;tags: wwii&#10;id: event:war:1941" data-lane="war" data-tags="wwii"><rect class="tdsl-event-hit" x="194" y="50" width="16" height="40"><title>独ソ戦開始・日本の真珠湾攻撃
 1941
 tags: wwii
 id: event:war:1941</title></rect><line class="tdsl-event-stem" x1="202" y1="50" x2="202" y2="90"><title>独ソ戦開始・日本の真珠湾攻撃
@@ -119,7 +119,7 @@ id: event:war:1941</title></line><circle class="tdsl-event-dot" style="fill:#468
 1941
 tags: wwii
 id: event:war:1941</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ミッドウェー海戦・スターリングラード攻防戦、1942、tags: wwii、id: event:war:1942、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ミッドウェー海戦・スターリングラード攻防戦&#10;1942&#10;tags: wwii&#10;id: event:war:1942"><rect class="tdsl-event-hit" x="196" y="50" width="16" height="40"><title>ミッドウェー海戦・スターリングラード攻防戦
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ミッドウェー海戦・スターリングラード攻防戦、1942、tags: wwii、id: event:war:1942、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ミッドウェー海戦・スターリングラード攻防戦&#10;1942&#10;tags: wwii&#10;id: event:war:1942" data-lane="war" data-tags="wwii"><rect class="tdsl-event-hit" x="196" y="50" width="16" height="40"><title>ミッドウェー海戦・スターリングラード攻防戦
 1942
 tags: wwii
 id: event:war:1942</title></rect><line class="tdsl-event-stem" x1="204" y1="50" x2="204" y2="90"><title>ミッドウェー海戦・スターリングラード攻防戦
@@ -129,7 +129,7 @@ id: event:war:1942</title></line><circle class="tdsl-event-dot" style="fill:#468
 1942
 tags: wwii
 id: event:war:1942</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ノルマンディー上陸作戦、1944、tags: wwii、id: event:war:1944、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ノルマンディー上陸作戦&#10;1944&#10;tags: wwii&#10;id: event:war:1944"><rect class="tdsl-event-hit" x="200" y="50" width="16" height="40"><title>ノルマンディー上陸作戦
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ノルマンディー上陸作戦、1944、tags: wwii、id: event:war:1944、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ノルマンディー上陸作戦&#10;1944&#10;tags: wwii&#10;id: event:war:1944" data-lane="war" data-tags="wwii"><rect class="tdsl-event-hit" x="200" y="50" width="16" height="40"><title>ノルマンディー上陸作戦
 1944
 tags: wwii
 id: event:war:1944</title></rect><line class="tdsl-event-stem" x1="208" y1="50" x2="208" y2="90"><title>ノルマンディー上陸作戦
@@ -139,7 +139,7 @@ id: event:war:1944</title></line><circle class="tdsl-event-dot" style="fill:#468
 1944
 tags: wwii
 id: event:war:1944</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 第二次世界大戦終結、1945、tags: wwii、id: event:war:1945、レーン: 戦争" tabindex="0" data-tdsl-tooltip="第二次世界大戦終結&#10;1945&#10;tags: wwii&#10;id: event:war:1945"><rect class="tdsl-event-hit" x="202" y="50" width="16" height="40"><title>第二次世界大戦終結
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 第二次世界大戦終結、1945、tags: wwii、id: event:war:1945、レーン: 戦争" tabindex="0" data-tdsl-tooltip="第二次世界大戦終結&#10;1945&#10;tags: wwii&#10;id: event:war:1945" data-lane="war" data-tags="wwii"><rect class="tdsl-event-hit" x="202" y="50" width="16" height="40"><title>第二次世界大戦終結
 1945
 tags: wwii
 id: event:war:1945</title></rect><line class="tdsl-event-stem" x1="210" y1="50" x2="210" y2="90"><title>第二次世界大戦終結
@@ -149,7 +149,7 @@ id: event:war:1945</title></line><circle class="tdsl-event-dot" style="fill:#468
 1945
 tags: wwii
 id: event:war:1945</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 国際連合設立、1945、tags: wwii, international、id: event:society:1945、レーン: 社会" tabindex="0" data-tdsl-tooltip="国際連合設立&#10;1945&#10;tags: wwii, international&#10;id: event:society:1945"><rect class="tdsl-event-hit" x="202" y="170" width="16" height="40"><title>国際連合設立
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 国際連合設立、1945、tags: wwii, international、id: event:society:1945、レーン: 社会" tabindex="0" data-tdsl-tooltip="国際連合設立&#10;1945&#10;tags: wwii, international&#10;id: event:society:1945" data-lane="society" data-tags="wwii,international"><rect class="tdsl-event-hit" x="202" y="170" width="16" height="40"><title>国際連合設立
 1945
 tags: wwii, international
 id: event:society:1945</title></rect><line class="tdsl-event-stem" x1="210" y1="170" x2="210" y2="210"><title>国際連合設立
@@ -159,7 +159,7 @@ id: event:society:1945</title></line><circle class="tdsl-event-dot" style="fill:
 1945
 tags: wwii, international
 id: event:society:1945</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: スペイン風邪（パンデミック）、1918、tags: pandemic, wwi、id: event:society:1918、レーン: 社会" tabindex="0" data-tdsl-tooltip="スペイン風邪（パンデミック）&#10;1918&#10;tags: pandemic, wwi&#10;id: event:society:1918"><rect class="tdsl-event-hit" x="148" y="170" width="16" height="40"><title>スペイン風邪（パンデミック）
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: スペイン風邪（パンデミック）、1918、tags: pandemic, wwi、id: event:society:1918、レーン: 社会" tabindex="0" data-tdsl-tooltip="スペイン風邪（パンデミック）&#10;1918&#10;tags: pandemic, wwi&#10;id: event:society:1918" data-lane="society" data-tags="pandemic,wwi"><rect class="tdsl-event-hit" x="148" y="170" width="16" height="40"><title>スペイン風邪（パンデミック）
 1918
 tags: pandemic, wwi
 id: event:society:1918</title></rect><line class="tdsl-event-stem" x1="156" y1="170" x2="156" y2="210"><title>スペイン風邪（パンデミック）
@@ -169,7 +169,7 @@ id: event:society:1918</title></line><circle class="tdsl-event-dot" style="fill:
 1918
 tags: pandemic, wwi
 id: event:society:1918</title></circle></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 国際連盟発足、1920、tags: international、id: event:society:1920、レーン: 社会" tabindex="0" data-tdsl-tooltip="国際連盟発足&#10;1920&#10;tags: international&#10;id: event:society:1920"><rect class="tdsl-event-hit" x="152" y="170" width="16" height="40"><title>国際連盟発足
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: 国際連盟発足、1920、tags: international、id: event:society:1920、レーン: 社会" tabindex="0" data-tdsl-tooltip="国際連盟発足&#10;1920&#10;tags: international&#10;id: event:society:1920" data-lane="society" data-tags="international"><rect class="tdsl-event-hit" x="152" y="170" width="16" height="40"><title>国際連盟発足
 1920
 tags: international
 id: event:society:1920</title></rect><line class="tdsl-event-stem" x1="160" y1="170" x2="160" y2="210"><title>国際連盟発足

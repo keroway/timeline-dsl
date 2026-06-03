@@ -346,11 +346,17 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     .unwrap_or(lane_id);
                 let aria_label = escape_xml_attr(&item_aria_label(item, tooltip, lane_label));
                 let fill_style = format!("fill:{color};");
-                let data_attrs = if layout.opts.interactive {
-                    build_data_attrs(item, lane_id)
-                } else {
-                    String::new()
-                };
+                let tags = item_tags(item);
+                let mut data_attrs = format!(r#" data-lane="{}""#, escape_xml_attr(lane_id));
+                if !tags.is_empty() {
+                    data_attrs.push_str(&format!(
+                        r#" data-tags="{}""#,
+                        escape_xml_attr(&tags.join(","))
+                    ));
+                }
+                if layout.opts.interactive {
+                    data_attrs.push_str(&build_interactive_attrs(item));
+                }
                 writeln!(
                     s,
                     r#"  <g class="tdsl-item tdsl-item-span" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect><text class="tdsl-item-label" x="{tx}" y="{ty}" dominant-baseline="middle">{label}</text></g>"#,
@@ -388,11 +394,17 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     .unwrap_or(lane_id);
                 let aria_label = escape_xml_attr(&item_aria_label(item, tooltip, lane_label));
                 let fill_style = format!("fill:{color};fill-opacity:0.75;");
-                let data_attrs = if layout.opts.interactive {
-                    build_data_attrs(item, lane_id)
-                } else {
-                    String::new()
-                };
+                let tags = item_tags(item);
+                let mut data_attrs = format!(r#" data-lane="{}""#, escape_xml_attr(lane_id));
+                if !tags.is_empty() {
+                    data_attrs.push_str(&format!(
+                        r#" data-tags="{}""#,
+                        escape_xml_attr(&tags.join(","))
+                    ));
+                }
+                if layout.opts.interactive {
+                    data_attrs.push_str(&build_interactive_attrs(item));
+                }
                 writeln!(
                     s,
                     r#"  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
@@ -428,11 +440,17 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     .unwrap_or(lane_id);
                 let aria_label = escape_xml_attr(&item_aria_label(item, tooltip, lane_label));
                 let dot_style = format!("fill:{color};");
-                let data_attrs = if layout.opts.interactive {
-                    build_data_attrs(item, lane_id)
-                } else {
-                    String::new()
-                };
+                let tags = item_tags(item);
+                let mut data_attrs = format!(r#" data-lane="{}""#, escape_xml_attr(lane_id));
+                if !tags.is_empty() {
+                    data_attrs.push_str(&format!(
+                        r#" data-tags="{}""#,
+                        escape_xml_attr(&tags.join(","))
+                    ));
+                }
+                if layout.opts.interactive {
+                    data_attrs.push_str(&build_interactive_attrs(item));
+                }
                 if layout.is_vertical() {
                     // Vertical layout: `x` = lane center X, `y_top`/`y_bottom`/`y_dot` = Y coords.
                     // Stem is horizontal (same Y, x varies from y_top to y_bottom — reusing field names).
@@ -493,7 +511,8 @@ fn item_lane_id(item: &Item) -> &str {
 }
 
 /// Build data-* attributes for interactive mode as a string fragment (leading space included).
-fn build_data_attrs(item: &Item, lane_id: &str) -> String {
+/// Does NOT include `data-lane` (always emitted unconditionally in render_items).
+fn build_interactive_attrs(item: &Item) -> String {
     let (id, label, type_str, source, source_span) = match item {
         Item::Span {
             id,
@@ -536,11 +555,10 @@ fn build_data_attrs(item: &Item, lane_id: &str) -> String {
         ),
     };
     let mut attrs = format!(
-        r#" data-id="{}" data-label="{}" data-type="{}" data-lane="{}""#,
+        r#" data-id="{}" data-label="{}" data-type="{}""#,
         escape_xml_attr(id),
         escape_xml_attr(label),
         type_str,
-        escape_xml_attr(lane_id),
     );
     if let Some(src) = source {
         attrs.push_str(&format!(r#" data-source="{}""#, escape_xml_attr(src)));
@@ -556,6 +574,14 @@ fn item_label(item: &Item) -> &str {
         Item::Span { label, .. } | Item::Event { label, .. } | Item::EventRange { label, .. } => {
             label
         }
+    }
+}
+
+fn item_tags(item: &Item) -> &[String] {
+    match item {
+        Item::Span { tags, .. } => tags,
+        Item::Event { tags, .. } => tags,
+        Item::EventRange { tags, .. } => tags,
     }
 }
 
