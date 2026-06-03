@@ -72,7 +72,8 @@ Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describin
 <apply_override> ::= "lane" <identifier> ";"
 
 <expr>         ::= <claim_expr> | <lang_expr> | <literal>
-<claim_expr>   ::= "claim(" <property_id> ")" ["." <function>]
+<claim_expr>   ::= "claim(" <property_id> ")" ["." <function>] [<claim_offset>]
+<map_expr>     ::= <claim_expr> { "??" (<claim_expr> | <number>) }
 <lang_expr>    ::= "label@" <lang_code> ["??" <lang_expr>]
 
 <source_ref>   ::= <identifier> ":" <qid>
@@ -258,6 +259,19 @@ Retrieves a property value from Wikidata.
 ```
 claim(P571).year    // Convert the time value of P571 (inception) to a year integer
 claim(P569).year    // Convert the time value of P569 (date of birth) to a year integer
+```
+
+The `??` operator supports claim chains and literal fallbacks (short-circuit evaluation: the right-hand side is only evaluated when the left-hand side cannot be resolved).
+
+```
+// claim fallback: use P571 if P580 is missing
+start claim(P580).year ?? claim(P571).year;
+
+// literal fallback: use 9999 if P570 is missing
+end claim(P570).year ?? 9999;
+
+// chain + literal: try P580, then P571, then 0
+time claim(P580).year ?? claim(P571).year ?? 0;
 ```
 
 #### label expression

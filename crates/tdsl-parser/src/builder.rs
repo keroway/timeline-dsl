@@ -546,10 +546,28 @@ fn parse_compare_op(s: &str, location: String) -> Result<CompareOp> {
 }
 
 fn build_map_expr(pair: Pair<'_, Rule>) -> Result<MapExpr> {
-    let fallbacks = pair
-        .into_inner()
-        .map(build_claim_expr)
-        .collect::<Result<Vec<_>>>()?;
+    let mut fallbacks = Vec::new();
+    for child in pair.into_inner() {
+        let fb = match child.as_rule() {
+            Rule::claim_expr => MapFallback::Claim(build_claim_expr(child)?),
+            Rule::integer => {
+                let span = child.as_span();
+                let n: i64 = child.as_str().parse().map_err(|_| ParseError::InvalidInt {
+                    value: child.as_str().to_string(),
+                    location: format!("{}:{}", span.start(), span.end()),
+                })?;
+                MapFallback::Literal(n)
+            }
+            _ => {
+                let span = child.as_span();
+                return Err(ParseError::UnexpectedRule {
+                    rule: format!("{:?}", child.as_rule()),
+                    location: format!("{}:{}", span.start(), span.end()),
+                });
+            }
+        };
+        fallbacks.push(fb);
+    }
     Ok(MapExpr { fallbacks })
 }
 
