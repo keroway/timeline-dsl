@@ -10,8 +10,8 @@ use std::fmt::Write;
 use crate::ast::{
     ApplyBlock, ClaimExpr, CompareOp, EventDecl, EventRangeDecl, FieldPriorityConfig,
     FieldStrategy, File, FilterExpr, FilterOperand, GroupDecl, ImportBlock, ImportItem, ItemProps,
-    LabelExpr, LaneDecl, MapBlock, MapExpr, MapProp, MapTargetType, ReimportPolicy, SourceRef,
-    SpanDecl, Statement, TemplateBlock, TimelineBlock,
+    LabelExpr, LaneDecl, MapBlock, MapExpr, MapFallback, MapProp, MapTargetType, ReimportPolicy,
+    SourceRef, SpanDecl, Statement, TemplateBlock, TimelineBlock,
 };
 use crate::error::ParseError;
 
@@ -359,7 +359,10 @@ fn format_claim_expr(c: &ClaimExpr) -> String {
 fn format_map_expr(e: &MapExpr) -> String {
     e.fallbacks
         .iter()
-        .map(format_claim_expr)
+        .map(|fb| match fb {
+            MapFallback::Claim(c) => format_claim_expr(c),
+            MapFallback::Literal(n) => n.to_string(),
+        })
         .collect::<Vec<_>>()
         .join(" ?? ")
 }
@@ -536,6 +539,21 @@ mod tests {
         assert!(out.contains("  end claim(P582).year ?? claim(P576).year;\n"));
         assert!(out.contains("  label label@ja ?? label@en;\n"));
         assert!(out.contains("  tags [\"dynasty\", \"china\"];\n"));
+    }
+
+    #[test]
+    fn format_map_block_with_literal_fallback() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                start claim(P580).year ?? 0;
+                end claim(P582).year ?? 9999;
+                label label@ja;
+            }
+        "#;
+        let out = fmt(src);
+        assert!(out.contains("  start claim(P580).year ?? 0;\n"));
+        assert!(out.contains("  end claim(P582).year ?? 9999;\n"));
     }
 
     #[test]

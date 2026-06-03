@@ -72,7 +72,8 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <apply_override> ::= "lane" <identifier> ";"
 
 <expr>         ::= <claim_expr> | <lang_expr> | <literal>
-<claim_expr>   ::= "claim(" <property_id> ")" ["." <function>]
+<claim_expr>   ::= "claim(" <property_id> ")" ["." <function>] [<claim_offset>]
+<map_expr>     ::= <claim_expr> { "??" (<claim_expr> | <number>) }
 <lang_expr>    ::= "label@" <lang_code> ["??" <lang_expr>]
 
 <source_ref>   ::= <identifier> ":" <qid>
@@ -266,6 +267,20 @@ Wikidataのプロパティ値を取得する。
 ```
 claim(P571).year    // P571 (inception) の時刻値を年に変換
 claim(P569).year    // P569 (date of birth) の時刻値を年に変換
+```
+
+`??` 演算子で claim チェーンまたはリテラルへのフォールバックを記述できる。
+左辺が解決できない場合にのみ右辺を評価する（短絡評価）。
+
+```
+// claim フォールバック: P580 がなければ P571 を使用
+start claim(P580).year ?? claim(P571).year;
+
+// リテラルフォールバック: P570 がなければ 9999 を使用
+end claim(P570).year ?? 9999;
+
+// チェーン + リテラル: P580 → P571 → 0 の順に試みる
+time claim(P580).year ?? claim(P571).year ?? 0;
 ```
 
 #### label 式

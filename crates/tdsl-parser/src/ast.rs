@@ -287,7 +287,14 @@ pub enum MapProp {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MapExpr {
-    pub fallbacks: Vec<ClaimExpr>,
+    pub fallbacks: Vec<MapFallback>,
+}
+
+/// A single fallback element in a `??` chain: either a claim expression or an integer literal.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MapFallback {
+    Claim(ClaimExpr),
+    Literal(i64),
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -228,10 +228,20 @@ mod tests {
                     })
                     .expect("start present");
                 assert_eq!(start.fallbacks.len(), 2);
-                assert_eq!(start.fallbacks[0].claim.property, "P580");
-                assert_eq!(start.fallbacks[0].accessor.as_deref(), Some("year"));
-                assert_eq!(start.fallbacks[1].claim.property, "P571");
-                assert_eq!(start.fallbacks[1].accessor.as_deref(), Some("year"));
+                match &start.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => {
+                        assert_eq!(c.claim.property, "P580");
+                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                    }
+                    _ => panic!("expected Claim"),
+                }
+                match &start.fallbacks[1] {
+                    ast::MapFallback::Claim(c) => {
+                        assert_eq!(c.claim.property, "P571");
+                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                    }
+                    _ => panic!("expected Claim"),
+                }
 
                 let end = m
                     .props
@@ -242,8 +252,14 @@ mod tests {
                     })
                     .expect("end present");
                 assert_eq!(end.fallbacks.len(), 2);
-                assert_eq!(end.fallbacks[0].claim.property, "P582");
-                assert_eq!(end.fallbacks[1].claim.property, "P576");
+                match &end.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => assert_eq!(c.claim.property, "P582"),
+                    _ => panic!("expected Claim"),
+                }
+                match &end.fallbacks[1] {
+                    ast::MapFallback::Claim(c) => assert_eq!(c.claim.property, "P576"),
+                    _ => panic!("expected Claim"),
+                }
             }
             _ => panic!("expected Map"),
         }
@@ -270,8 +286,13 @@ mod tests {
                     })
                     .expect("time present");
                 assert_eq!(time.fallbacks.len(), 1);
-                assert_eq!(time.fallbacks[0].claim.property, "P571");
-                assert_eq!(time.fallbacks[0].accessor.as_deref(), Some("year"));
+                match &time.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => {
+                        assert_eq!(c.claim.property, "P571");
+                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                    }
+                    _ => panic!("expected Claim"),
+                }
             }
             _ => panic!("expected Map"),
         }
@@ -298,9 +319,12 @@ mod tests {
                     })
                     .expect("time present");
                 assert_eq!(time.fallbacks.len(), 3);
-                assert_eq!(time.fallbacks[0].claim.property, "P580");
-                assert_eq!(time.fallbacks[1].claim.property, "P571");
-                assert_eq!(time.fallbacks[2].claim.property, "P569");
+                for (fb, expected) in time.fallbacks.iter().zip(["P580", "P571", "P569"]) {
+                    match fb {
+                        ast::MapFallback::Claim(c) => assert_eq!(c.claim.property, expected),
+                        _ => panic!("expected Claim"),
+                    }
+                }
             }
             _ => panic!("expected Map"),
         }
@@ -1153,9 +1177,14 @@ mod tests {
                     })
                     .expect("start present");
                 assert_eq!(start.fallbacks.len(), 1);
-                assert_eq!(start.fallbacks[0].claim.property, "P569");
-                assert_eq!(start.fallbacks[0].accessor.as_deref(), Some("year"));
-                assert_eq!(start.fallbacks[0].offset, Some(1));
+                match &start.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => {
+                        assert_eq!(c.claim.property, "P569");
+                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                        assert_eq!(c.offset, Some(1));
+                    }
+                    _ => panic!("expected Claim"),
+                }
 
                 let end = m
                     .props
@@ -1165,7 +1194,10 @@ mod tests {
                         _ => None,
                     })
                     .expect("end present");
-                assert_eq!(end.fallbacks[0].offset, Some(30));
+                match &end.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => assert_eq!(c.offset, Some(30)),
+                    _ => panic!("expected Claim"),
+                }
             }
             _ => panic!("expected Map"),
         }
@@ -1192,7 +1224,10 @@ mod tests {
                         _ => None,
                     })
                     .expect("start present");
-                assert_eq!(start.fallbacks[0].offset, Some(-5));
+                match &start.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => assert_eq!(c.offset, Some(-5)),
+                    _ => panic!("expected Claim"),
+                }
 
                 let end = m
                     .props
@@ -1202,7 +1237,10 @@ mod tests {
                         _ => None,
                     })
                     .expect("end present");
-                assert_eq!(end.fallbacks[0].offset, Some(-100));
+                match &end.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => assert_eq!(c.offset, Some(-100)),
+                    _ => panic!("expected Claim"),
+                }
             }
             _ => panic!("expected Map"),
         }
@@ -1229,7 +1267,10 @@ mod tests {
                         _ => None,
                     })
                     .expect("start present");
-                assert_eq!(start.fallbacks[0].offset, None);
+                match &start.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => assert_eq!(c.offset, None),
+                    _ => panic!("expected Claim"),
+                }
             }
             _ => panic!("expected Map"),
         }
@@ -1258,10 +1299,103 @@ mod tests {
                     })
                     .expect("start present");
                 assert_eq!(start.fallbacks.len(), 2);
-                assert_eq!(start.fallbacks[0].claim.property, "P580");
-                assert_eq!(start.fallbacks[0].offset, Some(1));
-                assert_eq!(start.fallbacks[1].claim.property, "P571");
-                assert_eq!(start.fallbacks[1].offset, Some(-10));
+                match &start.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => {
+                        assert_eq!(c.claim.property, "P580");
+                        assert_eq!(c.offset, Some(1));
+                    }
+                    _ => panic!("expected Claim"),
+                }
+                match &start.fallbacks[1] {
+                    ast::MapFallback::Claim(c) => {
+                        assert_eq!(c.claim.property, "P571");
+                        assert_eq!(c.offset, Some(-10));
+                    }
+                    _ => panic!("expected Claim"),
+                }
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
+    fn parse_map_expr_literal_fallback() {
+        // claim(P569).year ?? 9999 のようなリテラルフォールバックが正しくパースされる
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                start claim(P569).year ?? 9999;
+                end claim(P570).year ?? -999;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let start = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::Start(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("start present");
+                assert_eq!(start.fallbacks.len(), 2);
+                match &start.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => {
+                        assert_eq!(c.claim.property, "P569");
+                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                    }
+                    _ => panic!("expected Claim"),
+                }
+                match &start.fallbacks[1] {
+                    ast::MapFallback::Literal(n) => assert_eq!(*n, 9999),
+                    _ => panic!("expected Literal"),
+                }
+
+                let end = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::End(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("end present");
+                match &end.fallbacks[1] {
+                    ast::MapFallback::Literal(n) => assert_eq!(*n, -999),
+                    _ => panic!("expected Literal"),
+                }
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
+    fn parse_map_expr_claim_claim_literal_fallback_chain() {
+        // claim ?? claim ?? literal の 3 段フォールバック
+        let src = r#"
+            map wd.x to event {
+                lane a;
+                time claim(P580).year ?? claim(P571).year ?? 0;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let time = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::Time(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("time present");
+                assert_eq!(time.fallbacks.len(), 3);
+                match &time.fallbacks[2] {
+                    ast::MapFallback::Literal(n) => assert_eq!(*n, 0),
+                    _ => panic!("expected Literal"),
+                }
             }
             _ => panic!("expected Map"),
         }
