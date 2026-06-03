@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type MouseEvent } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { tdsl } from './lang-tdsl'
+import { tdslHover } from './lang-tdsl/hover'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, Decoration, ViewPlugin, type ViewUpdate, type DecorationSet } from '@codemirror/view'
 import { StateEffect, StateField } from '@codemirror/state'
@@ -154,6 +155,17 @@ function svgToPngBlob(svg: string, whiteBg: boolean): Promise<Blob> {
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG load failed')) }
     img.src = url
   })
+}
+
+// Trigger a browser download for the given blob. Centralizes the
+// Blob → object URL → <a download> → revoke dance shared by every export.
+function triggerDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 const DEBOUNCE_MS = 500
@@ -334,18 +346,40 @@ const STATIC_KEYWORDS = [
 
 function makeTdslCompletionSource(getSource: () => string) {
   return function tdslCompletions(context: CompletionContext): CompletionResult | null {
-    const word = context.matchBefore(/[\w.]+/)
-    if (!word || (word.from === word.to && !context.explicit)) return null
     const src = getSource()
-    const laneIds = [...src.matchAll(/\blane\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
+    // entity / query エイリアスは map ブロックで `wd.<alias>` の形（import 元.別名）で
+    // しか参照されない。ドットを含むトークンでは**ドット以降だけ**を補完対象にし、
+    // `from` をドットの直後に置くことで `wd.` プレフィックスを保持する
+    // （`from` を語頭に置くと候補挿入時に `wd.` ごと置換されて消えてしまう）。
+    // TDSL ident はハイフンを含みうる（grammar.pest: [A-Za-z_][\w-]*）。
+    const dotted = context.matchBefore(/[\w-]+\.[\w-]*/)
+    if (dotted) {
+      const entityAliases = [...src.matchAll(/\bentity\s+Q\d+\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
+        label: m[1], type: 'variable' as const, detail: 'entity alias',
+      }))
+      const queryAliases = [...src.matchAll(/\bquery\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
+        label: m[1], type: 'variable' as const, detail: 'query alias',
+      }))
+      return {
+        from: dotted.from + dotted.text.indexOf('.') + 1,
+        options: [...entityAliases, ...queryAliases],
+      }
+    }
+
+    // ドット無しトークン: スニペット・キーワード・lane id・import 元エイリアス
+    // （いずれも単独で参照される）。実文法は `import wikidata as wd { … }`。
+    // ident 先頭は英字/アンダースコア限定（数値リテラル `-206` 等を拾わない）。
+    const word = context.matchBefore(/[A-Za-z_][\w-]*/)
+    if (!word || (word.from === word.to && !context.explicit)) return null
+    const laneIds = [...src.matchAll(/\blane\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
       label: m[1], type: 'variable' as const, detail: 'lane id',
     }))
-    const importAliases = [...src.matchAll(/\bimport\s+"[^"]*"\s+as\s+(\w+)/g)].map((m) => ({
-      label: m[1], type: 'variable' as const, detail: 'import alias',
+    const importSources = [...src.matchAll(/\bimport\s+[A-Za-z_][\w-]*\s+as\s+([A-Za-z_][\w-]*)\s*\{/g)].map((m) => ({
+      label: m[1], type: 'variable' as const, detail: 'import source',
     }))
     return {
       from: word.from,
-      options: [...TDSL_SNIPPETS, ...STATIC_KEYWORDS, ...laneIds, ...importAliases],
+      options: [...TDSL_SNIPPETS, ...STATIC_KEYWORDS, ...laneIds, ...importSources],
     }
   }
 }
@@ -821,36 +855,19 @@ function App() {
   }
 
   function downloadTdsl() {
-    const blob = new Blob([source], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'timeline.tdsl'
-    a.click()
-    URL.revokeObjectURL(url)
+    triggerDownload(new Blob([source], { type: 'text/plain' }), 'timeline.tdsl')
   }
 
   function downloadSvg() {
     if (!svgContent) return
-    const blob = new Blob([svgContent], { type: 'image/svg+xml' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'timeline.svg'
-    a.click()
-    URL.revokeObjectURL(url)
+    triggerDownload(new Blob([svgContent], { type: 'image/svg+xml' }), 'timeline.svg')
   }
 
   function downloadPng(whiteBg: boolean = true) {
     if (!svgContent) return
-    svgToPngBlob(svgContent, whiteBg).then((blob) => {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'timeline.png'
-      a.click()
-      URL.revokeObjectURL(url)
-    }).catch(() => showToast('PNG の生成に失敗しました', 'error'))
+    svgToPngBlob(svgContent, whiteBg)
+      .then((blob) => triggerDownload(blob, 'timeline.png'))
+      .catch(() => showToast('PNG の生成に失敗しました', 'error'))
   }
 
   function copySvg() {
@@ -890,16 +907,52 @@ function App() {
     if (!svgContent) return
     try {
       const html = renderHtml(source)
-      const blob = new Blob([html], { type: 'text/html' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'timeline.html'
-      a.click()
-      URL.revokeObjectURL(url)
+      triggerDownload(new Blob([html], { type: 'text/html' }), 'timeline.html')
     } catch {
       // keep silent — errors are already shown in diagnostics
     }
+  }
+
+  // Export to PDF via the browser's native print-to-PDF. The CLI emits a
+  // vector PDF through tdsl-render's `pdf` feature, but that path relies on
+  // fontdb's system-font loading (ADR-0002 D5) which is unavailable in a
+  // browser WASM sandbox — CJK labels would not shape. Printing the HTML
+  // render instead lets the browser resolve fonts natively. We render into a
+  // hidden iframe (no popup-blocker, prints only the iframe content) and let
+  // the user pick "Save as PDF" in the print dialog.
+  function exportPdf() {
+    if (!svgContent) return
+    let html: string
+    try {
+      html = renderHtml(source)
+    } catch {
+      showToast('PDF の生成に失敗しました', 'error')
+      return
+    }
+    showToast('印刷ダイアログで「PDF に保存」を選択してください', 'info')
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('aria-hidden', 'true')
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+    const cleanup = () => {
+      URL.revokeObjectURL(url)
+      iframe.remove()
+    }
+    iframe.onload = () => {
+      const cw = iframe.contentWindow
+      if (!cw) {
+        showToast('PDF の生成に失敗しました', 'error')
+        cleanup()
+        return
+      }
+      cw.focus()
+      cw.print()
+      // Give the print dialog time to open before tearing down the iframe.
+      setTimeout(cleanup, 1000)
+    }
+    iframe.src = url
+    document.body.appendChild(iframe)
   }
 
   function openFile() {
@@ -1182,6 +1235,9 @@ function App() {
                 <button className="export-menu-item" onClick={() => { downloadHtml(); setExportMenuOpen(false) }} disabled={!svgContent}>
                   HTML 保存
                 </button>
+                <button className="export-menu-item" onClick={() => { exportPdf(); setExportMenuOpen(false) }} disabled={!svgContent}>
+                  PDF 保存（印刷）
+                </button>
                 <button className="export-menu-item" onClick={() => { downloadPng(true); setExportMenuOpen(false) }} disabled={!svgContent}>
                   PNG 保存（白背景）
                 </button>
@@ -1280,6 +1336,7 @@ function App() {
               search({ top: true }),
               bracketMatching(),
               autocompletion({ override: [makeTdslCompletionSource(() => source)] }),
+              tdslHover(() => source),
               lineHighlightField,
               cursorLineExtension,
               tdslLinterExtension,
