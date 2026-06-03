@@ -7,10 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-06-03
+
 ### Added
 
 - **WebUI のエクスポートを統合し PDF 出力に対応**: 既存のエクスポートメニュー（ダウンロード: .tdsl / SVG / HTML / PNG、コピー: SVG / PNG / Markdown / Share link）に **PDF 保存（印刷）** を追加した。PDF はブラウザのネイティブ印刷（`render_html` の出力を非表示 iframe に読み込み `print()` を呼ぶ）で生成するため、CJK ラベルがブラウザのフォントで正しくシェイプされる。CLI のベクタ PDF（`svg2pdf`）とは別経路で、WASM バンドルや Rust 依存は増やさない（ADR-0002 補遺を参照）。あわせて各ダウンロード関数の Blob→URL→クリック処理を `triggerDownload` ヘルパに集約して重複を解消した (#364)
 - **WebUI の CodeMirror に Hover ツールチップを追加**: エディタ上の識別子・キーワードにカーソルを当てると定義情報を表示する。lane ID にはラベル / kind / order、import エイリアス・entity・query エイリアスにはインポート元（Wikidata エンティティ QID 等）、キーワードには簡潔な説明を表示する。解析はソースの静的解析（補完と同じ正規表現方式）で行い WASM 往復は不要。一定遅延（300ms）後に表示し、マウス移動で消える。タッチ環境は対象外（ポインタ前提）。LSP サーバの `textDocument/hover`（#309）に相当する機能を、LSP を使わない WebUI に提供する。あわせて補完の import エイリアス抽出が実文法（`import wikidata as wd` / `entity Q… as alias` / `query "…" as alias`）にマッチしていなかったバグを修正し、entity / query エイリアスと import 元を正しく候補に出すようにした (#363)
+- **WebUI に lane/tag フィルタパネルを追加**: SVG プレビューで、レーンのチェックボックスとタグ検索によるフィルタリングができるようにした。`tdsl-render` が非インタラクティブ SVG でもアイテム `<g>` に `data-lane` / `data-tags` 属性を常時付与し、WebUI が DOM の opacity 制御でフィルタを反映する。フィルタ状態は sessionStorage に保存・復元される (#365)
+- **map の `??` フォールバックに整数リテラルを追加**: map ブロックの start / end / time 式で、claim チェーン（`claim(P580).year ?? claim(P571).year`）に加えてリテラル整数フォールバック（`claim(P580).year ?? 9999`）が記述できるようにした。`grammar.pest` の `map_operand`、AST の `MapFallback`（`Claim` / `Literal`）、format / lowering、`docs/dsl-spec.md` を更新 (#359)
 
 ### Fixed
 
@@ -323,6 +327,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.15.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.11.0...v1.12.0
