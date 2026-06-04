@@ -104,7 +104,10 @@ const tdslLanguage = StreamLanguage.define<TdslState>({
     }
 
     // 識別子・キーワード
-    const wordMatch = stream.match(/^[a-zA-Z_][a-zA-Z0-9_]*/)
+    // grammar.pest の ident（2 文字目以降にハイフンを許す）に合わせる。
+    // これがないと `my-span` が `my` / `-` / `span` に分割され、末尾の
+    // `span` がキーワードとして誤着色される（#395）。
+    const wordMatch = stream.match(/^[a-zA-Z_][a-zA-Z0-9_-]*/)
     if (wordMatch) {
       const word = Array.isArray(wordMatch) ? wordMatch[0] : ""
       if (!word) return null
