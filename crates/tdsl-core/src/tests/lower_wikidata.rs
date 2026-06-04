@@ -765,6 +765,179 @@ async fn multiple_filters_are_anded() {
     assert_eq!(ir.items.len(), 0);
 }
 
+// ─── string filter (issue #360) ─────────────────────────────────────────
+
+#[tokio::test]
+async fn filter_string_contains_includes_matching_entity() {
+    let src = r#"
+        timeline "Test" { unit year; range -500..2000; }
+        lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+        import wikidata as wd {
+            entity Q7209 as han;
+        }
+
+        map wd.han to span {
+            lane dynasty;
+            filter label@ja contains "漢";
+            start claim(P571).year;
+            end claim(P576).year;
+            label label@ja;
+        }
+    "#;
+
+    let file = tdsl_parser::parse(src).unwrap();
+    let mut entities = HashMap::new();
+    entities.insert(
+        "Q7209".to_string(),
+        make_entity("Q7209", "漢帝国", -206, 220),
+    );
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+    assert_eq!(ir.items.len(), 1);
+}
+
+#[tokio::test]
+async fn filter_string_contains_excludes_non_matching_entity() {
+    let src = r#"
+        timeline "Test" { unit year; range -500..2000; }
+        lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+        import wikidata as wd {
+            entity Q7209 as han;
+        }
+
+        map wd.han to span {
+            lane dynasty;
+            filter label@ja contains "秦";
+            start claim(P571).year;
+            end claim(P576).year;
+            label label@ja;
+        }
+    "#;
+
+    let file = tdsl_parser::parse(src).unwrap();
+    let mut entities = HashMap::new();
+    entities.insert(
+        "Q7209".to_string(),
+        make_entity("Q7209", "漢帝国", -206, 220),
+    );
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+    assert_eq!(ir.items.len(), 0);
+}
+
+#[tokio::test]
+async fn filter_string_startswith_includes_matching_entity() {
+    let src = r#"
+        timeline "Test" { unit year; range -500..2000; }
+        lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+        import wikidata as wd {
+            entity Q7209 as han;
+        }
+
+        map wd.han to span {
+            lane dynasty;
+            filter label@ja startswith "漢";
+            start claim(P571).year;
+            end claim(P576).year;
+            label label@ja;
+        }
+    "#;
+
+    let file = tdsl_parser::parse(src).unwrap();
+    let mut entities = HashMap::new();
+    entities.insert(
+        "Q7209".to_string(),
+        make_entity("Q7209", "漢帝国", -206, 220),
+    );
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+    assert_eq!(ir.items.len(), 1);
+}
+
+#[tokio::test]
+async fn filter_string_not_contains_excludes_matching_entity() {
+    let src = r#"
+        timeline "Test" { unit year; range -500..2000; }
+        lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+        import wikidata as wd {
+            entity Q7209 as han;
+        }
+
+        map wd.han to span {
+            lane dynasty;
+            filter !(label@ja contains "漢");
+            start claim(P571).year;
+            end claim(P576).year;
+            label label@ja;
+        }
+    "#;
+
+    let file = tdsl_parser::parse(src).unwrap();
+    let mut entities = HashMap::new();
+    entities.insert(
+        "Q7209".to_string(),
+        make_entity("Q7209", "漢帝国", -206, 220),
+    );
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+    assert_eq!(ir.items.len(), 0);
+}
+
+#[tokio::test]
+async fn filter_string_missing_lang_label_excludes_entity() {
+    let src = r#"
+        timeline "Test" { unit year; range -500..2000; }
+        lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+        import wikidata as wd {
+            entity Q7209 as han;
+        }
+
+        map wd.han to span {
+            lane dynasty;
+            filter label@fr contains "Han";
+            start claim(P571).year;
+            end claim(P576).year;
+            label label@ja;
+        }
+    "#;
+
+    let file = tdsl_parser::parse(src).unwrap();
+    let mut entities = HashMap::new();
+    // entity has only ja label, no fr label
+    entities.insert(
+        "Q7209".to_string(),
+        make_entity("Q7209", "漢帝国", -206, 220),
+    );
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+    assert_eq!(ir.items.len(), 0);
+}
+
 // ─── claim_expr offset (#148) ────────────────────────────────────────────
 
 #[tokio::test]

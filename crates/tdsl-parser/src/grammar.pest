@@ -113,18 +113,20 @@ map_tags   = { "tags" ~ "[" ~ string_list ~ "]" ~ ";" }
 map_filter = { "filter" ~ filter_expr ~ ";" }
 
 // ─── Filter Expressions (for `filter` clause in map blocks) ─
-// Precedence (low → high): || , && , ! , compare
-filter_expr    = { filter_or }
-filter_or      = { filter_and ~ ("||" ~ filter_and)* }
-filter_and     = { filter_not ~ ("&&" ~ filter_not)* }
-filter_not     = { ("!" ~ filter_atom) | filter_atom }
-filter_atom    = _{ filter_paren | filter_compare }
-filter_paren   = { "(" ~ filter_expr ~ ")" }
-filter_compare = { filter_operand ~ compare_op ~ filter_operand }
+// Precedence (low → high): || , && , ! , compare / string_op
+filter_expr      = { filter_or }
+filter_or        = { filter_and ~ ("||" ~ filter_and)* }
+filter_and       = { filter_not ~ ("&&" ~ filter_not)* }
+filter_not       = { ("!" ~ filter_atom) | filter_atom }
+filter_atom      = _{ filter_paren | filter_string_op | filter_compare }
+filter_paren     = { "(" ~ filter_expr ~ ")" }
+filter_compare   = { filter_operand ~ compare_op ~ filter_operand }
+filter_string_op = { label_ref ~ string_match_op ~ string_literal }
 // Longer operators must come first for PEG longest-match.
-compare_op     = { ">=" | "<=" | "==" | "!=" | ">" | "<" }
-filter_operand = _{ null_literal | claim_expr | integer }
-null_literal   = @{ "null" ~ !(ASCII_ALPHANUMERIC | "_") }
+compare_op       = { ">=" | "<=" | "==" | "!=" | ">" | "<" }
+string_match_op  = { "startswith" | "contains" }
+filter_operand   = _{ null_literal | claim_expr | integer }
+null_literal     = @{ "null" ~ !(ASCII_ALPHANUMERIC | "_") }
 
 // ─── Template Block ─────────────────────────────────────────
 template_block = {
