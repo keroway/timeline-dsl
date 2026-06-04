@@ -298,6 +298,35 @@ filter label@ja contains "王朝" && claim(P580).year > 0;
 filter claim(P580).year > 500 || claim(P571).year > 500;
 ```
 
+### template / apply
+
+`template` でマッピングパターンを再利用可能な形で定義し、`apply` で複数の import に適用する。
+
+```
+// テンプレート定義
+template "王朝スパン" as dynasty_span
+    to span {
+        start claim(P571).year;
+        end claim(P576).year;
+        label label@ja ?? label@en;
+    }
+
+// テンプレートを適用（lane のみ apply 側で上書き可能）
+apply dynasty_span to dynasties {
+    lane dynasty;
+}
+```
+
+| 要素 | 説明 |
+|---|---|
+| `template <名前> [as <id>] to <target_type> { ... }` | マッピングルールを定義（`map` と同じプロパティを使用） |
+| `apply <template_id> to <import_id> { ... }` | 定義済みテンプレートを指定の import に適用 |
+| `lane <id>;`（apply 内） | テンプレートの `lane` を apply 側で上書き |
+
+テンプレートに使えるプロパティは `map` ブロックと同じ（`lane`, `start`, `end`, `time`, `label`, `tags`, `filter`）。`apply` 内では `lane` の上書きのみ可能。
+
+完全なサンプル: [`examples/template_apply_example.tdsl`](../examples/template_apply_example.tdsl)
+
 ### 式（Expression）
 
 #### claim 式
@@ -389,7 +418,7 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 | `tdsl build <file>` | `.tdsl` をJSON IRに変換 |
 | `tdsl check <file>` | 構文・意味チェック |
 | `tdsl ast <file>` | ASTダンプ |
-| `tdsl render <file>` | HTML / SVG を生成（`--format html\|svg`、`--interactive`） |
+| `tdsl render <file>` | HTML / SVG / PDF / PNG を生成（`--format html\|svg\|pdf\|png`、`--interactive`） |
 | `tdsl decompile <json>` | JSON IRを `.tdsl` ソースに逆変換 |
 | `tdsl fetch <QID>` | Wikidataエンティティ確認 |
 | `tdsl search <query>` | Wikidata候補検索 |
@@ -425,21 +454,29 @@ tdsl render /tmp/manual.tdsl --output /tmp/manual.html
 
 ### `tdsl render`
 
-`tdsl render` はJSON IRではなくスタンドアロンHTMLとしてタイムラインを可視化する。
+`tdsl render` はタイムラインを HTML / SVG / PDF / PNG で出力する。
 
 ```bash
-tdsl render input.tdsl --output timeline.html [--scale N] [--offline]
+tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--interactive] [--scale N] [--offline]
 ```
 
 | オプション | 説明 |
 |---|---|
 | `--output` | 出力パス。省略時は標準出力 |
+| `--format` | 出力形式。`html`（デフォルト）/ `svg` / `pdf` / `png` |
+| `--interactive` | ズーム・パン・検索・凡例・詳細パネル付きインタラクティブモード（JavaScript使用）。`--format html` のみ有効 |
 | `--scale` | 1年あたりのピクセル幅（デフォルト 2） |
+| `--dpi` | PNG 出力の DPI（デフォルト 96）。`--format png` のみ有効 |
 | `--offline` | Wikidata fetch を省略 |
 
 ### 出力仕様
 
-- **形式**: 単一のHTMLファイル。インラインSVG + CSS 埋め込み。JavaScript非依存
+- **形式**:
+  - `html`: 単一 HTML ファイル。インライン SVG + CSS 埋め込み。デフォルトは JavaScript 非依存（`--interactive` を付けると JS 有効）
+  - `svg`: スタンドアロン SVG ファイル
+  - `pdf`: PDF ファイル（`svg2pdf` / `usvg` 経由、CJK フォント対応）
+  - `png`: PNG ラスタ画像（`--dpi` で解像度を調整可能）
+- **インタラクティブモード**（`--interactive`）: ズーム・パン・全文検索・凡例・詳細パネルを追加。`color_map` で定義した色が自動適用される
 - **レイアウト**:
   - 横軸: 時間（`timeline.range` を使用）
   - 縦軸: lane を `order` 昇順に縦積み
@@ -448,67 +485,11 @@ tdsl render input.tdsl --output timeline.html [--scale N] [--offline]
   - `span` → 角丸矩形（レーン帯中央）
   - `event_range` → 細めの矩形（レーン帯下段）
   - `event` → 縦線 + 小さい円マーカー
+- **色**: `timeline { color_map { タグ名: "#hex"; } }` で定義したタグ色が適用される
 - **ツールチップ**: 各要素にマウスを乗せると `<title>` 要素でラベル・期間・タグ・ソース・ID が表示される
-
-### 制約（MVP）
-
-- ズーム・パン・検索なし（JSなし）
-- タグ→色のカラーマップ未対応（`span` は青、`event_range` は赤、固定配色）
-- PNG/PDF 等のラスタ出力は未対応（HTMLをブラウザ経由で印刷・スクリーンショットで代替）
 
 ## ライセンスとデータ利用
 
 - **Wikidataの構造化データ**: CC0ライセンス。出典表示なしで自由に利用可能
 - **Wikipediaの文章・図表**: CC BY-SA 4.0。引用時は出典表示と同ライセンス適用が必須
 
-## 将来の拡張（未実装）
-
-### template / apply
-
-マッピングをテンプレート化し、複数エンティティに適用する構文。
-
-```
-template PersonLife(entity) {
-    lane entity.label@ja ?? entity.label@en as entity.qid;
-    let birth = entity.claim(P569).year;
-    let death = entity.claim(P570).year;
-    if birth != null && death != null {
-        span entity.qid birth..death "生没" {
-            tags ["person"];
-            source wd:entity.qid;
-        };
-    }
-}
-
-apply PersonLife to wd.SengokuSamurai;
-```
-
-### フィールド別優先度
-
-`policy field_priority { ... }` を使うと、再インポート時にフィールドごとの戦略を指定できます：
-
-```
-import wikidata as wd {
-    entity Q7209 as han_dynasty;
-    policy field_priority {
-        label: manual;    // 手動で編集したラベルを保持
-        time: wikidata;   // Wikidata の最新値で上書き
-        tags: merge;      // 両方のタグを統合
-    }
-}
-```
-
-| フィールド | 戦略 | 効果 |
-|---|---|---|
-| `label` | `manual` | 既存ラベルを保持 |
-| `label` | `wikidata` | Wikidata のラベルで上書き |
-| `time` | `manual` | 既存の start/end/time を保持 |
-| `time` | `wikidata` | Wikidata の時刻で上書き |
-| `tags` | `manual` | 既存タグを保持 |
-| `tags` | `wikidata` | Wikidata のタグで上書き |
-| `tags` | `merge` | 両方のタグを統合（重複なし） |
-
-すべてのフィールドにデフォルト値があるため、一部のフィールドのみ指定することも可能です：
-- `label`: デフォルト `manual`
-- `time`: デフォルト `wikidata`
-- `tags`: デフォルト `merge`
