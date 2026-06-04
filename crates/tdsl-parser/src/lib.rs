@@ -474,6 +474,96 @@ mod tests {
     }
 
     #[test]
+    fn parse_map_filter_string_contains() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                filter label@ja contains "王朝";
+                start claim(P580).year;
+                end claim(P582).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let filters = extract_map_filters(&file);
+        assert_eq!(filters.len(), 1);
+        match &filters[0] {
+            ast::FilterExpr::StringMatch { lhs, op, rhs } => {
+                assert_eq!(lhs.lang, "ja");
+                assert_eq!(*op, ast::StringMatchOp::Contains);
+                assert_eq!(rhs, "王朝");
+            }
+            other => panic!("expected StringMatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_map_filter_string_startswith() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                filter label@en startswith "Han";
+                start claim(P580).year;
+                end claim(P582).year;
+                label label@en;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let filters = extract_map_filters(&file);
+        assert_eq!(filters.len(), 1);
+        match &filters[0] {
+            ast::FilterExpr::StringMatch { lhs, op, rhs } => {
+                assert_eq!(lhs.lang, "en");
+                assert_eq!(*op, ast::StringMatchOp::StartsWith);
+                assert_eq!(rhs, "Han");
+            }
+            other => panic!("expected StringMatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_map_filter_string_not_contains() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                filter !(label@ja contains "候補");
+                start claim(P580).year;
+                end claim(P582).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let filters = extract_map_filters(&file);
+        assert_eq!(filters.len(), 1);
+        match &filters[0] {
+            ast::FilterExpr::Not(inner) => {
+                assert!(matches!(
+                    inner.as_ref(),
+                    ast::FilterExpr::StringMatch { .. }
+                ));
+            }
+            other => panic!("expected Not(StringMatch), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_map_filter_string_combined_with_numeric() {
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                filter label@ja contains "王朝" && claim(P580).year > 0;
+                start claim(P580).year;
+                end claim(P582).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let filters = extract_map_filters(&file);
+        assert_eq!(filters.len(), 1);
+        assert!(matches!(&filters[0], ast::FilterExpr::And(_, _)));
+    }
+
+    #[test]
     fn parse_comments() {
         let src = r#"
             // This is a comment

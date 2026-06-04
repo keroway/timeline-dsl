@@ -11,7 +11,7 @@ use crate::ast::{
     ApplyBlock, ClaimExpr, CompareOp, EventDecl, EventRangeDecl, FieldPriorityConfig,
     FieldStrategy, File, FilterExpr, FilterOperand, GroupDecl, ImportBlock, ImportItem, ItemProps,
     LabelExpr, LaneDecl, MapBlock, MapExpr, MapFallback, MapProp, MapTargetType, ReimportPolicy,
-    SourceRef, SpanDecl, Statement, TemplateBlock, TimelineBlock,
+    SourceRef, SpanDecl, Statement, StringMatchOp, TemplateBlock, TimelineBlock,
 };
 use crate::error::ParseError;
 
@@ -392,6 +392,15 @@ fn format_filter_expr(f: &FilterExpr) -> String {
             format_filter_operand(lhs),
             compare_op_str(*op),
             format_filter_operand(rhs)
+        ),
+        FilterExpr::StringMatch { lhs, op, rhs } => format!(
+            "label@{} {} \"{}\"",
+            lhs.lang,
+            match op {
+                StringMatchOp::Contains => "contains",
+                StringMatchOp::StartsWith => "startswith",
+            },
+            rhs.replace('\\', "\\\\").replace('"', "\\\"")
         ),
     }
 }

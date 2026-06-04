@@ -899,6 +899,17 @@ fn eval_filter_expr(expr: &ast::FilterExpr, entity: &WikidataEntity) -> bool {
         ast::FilterExpr::Or(a, b) => eval_filter_expr(a, entity) || eval_filter_expr(b, entity),
         ast::FilterExpr::Not(a) => !eval_filter_expr(a, entity),
         ast::FilterExpr::Compare { lhs, op, rhs } => eval_filter_compare(lhs, *op, rhs, entity),
+        ast::FilterExpr::StringMatch { lhs, op, rhs } => {
+            let label = entity
+                .labels
+                .get(&lhs.lang)
+                .map(|lv| lv.value.as_str())
+                .unwrap_or("");
+            match op {
+                ast::StringMatchOp::Contains => label.contains(rhs.as_str()),
+                ast::StringMatchOp::StartsWith => label.starts_with(rhs.as_str()),
+            }
+        }
     }
 }
 

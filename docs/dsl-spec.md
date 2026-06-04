@@ -63,6 +63,17 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
                  | "time" <expr> ";"
                  | "label" <expr> ";"
                  | "tags" "[" <string_list> "]" ";"
+                 | "filter" <filter_expr> ";"
+<filter_expr>  ::= <filter_or>
+<filter_or>    ::= <filter_and> { "||" <filter_and> }
+<filter_and>   ::= <filter_not> { "&&" <filter_not> }
+<filter_not>   ::= ["!"] <filter_atom>
+<filter_atom>  ::= "(" <filter_expr> ")"
+                 | <lang_expr> <string_match_op> <string>
+                 | <filter_operand> <compare_op> <filter_operand>
+<string_match_op> ::= "contains" | "startswith"
+<compare_op>   ::= ">=" | "<=" | "==" | "!=" | ">" | "<"
+<filter_operand> ::= "null" | <claim_expr> | <number>
 
 <template_block> ::= "template" <string> ["as" <identifier>]
                    "to" <mapping_target> "{" { <mapping_rule> } "}"
@@ -257,6 +268,35 @@ map wd.han_dynasty to span {
 | `time` | 点イベントの時点を計算する式（event用） |
 | `label` | ラベルを計算する式 |
 | `tags` | タグのリスト |
+| `filter` | エンティティを絞り込む条件式（複数記述すると全て AND で評価） |
+
+#### filter 式
+
+`filter` ルールを使ってエンティティを絞り込める。複数書くとすべて AND として評価される。
+
+**数値比較**（`>=`, `<=`, `==`, `!=`, `>`, `<`）:
+
+```
+filter claim(P580).year > 1000;
+filter claim(P576).year != null;
+```
+
+**文字列マッチング**（`contains` / `startswith`）:
+
+```
+filter label@ja contains "王朝";          // ラベルに "王朝" を含むエンティティのみ
+filter label@en startswith "Han";         // ラベルが "Han" で始まるエンティティのみ
+filter !(label@ja contains "候補");       // "候補" を含まないエンティティのみ
+```
+
+`label@<lang>` には任意の言語コードを指定できる。指定した言語のラベルが存在しないエンティティは `false`（除外）として扱われる（silent fallback しない）。
+
+**論理演算**（`&&`, `||`, `!`, 括弧）:
+
+```
+filter label@ja contains "王朝" && claim(P580).year > 0;
+filter claim(P580).year > 500 || claim(P571).year > 500;
+```
 
 ### 式（Expression）
 
