@@ -493,11 +493,41 @@ fn build_filter_atom(pair: Pair<'_, Rule>) -> Result<FilterExpr> {
     match pair.as_rule() {
         Rule::filter_paren => build_filter_expr(pair.into_inner().next().unwrap()),
         Rule::filter_compare => build_filter_compare(pair),
+        Rule::filter_string_op => build_filter_string_op(pair),
         other => Err(ParseError::UnexpectedRule {
             rule: format!("filter_atom: {other:?}"),
             location,
         }),
     }
+}
+
+fn build_filter_string_op(pair: Pair<'_, Rule>) -> Result<FilterExpr> {
+    let mut iter = pair.into_inner();
+    let label_ref_pair = iter.next().unwrap();
+    let lang = label_ref_pair
+        .as_str()
+        .strip_prefix("label@")
+        .unwrap_or(label_ref_pair.as_str())
+        .to_string();
+    let op_pair = iter.next().unwrap();
+    let location = pair_location_str(&op_pair);
+    let op = match op_pair.as_str() {
+        "contains" => StringMatchOp::Contains,
+        "startswith" => StringMatchOp::StartsWith,
+        other => {
+            return Err(ParseError::UnexpectedRule {
+                rule: format!("string_match_op: {other}"),
+                location,
+            });
+        }
+    };
+    let rhs_pair = iter.next().unwrap();
+    let rhs = extract_string_literal(&rhs_pair);
+    Ok(FilterExpr::StringMatch {
+        lhs: LabelRef { lang },
+        op,
+        rhs,
+    })
 }
 
 fn build_filter_compare(pair: Pair<'_, Rule>) -> Result<FilterExpr> {

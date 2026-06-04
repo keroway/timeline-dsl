@@ -332,6 +332,11 @@ pub enum FilterExpr {
         op: CompareOp,
         rhs: FilterOperand,
     },
+    StringMatch {
+        lhs: LabelRef,
+        op: StringMatchOp,
+        rhs: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -342,6 +347,12 @@ pub enum CompareOp {
     Le,
     Gt,
     Ge,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StringMatchOp {
+    Contains,
+    StartsWith,
 }
 
 #[derive(Debug, Clone, PartialEq)]
