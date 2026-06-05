@@ -102,7 +102,7 @@ map_block = {
 target_type = { ident }
 
 map_prop = _{
-    map_lane | map_start | map_end | map_time | map_label | map_tags | map_filter
+    map_lane | map_start | map_end | map_time | map_label | map_tags | map_filter | map_expand
 }
 map_lane   = { "lane" ~ ident ~ ";" }
 map_start  = { "start" ~ map_expr ~ ";" }
@@ -111,6 +111,7 @@ map_time   = { "time" ~ map_expr ~ ";" }
 map_label  = { "label" ~ label_expr ~ ";" }
 map_tags   = { "tags" ~ "[" ~ string_list ~ "]" ~ ";" }
 map_filter = { "filter" ~ filter_expr ~ ";" }
+map_expand = { "expand" ~ claim_call ~ ";" }
 
 // ─── Filter Expressions (for `filter` clause in map blocks) ─
 // Precedence (low → high): || , && , ! , compare / string_op
@@ -144,11 +145,13 @@ apply_override = _{
 }
 
 // ─── Expressions ────────────────────────────────────────────
-map_expr     = { map_operand ~ ("??" ~ map_operand)* }
-map_operand  = _{ claim_expr | integer }
-claim_offset = @{ ("+" | "-") ~ ASCII_DIGIT+ }
-claim_expr   = { claim_call ~ ("." ~ ident)? ~ claim_offset? }
-claim_call   = { "claim" ~ "(" ~ property_id ~ ")" }
+map_expr          = { map_operand ~ ("??" ~ map_operand)* }
+map_operand       = _{ claim_expr | integer }
+claim_offset      = @{ ("+" | "-") ~ ASCII_DIGIT+ }
+claim_expr        = { claim_call ~ claim_qualifier? ~ claim_accessor? ~ claim_offset? }
+claim_qualifier   = { "." ~ "qualifier" ~ "(" ~ property_id ~ ")" }
+claim_accessor    = { "." ~ ident }
+claim_call        = { "claim" ~ "(" ~ property_id ~ ")" }
 
 label_expr = { label_ref ~ ("??" ~ label_ref)* }
 label_ref  = ${ "label" ~ "@" ~ ident }

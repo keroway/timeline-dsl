@@ -283,6 +283,8 @@ pub enum MapProp {
     Label(LabelExpr),
     Tags(Vec<String>),
     Filter(FilterExpr),
+    /// `expand claim(P39);` — expands multiple non-deprecated statements into separate items.
+    Expand(ClaimCall),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -300,6 +302,9 @@ pub enum MapFallback {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaimExpr {
     pub claim: ClaimCall,
+    /// Qualifier property to access (e.g. `"P580"` for `.qualifier(P580)`).
+    /// When `Some`, the qualifier snak of the main claim is resolved instead of the mainsnak.
+    pub qualifier: Option<String>,
     pub accessor: Option<String>,
     /// Year offset applied after claim resolution (e.g. `+1`, `-30`).
     pub offset: Option<i32>,

@@ -64,6 +64,7 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
                  | "label" <expr> ";"
                  | "tags" "[" <string_list> "]" ";"
                  | "filter" <filter_expr> ";"
+                 | "expand" "claim(" <property_id> ")" ";"
 <filter_expr>  ::= <filter_or>
 <filter_or>    ::= <filter_and> { "||" <filter_and> }
 <filter_and>   ::= <filter_not> { "&&" <filter_not> }
@@ -83,7 +84,7 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <apply_override> ::= "lane" <identifier> ";"
 
 <expr>         ::= <claim_expr> | <lang_expr> | <literal>
-<claim_expr>   ::= "claim(" <property_id> ")" ["." <function>] [<claim_offset>]
+<claim_expr>   ::= "claim(" <property_id> ")" ["." "qualifier(" <property_id> ")"] ["." <function>] [<claim_offset>]
 <map_expr>     ::= <claim_expr> { "??" (<claim_expr> | <number>) }
 <lang_expr>    ::= "label@" <lang_code> ["??" <lang_expr>]
 
@@ -351,6 +352,41 @@ end claim(P570).year ?? 9999;
 // チェーン + リテラル: P580 → P571 → 0 の順に試みる
 time claim(P580).year ?? claim(P571).year ?? 0;
 ```
+
+#### qualifier アクセス
+
+Statement の qualifier（修飾子）プロパティにアクセスする。
+
+```
+claim(P39).qualifier(P580).year   // P39 ステートメントの qualifier P580（開始時点）の年
+claim(P39).qualifier(P582).year   // P39 ステートメントの qualifier P582（終了時点）の年
+```
+
+qualifier が存在しない場合は値なし（silent fallback しない）。
+
+#### expand — 複数 statement から複数アイテムを生成
+
+`expand claim(P)` を map ブロック内に記述すると、そのエンティティのプロパティ P の
+non-deprecated な Statement を全件ループし、各 Statement につき 1 アイテムを生成する。
+`expand` がない場合は従来どおり最初の Statement のみを参照する。
+
+```tdsl
+import wd as w {
+    entity Q9682;  // 例: エリザベス2世
+}
+
+// 在任した役職（P39）をすべてスパンとして展開する例
+map w to span {
+    lane offices;
+    expand claim(P39);
+    start claim(P39).qualifier(P580).year;
+    end   claim(P39).qualifier(P582).year ?? 9999;
+    label label@ja;
+}
+```
+
+P39 Statement が複数あれば複数のスパンが生成される。
+qualifier（P580/P582）が存在しないステートメントはそのアイテムをスキップする（`start`/`end` が解決できないため）。
 
 #### label 式
 
