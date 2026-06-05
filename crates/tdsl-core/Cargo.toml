@@ -13,6 +13,7 @@ tdsl-parser = { path = "../tdsl-parser" }
 tdsl-wikidata = { path = "../tdsl-wikidata", optional = true }
 serde.workspace = true
 serde_json.workspace = true
+schemars.workspace = true
 thiserror.workspace = true
 miette.workspace = true
 tokio = { workspace = true, optional = true }

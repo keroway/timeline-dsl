@@ -20,8 +20,9 @@ struct Cli {
 enum Commands {
     /// Compile one or more .tdsl files to IR JSON (multiple files are merged)
     Build {
-        /// Input .tdsl file path(s); when multiple are given they are merged in order
-        #[arg(value_name = "FILE", required = true, num_args = 1..)]
+        /// Input .tdsl file path(s); when multiple are given they are merged in order.
+        /// Not required when --json-schema is specified.
+        #[arg(value_name = "FILE", required = false, num_args = 0..)]
         inputs: Vec<PathBuf>,
 
         /// Output JSON file path (default: stdout)
@@ -43,6 +44,10 @@ enum Commands {
         /// Cache time-to-live in seconds (0 disables caching, default: 86400 = 24h)
         #[arg(long, default_value_t = 86400u64)]
         cache_ttl: u64,
+
+        /// Output the JSON Schema for TimelineIr to stdout (no input file required)
+        #[arg(long, default_value_t = false)]
+        json_schema: bool,
     },
 
     /// Merge multiple .tdsl files into a single IR JSON
@@ -478,17 +483,24 @@ fn main() {
             offline,
             no_cache,
             cache_ttl,
-        } => commands::build::cmd_build(
-            &inputs,
-            output.as_deref(),
-            pretty,
-            offline,
-            tdsl_wikidata::CacheOptions {
-                no_cache,
-                ttl: std::time::Duration::from_secs(cache_ttl),
-            },
-            wikidata_timeout,
-        ),
+            json_schema,
+        } => {
+            if json_schema {
+                commands::build::cmd_json_schema(output.as_deref(), pretty)
+            } else {
+                commands::build::cmd_build(
+                    &inputs,
+                    output.as_deref(),
+                    pretty,
+                    offline,
+                    tdsl_wikidata::CacheOptions {
+                        no_cache,
+                        ttl: std::time::Duration::from_secs(cache_ttl),
+                    },
+                    wikidata_timeout,
+                )
+            }
+        }
         Commands::Merge {
             inputs,
             output,
