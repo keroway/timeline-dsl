@@ -5,4 +5,6 @@ mod json_schema;
 mod lower_static;
 #[cfg(feature = "wikidata")]
 mod lower_wikidata;
+#[cfg(feature = "wikidata")]
+mod qualifier;
 mod validation;

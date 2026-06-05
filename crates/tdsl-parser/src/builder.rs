@@ -446,6 +446,12 @@ fn build_map_prop(item: Pair<'_, Rule>, props: &mut Vec<MapProp>) -> Result<()> 
                 item.into_inner().next().unwrap(),
             )?));
         }
+        Rule::map_expand => {
+            // map_expand = { "expand" ~ claim_call ~ ";" }
+            let claim_pair = item.into_inner().next().unwrap();
+            let property = claim_pair.into_inner().next().unwrap().as_str().to_string();
+            props.push(MapProp::Expand(ClaimCall { property }));
+        }
         _ => {}
     }
     Ok(())
@@ -606,11 +612,19 @@ fn build_claim_expr(pair: Pair<'_, Rule>) -> Result<ClaimExpr> {
     let claim_pair = inner.next().unwrap();
     let property = claim_pair.into_inner().next().unwrap().as_str().to_string();
 
+    let mut qualifier = None;
     let mut accessor = None;
     let mut offset = None;
     for child in inner {
         match child.as_rule() {
-            Rule::ident => accessor = Some(child.as_str().to_string()),
+            Rule::claim_qualifier => {
+                // claim_qualifier = { "." ~ "qualifier" ~ "(" ~ property_id ~ ")" }
+                qualifier = Some(child.into_inner().next().unwrap().as_str().to_string());
+            }
+            Rule::claim_accessor => {
+                // claim_accessor = { "." ~ ident }
+                accessor = Some(child.into_inner().next().unwrap().as_str().to_string());
+            }
             Rule::claim_offset => {
                 // as_str() gives "+1" or "-30"; parse directly as i32
                 offset = child.as_str().parse::<i32>().ok();
@@ -621,6 +635,7 @@ fn build_claim_expr(pair: Pair<'_, Rule>) -> Result<ClaimExpr> {
 
     Ok(ClaimExpr {
         claim: ClaimCall { property },
+        qualifier,
         accessor,
         offset,
     })

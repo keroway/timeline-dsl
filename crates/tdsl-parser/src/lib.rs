@@ -1732,4 +1732,148 @@ timeline "t" {
             Err(other) => panic!("unexpected error: {other:?}"),
         }
     }
+
+    // ─── qualifier アクセス (#361) ────────────────────────────────────────────
+
+    #[test]
+    fn parse_claim_qualifier_access() {
+        // claim(P39).qualifier(P580).year をパースできる
+        let src = r#"
+            timeline "test" {}
+            import wd as w { entity Q1; }
+            map wd.person to span {
+                lane x;
+                start claim(P39).qualifier(P580).year;
+                end   claim(P39).qualifier(P582).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let map = match &file.statements[2].node {
+            ast::Statement::Map(m) => m,
+            _ => panic!("expected Map"),
+        };
+
+        let start = map
+            .props
+            .iter()
+            .find_map(|p| match p {
+                ast::MapProp::Start(e) => Some(e),
+                _ => None,
+            })
+            .expect("start present");
+
+        match &start.fallbacks[0] {
+            ast::MapFallback::Claim(c) => {
+                assert_eq!(c.claim.property, "P39");
+                assert_eq!(c.qualifier.as_deref(), Some("P580"));
+                assert_eq!(c.accessor.as_deref(), Some("year"));
+                assert_eq!(c.offset, None);
+            }
+            _ => panic!("expected Claim"),
+        }
+
+        let end = map
+            .props
+            .iter()
+            .find_map(|p| match p {
+                ast::MapProp::End(e) => Some(e),
+                _ => None,
+            })
+            .expect("end present");
+
+        match &end.fallbacks[0] {
+            ast::MapFallback::Claim(c) => {
+                assert_eq!(c.claim.property, "P39");
+                assert_eq!(c.qualifier.as_deref(), Some("P582"));
+                assert_eq!(c.accessor.as_deref(), Some("year"));
+            }
+            _ => panic!("expected Claim"),
+        }
+    }
+
+    #[test]
+    fn parse_map_expand() {
+        // expand claim(P39); をパースできる
+        let src = r#"
+            timeline "test" {}
+            import wd as w { entity Q1; }
+            map wd.person to span {
+                lane x;
+                expand claim(P39);
+                start claim(P39).qualifier(P580).year;
+                end   claim(P39).qualifier(P582).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        let map = match &file.statements[2].node {
+            ast::Statement::Map(m) => m,
+            _ => panic!("expected Map"),
+        };
+
+        let expand = map
+            .props
+            .iter()
+            .find_map(|p| match p {
+                ast::MapProp::Expand(call) => Some(call),
+                _ => None,
+            })
+            .expect("expand prop present");
+
+        assert_eq!(expand.property, "P39");
+    }
+
+    #[test]
+    fn parse_claim_without_qualifier_still_works() {
+        // qualifier なし（従来の claim(P571).year）が引き続き動作する
+        let src = r#"
+            map wd.x to span {
+                lane a;
+                start claim(P571).year;
+                end claim(P576).year;
+                label label@ja;
+            }
+        "#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Map(m) => {
+                let start = m
+                    .props
+                    .iter()
+                    .find_map(|p| match p {
+                        ast::MapProp::Start(e) => Some(e),
+                        _ => None,
+                    })
+                    .expect("start present");
+                match &start.fallbacks[0] {
+                    ast::MapFallback::Claim(c) => {
+                        assert_eq!(c.claim.property, "P571");
+                        assert_eq!(c.qualifier, None);
+                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                    }
+                    _ => panic!("expected Claim"),
+                }
+            }
+            _ => panic!("expected Map"),
+        }
+    }
+
+    #[test]
+    fn format_claim_qualifier_roundtrip() {
+        // qualifier アクセスを含む DSL が format → reparse で同一 AST を返す
+        let src = r#"map wd.person to span {
+  lane x;
+  expand claim(P39);
+  start claim(P39).qualifier(P580).year;
+  end claim(P39).qualifier(P582).year;
+  label label@ja;
+}
+"#;
+        let formatted = format::format_source(src).unwrap();
+        assert_eq!(
+            src, formatted,
+            "format must be idempotent for qualifier syntax"
+        );
+    }
 }

@@ -88,6 +88,33 @@ impl WikidataEntity {
             .and_then(|s| s.mainsnak.datavalue.as_ref())
     }
 
+    /// Get the first qualifier value for `qualifier_property` from the first non-deprecated
+    /// statement of `main_property`.
+    pub fn qualifier_claim(
+        &self,
+        main_property: &str,
+        qualifier_property: &str,
+    ) -> Option<&DataValue> {
+        let stmt = self
+            .claims
+            .get(main_property)?
+            .iter()
+            .find(|s| s.rank != "deprecated")?;
+        stmt.qualifiers
+            .get(qualifier_property)?
+            .first()
+            .and_then(|s| s.datavalue.as_ref())
+    }
+
+    /// Return all statements for `property` as a slice.
+    /// Returns an empty slice when the property is absent.
+    pub fn statements(&self, property: &str) -> &[Statement] {
+        self.claims
+            .get(property)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+    }
+
     /// Get label with language fallback.
     pub fn label_with_fallback(&self, langs: &[&str]) -> Option<&str> {
         for lang in langs {

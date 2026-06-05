@@ -340,15 +340,26 @@ fn write_map_props(out: &mut String, props: &[MapProp]) {
             MapProp::Filter(f) => {
                 writeln!(out, "{INDENT}filter {};", format_filter_expr(f)).unwrap();
             }
+            MapProp::Expand(call) => {
+                writeln!(out, "{INDENT}expand claim({});", call.property).unwrap();
+            }
         }
     }
 }
 
 fn format_claim_expr(c: &ClaimExpr) -> String {
-    let base = match &c.accessor {
-        Some(acc) => format!("claim({}).{acc}", c.claim.property),
-        None => format!("claim({})", c.claim.property),
+    // Build base: "claim(P)" or "claim(P).qualifier(Q)"
+    let base = if let Some(qual) = &c.qualifier {
+        format!("claim({}).qualifier({qual})", c.claim.property)
+    } else {
+        format!("claim({})", c.claim.property)
     };
+    // Append accessor
+    let base = match &c.accessor {
+        Some(acc) => format!("{base}.{acc}"),
+        None => base,
+    };
+    // Append offset
     match c.offset {
         Some(off) if off >= 0 => format!("{base} +{off}"),
         Some(off) => format!("{base} {off}"),
