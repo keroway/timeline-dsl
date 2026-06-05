@@ -1,8 +1,9 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// DSL ソース内のアイテム定義位置（1-based 行番号・列番号）。
 /// `source_span` が付いていない場合はスキップして JSON に出力しない。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SourceSpan {
     /// 定義開始行（1-based）。
     pub line: u32,
@@ -13,7 +14,7 @@ pub struct SourceSpan {
 }
 
 /// `.tdsl` ファイルをコンパイルした結果の正規中間表現（JSON 直列化対象）。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TimelineIr {
     /// 年表のメタデータ（タイトル・単位・範囲・カレンダー）。
     pub meta: Meta,
@@ -30,7 +31,7 @@ pub struct TimelineIr {
 }
 
 /// 年表のメタデータ。`timeline` ブロックの属性に対応する。
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct Meta {
     /// 年表の表示タイトル。
     pub title: String,
@@ -58,7 +59,7 @@ pub struct Meta {
 }
 
 /// 年表のレーン（行）を表す。`lane` 宣言に対応する。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Lane {
     /// レーンの一意識別子（`as` 節または自動生成スラッグ）。
     pub id: String,
@@ -77,7 +78,7 @@ pub struct Lane {
 }
 
 /// 年表アイテムを表す tagged enum。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Item {
     /// 開始〜終了の期間を持つアイテム（王朝・時代など）。
@@ -154,7 +155,7 @@ pub enum Item {
 }
 
 /// Wikidata インポートの記録。どのエンティティがどのアイテムにマップされたかを保持する。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ImportRecord {
     /// インポート元のソース種別（例: `"wikidata"`）。
     pub source: String,
@@ -165,7 +166,7 @@ pub struct ImportRecord {
 }
 
 /// アイテムの出典・ライセンス情報。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SourceRecord {
     /// 出典の識別子（例: `"wd:Q7209"`）。
     pub id: String,

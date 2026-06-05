@@ -1,6 +1,30 @@
 use std::path::PathBuf;
 
 use indicatif::ProgressBar;
+use schemars::schema_for;
+
+/// `TimelineIr` の JSON Schema を標準出力（または `output` ファイル）へ書き出す。
+pub(crate) fn cmd_json_schema(
+    output: Option<&std::path::Path>,
+    pretty: bool,
+) -> Result<(), String> {
+    let schema = schema_for!(tdsl_core::ir::TimelineIr);
+    let json = if pretty {
+        serde_json::to_string_pretty(&schema).map_err(|e| e.to_string())?
+    } else {
+        serde_json::to_string(&schema).map_err(|e| e.to_string())?
+    };
+
+    if let Some(out_path) = output {
+        std::fs::write(out_path, &json)
+            .map_err(|e| format!("Failed to write {}: {e}", out_path.display()))?;
+        eprintln!("Written to {}", out_path.display());
+    } else {
+        println!("{json}");
+    }
+
+    Ok(())
+}
 
 /// .tdsl ファイルを IR にコンパイルして JSON 出力する。
 /// 複数ファイルは merge する。
@@ -12,6 +36,13 @@ pub(crate) fn cmd_build(
     cache_opts: tdsl_wikidata::CacheOptions,
     wikidata_timeout: std::time::Duration,
 ) -> Result<(), String> {
+    if inputs.is_empty() {
+        return Err(
+            "at least one input FILE is required (or use --json-schema to output the schema)"
+                .to_string(),
+        );
+    }
+
     let ir = if inputs.len() == 1 {
         load_ir(&inputs[0], offline, cache_opts, wikidata_timeout)?
     } else {
