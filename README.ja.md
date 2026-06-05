@@ -39,6 +39,8 @@
 curl -sSfL https://raw.githubusercontent.com/keroway/timeline-dsl/main/install.sh | sh
 ```
 
+対応プラットフォーム: macOS (x86\_64, arm64)、Linux (x86\_64, aarch64)。
+
 ### ワンラインインストール（Windows）
 
 PowerShell で実行します。

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **install.sh を Linux aarch64 (arm64) に対応**: `detect_platform()` の Linux 分岐に `aarch64|arm64` ケースを追加し `tdsl-linux-aarch64.tar.gz` を取得するようにした。バイナリは release.yml で既に生成・配布されていたが、インストールスクリプトが未対応で ARM64 Linux ユーザーがエラー終了していた問題を修正。README / README.ja.md に対応プラットフォーム一覧（macOS x86\_64/arm64, Linux x86\_64/aarch64）を追記 (#387)
+
 ## [1.15.0] - 2026-06-03
 
 ### Added
