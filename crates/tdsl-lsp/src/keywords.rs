@@ -58,6 +58,8 @@ pub const MISC_KEYWORDS: &[&str] = &[
     "title",
     "field_priority",
     "origin",
+    "expand",
+    "qualifier",
 ];
 
 #[cfg(test)]

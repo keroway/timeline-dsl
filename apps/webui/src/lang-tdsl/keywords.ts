@@ -11,5 +11,5 @@ export const MISC_KEYWORDS = [
   "tags", "source", "label", "start", "end", "time", "id", "target_type",
   "target_lane", "merge_by_source", "overwrite_imported", "keep_manual",
   "proleptic_gregorian", "year", "dynasty", "person", "era", "title",
-  "field_priority", "origin",
+  "field_priority", "origin", "expand", "qualifier",
 ]

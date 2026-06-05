@@ -568,6 +568,52 @@ impl LoweringContext {
         entity: &WikidataEntity,
         policy: ast::ReimportPolicy,
     ) {
+        // Check for an expand directive
+        let expand_prop = map.props.iter().find_map(|p| {
+            if let ast::MapProp::Expand(call) = p {
+                Some(call.property.as_str())
+            } else {
+                None
+            }
+        });
+
+        if let Some(prop) = expand_prop {
+            // Collect non-deprecated statements for the expand property
+            let stmts: Vec<&tdsl_wikidata::entity::Statement> = entity
+                .statements(prop)
+                .iter()
+                .filter(|s| s.rank != "deprecated")
+                .collect();
+
+            // No statements means nothing to expand — not a silent fallback, just nothing to do
+            for (idx, stmt) in stmts.iter().enumerate() {
+                self.apply_map_to_entity_with_ctx(
+                    map,
+                    entity,
+                    Some(stmt),
+                    Some((prop, idx)),
+                    policy,
+                );
+            }
+        } else {
+            self.apply_map_to_entity_with_ctx(map, entity, None, None, policy);
+        }
+    }
+
+    /// Core mapping logic, optionally scoped to a specific Statement context for `expand`.
+    ///
+    /// `ctx_stmt` — the current statement being iterated in an `expand` loop.
+    /// `expand_ctx` — `(expand_property, statement_index)` used to generate unique item IDs
+    ///                 when multiple statements are expanded.
+    #[cfg(feature = "wikidata")]
+    fn apply_map_to_entity_with_ctx(
+        &mut self,
+        map: &ast::MapBlock,
+        entity: &WikidataEntity,
+        ctx_stmt: Option<&tdsl_wikidata::entity::Statement>,
+        expand_ctx: Option<(&str, usize)>,
+        policy: ast::ReimportPolicy,
+    ) {
         let mut lane_ref = String::new();
         let mut start: Option<TimePoint> = None;
         let mut end: Option<TimePoint> = None;
@@ -576,6 +622,7 @@ impl LoweringContext {
         let mut tags = Vec::new();
 
         // First pass: evaluate filters; skip this entity if any filter is false.
+        // Filters are evaluated without expand context (entity-level filtering).
         for prop in &map.props {
             if let ast::MapProp::Filter(expr) = prop
                 && !eval_filter_expr(expr, entity)
@@ -587,14 +634,14 @@ impl LoweringContext {
         for prop in &map.props {
             match prop {
                 ast::MapProp::Lane(l) => lane_ref = l.clone(),
-                ast::MapProp::Start(expr) => start = eval_map_expr(expr, entity),
-                ast::MapProp::End(expr) => end = eval_map_expr(expr, entity),
-                ast::MapProp::Time(expr) => time = eval_map_expr(expr, entity),
+                ast::MapProp::Start(expr) => start = eval_map_expr(expr, entity, ctx_stmt),
+                ast::MapProp::End(expr) => end = eval_map_expr(expr, entity, ctx_stmt),
+                ast::MapProp::Time(expr) => time = eval_map_expr(expr, entity, ctx_stmt),
                 ast::MapProp::Label(lexpr) => {
                     label = eval_label_expr(lexpr, entity).unwrap_or_default();
                 }
                 ast::MapProp::Tags(t) => tags = t.clone(),
-                ast::MapProp::Filter(_) => {} // evaluated in the first pass above
+                ast::MapProp::Filter(_) | ast::MapProp::Expand(_) => {}
             }
         }
 
@@ -628,10 +675,23 @@ impl LoweringContext {
             }
         };
 
+        // Generate item ID. When expand is active, include the property and statement index
+        // to ensure uniqueness across multiple statements for the same entity.
+        let make_id = |prefix: &str, year: i64| -> String {
+            match expand_ctx {
+                Some((expand_prop, idx)) => format!(
+                    "{prefix}:{}_{}_{idx}:{year}",
+                    entity.id.to_lowercase(),
+                    expand_prop.to_lowercase()
+                ),
+                None => format!("{prefix}:{}:{year}", entity.id.to_lowercase()),
+            }
+        };
+
         match map.target_type {
             MapTargetType::Span => {
                 if let (Some(s), Some(e)) = (start, end) {
-                    let id = format!("span:{}:{}", entity.id.to_lowercase(), s.year);
+                    let id = make_id("span", s.year);
                     let (s_month, s_day) = strip_bc(&s);
                     let (e_month, e_day) = strip_bc(&e);
                     let item = Item::Span {
@@ -654,7 +714,7 @@ impl LoweringContext {
             }
             MapTargetType::Event => {
                 if let Some(t) = time {
-                    let id = format!("event:{}:{}", entity.id.to_lowercase(), t.year);
+                    let id = make_id("event", t.year);
                     let (t_month, t_day) = strip_bc(&t);
                     let item = Item::Event {
                         id,
@@ -673,7 +733,7 @@ impl LoweringContext {
             }
             MapTargetType::EventRange => {
                 if let (Some(s), Some(e)) = (start, end) {
-                    let id = format!("event_range:{}:{}", entity.id.to_lowercase(), s.year);
+                    let id = make_id("event_range", s.year);
                     let (s_month, s_day) = strip_bc(&s);
                     let (e_month, e_day) = strip_bc(&e);
                     let item = Item::EventRange {
@@ -829,12 +889,19 @@ impl LoweringContext {
 /// Evaluate a map expression with `??` fallback.
 /// Supports claim chains (`claim(P580).year ?? claim(P571).year`) and literal fallbacks
 /// (`claim(P580).year ?? 9999`). Returns the first resolved value.
+///
+/// `ctx_stmt` — when `Some`, provides the Statement context for an `expand` loop iteration.
+/// This allows `claim(P39).qualifier(P580).year` to resolve against the iterated statement.
 #[cfg(feature = "wikidata")]
-fn eval_map_expr(expr: &ast::MapExpr, entity: &WikidataEntity) -> Option<TimePoint> {
+fn eval_map_expr(
+    expr: &ast::MapExpr,
+    entity: &WikidataEntity,
+    ctx_stmt: Option<&tdsl_wikidata::entity::Statement>,
+) -> Option<TimePoint> {
     for fb in &expr.fallbacks {
         match fb {
             ast::MapFallback::Claim(ce) => {
-                if let Some(tp) = eval_claim_expr(ce, entity) {
+                if let Some(tp) = eval_claim_expr(ce, entity, ctx_stmt) {
                     return Some(tp);
                 }
             }
@@ -858,9 +925,32 @@ fn eval_map_expr(expr: &ast::MapExpr, entity: &WikidataEntity) -> Option<TimePoi
 /// - `.day`: year + month + day (if precision >= 11)
 ///
 /// If `expr.offset` is set, the integer offset is added to the resolved year.
+///
+/// When `expr.qualifier` is set and `ctx_stmt` is provided, resolves the qualifier from
+/// `ctx_stmt` (the current expand iteration's Statement).  Without `ctx_stmt`, the first
+/// non-deprecated statement's qualifier is used.
 #[cfg(feature = "wikidata")]
-fn eval_claim_expr(expr: &ast::ClaimExpr, entity: &WikidataEntity) -> Option<TimePoint> {
-    let dv = entity.claim(&expr.claim.property)?;
+fn eval_claim_expr(
+    expr: &ast::ClaimExpr,
+    entity: &WikidataEntity,
+    ctx_stmt: Option<&tdsl_wikidata::entity::Statement>,
+) -> Option<TimePoint> {
+    let dv: &DataValue = if let Some(qual_prop) = &expr.qualifier {
+        // Qualifier access
+        if let Some(stmt) = ctx_stmt {
+            // Inside an expand loop — use the iterated statement's qualifier
+            stmt.qualifiers
+                .get(qual_prop)?
+                .first()
+                .and_then(|s| s.datavalue.as_ref())?
+        } else {
+            // Outside expand — use the first non-deprecated statement's qualifier
+            entity.qualifier_claim(&expr.claim.property, qual_prop)?
+        }
+    } else {
+        entity.claim(&expr.claim.property)?
+    };
+
     match dv {
         DataValue::Time { value } => {
             let tp = time_value_to_timepoint(value).ok()?;
@@ -940,12 +1030,13 @@ fn eval_filter_compare(
 
 /// Resolve a filter operand to an optional integer value.
 /// `null` and unevaluable claim expressions both yield `None`.
+/// Filter expressions are always evaluated outside an expand context, so `ctx_stmt` is `None`.
 #[cfg(feature = "wikidata")]
 fn resolve_filter_operand(op: &ast::FilterOperand, entity: &WikidataEntity) -> Option<i64> {
     match op {
         ast::FilterOperand::Int(n) => Some(*n),
         ast::FilterOperand::Null => None,
-        ast::FilterOperand::Claim(ce) => eval_claim_expr(ce, entity).map(|tp| tp.year),
+        ast::FilterOperand::Claim(ce) => eval_claim_expr(ce, entity, None).map(|tp| tp.year),
     }
 }
 
@@ -977,6 +1068,7 @@ fn props_same_variant(a: &ast::MapProp, b: &ast::MapProp) -> bool {
             | (ast::MapProp::Time(_), ast::MapProp::Time(_))
             | (ast::MapProp::Label(_), ast::MapProp::Label(_))
             | (ast::MapProp::Tags(_), ast::MapProp::Tags(_))
+            | (ast::MapProp::Expand(_), ast::MapProp::Expand(_))
     )
 }
 
