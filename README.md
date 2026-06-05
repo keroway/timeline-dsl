@@ -39,6 +39,8 @@ A domain-specific language (DSL) compiler for timelines. Define timelines as tex
 curl -sSfL https://raw.githubusercontent.com/keroway/timeline-dsl/main/install.sh | sh
 ```
 
+Supported platforms: macOS (x86\_64, arm64), Linux (x86\_64, aarch64).
+
 ### One-line install (Windows)
 
 Run in PowerShell:

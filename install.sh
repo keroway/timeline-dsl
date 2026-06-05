@@ -20,6 +20,9 @@ detect_platform() {
                 x86_64)
                     echo "tdsl-linux-x86_64.tar.gz"
                     ;;
+                aarch64|arm64)
+                    echo "tdsl-linux-aarch64.tar.gz"
+                    ;;
                 *)
                     echo "Unsupported Linux architecture: ${arch}" >&2
                     exit 1
