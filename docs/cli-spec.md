@@ -53,14 +53,14 @@ tdsl [OPTIONS] <COMMAND>
 `.tdsl` ファイルを IR JSON にコンパイルします。複数ファイルを指定するとマージして出力します。
 
 ```
-tdsl build [OPTIONS] <FILE>...
+tdsl build [OPTIONS] [FILE]...
 ```
 
 ### 引数
 
 | 引数 | 説明 |
 |---|---|
-| `<FILE>...` | 入力 `.tdsl` ファイルのパス（複数指定時は順番にマージ） |
+| `[FILE]...` | 入力 `.tdsl` ファイルのパス（複数指定時は順番にマージ）。`--json-schema` を指定する場合は省略可能 |
 
 ### オプション
 
@@ -71,6 +71,7 @@ tdsl build [OPTIONS] <FILE>...
 | `--offline` | Wikidata フェッチをスキップし静的アイテムのみ処理 | — |
 | `--no-cache` | ローカルキャッシュをバイパスして API を直接呼び出す | — |
 | `--cache-ttl <CACHE_TTL>` | キャッシュ有効期限（秒）、0 で無効化 | `86400`（24h）|
+| `--json-schema` | `TimelineIr` の JSON Schema を標準出力する（入力ファイル不要） | — |
 
 ### 実行例
 
@@ -86,6 +87,12 @@ tdsl build examples/china_with_import.tdsl --offline --pretty
 
 # 複数ファイルをマージしてコンパイル
 tdsl build part1.tdsl part2.tdsl --output merged.json --pretty
+
+# TimelineIr の JSON Schema を標準出力（入力ファイル不要）
+tdsl build --json-schema
+
+# JSON Schema を整形してファイルに保存
+tdsl build --json-schema --pretty --output timeline-ir.schema.json
 ```
 
 ---

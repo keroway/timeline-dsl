@@ -22,6 +22,10 @@ pkg-url = "{ repo }/releases/download/v{ version }/tdsl-macos-x86_64.tar.gz"
 [package.metadata.binstall.overrides."aarch64-apple-darwin"]
 pkg-url = "{ repo }/releases/download/v{ version }/tdsl-macos-aarch64.tar.gz"
 
+[[test]]
+name = "cli_integration"
+path = "../../tests/cli_integration_test.rs"
+
 [dependencies]
 tdsl-parser = { path = "../tdsl-parser" }
 tdsl-core = { path = "../tdsl-core", features = ["wikidata"] }
@@ -32,7 +36,11 @@ clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
 serde.workspace = true
 serde_json.workspace = true
+schemars.workspace = true
 miette = { version = "7", features = ["fancy"] }
 tokio.workspace = true
 csv = "1"
 indicatif = "0.18"
+
+[dev-dependencies]
+serde_json.workspace = true

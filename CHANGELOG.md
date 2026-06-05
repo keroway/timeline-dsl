@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`tdsl build --json-schema` で `TimelineIr` の JSON Schema を出力**: `schemars` クレートを `tdsl-core` に追加し、IR 型（`TimelineIr` / `Meta` / `Lane` / `Item` / `ImportRecord` / `SourceRecord` / `SourceSpan`）に `JsonSchema` を derive した。`tdsl build --json-schema` を実行すると入力ファイルなしで JSON Schema Draft 7 形式のスキーマを標準出力する。`--pretty` で整形出力、`--output` でファイルへの保存も可能。スキーマには Rust のドキュメントコメントが `description` フィールドとして反映される (#369)
+
 ### Fixed
 
 - **install.sh を Linux aarch64 (arm64) に対応**: `detect_platform()` の Linux 分岐に `aarch64|arm64` ケースを追加し `tdsl-linux-aarch64.tar.gz` を取得するようにした。バイナリは release.yml で既に生成・配布されていたが、インストールスクリプトが未対応で ARM64 Linux ユーザーがエラー終了していた問題を修正。README / README.ja.md に対応プラットフォーム一覧（macOS x86\_64/arm64, Linux x86\_64/aarch64）を追記 (#387)
