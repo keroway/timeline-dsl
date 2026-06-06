@@ -398,6 +398,7 @@ tdsl render [OPTIONS] <FILE>
 | `--color-map <COLOR_MAP>` | タグ→色マッピング（例: `war=#cc0000,dynasty=#3366cc`） | — |
 | `--orientation <ORIENTATION>` | 時間軸方向（`horizontal` / `vertical`） | `horizontal` |
 | `--grid <GRID>` | 補助グリッド線（`none` / `decade` / `year` / `month`）。`none` でグリッド無効（デフォルト）。`decade` = 10年ごと、`year` = 1年ごと、`month` = 月ごとの薄い補助線を描画 | `none` |
+| `--watch` | 入力ファイルの変更を監視して自動再レンダリング。`--output` が必須。`html` / `svg` のみ対応。Ctrl+C で終了 | — |
 
 ### 実行例
 
@@ -439,6 +440,12 @@ tdsl render examples/china_dynasties.tdsl --format svg --grid decade --output ch
 
 # 年単位グリッド線付きで HTML に出力（短期年表向け）
 tdsl render examples/world_wars.tdsl --grid year --output wars_grid.html
+
+# ファイル監視モード（変更のたびに自動再レンダリング、Ctrl+C で終了）
+tdsl render examples/china_dynasties.tdsl --watch --output china.html
+
+# オフラインで監視モード（開発中の推奨）
+tdsl render examples/china_dynasties.tdsl --watch --offline --output china.html
 ```
 
 ---

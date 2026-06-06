@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`tdsl render --watch` でファイル監視・自動再レンダリング**: 入力 `.tdsl` ファイルの変更を検出するたびに自動的に再レンダリングする。`--output` が必須（stdout 出力不可）。`html` / `svg` フォーマットのみ対応（`png` / `pdf` は非対応）。Wikidata フェッチが有効な場合は `--offline` 利用を推奨する警告を表示する。レンダリングエラーが発生しても監視は継続し、次の保存で再試行する (#366)
 - **Wikidata qualifier でのマッピングを追加**: map ブロックで `claim(P39).qualifier(P580).year` 構文により Statement の qualifier プロパティにアクセスできるようになった。また `expand claim(P39);` ディレクティブを追加し、1 エンティティの複数 Statement（例: 複数の役職）から複数アイテムを生成できるようになった。qualifier が存在しない Statement はスキップされる（silent fallback しない）。既存の `claim(P).accessor` 構文との後方互換性を維持 (#361)
 - **`tdsl build --json-schema` で `TimelineIr` の JSON Schema を出力**: `schemars` クレートを `tdsl-core` に追加し、IR 型（`TimelineIr` / `Meta` / `Lane` / `Item` / `ImportRecord` / `SourceRecord` / `SourceSpan`）に `JsonSchema` を derive した。`tdsl build --json-schema` を実行すると入力ファイルなしで JSON Schema Draft 7 形式のスキーマを標準出力する。`--pretty` で整形出力、`--output` でファイルへの保存も可能。スキーマには Rust のドキュメントコメントが `description` フィールドとして反映される (#369)
 

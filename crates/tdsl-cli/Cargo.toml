@@ -41,6 +41,7 @@ miette = { version = "7", features = ["fancy"] }
 tokio.workspace = true
 csv = "1"
 indicatif = "0.18"
+notify = "8"
 
 [dev-dependencies]
 serde_json.workspace = true
