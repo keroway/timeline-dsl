@@ -25,15 +25,26 @@ use tdsl_core::ir::TimelineIr;
 pub fn render_html(ir: &TimelineIr, opts: RenderOptions) -> Result<String, std::fmt::Error> {
     let layout = LayoutModel::compute(ir, opts.clone());
     let svg = svg::render_svg(&layout)?;
+    let table_html = if opts.show_table {
+        Some(html::generate_table_html(ir, &ir.lanes))
+    } else {
+        None
+    };
     if opts.interactive {
         Ok(html::wrap_html_interactive(
             &svg,
             &ir.meta.title,
             &opts,
             &ir.lanes,
+            table_html.as_deref(),
         ))
     } else {
-        Ok(html::wrap_html(&svg, &ir.meta.title, &opts))
+        Ok(html::wrap_html(
+            &svg,
+            &ir.meta.title,
+            &opts,
+            table_html.as_deref(),
+        ))
     }
 }
 
@@ -736,6 +747,49 @@ mod tests {
         assert!(
             html.contains("グループ1"),
             "HTML must contain the group label 'グループ1'"
+        );
+    }
+
+    // ─── show_table tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn render_html_show_table_false_no_table() {
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            show_table: false,
+            ..RenderOptions::default()
+        };
+        let html = render_html(&ir, opts).unwrap();
+        assert!(
+            !html.contains("<div class=\"tdsl-table-wrap\">"),
+            "show_table=false must not include the table-wrap div element"
+        );
+        assert!(
+            !html.contains("<table class=\"tdsl-table\""),
+            "show_table=false must not include table element"
+        );
+    }
+
+    #[test]
+    fn render_html_show_table_true_includes_table() {
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let html = render_html(&ir, opts).unwrap();
+        assert!(
+            html.contains("<div class=\"tdsl-table-wrap\">"),
+            "show_table=true must include the table-wrap div element"
+        );
+        assert!(
+            html.contains("<table class=\"tdsl-table\""),
+            "show_table=true must include table element"
+        );
+        // item label "漢" must be in the table
+        assert!(
+            html.contains("漢"),
+            "show_table=true must include item label in table"
         );
     }
 
