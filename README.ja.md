@@ -88,6 +88,9 @@ open china.html
 # インタラクティブHTML（ズーム・パン・検索・詳細パネル付き）
 tdsl render examples/china_dynasties.tdsl --interactive --output china.html
 
+# 内容一覧表付きHTML（時期・ラベル・レーン・タグ列）
+tdsl render examples/china_dynasties.tdsl --show-table --output china.html
+
 # SVG形式で出力
 tdsl render examples/china_dynasties.tdsl --format svg --output china.svg
 
@@ -307,6 +310,7 @@ apply dynasty_span to wd {
 | `output` | `<basename>.<format>` | 出力ファイルパス |
 | `offline` | `false` | Wikidata フェッチをスキップ（CI推奨） |
 | `interactive` | `false` | インタラクティブ HTML 出力（`format: html` 時） |
+| `show_table` | `false` | SVG の直下に内容一覧表を追加（`format: html` 時） |
 | `theme` | — | テーマ: `default` / `dark` / `print` / `pastel` |
 | `version` | `latest` | 使用する tdsl バージョン（例: `v1.5.0`） |
 

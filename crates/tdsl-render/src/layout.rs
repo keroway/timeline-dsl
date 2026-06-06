@@ -86,6 +86,9 @@ pub struct RenderOptions {
     pub orientation: Orientation,
     /// Auxiliary grid line style. `None` (default) disables grid lines entirely.
     pub grid: GridStyle,
+    /// When true, an HTML table listing all items is appended after the SVG in HTML output.
+    /// Has no effect for SVG, PNG, or PDF output formats.
+    pub show_table: bool,
 }
 
 impl Default for RenderOptions {
@@ -104,6 +107,7 @@ impl Default for RenderOptions {
             font_family: None,
             orientation: Orientation::Horizontal,
             grid: GridStyle::None,
+            show_table: false,
         }
     }
 }

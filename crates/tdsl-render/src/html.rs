@@ -1,5 +1,10 @@
 /// Wrap a pre-rendered SVG string in a standalone HTML document with embedded CSS.
-pub fn wrap_html(svg_body: &str, title: &str, opts: &crate::layout::RenderOptions) -> String {
+pub fn wrap_html(
+    svg_body: &str,
+    title: &str,
+    opts: &crate::layout::RenderOptions,
+    table_html: Option<&str>,
+) -> String {
     use crate::layout::Theme;
 
     let theme_css = match opts.theme {
@@ -11,6 +16,11 @@ pub fn wrap_html(svg_body: &str, title: &str, opts: &crate::layout::RenderOption
 
     let custom_css_block = match &opts.custom_css {
         Some(css) => format!("\n<style>\n{css}\n</style>"),
+        None => String::new(),
+    };
+
+    let table_block = match table_html {
+        Some(t) => format!("\n<div class=\"tdsl-table-wrap\">\n{t}\n</div>"),
         None => String::new(),
     };
 
@@ -32,7 +42,7 @@ pub fn wrap_html(svg_body: &str, title: &str, opts: &crate::layout::RenderOption
 <h1>{title}</h1>
 <div class="tdsl-timeline">
 {svg}
-</div>
+</div>{table_block}
 <div id="tdsl-tooltip" class="tdsl-tooltip" role="tooltip" hidden aria-hidden="true"></div>
 <script>
 {js}
@@ -45,6 +55,7 @@ pub fn wrap_html(svg_body: &str, title: &str, opts: &crate::layout::RenderOption
         theme_css = theme_css,
         custom_css_block = custom_css_block,
         svg = svg_body,
+        table_block = table_block,
         js = EMBEDDED_JS,
     )
 }
@@ -135,6 +146,11 @@ h1 {
   white-space: pre-line;
   pointer-events: none;
 }
+.tdsl-table-wrap { margin-top: 2rem; overflow-x: auto; }
+.tdsl-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+.tdsl-table th, .tdsl-table td { border: 1px solid #ccc; padding: 0.4em 0.6em; text-align: left; }
+.tdsl-table th { background: #f5f5f5; font-weight: bold; position: sticky; top: 0; }
+.tdsl-table tbody tr:nth-child(even) { background: #fafafa; }
 "#;
 
 /// Dark theme overrides — deep navy background, light text.
@@ -188,6 +204,11 @@ const PRINT_THEME_CSS: &str = r#"body {
 }
 .tdsl-event-dot      { fill: #000; }
 .tdsl-item-label     { fill: #fff; }
+@media print {
+  .tdsl-table th { background: #333 !important; color: #fff !important; }
+  .tdsl-table th, .tdsl-table td { border-color: #333; }
+  thead { display: table-header-group; }
+}
 "#;
 
 /// Pastel theme overrides — soft, light colors with rounded spans.
@@ -301,6 +322,147 @@ fn escape_html(s: &str) -> String {
     out
 }
 
+/// Column header names for the item table.
+const TABLE_COL_TIME: &str = "時期";
+const TABLE_COL_LABEL: &str = "ラベル";
+const TABLE_COL_LANE: &str = "レーン";
+const TABLE_COL_TAGS: &str = "タグ";
+
+/// Internal row representation for table generation.
+struct TableRow {
+    /// Sort key: start/time year for ordering.
+    sort_year: i64,
+    /// Sort secondary key: item type order (0=span, 1=event_range, 2=event).
+    sort_type: u8,
+    /// Formatted time period string (e.g. "206 BC〜220" or "1944 Jun 6").
+    time_str: String,
+    label: String,
+    lane_label: String,
+    tags: String,
+}
+
+/// Generate an HTML table listing all items from the IR in chronological order.
+///
+/// Columns: 時期 (time period) / ラベル (label) / レーン (lane) / タグ (tags).
+/// Items are sorted by start/time year ascending, then by item type (span > event_range > event),
+/// then by label for ties.
+pub(crate) fn generate_table_html(
+    ir: &tdsl_core::ir::TimelineIr,
+    lanes: &[tdsl_core::ir::Lane],
+) -> String {
+    use crate::layout::format_date;
+    use tdsl_core::ir::Item;
+
+    let lane_label = |lane_id: &str| -> String {
+        lanes
+            .iter()
+            .find(|l| l.id == lane_id)
+            .map(|l| l.label.clone())
+            .unwrap_or_else(|| lane_id.to_string())
+    };
+
+    let mut rows: Vec<TableRow> = ir
+        .items
+        .iter()
+        .map(|item| match item {
+            Item::Span {
+                label,
+                lane,
+                start,
+                end,
+                tags,
+                start_month,
+                start_day,
+                end_month,
+                end_day,
+                ..
+            } => TableRow {
+                sort_year: *start,
+                sort_type: 0,
+                time_str: format!(
+                    "{}〜{}",
+                    format_date(*start, *start_month, *start_day),
+                    format_date(*end, *end_month, *end_day),
+                ),
+                label: label.clone(),
+                lane_label: lane_label(lane),
+                tags: tags.join(", "),
+            },
+            Item::EventRange {
+                label,
+                lane,
+                start,
+                end,
+                tags,
+                start_month,
+                start_day,
+                end_month,
+                end_day,
+                ..
+            } => TableRow {
+                sort_year: *start,
+                sort_type: 1,
+                time_str: format!(
+                    "{}〜{}",
+                    format_date(*start, *start_month, *start_day),
+                    format_date(*end, *end_month, *end_day),
+                ),
+                label: label.clone(),
+                lane_label: lane_label(lane),
+                tags: tags.join(", "),
+            },
+            Item::Event {
+                label,
+                lane,
+                time,
+                tags,
+                time_month,
+                time_day,
+                ..
+            } => TableRow {
+                sort_year: *time,
+                sort_type: 2,
+                time_str: format_date(*time, *time_month, *time_day),
+                label: label.clone(),
+                lane_label: lane_label(lane),
+                tags: tags.join(", "),
+            },
+        })
+        .collect();
+
+    rows.sort_by(|a, b| {
+        a.sort_year
+            .cmp(&b.sort_year)
+            .then(a.sort_type.cmp(&b.sort_type))
+            .then(a.label.cmp(&b.label))
+    });
+
+    let mut html = String::new();
+    html.push_str("<table class=\"tdsl-table\">\n");
+    html.push_str("<thead>\n<tr>");
+    for col in [
+        TABLE_COL_TIME,
+        TABLE_COL_LABEL,
+        TABLE_COL_LANE,
+        TABLE_COL_TAGS,
+    ] {
+        html.push_str(&format!("<th>{}</th>", escape_html(col)));
+    }
+    html.push_str("</tr>\n</thead>\n<tbody>\n");
+
+    for row in &rows {
+        html.push_str("<tr>");
+        html.push_str(&format!("<td>{}</td>", escape_html(&row.time_str)));
+        html.push_str(&format!("<td>{}</td>", escape_html(&row.label)));
+        html.push_str(&format!("<td>{}</td>", escape_html(&row.lane_label)));
+        html.push_str(&format!("<td>{}</td>", escape_html(&row.tags)));
+        html.push_str("</tr>\n");
+    }
+
+    html.push_str("</tbody>\n</table>");
+    html
+}
+
 /// Wrap a pre-rendered SVG string in an interactive standalone HTML document.
 ///
 /// The interactive document adds zoom/pan, search filtering, click detail panel,
@@ -310,6 +472,7 @@ pub fn wrap_html_interactive(
     title: &str,
     opts: &crate::layout::RenderOptions,
     lanes: &[tdsl_core::ir::Lane],
+    table_html: Option<&str>,
 ) -> String {
     use crate::layout::Theme;
 
@@ -334,6 +497,11 @@ pub fn wrap_html_interactive(
             r#"<label class="tdsl-legend-item"><input type="checkbox" checked data-lane-toggle="{lane_id_escaped}"> {lane_label_escaped}</label>"#,
         ));
     }
+
+    let table_block = match table_html {
+        Some(t) => format!("\n<div class=\"tdsl-table-wrap\">\n{t}\n</div>"),
+        None => String::new(),
+    };
 
     format!(
         r#"<!DOCTYPE html>
@@ -367,7 +535,7 @@ pub fn wrap_html_interactive(
       <div id="tdsl-detail-content"></div>
     </div>
   </div>
-</div>
+</div>{table_block}
 <div id="tdsl-tooltip" class="tdsl-tooltip" role="tooltip" hidden aria-hidden="true"></div>
 <script>
 {js}
@@ -382,6 +550,7 @@ pub fn wrap_html_interactive(
         custom_css_block = custom_css_block,
         legend_html = legend_html,
         svg = svg_body,
+        table_block = table_block,
         js = INTERACTIVE_JS,
     )
 }
@@ -694,7 +863,7 @@ mod tests {
     #[test]
     fn html_wraps_with_doctype_and_svg() {
         let opts = RenderOptions::default();
-        let html = wrap_html("<svg></svg>", "test title", &opts);
+        let html = wrap_html("<svg></svg>", "test title", &opts, None);
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains("<title>test title</title>"));
         assert!(html.contains("<style>"));
@@ -706,7 +875,7 @@ mod tests {
     #[test]
     fn html_escapes_title() {
         let opts = RenderOptions::default();
-        let html = wrap_html("<svg></svg>", "A & B <danger>", &opts);
+        let html = wrap_html("<svg></svg>", "A & B <danger>", &opts, None);
         assert!(html.contains("A &amp; B &lt;danger&gt;"));
         assert!(!html.contains("<danger>"));
     }
@@ -717,7 +886,7 @@ mod tests {
             theme: Theme::Dark,
             ..Default::default()
         };
-        let html = wrap_html("<svg></svg>", "test", &opts);
+        let html = wrap_html("<svg></svg>", "test", &opts, None);
         assert!(html.contains("1a1a2e"), "dark theme should include #1a1a2e");
     }
 
@@ -727,7 +896,7 @@ mod tests {
             custom_css: Some(".tdsl-span { fill: hotpink; }".into()),
             ..Default::default()
         };
-        let html = wrap_html("<svg></svg>", "test", &opts);
+        let html = wrap_html("<svg></svg>", "test", &opts, None);
         assert!(html.contains("hotpink"), "custom CSS should be in output");
     }
 
@@ -737,7 +906,7 @@ mod tests {
             theme: Theme::Print,
             ..Default::default()
         };
-        let html = wrap_html("<svg></svg>", "test", &opts);
+        let html = wrap_html("<svg></svg>", "test", &opts, None);
         // Print theme uses white background and black text
         assert!(
             html.contains("#fff") || html.contains("#ffffff"),
@@ -755,7 +924,7 @@ mod tests {
             theme: Theme::Pastel,
             ..Default::default()
         };
-        let html = wrap_html("<svg></svg>", "test", &opts);
+        let html = wrap_html("<svg></svg>", "test", &opts, None);
         // Pastel theme uses #fef9f0 as background
         assert!(
             html.contains("fef9f0"),
@@ -765,6 +934,239 @@ mod tests {
         assert!(
             html.contains("b5d5f5"),
             "pastel theme should include pastel blue span color"
+        );
+    }
+
+    #[test]
+    fn table_html_is_inserted_when_some() {
+        let opts = RenderOptions::default();
+        let table = "<table class=\"tdsl-table\"><thead><tr><th>時期</th></tr></thead><tbody></tbody></table>";
+        let html = wrap_html("<svg></svg>", "test", &opts, Some(table));
+        assert!(
+            html.contains("<div class=\"tdsl-table-wrap\">"),
+            "wrap_html with table_html=Some should include the table-wrap div element"
+        );
+        assert!(
+            html.contains("<table class=\"tdsl-table\">"),
+            "wrap_html with table_html=Some should include the table element"
+        );
+    }
+
+    #[test]
+    fn table_html_absent_when_none() {
+        let opts = RenderOptions::default();
+        let html = wrap_html("<svg></svg>", "test", &opts, None);
+        assert!(
+            !html.contains("<div class=\"tdsl-table-wrap\">"),
+            "wrap_html with table_html=None must not include the table-wrap div element"
+        );
+    }
+
+    #[test]
+    fn generate_table_html_basic() {
+        use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
+
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "テスト".into(),
+                unit: "year".into(),
+                range: (-300, 300),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "han".into(),
+                label: "漢".into(),
+                kind: "dynasty".into(),
+                order: 10,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![
+                Item::Span {
+                    id: "span:han".into(),
+                    lane: "han".into(),
+                    start: -206,
+                    end: 220,
+                    label: "漢王朝".into(),
+                    tags: vec!["dynasty".into()],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    end_month: None,
+                    end_day: None,
+                    source_span: None,
+                },
+                Item::Event {
+                    id: "event:1".into(),
+                    lane: "han".into(),
+                    time: 0,
+                    label: "紀元".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    time_month: None,
+                    time_day: None,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let table = generate_table_html(&ir, &ir.lanes);
+        assert!(
+            table.contains("<table class=\"tdsl-table\">"),
+            "table must have tdsl-table class"
+        );
+        assert!(table.contains("<thead>"), "table must have thead");
+        assert!(table.contains("<tbody>"), "table must have tbody");
+        assert!(table.contains("漢王朝"), "table must contain span label");
+        assert!(table.contains("紀元"), "table must contain event label");
+        assert!(table.contains("漢"), "table must contain lane label");
+        assert!(table.contains("dynasty"), "table must contain tags");
+    }
+
+    #[test]
+    fn generate_table_html_escapes_special_chars() {
+        use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
+
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "T".into(),
+                unit: "year".into(),
+                range: (0, 100),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "l".into(),
+                label: "Lane <A> & \"B\"".into(),
+                kind: "k".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::Event {
+                id: "e1".into(),
+                lane: "l".into(),
+                time: 50,
+                label: "<script>alert('xss')</script>".into(),
+                tags: vec!["<bad>".into()],
+                source: None,
+                origin: None,
+                time_month: None,
+                time_day: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let table = generate_table_html(&ir, &ir.lanes);
+        assert!(
+            !table.contains("<script>"),
+            "table must not contain raw <script> tag"
+        );
+        assert!(
+            table.contains("&lt;script&gt;"),
+            "label special chars must be escaped"
+        );
+        assert!(
+            !table.contains("<bad>"),
+            "tag special chars must be escaped"
+        );
+        assert!(
+            table.contains("Lane &lt;A&gt; &amp; &quot;B&quot;"),
+            "lane label special chars must be escaped"
+        );
+    }
+
+    #[test]
+    fn generate_table_html_sort_order() {
+        use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
+
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "T".into(),
+                unit: "year".into(),
+                range: (0, 500),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "l".into(),
+                label: "L".into(),
+                kind: "k".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![
+                Item::Event {
+                    id: "e3".into(),
+                    lane: "l".into(),
+                    time: 300,
+                    label: "C_event".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    time_month: None,
+                    time_day: None,
+                    source_span: None,
+                },
+                Item::Span {
+                    id: "s1".into(),
+                    lane: "l".into(),
+                    start: 100,
+                    end: 200,
+                    label: "A_span".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    end_month: None,
+                    end_day: None,
+                    source_span: None,
+                },
+                Item::EventRange {
+                    id: "er2".into(),
+                    lane: "l".into(),
+                    start: 200,
+                    end: 250,
+                    label: "B_event_range".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    end_month: None,
+                    end_day: None,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let table = generate_table_html(&ir, &ir.lanes);
+        let pos_a = table.find("A_span").expect("A_span must be in table");
+        let pos_b = table
+            .find("B_event_range")
+            .expect("B_event_range must be in table");
+        let pos_c = table.find("C_event").expect("C_event must be in table");
+        assert!(
+            pos_a < pos_b,
+            "A_span (year 100) must appear before B_event_range (year 200)"
+        );
+        assert!(
+            pos_b < pos_c,
+            "B_event_range (year 200) must appear before C_event (year 300)"
         );
     }
 }

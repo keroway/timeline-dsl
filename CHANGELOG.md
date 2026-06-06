@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`tdsl render --show-table` で HTML 出力に内容一覧表を追加**: `--show-table` フラグを追加し、HTML 出力時に年表 SVG の直下に時系列順の内容一覧表（時期・ラベル・レーン・タグ列）を挿入する。Span / EventRange は開始〜終了、Event は時点を整形表示。`--format html` のみ有効で、SVG / PNG / PDF では無視される (#402)
 - **`tdsl render --watch` でファイル変更時に自動再レンダリング**: `--watch` フラグを追加し、入力 `.tdsl` ファイルの変更を監視して自動的に再レンダリングする。`--output` が必須。`html` / `svg` フォーマットのみ対応（`png` / `pdf` は非対応）。Ctrl+C で終了する (#366)
 - **Wikidata qualifier でのマッピングを追加**: map ブロックで `claim(P39).qualifier(P580).year` 構文により Statement の qualifier プロパティにアクセスできるようになった。また `expand claim(P39);` ディレクティブを追加し、1 エンティティの複数 Statement（例: 複数の役職）から複数アイテムを生成できるようになった。qualifier が存在しない Statement はスキップされる（silent fallback しない）。既存の `claim(P).accessor` 構文との後方互換性を維持 (#361)
 - **`tdsl build --json-schema` で `TimelineIr` の JSON Schema を出力**: `schemars` クレートを `tdsl-core` に追加し、IR 型（`TimelineIr` / `Meta` / `Lane` / `Item` / `ImportRecord` / `SourceRecord` / `SourceSpan`）に `JsonSchema` を derive した。`tdsl build --json-schema` を実行すると入力ファイルなしで JSON Schema Draft 7 形式のスキーマを標準出力する。`--pretty` で整形出力、`--output` でファイルへの保存も可能。スキーマには Rust のドキュメントコメントが `description` フィールドとして反映される (#369)
