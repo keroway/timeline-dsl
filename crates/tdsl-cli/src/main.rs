@@ -228,6 +228,10 @@ enum Commands {
         /// Watch input file for changes and re-render automatically (html/svg only)
         #[arg(long, default_value_t = false)]
         watch: bool,
+
+        /// Append an item listing table after the SVG (HTML format only; ignored for svg/png/pdf)
+        #[arg(long, default_value_t = false)]
+        show_table: bool,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -578,6 +582,7 @@ fn main() {
             orientation,
             grid,
             watch,
+            show_table,
         } => commands::render::cmd_render(
             &input,
             output.as_deref(),
@@ -601,6 +606,7 @@ fn main() {
             grid,
             wikidata_timeout,
             watch,
+            show_table,
         ),
         Commands::Init {
             output,
