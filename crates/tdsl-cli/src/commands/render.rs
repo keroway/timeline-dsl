@@ -20,6 +20,85 @@ pub(crate) fn cmd_render(
     orientation: OrientationArg,
     grid: GridStyleArg,
     wikidata_timeout: std::time::Duration,
+    watch: bool,
+) -> Result<(), String> {
+    if watch {
+        let out_path = output.ok_or(
+            "--watch requires --output <file>; stdout is not supported in watch mode".to_string(),
+        )?;
+        match format {
+            RenderFormat::Png | RenderFormat::Pdf => {
+                return Err("--watch supports --format html or svg only (not png/pdf)".to_string());
+            }
+            _ => {}
+        }
+        if !offline {
+            eprintln!(
+                "Note: watch mode re-fetches Wikidata on every change. Consider --offline for faster iteration."
+            );
+        }
+        return cmd_render_watch(
+            input,
+            out_path,
+            format,
+            scale,
+            lane_height,
+            left_gutter,
+            top_margin,
+            theme,
+            custom_css_path,
+            interactive,
+            offline,
+            cache_opts,
+            color_map_raw,
+            orientation,
+            grid,
+            wikidata_timeout,
+        );
+    }
+
+    do_render(
+        input,
+        output,
+        format,
+        scale,
+        lane_height,
+        left_gutter,
+        top_margin,
+        theme,
+        custom_css_path,
+        dpi,
+        png_scale,
+        interactive,
+        offline,
+        cache_opts,
+        color_map_raw,
+        orientation,
+        grid,
+        wikidata_timeout,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn do_render(
+    input: &std::path::Path,
+    output: Option<&std::path::Path>,
+    format: RenderFormat,
+    scale: f64,
+    lane_height: f64,
+    left_gutter: f64,
+    top_margin: f64,
+    theme: ThemeArg,
+    custom_css_path: Option<&std::path::Path>,
+    dpi: Option<u32>,
+    png_scale: Option<f64>,
+    interactive: bool,
+    offline: bool,
+    cache_opts: tdsl_wikidata::CacheOptions,
+    color_map_raw: Option<&str>,
+    orientation: OrientationArg,
+    grid: GridStyleArg,
+    wikidata_timeout: std::time::Duration,
 ) -> Result<(), String> {
     let ir = super::build::load_ir(input, offline, cache_opts, wikidata_timeout)?;
 
@@ -79,6 +158,88 @@ pub(crate) fn cmd_render(
             write_render_binary(&bytes, output)
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cmd_render_watch(
+    input: &std::path::Path,
+    output: &std::path::Path,
+    format: RenderFormat,
+    scale: f64,
+    lane_height: f64,
+    left_gutter: f64,
+    top_margin: f64,
+    theme: ThemeArg,
+    custom_css_path: Option<&std::path::Path>,
+    interactive: bool,
+    offline: bool,
+    cache_opts: tdsl_wikidata::CacheOptions,
+    color_map_raw: Option<&str>,
+    orientation: OrientationArg,
+    grid: GridStyleArg,
+    wikidata_timeout: std::time::Duration,
+) -> Result<(), String> {
+    let render_once = |cache_opts: tdsl_wikidata::CacheOptions| {
+        do_render(
+            input,
+            Some(output),
+            format,
+            scale,
+            lane_height,
+            left_gutter,
+            top_margin,
+            theme,
+            custom_css_path,
+            None,
+            None,
+            interactive,
+            offline,
+            cache_opts,
+            color_map_raw,
+            orientation,
+            grid,
+            wikidata_timeout,
+        )
+    };
+
+    render_once(cache_opts.clone())?;
+    eprintln!(
+        "Watching {} for changes. Press Ctrl+C to stop.",
+        input.display()
+    );
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher = notify::recommended_watcher(move |res| {
+        // channel error means receiver is gone; ignore
+        let _ = tx.send(res);
+    })
+    .map_err(|e| format!("Failed to create file watcher: {e}"))?;
+
+    use notify::Watcher;
+    watcher
+        .watch(input, notify::RecursiveMode::NonRecursive)
+        .map_err(|e| format!("Failed to watch {}: {e}", input.display()))?;
+
+    for event_result in rx {
+        match event_result {
+            Ok(event) => {
+                use notify::EventKind;
+                match event.kind {
+                    EventKind::Modify(_) | EventKind::Create(_) => {
+                        eprintln!("Change detected, re-rendering...");
+                        match render_once(cache_opts.clone()) {
+                            Ok(()) => eprintln!("Updated {}", output.display()),
+                            Err(e) => eprintln!("Render error: {e}"),
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Err(e) => eprintln!("Watch error: {e}"),
+        }
+    }
+
+    Ok(())
 }
 
 fn parse_color_map(raw: &str) -> Result<std::collections::HashMap<String, String>, String> {
