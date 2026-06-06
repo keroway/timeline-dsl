@@ -88,6 +88,9 @@ open china.html
 # Interactive HTML (with zoom, pan, search, detail panel)
 tdsl render examples/china_dynasties.tdsl --interactive --output china.html
 
+# HTML with item listing table (time / label / lane / tags)
+tdsl render examples/china_dynasties.tdsl --show-table --output china.html
+
 # Output as SVG
 tdsl render examples/china_dynasties.tdsl --format svg --output china.svg
 
@@ -307,6 +310,7 @@ Key inputs:
 | `output` | `<basename>.<format>` | Output file path |
 | `offline` | `false` | Skip Wikidata fetching (recommended for CI) |
 | `interactive` | `false` | Interactive HTML output (when `format: html`) |
+| `show_table` | `false` | Append an item listing table after the SVG (when `format: html`) |
 | `theme` | — | Theme: `default` / `dark` / `print` / `pastel` |
 | `version` | `latest` | tdsl version to use (e.g. `v1.5.0`) |
 

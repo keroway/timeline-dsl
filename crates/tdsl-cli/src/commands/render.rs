@@ -21,6 +21,7 @@ pub(crate) fn cmd_render(
     grid: GridStyleArg,
     wikidata_timeout: std::time::Duration,
     watch: bool,
+    show_table: bool,
 ) -> Result<(), String> {
     if watch {
         let out_path = output.ok_or(
@@ -54,6 +55,7 @@ pub(crate) fn cmd_render(
             orientation,
             grid,
             wikidata_timeout,
+            show_table,
         );
     }
 
@@ -76,6 +78,7 @@ pub(crate) fn cmd_render(
         orientation,
         grid,
         wikidata_timeout,
+        show_table,
     )
 }
 
@@ -99,6 +102,7 @@ fn do_render(
     orientation: OrientationArg,
     grid: GridStyleArg,
     wikidata_timeout: std::time::Duration,
+    show_table: bool,
 ) -> Result<(), String> {
     let ir = super::build::load_ir(input, offline, cache_opts, wikidata_timeout)?;
 
@@ -118,6 +122,17 @@ fn do_render(
         }
     }
 
+    // --show-table only applies to HTML output; emit a notice for other formats.
+    let effective_show_table = match format {
+        RenderFormat::Html => show_table,
+        _ => {
+            if show_table {
+                eprintln!("Note: --show-table is only supported with --format html; ignoring.");
+            }
+            false
+        }
+    };
+
     let opts = tdsl_render::RenderOptions {
         scale,
         lane_height,
@@ -129,6 +144,7 @@ fn do_render(
         interactive,
         orientation: orientation.into_orientation(),
         grid: grid.into_grid_style(),
+        show_table: effective_show_table,
         ..Default::default()
     };
 
@@ -178,6 +194,7 @@ fn cmd_render_watch(
     orientation: OrientationArg,
     grid: GridStyleArg,
     wikidata_timeout: std::time::Duration,
+    show_table: bool,
 ) -> Result<(), String> {
     let render_once = |cache_opts: tdsl_wikidata::CacheOptions| {
         do_render(
@@ -199,6 +216,7 @@ fn cmd_render_watch(
             orientation,
             grid,
             wikidata_timeout,
+            show_table,
         )
     };
 
