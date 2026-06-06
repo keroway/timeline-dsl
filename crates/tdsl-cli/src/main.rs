@@ -224,6 +224,10 @@ enum Commands {
         /// Auxiliary grid lines: none (default), decade, year, or month
         #[arg(long, value_enum, default_value_t = GridStyleArg::None)]
         grid: GridStyleArg,
+
+        /// Watch input file for changes and re-render automatically (html/svg only)
+        #[arg(long, default_value_t = false)]
+        watch: bool,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -451,7 +455,7 @@ impl GridStyleArg {
     }
 }
 
-#[derive(ValueEnum, Clone, Default, Debug)]
+#[derive(ValueEnum, Clone, Copy, Default, Debug)]
 enum RenderFormat {
     #[default]
     Html,
@@ -573,6 +577,7 @@ fn main() {
             color_map,
             orientation,
             grid,
+            watch,
         } => commands::render::cmd_render(
             &input,
             output.as_deref(),
@@ -595,6 +600,7 @@ fn main() {
             orientation,
             grid,
             wikidata_timeout,
+            watch,
         ),
         Commands::Init {
             output,

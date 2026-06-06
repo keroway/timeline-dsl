@@ -85,3 +85,54 @@ fn build_without_file_and_without_json_schema_fails() {
 
     assert!(!out.status.success(), "tdsl build with no args should fail");
 }
+
+/// `tdsl render --help` output contains the `--watch` flag.
+#[test]
+fn render_help_includes_watch_flag() {
+    let out = tdsl_bin()
+        .args(["render", "--help"])
+        .output()
+        .expect("failed to run tdsl");
+
+    let stdout = String::from_utf8(out.stdout).expect("non-UTF-8 stdout");
+    assert!(
+        stdout.contains("--watch"),
+        "--watch should appear in render --help output"
+    );
+}
+
+/// `tdsl render --watch` without `--output` exits non-zero.
+#[test]
+fn render_watch_without_output_fails() {
+    let out = tdsl_bin()
+        .args(["render", "examples/china_dynasties.tdsl", "--watch"])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        !out.status.success(),
+        "--watch without --output should exit non-zero"
+    );
+}
+
+/// `tdsl render --watch --format png` exits non-zero (png not supported in watch mode).
+#[test]
+fn render_watch_png_format_fails() {
+    let out = tdsl_bin()
+        .args([
+            "render",
+            "examples/china_dynasties.tdsl",
+            "--watch",
+            "--output",
+            "/tmp/out.png",
+            "--format",
+            "png",
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        !out.status.success(),
+        "--watch --format png should exit non-zero"
+    );
+}
