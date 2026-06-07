@@ -27,7 +27,7 @@ pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
     // Use .tdsl-root text selector to scope styles and prevent CSS leakage when embedded inline.
     writeln!(
         s,
-        r#"  <style>.tdsl-root text {{ font-family: {font_family}; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }} .tdsl-axis-day-tick {{ stroke: #ddd; stroke-width: 1; }} .tdsl-axis-day-text {{ font-size: 9px; fill: #888; }}</style>"#
+        r#"  <style>.tdsl-root text {{ font-family: {font_family}; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }} .tdsl-axis-day-tick {{ stroke: #ddd; stroke-width: 1; }} .tdsl-axis-day-text {{ font-size: 9px; fill: #888; }} .tdsl-event-label {{ font-size: 10px; fill: #333; pointer-events: none; }}</style>"#
     )?;
 
     render_lane_bands(&mut s, layout)?;
@@ -405,19 +405,54 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 if layout.opts.interactive {
                     data_attrs.push_str(&build_interactive_attrs(item));
                 }
-                writeln!(
-                    s,
-                    r#"  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
-                    aria_label = aria_label,
-                    tip = tip,
-                    tip_attr = tip_attr,
-                    fill_style = fill_style,
-                    data_attrs = data_attrs,
-                    x = fmt_f(*x),
-                    y = fmt_f(*y),
-                    w = fmt_f(*width),
-                    h = fmt_f(*height),
-                )?;
+                if layout.opts.show_event_labels {
+                    // EventRange with always-on label: include text inside the <g>.
+                    // For horizontal layout: label at (x+4, y+height/2) — same pattern as Span.
+                    // For vertical layout: label below the bar (y+height+4, x center).
+                    let label_fragment = if layout.is_vertical() {
+                        format!(
+                            r#"<text class="tdsl-event-label" x="{lx}" y="{ly}" text-anchor="middle">{label}</text>"#,
+                            lx = fmt_f(*x + *width / 2.0),
+                            ly = fmt_f(*y + *height + 12.0),
+                            label = escape_xml(item_label(item)),
+                        )
+                    } else {
+                        format!(
+                            r#"<text class="tdsl-event-label" x="{lx}" y="{ly}" dominant-baseline="middle">{label}</text>"#,
+                            lx = fmt_f(*x + 4.0),
+                            ly = fmt_f(*y + *height / 2.0),
+                            label = escape_xml(item_label(item)),
+                        )
+                    };
+                    writeln!(
+                        s,
+                        r#"  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect>{label_fragment}</g>"#,
+                        aria_label = aria_label,
+                        tip = tip,
+                        tip_attr = tip_attr,
+                        fill_style = fill_style,
+                        data_attrs = data_attrs,
+                        x = fmt_f(*x),
+                        y = fmt_f(*y),
+                        w = fmt_f(*width),
+                        h = fmt_f(*height),
+                        label_fragment = label_fragment,
+                    )?;
+                } else {
+                    writeln!(
+                        s,
+                        r#"  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
+                        aria_label = aria_label,
+                        tip = tip,
+                        tip_attr = tip_attr,
+                        fill_style = fill_style,
+                        data_attrs = data_attrs,
+                        x = fmt_f(*x),
+                        y = fmt_f(*y),
+                        w = fmt_f(*width),
+                        h = fmt_f(*height),
+                    )?;
+                }
             }
             LaidItem::Event {
                 item,
@@ -475,6 +510,16 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                         cy = fmt_f(*x),
                         dot_x = fmt_f(*y_dot),
                     )?;
+                    if layout.opts.show_event_labels {
+                        // Vertical: label to the right of the dot (dot_x + 6, same Y as dot center).
+                        writeln!(
+                            s,
+                            r#"  <text class="tdsl-event-label" x="{lx}" y="{ly}" dominant-baseline="middle" text-anchor="start">{label}</text>"#,
+                            lx = fmt_f(*y_dot + 6.0),
+                            ly = fmt_f(*x),
+                            label = escape_xml(item_label(item)),
+                        )?;
+                    }
                 } else {
                     let hit_x = *x - 8.0;
                     let hit_w = 16.0;
@@ -497,6 +542,16 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                         y2 = fmt_f(*y_bottom),
                         cy = fmt_f(*y_dot),
                     )?;
+                    if layout.opts.show_event_labels {
+                        // Horizontal: label above the dot, centered horizontally.
+                        writeln!(
+                            s,
+                            r#"  <text class="tdsl-event-label" x="{lx}" y="{ly}" text-anchor="middle">{label}</text>"#,
+                            lx = fmt_f(*x),
+                            ly = fmt_f(*y_top - 4.0),
+                            label = escape_xml(item_label(item)),
+                        )?;
+                    }
                 }
             }
         }
@@ -1072,6 +1127,119 @@ mod tests {
         assert!(
             grid_pos < axis_pos,
             "grid lines must appear before axis ticks in SVG output (z-order)"
+        );
+    }
+
+    // ─── show_event_labels テスト ─────────────────────────────────────────────
+
+    #[test]
+    fn show_event_labels_false_produces_no_event_label_elements() {
+        // Default (show_event_labels=false): no <text class="tdsl-event-label"> elements in output.
+        // Note: the CSS class name appears once in the embedded <style> block, but no <text> elements
+        // with that class should be emitted.
+        let ir = sample_ir();
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            !svg.contains(r#"class="tdsl-event-label""#),
+            "show_event_labels=false must not produce any <text class=\"tdsl-event-label\"> elements, got:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn show_event_labels_true_produces_event_label_for_event_item() {
+        // show_event_labels=true: event items get a <text class="tdsl-event-label"> element.
+        let ir = sample_ir(); // contains an Event item "陳勝・呉広の乱"
+        let opts = RenderOptions {
+            show_event_labels: true,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains(r#"class="tdsl-event-label""#),
+            "show_event_labels=true must produce <text class=\"tdsl-event-label\"> elements, got:\n{svg}"
+        );
+        // Label text for the event must appear.
+        assert!(
+            svg.contains("陳勝・呉広の乱"),
+            "event label text must appear in SVG when show_event_labels=true"
+        );
+    }
+
+    #[test]
+    fn show_event_labels_true_produces_event_label_for_event_range() {
+        // show_event_labels=true: EventRange items also get a tdsl-event-label element.
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "test".into(),
+                unit: "year".into(),
+                range: (0, 500),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "war".into(),
+                label: "戦争".into(),
+                kind: "custom".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::EventRange {
+                id: "er1".into(),
+                lane: "war".into(),
+                start: 100,
+                end: 200,
+                label: "大乱ラベル".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                end_month: None,
+                end_day: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            show_event_labels: true,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains(r#"class="tdsl-event-label""#),
+            "show_event_labels=true must produce <text class=\"tdsl-event-label\"> for EventRange, got:\n{svg}"
+        );
+        assert!(
+            svg.contains("大乱ラベル"),
+            "event_range label text must appear in SVG when show_event_labels=true"
+        );
+    }
+
+    #[test]
+    fn show_event_labels_vertical_layout_renders_labels() {
+        // Vertical layout: event labels are rendered to the right of the dot.
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            show_event_labels: true,
+            orientation: Orientation::Vertical,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains(r#"class="tdsl-event-label""#),
+            "show_event_labels=true (vertical) must produce tdsl-event-label elements"
+        );
+        // Vertical event label should use text-anchor="start".
+        assert!(
+            svg.contains(r#"class="tdsl-event-label" x="#),
+            "vertical event label must include x attribute"
         );
     }
 }

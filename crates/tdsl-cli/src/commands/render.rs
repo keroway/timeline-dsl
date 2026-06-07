@@ -22,6 +22,7 @@ pub(crate) fn cmd_render(
     wikidata_timeout: std::time::Duration,
     watch: bool,
     show_table: bool,
+    show_event_labels: bool,
 ) -> Result<(), String> {
     if watch {
         let out_path = output.ok_or(
@@ -56,6 +57,7 @@ pub(crate) fn cmd_render(
             grid,
             wikidata_timeout,
             show_table,
+            show_event_labels,
         );
     }
 
@@ -79,6 +81,7 @@ pub(crate) fn cmd_render(
         grid,
         wikidata_timeout,
         show_table,
+        show_event_labels,
     )
 }
 
@@ -103,6 +106,7 @@ fn do_render(
     grid: GridStyleArg,
     wikidata_timeout: std::time::Duration,
     show_table: bool,
+    show_event_labels: bool,
 ) -> Result<(), String> {
     let ir = super::build::load_ir(input, offline, cache_opts, wikidata_timeout)?;
 
@@ -145,6 +149,7 @@ fn do_render(
         orientation: orientation.into_orientation(),
         grid: grid.into_grid_style(),
         show_table: effective_show_table,
+        show_event_labels,
         ..Default::default()
     };
 
@@ -195,6 +200,7 @@ fn cmd_render_watch(
     grid: GridStyleArg,
     wikidata_timeout: std::time::Duration,
     show_table: bool,
+    show_event_labels: bool,
 ) -> Result<(), String> {
     let render_once = |cache_opts: tdsl_wikidata::CacheOptions| {
         do_render(
@@ -217,6 +223,7 @@ fn cmd_render_watch(
             grid,
             wikidata_timeout,
             show_table,
+            show_event_labels,
         )
     };
 
