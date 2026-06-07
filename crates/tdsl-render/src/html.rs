@@ -123,6 +123,12 @@ h1 {
   pointer-events: none;
   font-weight: 500;
 }
+.tdsl-event-label {
+  font-size: 10px;
+  fill: #333;
+  pointer-events: none;
+  user-select: none;
+}
 .tdsl-item:focus-visible .tdsl-span,
 .tdsl-item:focus-visible .tdsl-event-range,
 .tdsl-item:focus-visible .tdsl-event-dot {

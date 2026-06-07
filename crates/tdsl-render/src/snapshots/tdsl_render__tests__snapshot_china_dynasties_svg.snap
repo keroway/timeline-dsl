@@ -3,7 +3,7 @@ source: crates/tdsl-render/src/lib.rs
 expression: svg
 ---
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 5140 240" width="5140" height="240" role="img" aria-label="timeline" class="tdsl-root">
-  <style>.tdsl-root text { font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; } .tdsl-axis-text { font-size: 11px; } .tdsl-axis-month-tick { stroke: #ccc; stroke-width: 1; } .tdsl-axis-day-tick { stroke: #ddd; stroke-width: 1; } .tdsl-axis-day-text { font-size: 9px; fill: #888; }</style>
+  <style>.tdsl-root text { font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; } .tdsl-axis-text { font-size: 11px; } .tdsl-axis-month-tick { stroke: #ccc; stroke-width: 1; } .tdsl-axis-day-tick { stroke: #ddd; stroke-width: 1; } .tdsl-axis-day-text { font-size: 9px; fill: #888; } .tdsl-event-label { font-size: 10px; fill: #333; pointer-events: none; }</style>
   <rect class="tdsl-lane-band-even" role="presentation" aria-hidden="true" x="120" y="40" width="5000" height="60"/>
   <rect class="tdsl-lane-band-odd" role="presentation" aria-hidden="true" x="120" y="100" width="5000" height="60"/>
   <rect class="tdsl-lane-band-even" role="presentation" aria-hidden="true" x="120" y="160" width="5000" height="60"/>

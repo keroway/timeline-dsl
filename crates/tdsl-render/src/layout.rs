@@ -89,6 +89,9 @@ pub struct RenderOptions {
     /// When true, an HTML table listing all items is appended after the SVG in HTML output.
     /// Has no effect for SVG, PNG, or PDF output formats.
     pub show_table: bool,
+    /// When true, labels (and optionally dates) are always rendered next to Event and EventRange
+    /// dots/bars as SVG text elements.  Disabled by default to keep the chart uncluttered.
+    pub show_event_labels: bool,
 }
 
 impl Default for RenderOptions {
@@ -108,6 +111,7 @@ impl Default for RenderOptions {
             orientation: Orientation::Horizontal,
             grid: GridStyle::None,
             show_table: false,
+            show_event_labels: false,
         }
     }
 }
