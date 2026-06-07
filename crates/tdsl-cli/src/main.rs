@@ -236,6 +236,22 @@ enum Commands {
         /// Always render labels next to event dots and event-range bars as SVG text
         #[arg(long, default_value_t = false)]
         show_event_labels: bool,
+
+        /// PDF page size: a4 (default), a3, letter. Only applied with --format pdf.
+        #[arg(long, value_enum, default_value_t = PdfPageSizeArg::A4)]
+        pdf_size: PdfPageSizeArg,
+
+        /// Use landscape (rotated) orientation for PDF output. Only applied with --format pdf.
+        #[arg(long, default_value_t = false)]
+        pdf_landscape: bool,
+
+        /// PDF page margin in millimetres. Only applied with --format pdf.
+        #[arg(long, default_value_t = 10.0)]
+        pdf_margin: f64,
+
+        /// Override the PDF document Title metadata (defaults to the timeline title). Only applied with --format pdf.
+        #[arg(long)]
+        pdf_title: Option<String>,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -472,6 +488,24 @@ enum RenderFormat {
     Pdf,
 }
 
+#[derive(ValueEnum, Clone, Copy, Default, Debug)]
+enum PdfPageSizeArg {
+    #[default]
+    A4,
+    A3,
+    Letter,
+}
+
+impl PdfPageSizeArg {
+    fn into_page_size(self) -> tdsl_render::PdfPageSize {
+        match self {
+            PdfPageSizeArg::A4 => tdsl_render::PdfPageSize::A4,
+            PdfPageSizeArg::A3 => tdsl_render::PdfPageSize::A3,
+            PdfPageSizeArg::Letter => tdsl_render::PdfPageSize::Letter,
+        }
+    }
+}
+
 impl ThemeArg {
     fn into_theme(self) -> tdsl_render::layout::Theme {
         match self {
@@ -588,6 +622,10 @@ fn main() {
             watch,
             show_table,
             show_event_labels,
+            pdf_size,
+            pdf_landscape,
+            pdf_margin,
+            pdf_title,
         } => commands::render::cmd_render(
             &input,
             output.as_deref(),
@@ -613,6 +651,12 @@ fn main() {
             watch,
             show_table,
             show_event_labels,
+            commands::render::PdfCliOptions {
+                size: pdf_size.into_page_size(),
+                landscape: pdf_landscape,
+                margin_mm: pdf_margin,
+                title: pdf_title,
+            },
         ),
         Commands::Init {
             output,

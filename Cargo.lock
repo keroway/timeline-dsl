@@ -2778,6 +2778,7 @@ version = "1.16.0"
 dependencies = [
  "criterion",
  "insta",
+ "pdf-writer",
  "resvg 0.47.0",
  "svg2pdf",
  "tdsl-core",
