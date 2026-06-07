@@ -105,11 +105,11 @@ SVG → PDF 変換に [`svg2pdf`](https://crates.io/crates/svg2pdf)（typst プ�
 - **追加フィールド**:
   - `page_size: PdfPageSize`（A4 / A3 / Letter、portrait pt 値を内部保持）
   - `landscape: bool`（横向き時に w/h を swap）
-  - `margin_mm: f64`（mm → pt 変換後に content area を計算、過大マージンは 1pt にクランプ）
+  - `margin_mm: f64`（mm → pt 変換後に content area を計算）。負値・非有限（NaN/Inf）、および印刷可能領域が残らない過大値（`2 × margin ≥ 用紙短辺`）は `PdfError::InvalidMargin` で明示的に拒否する。空白・破損 PDF を黙って生成するクランプ方式は採らない（本 ADR のコンテキスト「Explicit error over silent fallback」に従う）。
   - `title: Option<String>`（None のとき `render_pdf` が `ir.meta.title` で補完）
   - `creation_date: Option<PdfDate>`（呼び出し側が供給し決定性を保つ。CLI は `SystemTime::now()` で算出、テストは任意値）
 - **CLI フラグ**: `--pdf-size` / `--pdf-landscape` / `--pdf-margin` / `--pdf-title` を `tdsl render` に追加。
-- **テスト**: `pdf::tests` に 7 テストを追加（各用紙サイズ・landscape・大マージン・メタデータ・title 補完）。
+- **テスト**: `pdf::tests` に各用紙サイズ・landscape・メタデータ・title 補完・マージン検証（過大／負値／非有限はエラー、有効な大マージンは描画）のテストを追加。
 
 ## 補遺: WebUI の PDF 出力（2026-06-03, #364）
 
