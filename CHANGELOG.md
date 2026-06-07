@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-06-07
+
 ### Added
 
 - **`tdsl render --show-table` で HTML 出力に内容一覧表を追加**: `--show-table` フラグを追加し、HTML 出力時に年表 SVG の直下に時系列順の内容一覧表（時期・ラベル・レーン・タグ列）を挿入する。Span / EventRange は開始〜終了、Event は時点を整形表示。`--format html` のみ有効で、SVG / PNG / PDF では無視される (#402)
@@ -338,6 +340,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.16.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.12.0...v1.13.0
