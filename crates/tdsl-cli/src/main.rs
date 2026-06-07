@@ -232,6 +232,10 @@ enum Commands {
         /// Append an item listing table after the SVG (HTML format only; ignored for svg/png/pdf)
         #[arg(long, default_value_t = false)]
         show_table: bool,
+
+        /// Always render labels next to event dots and event-range bars as SVG text
+        #[arg(long, default_value_t = false)]
+        show_event_labels: bool,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -583,6 +587,7 @@ fn main() {
             grid,
             watch,
             show_table,
+            show_event_labels,
         } => commands::render::cmd_render(
             &input,
             output.as_deref(),
@@ -607,6 +612,7 @@ fn main() {
             wikidata_timeout,
             watch,
             show_table,
+            show_event_labels,
         ),
         Commands::Init {
             output,
