@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **PDF 出力に用紙サイズ・マージン・メタデータを追加**: `tdsl render --format pdf` に `--pdf-size`（`a4` / `a3` / `letter`）、`--pdf-landscape`（横向き）、`--pdf-margin`（mm）、`--pdf-title`（Title メタデータ上書き）フラグを追加。`svg2pdf::to_chunk` + `pdf-writer` で PDF を自前合成することで MediaBox・CreationDate・Title を記録する。未指定時は年表タイトルを Title に補完し、生成日を自動設定する (#368)
+
 ## [1.16.0] - 2026-06-07
 
 ### Added

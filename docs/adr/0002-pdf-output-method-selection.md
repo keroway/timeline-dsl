@@ -97,6 +97,20 @@ SVG → PDF 変換に [`svg2pdf`](https://crates.io/crates/svg2pdf)（typst プ�
 - ラスタ埋め込み方式（フォールバック）への切り替え基準。`svg2pdf` で品質問題が顕在化した場合に再評価する。
 - PDF/A など印刷・長期保存規格への準拠。現時点で要求がないため対象外。
 
+## 補遺: PdfOptions 拡張（2026-06-07, #368）
+
+本 ADR の「未決定事項」に挙げた `PdfOptions` の拡張が #368 で実装された。
+
+- **実装方式**: `svg2pdf::to_chunk` + `pdf-writer` によるページ自前合成に切り替え。`svg2pdf::to_pdf`（`PageOptions.dpi` のみ、メタデータ・ページサイズ未対応）では要件を満たせないため。
+- **追加フィールド**:
+  - `page_size: PdfPageSize`（A4 / A3 / Letter、portrait pt 値を内部保持）
+  - `landscape: bool`（横向き時に w/h を swap）
+  - `margin_mm: f64`（mm → pt 変換後に content area を計算、過大マージンは 1pt にクランプ）
+  - `title: Option<String>`（None のとき `render_pdf` が `ir.meta.title` で補完）
+  - `creation_date: Option<PdfDate>`（呼び出し側が供給し決定性を保つ。CLI は `SystemTime::now()` で算出、テストは任意値）
+- **CLI フラグ**: `--pdf-size` / `--pdf-landscape` / `--pdf-margin` / `--pdf-title` を `tdsl render` に追加。
+- **テスト**: `pdf::tests` に 7 テストを追加（各用紙サイズ・landscape・大マージン・メタデータ・title 補完）。
+
 ## 補遺: WebUI の PDF 出力（2026-06-03, #364）
 
 本 ADR の D2 は「ブラウザでの PDF 生成は需要が薄く、バンドルを slim に保つ」として WASM に `pdf` feature を取り込まない決定をした。その後 #364（WebUI のエクスポート統合）で WebUI からの PDF 出力需要が顕在化したため、方式を改めて検討した。
