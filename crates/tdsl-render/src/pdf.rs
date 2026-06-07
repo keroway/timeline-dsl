@@ -31,6 +31,8 @@ pub enum PdfError {
     Parse(#[from] svg2pdf::usvg::Error),
     #[error("failed to convert SVG to PDF: {0}")]
     Convert(String),
+    #[error("invalid PDF margin: {0}")]
+    InvalidMargin(String),
 }
 
 /// Standard page sizes for PDF output.
@@ -52,6 +54,15 @@ impl PdfPageSize {
             PdfPageSize::A4 => (595.276, 841.890),  // 210×297 mm
             PdfPageSize::A3 => (841.890, 1190.551), // 297×420 mm
             PdfPageSize::Letter => (612.0, 792.0),  // 8.5×11 in
+        }
+    }
+
+    /// Human-readable page size name for diagnostics.
+    fn name(self) -> &'static str {
+        match self {
+            PdfPageSize::A4 => "A4",
+            PdfPageSize::A3 => "A3",
+            PdfPageSize::Letter => "Letter",
         }
     }
 }
@@ -150,11 +161,35 @@ pub fn svg_to_pdf(svg_str: &str, pdf_opts: PdfOptions) -> Result<Vec<u8>, PdfErr
     }
 
     // ── 2. Compute content area after margins ──────────────────────────────
+    // Reject margins that are not a sensible physical length. A negative or
+    // non-finite margin would push the drawing off the page (malformed PDF), so
+    // fail explicitly rather than silently producing broken output.
+    if !pdf_opts.margin_mm.is_finite() || pdf_opts.margin_mm < 0.0 {
+        return Err(PdfError::InvalidMargin(format!(
+            "margin must be a non-negative, finite number of millimetres, got {}",
+            pdf_opts.margin_mm
+        )));
+    }
     // 1 inch = 72pt; 1 mm = 72/25.4 pt ≈ 2.8346 pt
     let margin = (pdf_opts.margin_mm * 72.0 / 25.4) as f32;
-    // Guard against over-large margins producing a negative or zero content area.
-    let content_w = (pw - 2.0 * margin).max(1.0);
-    let content_h = (ph - 2.0 * margin).max(1.0);
+    // A margin that consumes the whole page leaves no printable area, producing
+    // a blank PDF. Require a positive content area on both axes and fail loudly
+    // otherwise (the smaller page dimension is the binding constraint).
+    if 2.0 * margin >= pw.min(ph) {
+        let orientation = if pdf_opts.landscape {
+            "landscape"
+        } else {
+            "portrait"
+        };
+        return Err(PdfError::InvalidMargin(format!(
+            "margin {} mm is too large for the {} {} page; it leaves no printable area",
+            pdf_opts.margin_mm,
+            pdf_opts.page_size.name(),
+            orientation,
+        )));
+    }
+    let content_w = pw - 2.0 * margin;
+    let content_h = ph - 2.0 * margin;
 
     // ── 3. Scale SVG to fit, preserving aspect ratio ───────────────────────
     let svg_size = tree.size();
@@ -425,18 +460,56 @@ mod tests {
         );
     }
 
+    const TINY_SVG: &str =
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>"#;
+
     #[test]
-    fn pdf_large_margin_does_not_panic() {
-        // Even if margin is huge, the content area is clamped to at least 1pt.
+    fn pdf_oversized_margin_returns_error() {
+        // A margin larger than half the page leaves no printable area; this must
+        // fail explicitly rather than emit a blank PDF.
         let opts = PdfOptions {
             margin_mm: 500.0,
             ..PdfOptions::default()
         };
-        let bytes = svg_to_pdf(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>"#,
-            opts,
-        )
-        .expect("over-large margin must not panic");
+        let err = svg_to_pdf(TINY_SVG, opts).expect_err("over-large margin must error");
+        assert!(
+            matches!(err, PdfError::InvalidMargin(_)),
+            "expected PdfError::InvalidMargin, got: {err}"
+        );
+    }
+
+    #[test]
+    fn pdf_negative_margin_returns_error() {
+        let opts = PdfOptions {
+            margin_mm: -5.0,
+            ..PdfOptions::default()
+        };
+        let err = svg_to_pdf(TINY_SVG, opts).expect_err("negative margin must error");
+        assert!(
+            matches!(err, PdfError::InvalidMargin(_)),
+            "expected PdfError::InvalidMargin, got: {err}"
+        );
+    }
+
+    #[test]
+    fn pdf_non_finite_margin_returns_error() {
+        let opts = PdfOptions {
+            margin_mm: f64::NAN,
+            ..PdfOptions::default()
+        };
+        let err = svg_to_pdf(TINY_SVG, opts).expect_err("NaN margin must error");
+        assert!(matches!(err, PdfError::InvalidMargin(_)));
+    }
+
+    #[test]
+    fn pdf_large_but_valid_margin_still_renders() {
+        // 90 mm on each side still leaves a positive content area on A4
+        // (210 mm wide) and must render successfully.
+        let opts = PdfOptions {
+            margin_mm: 90.0,
+            ..PdfOptions::default()
+        };
+        let bytes = svg_to_pdf(TINY_SVG, opts).expect("valid large margin renders");
         assert!(bytes.starts_with(PDF_SIGNATURE));
     }
 
