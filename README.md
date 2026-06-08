@@ -100,6 +100,9 @@ tdsl render examples/china_dynasties.tdsl --format png --output china.png
 # Output as vector PDF (via svg2pdf)
 tdsl render examples/china_dynasties.tdsl --format pdf --output china.pdf
 
+# Output as A3 landscape PDF with 15 mm margins
+tdsl render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-landscape --pdf-margin 15 --output china_a3.pdf
+
 # Compile with Wikidata integration
 tdsl build examples/china_with_import.tdsl --pretty
 

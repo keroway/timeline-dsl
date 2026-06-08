@@ -15,7 +15,7 @@ pub mod svg;
 
 pub use layout::{GridStyle, LayoutModel, Orientation, RenderOptions, Theme};
 #[cfg(feature = "pdf")]
-pub use pdf::{PdfError, PdfOptions, render_pdf, svg_to_pdf};
+pub use pdf::{PdfDate, PdfError, PdfOptions, PdfPageSize, render_pdf, svg_to_pdf};
 #[cfg(feature = "png")]
 pub use png::{PngError, PngOptions, render_png, svg_to_png};
 

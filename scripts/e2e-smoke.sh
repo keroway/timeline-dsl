@@ -107,6 +107,12 @@ test -s "$TMP_DIR/china.pdf"
 head -c 5 "$TMP_DIR/china.pdf" | grep -Fq '%PDF-' \
   || { echo "FAIL: PDF signature %%PDF- not found in $TMP_DIR/china.pdf"; exit 1; }
 
+echo "[e2e] render: --format pdf --pdf-size a3 --pdf-landscape --pdf-margin 15 outputs a valid PDF"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-landscape --pdf-margin 15 --output "$TMP_DIR/china_a3_landscape.pdf"
+test -s "$TMP_DIR/china_a3_landscape.pdf"
+head -c 5 "$TMP_DIR/china_a3_landscape.pdf" | grep -Fq '%PDF-' \
+  || { echo "FAIL: PDF signature %%PDF- not found in $TMP_DIR/china_a3_landscape.pdf"; exit 1; }
+
 # ---- tdsl init -> import-csv -> lint -> build -> render (full manual flow) --
 echo "[e2e] manual flow: init -> import-csv -> lint --fix -> check -> build -> render"
 cargo run -q -p tdsl-cli -- init \

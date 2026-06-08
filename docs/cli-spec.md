@@ -401,6 +401,10 @@ tdsl render [OPTIONS] <FILE>
 | `--watch` | 入力ファイルの変更を監視し、変更検出のたびに自動再レンダリングする。`--output` が必須。`html` / `svg` のみ対応（`png` / `pdf` は非対応） | — |
 | `--show-table` | HTML 出力に内容一覧の表を追加する（時期・ラベル・レーン・タグ列、時系列順）。`--format html` のみ有効。SVG / PNG / PDF では無視される | — |
 | `--show-event-labels` | イベント（`event` / `event_range`）のドット・バー近傍にラベルテキストを常時描画する。デフォルト無効（ホバー時のツールチップのみ） | — |
+| `--pdf-size <SIZE>` | PDF 用紙サイズ（`a4` / `a3` / `letter`）。`--format pdf` のみ有効 | `a4` |
+| `--pdf-landscape` | PDF を横向き（landscape）で出力する。`--format pdf` のみ有効 | — |
+| `--pdf-margin <MM>` | PDF の用紙マージン（mm）。`--format pdf` のみ有効 | `10` |
+| `--pdf-title <TITLE>` | PDF ドキュメントの Title メタデータを上書きする（未指定時は年表タイトルを使用）。`--format pdf` のみ有効 | — |
 
 ### 実行例
 
@@ -422,6 +426,12 @@ tdsl render examples/china_dynasties.tdsl --format png --png-scale 2.0 --output 
 
 # ベクター PDF として出力（svg2pdf 経由）
 tdsl render examples/china_dynasties.tdsl --format pdf --output china.pdf
+
+# A3 横向き・マージン 15mm で PDF を出力
+tdsl render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-landscape --pdf-margin 15 --output china_a3.pdf
+
+# PDF タイトルメタデータを明示指定
+tdsl render examples/china_dynasties.tdsl --format pdf --pdf-title "中国王朝年表" --output china.pdf
 
 # インタラクティブモードで HTML を生成
 tdsl render examples/china_dynasties.tdsl --interactive --output china_interactive.html
