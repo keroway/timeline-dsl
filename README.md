@@ -435,6 +435,42 @@ One-time setup on npmjs.com (per package):
 
 To manually re-publish (e.g., if CI failed): go to **Actions → Release → Run workflow** and enter the version number.
 
+## Rust Library (crates.io)
+
+The core crates are published on [crates.io](https://crates.io) and can be used as Rust library dependencies:
+
+| Crate | Description |
+|-------|-------------|
+| [`tdsl-parser`](https://crates.io/crates/tdsl-parser) | PEG parser — produces an AST from `.tdsl` source |
+| [`tdsl-wikidata`](https://crates.io/crates/tdsl-wikidata) | Wikidata API client used by the compiler |
+| [`tdsl-core`](https://crates.io/crates/tdsl-core) | IR types, 4-pass lowering, and validation |
+| [`tdsl-render`](https://crates.io/crates/tdsl-render) | SVG / HTML / PDF rendering from IR |
+
+Add them to your `Cargo.toml`:
+
+```toml
+[dependencies]
+tdsl-parser = "1"
+tdsl-core = "1"
+tdsl-render = "1"
+```
+
+Basic usage example (parse and lower a `.tdsl` file to IR):
+
+```rust
+use tdsl_parser::parse_file;
+use tdsl_core::lower_static;
+
+let source = r#"
+    timeline "My Timeline" { unit: year; range: 1900..2000; }
+    lane Milestones "Milestones"
+    event Milestone1 at 1950 in Milestones label "Halfway"
+"#;
+let ast = parse_file(source).unwrap();
+let ir = lower_static(ast).unwrap();
+println!("{}", serde_json::to_string_pretty(&ir).unwrap());
+```
+
 ## Documentation
 
 - [Getting Started Tutorial](docs/tutorial.en.md) — Step-by-step hands-on guide

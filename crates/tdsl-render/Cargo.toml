@@ -3,6 +3,10 @@ name = "tdsl-render"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "SVG, HTML, and PDF rendering for Timeline DSL IR"
+repository.workspace = true
+keywords = ["timeline", "dsl", "rendering", "svg"]
+categories = ["rendering", "visualization"]
 
 [features]
 default = []
@@ -15,7 +19,7 @@ png = ["dep:resvg", "dep:thiserror"]
 pdf = ["dep:svg2pdf", "dep:pdf-writer", "dep:thiserror"]
 
 [dependencies]
-tdsl-core = { path = "../tdsl-core", default-features = false }
+tdsl-core = { path = "../tdsl-core", default-features = false, version = "1.16.0" }
 resvg = { version = "0.47", optional = true }
 svg2pdf = { version = "0.13", optional = true }
 pdf-writer = { version = "0.12", optional = true }
@@ -24,8 +28,8 @@ thiserror = { workspace = true, optional = true }
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
 insta = { version = "1", features = ["yaml"] }
-tdsl-parser = { path = "../tdsl-parser" }
-tdsl-core = { path = "../tdsl-core", default-features = false }
+tdsl-parser = { path = "../tdsl-parser", version = "1.16.0" }
+tdsl-core = { path = "../tdsl-core", default-features = false, version = "1.16.0" }
 
 [[bench]]
 name = "render_bench"
