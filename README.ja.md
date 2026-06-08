@@ -435,6 +435,42 @@ npmjs.com 側の初回設定（パッケージごとに 1 回）：
 
 手動再 publish が必要な場合（CI 失敗時など）は **Actions → Release → Run workflow** からバージョン番号を入力して実行します。
 
+## Rust ライブラリ（crates.io）
+
+コアクレートは [crates.io](https://crates.io) に公開されており、Rust ライブラリとして依存できます：
+
+| クレート | 説明 |
+|---------|------|
+| [`tdsl-parser`](https://crates.io/crates/tdsl-parser) | PEG パーサ — `.tdsl` ソースから AST を生成 |
+| [`tdsl-wikidata`](https://crates.io/crates/tdsl-wikidata) | コンパイラが使う Wikidata API クライアント |
+| [`tdsl-core`](https://crates.io/crates/tdsl-core) | IR 型・4パス lowering・バリデーション |
+| [`tdsl-render`](https://crates.io/crates/tdsl-render) | IR から SVG / HTML / PDF を生成 |
+
+`Cargo.toml` に追加するには：
+
+```toml
+[dependencies]
+tdsl-parser = "1"
+tdsl-core = "1"
+tdsl-render = "1"
+```
+
+基本的な使用例（`.tdsl` をパースして IR に変換）：
+
+```rust
+use tdsl_parser::parse_file;
+use tdsl_core::lower_static;
+
+let source = r#"
+    timeline "My Timeline" { unit: year; range: 1900..2000; }
+    lane Milestones "Milestones"
+    event Milestone1 at 1950 in Milestones label "Halfway"
+"#;
+let ast = parse_file(source).unwrap();
+let ir = lower_static(ast).unwrap();
+println!("{}", serde_json::to_string_pretty(&ir).unwrap());
+```
+
 ## ドキュメント
 
 - [Getting Started チュートリアル](docs/tutorial.md) — ステップバイステップのハンズオン

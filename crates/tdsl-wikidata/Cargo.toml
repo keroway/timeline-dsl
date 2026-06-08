@@ -3,6 +3,10 @@ name = "tdsl-wikidata"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Wikidata API client for the Timeline DSL toolchain"
+repository.workspace = true
+keywords = ["wikidata", "timeline", "dsl", "api-client"]
+categories = ["api-bindings", "web-programming::http-client"]
 
 [dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

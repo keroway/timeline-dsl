@@ -3,6 +3,10 @@ name = "tdsl-parser"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "PEG parser for the Timeline DSL (.tdsl) format"
+repository.workspace = true
+keywords = ["timeline", "dsl", "parser", "pest"]
+categories = ["parsing", "text-processing"]
 
 [dependencies]
 pest = "2"

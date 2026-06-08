@@ -460,8 +460,7 @@ mod tests {
         );
     }
 
-    const TINY_SVG: &str =
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>"#;
+    const TINY_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>"#;
 
     #[test]
     fn pdf_oversized_margin_returns_error() {
