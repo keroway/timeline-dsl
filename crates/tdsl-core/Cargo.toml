@@ -3,14 +3,18 @@ name = "tdsl-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Core IR and lowering logic for the Timeline DSL compiler"
+repository.workspace = true
+keywords = ["timeline", "dsl", "compiler", "ir"]
+categories = ["compilers"]
 
 [features]
 default = ["wikidata"]
 wikidata = ["dep:tdsl-wikidata", "dep:tokio"]
 
 [dependencies]
-tdsl-parser = { path = "../tdsl-parser" }
-tdsl-wikidata = { path = "../tdsl-wikidata", optional = true }
+tdsl-parser = { path = "../tdsl-parser", version = "1.16.0" }
+tdsl-wikidata = { path = "../tdsl-wikidata", version = "1.16.0", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true
