@@ -21,7 +21,7 @@ use tower_lsp::lsp_types::{
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::code_action::compute_code_actions;
-use crate::completion::keyword_completions;
+use crate::completion::{contextual_completions, keyword_completions};
 use crate::diagnostics::compute_diagnostics;
 use crate::document_symbols::compute_document_symbols;
 use crate::find_references::compute_references;
@@ -164,8 +164,19 @@ impl LanguageServer for Backend {
         }
     }
 
-    async fn completion(&self, _params: CompletionParams) -> LspResult<Option<CompletionResponse>> {
-        Ok(Some(CompletionResponse::Array(keyword_completions())))
+    async fn completion(&self, params: CompletionParams) -> LspResult<Option<CompletionResponse>> {
+        let uri = params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let text = {
+            // LSP サーバの単一スレッド文脈では panic しない
+            let docs = self.documents.lock().expect("documents lock poisoned");
+            docs.get(uri.as_str()).map(|d| d.text.clone())
+        };
+        let completions = match text {
+            Some(src) => contextual_completions(&src, position.line, position.character),
+            None => keyword_completions(),
+        };
+        Ok(Some(CompletionResponse::Array(completions)))
     }
 
     async fn code_action(&self, params: CodeActionParams) -> LspResult<Option<CodeActionResponse>> {
