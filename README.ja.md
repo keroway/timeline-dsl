@@ -100,6 +100,9 @@ tdsl render examples/china_dynasties.tdsl --format png --output china.png
 # PDF形式でベクター出力（svg2pdf 経由）
 tdsl render examples/china_dynasties.tdsl --format pdf --output china.pdf
 
+# A3 横向き・マージン 15mm で PDF を出力
+tdsl render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-landscape --pdf-margin 15 --output china_a3.pdf
+
 # Wikidata連携つきコンパイル
 tdsl build examples/china_with_import.tdsl --pretty
 
