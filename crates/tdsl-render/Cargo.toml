@@ -22,7 +22,7 @@ pdf = ["dep:svg2pdf", "dep:pdf-writer", "dep:thiserror"]
 tdsl-core = { path = "../tdsl-core", default-features = false, version = "1.16.0" }
 resvg = { version = "0.47", optional = true }
 svg2pdf = { version = "0.13", optional = true }
-pdf-writer = { version = "0.12", optional = true }
+pdf-writer = { version = "0.15", optional = true }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
