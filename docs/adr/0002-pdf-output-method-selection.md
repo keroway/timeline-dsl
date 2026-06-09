@@ -39,7 +39,7 @@ SVG → PDF 変換に [`svg2pdf`](https://crates.io/crates/svg2pdf)（typst プ�
 - `crates/tdsl-render/Cargo.toml` に opt-in feature を追加する:
   - `[features] pdf = ["dep:svg2pdf", "dep:thiserror"]`
   - `svg2pdf = { version = "0.13", optional = true }`
-- `svg2pdf` のバージョンは `usvg` のメジャー系列（0.45）に追従させる。`usvg` を上げる際は `svg2pdf` の対応バージョンを同時に確認する（両者は `usvg` の型を共有するため、不整合だとコンパイルエラーになる）。
+- `svg2pdf` のバージョンは `usvg` のメジャー系列（0.45）に追従させる。`usvg` を上げる際は `svg2pdf` の対応バージョンを同時に確認する（両者は `usvg` の型を共有するため、不整合だとコンパイルエラーになる）。**【訂正】** 実際のバージョン結合相手は `usvg` ではなく `pdf-writer` だった（#368 で実装を `to_chunk` + `pdf-writer` に変更したため）。経緯と正しい運用は後述の補遺「svg2pdf / pdf-writer のバージョン結合」を参照。
 - WASM（`tdsl-wasm`）は `pdf` feature を**取り込まない**（PNG と同方針。ブラウザでの PDF 生成は需要が薄く、バンドルを slim に保つ）。
 - CLI（`tdsl-cli`）は `tdsl-render = { features = ["png", "pdf"] }` で依存する。
 
@@ -88,7 +88,7 @@ SVG → PDF 変換に [`svg2pdf`](https://crates.io/crates/svg2pdf)（typst プ�
 ## 既知リスク
 
 - **CJK フォントの埋め込み / アウトライン化**: `svg2pdf` のテキスト処理（`usvg` による text-to-path もしくはフォント埋め込み）で、日本語レーンラベルが PDF 上で正しく表示・選択可能になるかは実装時に検証が必要。`png.rs` と同様に `usvg` パース時へシステムフォントを読み込ませる必要があり、フォントが見つからない環境（最小 CI ランナー等）では字形が欠落する可能性がある。smoke test では「PDF マジックバイト（`%PDF-`）で始まること」と「妥当なサイズであること」を最低ラインとし、字形の目視確認は別途行う。
-- **`usvg` / `svg2pdf` のバージョン結合**: 両者は `usvg` の型を共有するため、片方だけを更新すると型不整合でコンパイルが壊れる。Dependabot 等での自動更新時は両者を同時に上げる運用とする（D2）。
+- **`svg2pdf` / `pdf-writer` のバージョン結合**: `pdf.rs` は `svg2pdf::to_chunk` が返す `Chunk` の `Ref`（svg2pdf 内部の pdf-writer）と自前 `pdf-writer` の `Ref` を混在させるため、両者が同一の pdf-writer バージョンに解決される必要がある。不整合だと pdf-writer が二重リンクされ `Ref` の型不一致でビルドが壊れる。Dependabot 等での自動更新時は両者を同時に上げる運用とする（詳細・経緯は後述の補遺「svg2pdf / pdf-writer のバージョン結合」を参照）。なお `usvg` は `svg2pdf::usvg`（re-export）経由でのみ利用するため svg2pdf に自動追従し、個別固定は不要（当初の本リスク記述が `usvg` を結合相手としていたのは誤りで、補遺で訂正済み）。
 - **SVG 機能カバレッジ**: 本プロジェクトの SVG 出力（`svg.rs`）が将来 `svg2pdf` 未対応の機能（特定のフィルタ・グラデーション等）を使い始めた場合、PDF で再現されない可能性がある。現状の出力は矩形・線・テキスト・単色塗りが中心で対応範囲内と見込む。
 
 ## 未決定事項（本 ADR の範囲外）
@@ -110,6 +110,16 @@ SVG → PDF 変換に [`svg2pdf`](https://crates.io/crates/svg2pdf)（typst プ�
   - `creation_date: Option<PdfDate>`（呼び出し側が供給し決定性を保つ。CLI は `SystemTime::now()` で算出、テストは任意値）
 - **CLI フラグ**: `--pdf-size` / `--pdf-landscape` / `--pdf-margin` / `--pdf-title` を `tdsl render` に追加。
 - **テスト**: `pdf::tests` に各用紙サイズ・landscape・メタデータ・title 補完・マージン検証（過大／負値／非有限はエラー、有効な大マージンは描画）のテストを追加。
+
+## 補遺: svg2pdf / pdf-writer のバージョン結合（2026-06-10, #415 / #416）
+
+D2 および当初の「既知リスク」は依存結合の相手を **`usvg` ↔ `svg2pdf`** と記述していたが、これは誤りだった。本補遺で結合相手を **`svg2pdf` ↔ `pdf-writer`** に訂正する。
+
+- **誤りの経緯**: 初版の `svg2pdf::to_pdf` 実装では `pdf-writer` を直接触らなかったため、結合は usvg 型ツリー側にあると見なしていた。しかし #368 の補遺で実装を `svg2pdf::to_chunk` + `pdf-writer` 自前合成に切り替えた時点で、真の結合は **pdf-writer** に移っていた（`pdf.rs` が svg2pdf の `Chunk` の `Ref` と自前 `pdf-writer` の `Ref` を混在させる）。契約類（Cargo.toml コメント / D2 / 既知リスク）はこの変化に追従できていなかった。
+- **顕在化**: Dependabot PR #415 が `pdf-writer` を 0.12 → 0.15 に単独 bump したところ、svg2pdf 0.13（`pdf-writer ^0.12` 要求）との間で pdf-writer が二重リンクされ、`expected pdf_writer::Ref, found pdf_writer::object::Ref` の型不一致でビルドが失敗した。
+- **正しい結合**: `svg2pdf` と `pdf-writer` は同一 pdf-writer バージョンに解決される必要があり、**両側を lockstep** で更新する。一方だけ bump させると逆向きにも同じ破綻が起きる。
+- **`usvg` について**: `usvg` は `svg2pdf::usvg`（re-export）経由でのみ利用し、`usvg::Tree` を resvg と svg2pdf の間で受け渡さない（`png.rs` は `resvg::usvg`→`resvg::render`、`pdf.rs` は `svg2pdf::usvg`→`svg2pdf::to_chunk` で各々完結）。したがって usvg 世代を resvg と揃える必要はなく、`resvg` は独立して更新してよい。
+- **運用への反映**: `.github/dependabot.yml` で `svg2pdf` / `pdf-writer` の minor/major 更新を ignore し（patch は許可）、上流が新版を出した時点で両者をまとめて手動更新する。`resvg` は抑止対象に含めない。
 
 ## 補遺: WebUI の PDF 出力（2026-06-03, #364）
 
