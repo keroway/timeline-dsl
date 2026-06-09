@@ -6,23 +6,22 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     ignore:
-      # SVG レンダリングスタック（resvg / svg2pdf / pdf-writer）は lockstep で更新する。
-      #   - svg2pdf が返す Chunk の Ref と自前 pdf-writer の Ref を混在させるため、
-      #     svg2pdf ↔ pdf-writer のバージョンは必ず一致させる必要がある（不一致だと
-      #     pdf_writer の二重リンクで型不一致になりビルドが落ちる）。
-      #   - usvg 型ツリーを resvg と svg2pdf で共有するため、両者の usvg 世代も揃える
-      #     （ADR-0002 D2 / crates/tdsl-render/Cargo.toml のコメント参照）。
-      # 一部だけ dependabot に単独 bump させると逆向きの不整合が起きるため、3 者とも
-      # minor/major 更新を抑止し、互換を確認のうえ手動でまとめて引き上げる。patch は許可。
+      # svg2pdf ↔ pdf-writer は lockstep で更新する必要がある。
+      # pdf.rs は svg2pdf::to_chunk() が返す Chunk の Ref と自前 alloc の Ref を
+      # 混在させるため、両者の pdf-writer が一致しないと二重リンクで型不一致になり
+      # ビルドが落ちる（PR #415）。svg2pdf は現状 pdf-writer ^0.12 を要求し、新しい
+      # pdf-writer 対応版が未リリース。片側だけ dependabot に bump させると逆向きの
+      # 不整合が起きるため、両者の minor/major 更新を抑止し互換確認のうえ手動で
+      # まとめて引き上げる。patch は許可。
+      #
+      # 注: resvg（PNG 用）と svg2pdf（PDF 用）はそれぞれ自身の usvg を介して
+      # 完結しており Tree を受け渡さないため、usvg 世代を揃える必要はなく、
+      # resvg は独立して更新してよい（ここでは抑止しない）。
       - dependency-name: "pdf-writer"
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-major"
       - dependency-name: "svg2pdf"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-major"
-      - dependency-name: "resvg"
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-major"
