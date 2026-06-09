@@ -30,6 +30,7 @@ SVG → PDF 変換に [`svg2pdf`](https://crates.io/crates/svg2pdf)（typst プ�
 
 - 採用理由:
   - **既存依存ツリーと完全整合**: `svg2pdf 0.13.0`（最新安定）は `usvg ^0.45` / `pdf-writer ^0.12` に依存し、本プロジェクトの `usvg 0.45.1`（`resvg 0.45.1` 経由）と一致する。`usvg` の `Tree` をそのまま PDF 化できるため、PNG と同じ「SVG 文字列 → `usvg::Tree`」の前処理を共有できる。
+    - **【訂正】** ここで述べた「PNG と usvg の前処理を共有できる／usvg 世代の一致が統合上の要件」という認識は誤り。実装上 `png.rs` は `resvg::usvg`、`pdf.rs` は `svg2pdf::usvg` と**各々の re-export を用いて別個に `Tree` を構築**しており、単一の `Tree` を共有しない。resvg と svg2pdf の usvg 世代が偶然一致しても correctness 上の要件ではなく、resvg は独立に更新してよい。実際に固定が必要なのは `svg2pdf` ↔ `pdf-writer` のみ。詳細は後述の補遺「svg2pdf / pdf-writer のバージョン結合」を参照。
   - **純 Rust・システム依存なし**: 実行時に外部バイナリ（ブラウザ等）やシステムライブラリ（cairo / librsvg 等）を要求しない。CI の offline 前提、cross-compile（Windows / `x86_64-unknown-linux-musl`）、Homebrew / `cargo binstall` でのバイナリ配布と整合する。
   - **ベクタ品質**: 受け入れ条件「ベクタ PDF が望ましい」を満たす。テキスト・図形がベクタのまま埋め込まれ、拡大しても劣化しない。
   - **既存 `png` feature と同型に実装可能**: モジュール構成・feature ゲート・CLI 配線を PNG にミラーでき、保守負荷が小さい。
