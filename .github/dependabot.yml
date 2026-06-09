@@ -5,6 +5,15 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # pdf-writer は svg2pdf が要求するバージョン（現状 ^0.12）に固定する必要がある。
+      # svg2pdf が返す Chunk の Ref と自前の pdf-writer の Ref を混在させるため、
+      # 両者のバージョンを必ず揃える（lockstep）。svg2pdf が新しい pdf-writer 対応版を
+      # 出すまで minor/major 更新を抑止し、svg2pdf の更新と同時に手動で引き上げる。
+      - dependency-name: "pdf-writer"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
 
   - package-ecosystem: github-actions
     directory: "/"
