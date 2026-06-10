@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-06-10
+
 ### Added
 
 - **WebUI のエクスポートメニューに JSON IR 保存を追加**: WASM バインディング `compile_to_ir()` を利用し、エディタの内容を JSON IR（pretty-print、`source_span` 付き）として `.json` ファイルでダウンロードできるようにした。コンパイルエラー時は Toast 通知でエラー内容を表示する (#428)
