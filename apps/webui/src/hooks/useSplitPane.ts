@@ -15,11 +15,9 @@ export type SplitPaneApi = {
 // エディタ/プレビューの分割比をドラッグで調整し、localStorage に永続化する。
 export function useSplitPane(): SplitPaneApi {
   const [splitRatio, setSplitRatio] = useState<number>(readSplitRatio)
+  // mouseup で永続化する最新 ratio。ドラッグ中の onMouseMove（render 外のイベント
+  // ハンドラ）で同期するため、effect の実行タイミングに依存せず常に最新値を保持する。
   const splitRatioRef = useRef<number>(splitRatio)
-  // mouseup で永続化する最新 ratio を ref に同期する（render 中の書き込みは避ける）。
-  useEffect(() => {
-    splitRatioRef.current = splitRatio
-  }, [splitRatio])
   const splitDragRef = useRef<{ startX: number; startRatio: number; containerWidth: number } | null>(null)
   const mainRef = useRef<HTMLElement>(null)
 
@@ -29,6 +27,7 @@ export function useSplitPane(): SplitPaneApi {
       if (!splitDragRef.current) return
       const dx = e.clientX - splitDragRef.current.startX
       const newRatio = Math.max(SPLIT_RATIO_MIN, Math.min(SPLIT_RATIO_MAX, splitDragRef.current.startRatio + dx / splitDragRef.current.containerWidth))
+      splitRatioRef.current = newRatio
       setSplitRatio(newRatio)
     }
     function onMouseUp() {
