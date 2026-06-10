@@ -871,6 +871,15 @@ function App() {
       showToast(`JSON IR の生成に失敗しました: ${msg}`, 'error')
       return
     }
+    // WASM では Wikidata fetch が行われず import/map 由来のアイテムが IR に
+    // 含まれない。check_source の Info 診断（未解決 import/map の通知）が
+    // ある場合は部分的な IR であることを明示する。
+    if (checkSource(source).some((d) => d.severity === 'info')) {
+      showToast(
+        'import / map ブロックは WebUI では解決されません。JSON IR にインポート由来のアイテムは含まれていません（完全な IR は CLI の tdsl build で取得できます）',
+        'info',
+      )
+    }
     triggerDownload(new Blob([json], { type: 'application/json' }), 'timeline.json')
   }
 
