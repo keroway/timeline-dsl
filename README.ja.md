@@ -304,6 +304,8 @@ apply dynasty_span to wd {
 | `examples/china_dynasties.tdsl` | 静的定義のみ。秦・漢・三国の年表 |
 | `examples/china_with_import.tdsl` | Wikidata連携つき。秦・漢をQIDからインポート |
 | `examples/template_apply_example.tdsl` | template / apply 構文のサンプル |
+| `examples/grouped_dynasties.tdsl` | group ブロックのサンプル。lane の視覚的グループ化・静的定義 |
+| `examples/officeholder_wikidata.tdsl` | 歴任した役職（P39）の複数 span 展開。Wikidata連携（expand / qualifier）サンプル |
 | `examples/fictional_empire.tdsl` | 架空世界向けの手作業年表サンプル |
 | `examples/fictional_empire_items.csv` | `import-csv` 用の入力CSVサンプル |
 | `examples/japanese_history.tdsl` | 日本史（奈良〜江戸）。複数lane・静的定義 |
