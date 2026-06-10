@@ -389,12 +389,12 @@ non-deprecated な Statement を全件ループし、各 Statement につき 1 �
 `expand` がない場合は従来どおり最初の Statement のみを参照する。
 
 ```tdsl
-import wd as w {
-    entity Q9682;  // 例: エリザベス2世
+import wikidata as w {
+    entity Q9682 as elizabeth_ii;  // 例: エリザベス2世
 }
 
 // 在任した役職（P39）をすべてスパンとして展開する例
-map w to span {
+map w.elizabeth_ii to span {
     lane offices;
     expand claim(P39);
     start claim(P39).qualifier(P580).year;

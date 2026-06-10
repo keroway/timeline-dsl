@@ -386,12 +386,12 @@ If the qualifier does not exist, the expression yields no value (no silent fallb
 Adding `expand claim(P)` inside a `map` block loops over all non-deprecated statements of property P on the entity and generates one item per statement. Without `expand`, only the first statement is consulted, as before.
 
 ```tdsl
-import wd as w {
-    entity Q9682;  // example: Elizabeth II
+import wikidata as w {
+    entity Q9682 as elizabeth_ii;  // example: Elizabeth II
 }
 
 // Example: expand all positions held (P39) into spans
-map w to span {
+map w.elizabeth_ii to span {
     lane offices;
     expand claim(P39);
     start claim(P39).qualifier(P580).year;
