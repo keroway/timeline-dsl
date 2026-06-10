@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs
+
+- **dsl-spec 両言語の expand 例の無効な構文を修正**: qualifier / expand セクションの例が `import wd as w { entity Q9682; }` + `map w to span` となっており実際の文法（map は `<import_alias>.<entity_key>` の dotted_ident 必須、import 元は `wikidata`）でパースエラーになっていた。`import wikidata as w { entity Q9682 as elizabeth_ii; }` + `map w.elizabeth_ii to span` に修正し、パースが通ることを検証した
+
 ## [1.17.0] - 2026-06-10
 
 ### Added
