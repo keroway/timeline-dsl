@@ -39,8 +39,11 @@ body,
   --diag-error-border: #f38ba8;
   --diag-warn-bg: rgba(249, 226, 175, 0.08);
   --diag-warn-border: #f9e2af;
+  --diag-info-bg: rgba(137, 180, 250, 0.08);
+  --diag-info-border: #89b4fa;
   --diag-severity-error: #f38ba8;
   --diag-severity-warn: #f9e2af;
+  --diag-severity-info: #89b4fa;
   --diag-location: #7f849c;
   --diag-message: #cdd6f4;
   --status-error-bg: #3b1a1a;
@@ -75,8 +78,11 @@ body,
   --diag-error-border: #b91c1c;
   --diag-warn-bg: rgba(180, 120, 10, 0.06);
   --diag-warn-border: #92600a;
+  --diag-info-bg: rgba(29, 78, 216, 0.06);
+  --diag-info-border: #1d4ed8;
   --diag-severity-error: #b91c1c;
   --diag-severity-warn: #92600a;
+  --diag-severity-info: #1d4ed8;
   --diag-location: #6c6c80;
   --diag-message: #1e1e2e;
   --status-error-bg: #fef2f2;
@@ -681,6 +687,11 @@ body,
   border-left-color: var(--diag-warn-border);
 }
 
+.diagnostic-item.info {
+  background: var(--diag-info-bg);
+  border-left-color: var(--diag-info-border);
+}
+
 .diag-severity {
   font-size: 11px;
   font-weight: 700;
@@ -693,6 +704,10 @@ body,
 
 .diagnostic-item.warning .diag-severity {
   color: var(--diag-severity-warn);
+}
+
+.diagnostic-item.info .diag-severity {
+  color: var(--diag-severity-info);
 }
 
 .diag-location {
