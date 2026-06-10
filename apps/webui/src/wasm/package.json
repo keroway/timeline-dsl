@@ -2,7 +2,7 @@
   "name": "tdsl-wasm",
   "type": "module",
   "description": "WebAssembly bindings for the Timeline DSL compiler (static compile + SVG/HTML render)",
-  "version": "1.14.0",
+  "version": "1.17.0",
   "license": "MIT",
   "repository": {
     "type": "git",

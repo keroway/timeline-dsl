@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 
 use tdsl_core::lower::lower_static_with_source;
-use tdsl_render::{RenderOptions, render_html, render_svg_only};
+use tdsl_render::{GridStyle, Orientation, RenderOptions, Theme, render_html, render_svg_only};
 
 /// Initialize the panic hook for better error messages in the browser console.
 #[wasm_bindgen(start)]
@@ -457,6 +457,68 @@ map wd.han to span {
             "import/map なしのソースに Info 診断は出ないべき"
         );
     }
+
+    // ─── js_opts_to_render_options / JsRenderOptions テスト ──────────────────
+
+    #[test]
+    fn js_opts_defaults_produce_default_render_options() {
+        let opts = JsRenderOptions::new();
+        let ro = js_opts_to_render_options(&opts, 5.0);
+        assert_eq!(ro.orientation, Orientation::Horizontal);
+        assert_eq!(ro.grid, GridStyle::None);
+        assert_eq!(ro.theme, Theme::Default);
+        assert!(!ro.show_table);
+        assert!(!ro.show_event_labels);
+        assert!((ro.scale - 5.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn js_opts_vertical_dark_decade() {
+        let mut opts = JsRenderOptions::new();
+        opts.set_orientation("vertical".to_string());
+        opts.set_grid("decade".to_string());
+        opts.set_theme("dark".to_string());
+        opts.show_table = true;
+        opts.show_event_labels = true;
+        let ro = js_opts_to_render_options(&opts, 8.0);
+        assert_eq!(ro.orientation, Orientation::Vertical);
+        assert_eq!(ro.grid, GridStyle::Decade);
+        assert_eq!(ro.theme, Theme::Dark);
+        assert!(ro.show_table);
+        assert!(ro.show_event_labels);
+    }
+
+    #[test]
+    fn js_opts_unknown_string_falls_back_to_defaults() {
+        let mut opts = JsRenderOptions::new();
+        opts.set_orientation("invalid".to_string());
+        opts.set_grid("invalid".to_string());
+        opts.set_theme("invalid".to_string());
+        let ro = js_opts_to_render_options(&opts, 2.0);
+        assert_eq!(ro.orientation, Orientation::Horizontal);
+        assert_eq!(ro.grid, GridStyle::None);
+        assert_eq!(ro.theme, Theme::Default);
+    }
+
+    #[test]
+    fn render_svg_with_options_produces_svg_output() {
+        let ir = make_ir(1900, 2000);
+        let opts = JsRenderOptions::new();
+        let svg = render_svg_only(&ir, js_opts_to_render_options(&opts, 8.0)).unwrap();
+        assert!(svg.starts_with("<svg"), "should produce SVG output");
+    }
+
+    #[test]
+    fn render_svg_with_vertical_orientation() {
+        let ir = make_ir(1900, 2000);
+        let mut opts = JsRenderOptions::new();
+        opts.set_orientation("vertical".to_string());
+        let svg = render_svg_only(&ir, js_opts_to_render_options(&opts, 8.0)).unwrap();
+        assert!(
+            svg.starts_with("<svg"),
+            "vertical orientation should produce SVG"
+        );
+    }
 }
 
 /// Render standalone HTML from TDSL source (static items only).
@@ -469,6 +531,153 @@ pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
         JsValue::from_str(&msgs.join("\n"))
     })?;
     render_html(&ir, RenderOptions::default()).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Rendering options exposed to JavaScript.
+///
+/// Create with `new JsRenderOptions()` — all fields default to the same values
+/// as `RenderOptions::default()`.  String fields (`orientation`, `grid`, `theme`)
+/// accept the lowercase variant names defined below.
+///
+/// | Field | Accepted values | Default |
+/// |-------|----------------|---------|
+/// | `orientation` | `"horizontal"`, `"vertical"` | `"horizontal"` |
+/// | `grid` | `"none"`, `"decade"`, `"year"`, `"month"` | `"none"` |
+/// | `theme` | `"default"`, `"dark"`, `"print"`, `"pastel"` | `"default"` |
+/// | `show_table` | `true`, `false` | `false` |
+/// | `show_event_labels` | `true`, `false` | `false` |
+#[wasm_bindgen]
+pub struct JsRenderOptions {
+    /// `"horizontal"` (default) or `"vertical"`
+    pub show_table: bool,
+    /// When true, labels are rendered next to Event/EventRange items.
+    pub show_event_labels: bool,
+    orientation: String,
+    grid: String,
+    theme: String,
+}
+
+impl Default for JsRenderOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl JsRenderOptions {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> JsRenderOptions {
+        JsRenderOptions {
+            show_table: false,
+            show_event_labels: false,
+            orientation: "horizontal".to_string(),
+            grid: "none".to_string(),
+            theme: "default".to_string(),
+        }
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn orientation(&self) -> String {
+        self.orientation.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_orientation(&mut self, val: String) {
+        self.orientation = val;
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn grid(&self) -> String {
+        self.grid.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_grid(&mut self, val: String) {
+        self.grid = val;
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn theme(&self) -> String {
+        self.theme.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_theme(&mut self, val: String) {
+        self.theme = val;
+    }
+}
+
+fn js_opts_to_render_options(opts: &JsRenderOptions, scale: f64) -> RenderOptions {
+    let orientation = match opts.orientation.as_str() {
+        "vertical" => Orientation::Vertical,
+        _ => Orientation::Horizontal,
+    };
+    let grid = match opts.grid.as_str() {
+        "decade" => GridStyle::Decade,
+        "year" => GridStyle::Year,
+        "month" => GridStyle::Month,
+        _ => GridStyle::None,
+    };
+    let theme = match opts.theme.as_str() {
+        "dark" => Theme::Dark,
+        "print" => Theme::Print,
+        "pastel" => Theme::Pastel,
+        _ => Theme::Default,
+    };
+    RenderOptions {
+        scale,
+        orientation,
+        grid,
+        theme,
+        show_table: opts.show_table,
+        show_event_labels: opts.show_event_labels,
+        ..RenderOptions::default()
+    }
+}
+
+/// Render SVG from TDSL source with explicit render options.
+///
+/// `scale` controls pixels-per-year. Pass `0.0` (or negative) to auto-calculate.
+/// Returns Ok(svg_string) or Err(error_message).
+#[wasm_bindgen]
+pub fn render_svg_from_source_with_options(
+    source: &str,
+    scale: f64,
+    opts: JsRenderOptions,
+) -> Result<String, JsValue> {
+    let file = tdsl_parser::parse(source).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let ir = lower_static_with_source(&file, Some(source)).map_err(|errors| {
+        let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
+        JsValue::from_str(&msgs.join("\n"))
+    })?;
+    let computed_scale = if scale > 0.0 {
+        scale
+    } else {
+        let range = ir.meta.range;
+        let span = (range.1 - range.0).unsigned_abs().max(1) as f64;
+        auto_scale_for_span(span)
+    };
+    let render_opts = js_opts_to_render_options(&opts, computed_scale);
+    render_svg_only(&ir, render_opts).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Render standalone HTML from TDSL source with explicit render options.
+/// Returns Ok(html_string) or Err(error_message).
+#[wasm_bindgen]
+pub fn render_html_from_source_with_options(
+    source: &str,
+    opts: JsRenderOptions,
+) -> Result<String, JsValue> {
+    let file = tdsl_parser::parse(source).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let ir = lower_static_with_source(&file, Some(source)).map_err(|errors| {
+        let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
+        JsValue::from_str(&msgs.join("\n"))
+    })?;
+    let range = ir.meta.range;
+    let span = (range.1 - range.0).unsigned_abs().max(1) as f64;
+    let scale = auto_scale_for_span(span);
+    let render_opts = js_opts_to_render_options(&opts, scale);
+    render_html(&ir, render_opts).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 /// Diagnostic severity level.

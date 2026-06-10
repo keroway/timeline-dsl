@@ -1,4 +1,4 @@
-import init, { compile_to_ir, render_svg_from_source, render_html_from_source, check_source, format_source } from './wasm/tdsl_wasm.js'
+import init, { JsRenderOptions, compile_to_ir, render_svg_from_source, render_html_from_source, render_svg_from_source_with_options, render_html_from_source_with_options, check_source, format_source } from './wasm/tdsl_wasm.js'
 
 let initialized = false
 
@@ -7,6 +7,14 @@ export interface Diagnostic {
   message: string
   line: number
   col: number
+}
+
+export interface RenderOptions {
+  orientation?: 'horizontal' | 'vertical'
+  grid?: 'none' | 'decade' | 'year' | 'month'
+  theme?: 'default' | 'dark' | 'print' | 'pastel'
+  showTable?: boolean
+  showEventLabels?: boolean
 }
 
 export async function initWasm(): Promise<void> {
@@ -23,8 +31,28 @@ export function renderSvg(source: string, scale: number = 0): string {
   return render_svg_from_source(source, scale)
 }
 
+export function renderSvgWithOptions(source: string, scale: number = 0, opts: RenderOptions = {}): string {
+  const jsOpts = new JsRenderOptions()
+  if (opts.orientation !== undefined) jsOpts.orientation = opts.orientation
+  if (opts.grid !== undefined) jsOpts.grid = opts.grid
+  if (opts.theme !== undefined) jsOpts.theme = opts.theme
+  if (opts.showTable !== undefined) jsOpts.show_table = opts.showTable
+  if (opts.showEventLabels !== undefined) jsOpts.show_event_labels = opts.showEventLabels
+  return render_svg_from_source_with_options(source, scale, jsOpts)
+}
+
 export function renderHtml(source: string): string {
   return render_html_from_source(source)
+}
+
+export function renderHtmlWithOptions(source: string, opts: RenderOptions = {}): string {
+  const jsOpts = new JsRenderOptions()
+  if (opts.orientation !== undefined) jsOpts.orientation = opts.orientation
+  if (opts.grid !== undefined) jsOpts.grid = opts.grid
+  if (opts.theme !== undefined) jsOpts.theme = opts.theme
+  if (opts.showTable !== undefined) jsOpts.show_table = opts.showTable
+  if (opts.showEventLabels !== undefined) jsOpts.show_event_labels = opts.showEventLabels
+  return render_html_from_source_with_options(source, jsOpts)
 }
 
 export function checkSource(source: string): Diagnostic[] {
