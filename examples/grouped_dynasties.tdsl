@@ -1,0 +1,49 @@
+// group ブロックのサンプル（静的データのみ・Wikidata 連携なし）
+//
+// このサンプルで示しているDSL機能:
+//   - group ブロックによる lane の視覚的グループ化
+//     （レンダリング時にグループラベルとグループ境界線が表示される）
+//   - group に属さない lane との混在（後方互換）
+//
+// 実行例:
+//   cargo run -p tdsl-cli -- build examples/grouped_dynasties.tdsl --pretty
+//   cargo run -p tdsl-cli -- render examples/grouped_dynasties.tdsl --format svg --output dynasties.svg
+
+timeline "中国王朝年表（グループ版）" {
+    title "中国王朝年表（グループ版）";
+    unit year;
+    range -300..1000;
+    calendar proleptic_gregorian;
+}
+
+// 古代の王朝をグループ化
+group "古代" {
+    lane "秦" as qin { kind dynasty; order 10; }
+    lane "漢" as han { kind dynasty; order 20; }
+    lane "三国" as sanguo { kind dynasty; order 30; }
+}
+
+// 中世の王朝をグループ化
+group "中世" {
+    lane "隋" as sui { kind dynasty; order 40; }
+    lane "唐" as tang { kind dynasty; order 50; }
+}
+
+// group に属さない lane も従来どおり混在できる
+lane "出来事" as events { kind event; order 60; }
+
+// 王朝の存続期間
+span qin -221..-206 "秦" { tags ["dynasty"]; source wd:Q7183; id "span:qin"; };
+span han -206..220 "漢" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };
+span sanguo 220..280 "三国時代" { tags ["dynasty"]; id "span:sanguo"; };
+span sui 581..618 "隋" { tags ["dynasty"]; id "span:sui"; };
+span tang 618..907 "唐" { tags ["dynasty"]; id "span:tang"; };
+
+// 主要な出来事
+event events -221 "秦の天下統一" {};
+event events 589 "隋の中国統一" {};
+event events 907 "唐の滅亡" {};
+
+// 期間イベント
+event_range events 184..204 "黄巾の乱" { tags ["war"]; };
+event_range events 755..763 "安史の乱" { tags ["war"]; };

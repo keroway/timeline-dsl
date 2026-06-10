@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Docs
 
+- **examples/ に group・expand・qualifier の使用例ファイルを追加**: `examples/grouped_dynasties.tdsl`（`group` ブロックによる lane のグループ化、静的定義のみ）と `examples/officeholder_wikidata.tdsl`（`expand claim(P39)` + `claim(P39).qualifier(P580/P582).year` による役職の複数 span 展開、Wikidata 連携・オンラインビルド必須）を追加。CLAUDE.md / README.md / README.ja.md のサンプルファイル一覧にも追記（#421）
 - **dsl-spec.en.md を日本語版（dsl-spec.md）と同期**: 取り残されていた英語版の言語仕様を日本語版ベースで全面更新。EBNF を v1.16 対応版（`group` ルール・`map_expr` / `lang_expr` / `label_ref`・filter / expand / qualifier）と文字単位で一致させ、`group` / filter 式 / qualifier アクセス / expand / template・apply（実装済み版）/ map の target_type 制約 / render の PDF・PNG・`--interactive` の各セクションを追加。旧「Constraints (MVP)」「Future Extensions」など実装と乖離した記述を削除し、セクション構成を日本語版と一致させた。あわせて CONTRIBUTING.md の「DSL 文法の変更手順」に dsl-spec の日英同時更新ルールを追記 (#427)
 - **README.md / README.ja.md に既存機能の記載を追加**: `tdsl render` の `--watch`（変更監視・自動再レンダリング）/ `--grid`（補助グリッド線）/ `--orientation vertical`（縦方向レイアウト）のコマンド例をクイックスタートに、`group` ブロック構文の説明と例を DSL 文法セクションに追記（#426）
 - **dsl-spec.md の EBNF を v1.13〜v1.16 の文法に同期**: v1.13 で追加された `group` ブロックの EBNF ルール（`<group>`）と本文説明を追加。`<mapping_rule>` の `start` / `end` / `time` が参照する式を未定義の `<expr>` から実際の文法に対応する `<map_expr>`（整数リテラル `??` フォールバック対応、#359）へ、`label` を `<lang_expr>` へ修正。filter の文字列マッチ（`contains` / `startswith`）が単一の `label@<lang>` 参照のみを取ることを `<label_ref>` として明確化 (#419)
