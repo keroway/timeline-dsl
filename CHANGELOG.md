@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`tdsl render --show-event-labels` で Event / EventRange のラベルを常時表示**: SVG 年表でイベント内容をマウスオーバー（tooltip）なしで読めるようにする表示モードを追加。水平・垂直レイアウト両対応で、静的閲覧・印刷時の可読性を向上させる。デフォルトは従来どおり非表示 (#403)
+- **LSP 補完をコンテキスト依存補完に切り替え**: カーソル位置のブロック構造（timeline / lane / group / map / import / アイテムオプション等）を解析し、現在編集中のブロック種別に応じたキーワード候補のみを提示するようにした。map コンテキストでは `claim()` / `label@` のスニペット補完も提供する (#367)
+- **WebUI で import / map ブロック未解決時に Info 診断を表示**: WASM 環境では Wikidata fetch が実行されず import / map が silent にスキップされるため、該当ブロックに Info レベルの診断を表示して理由を明示するようにした。診断パネルに INFO ラベルとスタイルを追加 (#418)
 - **WebUI のエクスポートメニューに JSON IR 保存を追加**: WASM バインディング `compile_to_ir()` を利用し、エディタの内容を JSON IR（pretty-print、`source_span` 付き）として `.json` ファイルでダウンロードできるようにした。コンパイルエラー時は Toast 通知でエラー内容を表示する (#428)
 - **crates.io への cargo publish をリリースフローに組み込み**: `.github/workflows/release.yml` に `publish-crates` ジョブを追加し、タグ push 時に 4 コアクレート（`tdsl-parser` / `tdsl-wikidata` / `tdsl-core` / `tdsl-render`）を Trusted Publishing（OIDC）で crates.io に自動 publish する。ジョブは `continue-on-error` の独立ジョブで、失敗しても GitHub Release / npm / Homebrew をブロックしない。publish 前に workspace version と git tag の一致を検証する。publish 対象外の `tdsl-cli` / `tdsl-wasm` / `tdsl-lsp` には `publish = false` を設定し誤公開を防止。初回ブートストラップ手順（ローカルからの手動 publish + Trusted Publishing 設定）を `docs/release.md` に追記 (#424)
 - **コアクレートを crates.io に公開**: `tdsl-parser` / `tdsl-wikidata` / `tdsl-core` / `tdsl-render` の各 `Cargo.toml` に `description` / `repository` / `keywords` / `categories` を追加し、内部依存に `path + version` の二重指定を整備した。`cargo add tdsl-core` 等で Rust プロジェクトから依存できるようになる。README に Rust ライブラリとしての使用例を追記 (#370)
@@ -360,6 +363,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.17.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.13.0...v1.14.0
