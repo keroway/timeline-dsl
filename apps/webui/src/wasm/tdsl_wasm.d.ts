@@ -2,10 +2,42 @@
 /* eslint-disable */
 
 /**
+ * Rendering options exposed to JavaScript.
+ *
+ * Create with `new JsRenderOptions()` — all fields default to the same values
+ * as `RenderOptions::default()`.  String fields (`orientation`, `grid`, `theme`)
+ * accept the lowercase variant names defined below.
+ *
+ * | Field | Accepted values | Default |
+ * |-------|----------------|---------|
+ * | `orientation` | `"horizontal"`, `"vertical"` | `"horizontal"` |
+ * | `grid` | `"none"`, `"decade"`, `"year"`, `"month"` | `"none"` |
+ * | `theme` | `"default"`, `"dark"`, `"print"`, `"pastel"` | `"default"` |
+ * | `show_table` | `true`, `false` | `false` |
+ * | `show_event_labels` | `true`, `false` | `false` |
+ */
+export class JsRenderOptions {
+    free(): void;
+    [Symbol.dispose](): void;
+    constructor();
+    /**
+     * When true, labels are rendered next to Event/EventRange items.
+     */
+    show_event_labels: boolean;
+    /**
+     * `"horizontal"` (default) or `"vertical"`
+     */
+    show_table: boolean;
+    grid: string;
+    orientation: string;
+    theme: string;
+}
+
+/**
  * Check TDSL source and return diagnostics as JSON.
  *
  * Returns a JSON array of diagnostic objects: `[{severity, message, line, col}]`.
- * `severity` is `"error"` or `"warning"`.
+ * `severity` is `"error"`, `"warning"`, or `"info"`.
  *
  * `line`/`col` are **1-based** when a source position is available (parse errors via
  * `ParseError::source_location`, validation warnings via the item's `source_span`),
@@ -13,10 +45,9 @@
  * attributes. Diagnostics that carry no position (lowering errors such as unknown-lane
  * references) report `line: 0, col: 0`; the WebUI treats a `0` line as non-clickable.
  *
- * **Note on `import` blocks**: `import wikidata` blocks are not resolved in the browser
- * (no network access). Unresolved imports are **silently skipped** — they produce no
- * diagnostics, but the resulting IR / SVG will omit those items. Use static `span`,
- * `event`, and `event_range` statements for content that must render in the browser.
+ * **Note on `import`/`map` blocks**: Wikidata fetch is not available in the browser.
+ * Each `import` or `map` block receives an `"info"` diagnostic pointing to its start
+ * line so the user knows to run `tdsl build` for full resolution.
  */
 export function check_source(source: string): string;
 
@@ -49,6 +80,12 @@ export function main(): void;
 export function render_html_from_source(source: string): string;
 
 /**
+ * Render standalone HTML from TDSL source with explicit render options.
+ * Returns Ok(html_string) or Err(error_message).
+ */
+export function render_html_from_source_with_options(source: string, opts: JsRenderOptions): string;
+
+/**
  * Render SVG from TDSL source (static items only).
  * `scale` controls pixels-per-year. Pass `0.0` (or negative) to auto-calculate
  * from the IR's `meta.range` (clamped to `0.5..=50.0`).
@@ -58,15 +95,37 @@ export function render_html_from_source(source: string): string;
  */
 export function render_svg_from_source(source: string, scale: number): string;
 
+/**
+ * Render SVG from TDSL source with explicit render options.
+ *
+ * `scale` controls pixels-per-year. Pass `0.0` (or negative) to auto-calculate.
+ * Returns Ok(svg_string) or Err(error_message).
+ */
+export function render_svg_from_source_with_options(source: string, scale: number, opts: JsRenderOptions): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_get_jsrenderoptions_show_event_labels: (a: number) => number;
+    readonly __wbg_get_jsrenderoptions_show_table: (a: number) => number;
+    readonly __wbg_jsrenderoptions_free: (a: number, b: number) => void;
+    readonly __wbg_set_jsrenderoptions_show_event_labels: (a: number, b: number) => void;
+    readonly __wbg_set_jsrenderoptions_show_table: (a: number, b: number) => void;
     readonly check_source: (a: number, b: number, c: number) => void;
     readonly compile_to_ir: (a: number, b: number, c: number) => void;
     readonly format_source: (a: number, b: number, c: number) => void;
+    readonly jsrenderoptions_grid: (a: number, b: number) => void;
+    readonly jsrenderoptions_new: () => number;
+    readonly jsrenderoptions_orientation: (a: number, b: number) => void;
+    readonly jsrenderoptions_set_grid: (a: number, b: number, c: number) => void;
+    readonly jsrenderoptions_set_orientation: (a: number, b: number, c: number) => void;
+    readonly jsrenderoptions_set_theme: (a: number, b: number, c: number) => void;
+    readonly jsrenderoptions_theme: (a: number, b: number) => void;
     readonly render_html_from_source: (a: number, b: number, c: number) => void;
+    readonly render_html_from_source_with_options: (a: number, b: number, c: number, d: number) => void;
     readonly render_svg_from_source: (a: number, b: number, c: number, d: number) => void;
+    readonly render_svg_from_source_with_options: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly main: () => void;
     readonly __wbindgen_export: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export2: (a: number, b: number) => number;

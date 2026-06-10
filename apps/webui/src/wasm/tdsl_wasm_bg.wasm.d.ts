@@ -1,11 +1,25 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_get_jsrenderoptions_show_event_labels: (a: number) => number;
+export const __wbg_get_jsrenderoptions_show_table: (a: number) => number;
+export const __wbg_jsrenderoptions_free: (a: number, b: number) => void;
+export const __wbg_set_jsrenderoptions_show_event_labels: (a: number, b: number) => void;
+export const __wbg_set_jsrenderoptions_show_table: (a: number, b: number) => void;
 export const check_source: (a: number, b: number, c: number) => void;
 export const compile_to_ir: (a: number, b: number, c: number) => void;
 export const format_source: (a: number, b: number, c: number) => void;
+export const jsrenderoptions_grid: (a: number, b: number) => void;
+export const jsrenderoptions_new: () => number;
+export const jsrenderoptions_orientation: (a: number, b: number) => void;
+export const jsrenderoptions_set_grid: (a: number, b: number, c: number) => void;
+export const jsrenderoptions_set_orientation: (a: number, b: number, c: number) => void;
+export const jsrenderoptions_set_theme: (a: number, b: number, c: number) => void;
+export const jsrenderoptions_theme: (a: number, b: number) => void;
 export const render_html_from_source: (a: number, b: number, c: number) => void;
+export const render_html_from_source_with_options: (a: number, b: number, c: number, d: number) => void;
 export const render_svg_from_source: (a: number, b: number, c: number, d: number) => void;
+export const render_svg_from_source_with_options: (a: number, b: number, c: number, d: number, e: number) => void;
 export const main: () => void;
 export const __wbindgen_export: (a: number, b: number, c: number) => void;
 export const __wbindgen_export2: (a: number, b: number) => number;
