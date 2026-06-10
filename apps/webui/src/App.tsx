@@ -9,7 +9,7 @@ import { autocompletion, snippetCompletion, type CompletionContext, type Complet
 import { bracketMatching } from '@codemirror/language'
 import { search } from '@codemirror/search'
 import { linter, lintGutter, forceLinting, type Diagnostic as CmDiagnostic } from '@codemirror/lint'
-import { initWasm, renderSvg, renderHtml, checkSource, formatSource } from './wasmLoader'
+import { initWasm, compileToIr, renderSvg, renderHtml, checkSource, formatSource } from './wasmLoader'
 import type { Diagnostic } from './wasmLoader'
 import { EXAMPLES } from './examples'
 import { GALLERY_EXAMPLES } from './gallery-meta'
@@ -862,6 +862,18 @@ function App() {
     triggerDownload(new Blob([source], { type: 'text/plain' }), 'timeline.tdsl')
   }
 
+  function downloadJsonIr() {
+    let json: string
+    try {
+      json = compileToIr(source)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      showToast(`JSON IR の生成に失敗しました: ${msg}`, 'error')
+      return
+    }
+    triggerDownload(new Blob([json], { type: 'application/json' }), 'timeline.json')
+  }
+
   function downloadSvg() {
     if (!svgContent) return
     triggerDownload(new Blob([svgContent], { type: 'image/svg+xml' }), 'timeline.svg')
@@ -1232,6 +1244,9 @@ function App() {
                 <div className="export-menu-section">ダウンロード</div>
                 <button className="export-menu-item" onClick={() => { downloadTdsl(); setExportMenuOpen(false) }}>
                   .tdsl 保存
+                </button>
+                <button className="export-menu-item" onClick={() => { downloadJsonIr(); setExportMenuOpen(false) }}>
+                  JSON IR 保存
                 </button>
                 <button className="export-menu-item" onClick={() => { downloadSvg(); setExportMenuOpen(false) }} disabled={!svgContent}>
                   SVG 保存
