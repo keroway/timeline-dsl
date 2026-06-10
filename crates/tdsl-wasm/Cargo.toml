@@ -7,6 +7,8 @@ description = "WebAssembly bindings for the Timeline DSL compiler (static compil
 repository = "https://github.com/keroway/timeline-dsl"
 homepage = "https://github.com/keroway/timeline-dsl"
 keywords = ["timeline", "wasm", "dsl", "svg", "visualization"]
+# WASM バインディングは npm（@keroway/tdsl-wasm）で配布する。crates.io への誤公開を防止する。
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]

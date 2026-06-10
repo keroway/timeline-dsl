@@ -3,6 +3,8 @@ name = "tdsl-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+# CLI バイナリは GitHub Releases / Homebrew で配布する。crates.io への誤公開を防止する。
+publish = false
 
 [[bin]]
 name = "tdsl"

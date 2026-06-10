@@ -3,6 +3,8 @@ name = "tdsl-lsp"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+# LSP サーバは tdsl-cli（`tdsl lsp`）経由で配布する。crates.io への誤公開を防止する。
+publish = false
 
 [dependencies]
 tdsl-parser = { path = "../tdsl-parser" }
