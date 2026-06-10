@@ -113,6 +113,62 @@ test -s "$TMP_DIR/china_a3_landscape.pdf"
 head -c 5 "$TMP_DIR/china_a3_landscape.pdf" | grep -Fq '%PDF-' \
   || { echo "FAIL: PDF signature %%PDF- not found in $TMP_DIR/china_a3_landscape.pdf"; exit 1; }
 
+# ---- tdsl render --watch (NOT smoke-tested) ----------------------------------
+# NOTE: `tdsl render --watch` はファイル監視の常駐プロセスで自発的に終了しないため、
+# 終了コードベースの本スモークテストでは対象外とする（タイムアウト頼みの検証は
+# flaky になる）。挙動はユニットテスト / 手動確認でカバーする。
+
+# ---- tdsl render --grid (auxiliary grid lines) -------------------------------
+echo "[e2e] render: --grid decade outputs SVG with grid lines"
+cargo run -q -p tdsl-cli -- render examples/world_wars.tdsl --format svg --grid decade --output "$TMP_DIR/grid_decade.svg"
+test -s "$TMP_DIR/grid_decade.svg"
+grep -Fq "tdsl-grid-line" "$TMP_DIR/grid_decade.svg"
+
+echo "[e2e] render: --grid year outputs more grid lines than --grid decade"
+cargo run -q -p tdsl-cli -- render examples/world_wars.tdsl --format svg --grid year --output "$TMP_DIR/grid_year.svg"
+test -s "$TMP_DIR/grid_year.svg"
+GRID_DECADE=$(grep -o "tdsl-grid-line" "$TMP_DIR/grid_decade.svg" | wc -l)
+GRID_YEAR=$(grep -o "tdsl-grid-line" "$TMP_DIR/grid_year.svg" | wc -l)
+[ "$GRID_YEAR" -gt "$GRID_DECADE" ] \
+  || { echo "FAIL: year grid ($GRID_YEAR lines) should have more lines than decade grid ($GRID_DECADE lines)"; exit 1; }
+
+echo "[e2e] render: --grid month outputs more grid lines than --grid year"
+cargo run -q -p tdsl-cli -- render examples/world_wars.tdsl --format svg --grid month --output "$TMP_DIR/grid_month.svg"
+test -s "$TMP_DIR/grid_month.svg"
+GRID_MONTH=$(grep -o "tdsl-grid-line" "$TMP_DIR/grid_month.svg" | wc -l)
+[ "$GRID_MONTH" -gt "$GRID_YEAR" ] \
+  || { echo "FAIL: month grid ($GRID_MONTH lines) should have more lines than year grid ($GRID_YEAR lines)"; exit 1; }
+
+# ---- tdsl render --orientation vertical --------------------------------------
+echo "[e2e] render: --orientation vertical outputs SVG taller than wide"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format svg --orientation vertical --output "$TMP_DIR/vertical.svg"
+test -s "$TMP_DIR/vertical.svg"
+grep -Fq "<svg" "$TMP_DIR/vertical.svg"
+V_WIDTH=$(sed -nE 's/.*<svg[^>]* width="([0-9]+)".*/\1/p' "$TMP_DIR/vertical.svg" | head -n 1)
+V_HEIGHT=$(sed -nE 's/.*<svg[^>]*height="([0-9]+)".*/\1/p' "$TMP_DIR/vertical.svg" | head -n 1)
+[ "$V_HEIGHT" -gt "$V_WIDTH" ] \
+  || { echo "FAIL: vertical SVG should be taller (h=$V_HEIGHT) than wide (w=$V_WIDTH)"; exit 1; }
+
+# ---- tdsl render --show-table -------------------------------------------------
+echo "[e2e] render: --show-table appends an item table to HTML"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --show-table --output "$TMP_DIR/with_table.html"
+test -s "$TMP_DIR/with_table.html"
+grep -Fq '<div class="tdsl-table-wrap">' "$TMP_DIR/with_table.html"
+grep -Fq "<table" "$TMP_DIR/with_table.html"
+
+echo "[e2e] render: without --show-table HTML has no item table"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --output "$TMP_DIR/no_table.html"
+test -s "$TMP_DIR/no_table.html"
+! grep -Fq "<table" "$TMP_DIR/no_table.html" \
+  || { echo "FAIL: HTML without --show-table must not contain an item table"; exit 1; }
+
+# ---- tdsl build --json-schema -------------------------------------------------
+echo "[e2e] build: --json-schema outputs TimelineIr JSON Schema without input file"
+cargo run -q -p tdsl-cli -- build --json-schema >"$TMP_DIR/schema.json"
+test -s "$TMP_DIR/schema.json"
+grep -Fq '"$schema"' "$TMP_DIR/schema.json"
+grep -Fq '"TimelineIr"' "$TMP_DIR/schema.json"
+
 # ---- tdsl init -> import-csv -> lint -> build -> render (full manual flow) --
 echo "[e2e] manual flow: init -> import-csv -> lint --fix -> check -> build -> render"
 cargo run -q -p tdsl-cli -- init \
