@@ -872,13 +872,14 @@ function App() {
       return
     }
     // WASM では Wikidata fetch が行われず import/map 由来のアイテムが IR に
-    // 含まれない。check_source の Info 診断（未解決 import/map の通知）が
-    // ある場合は部分的な IR であることを明示する。
+    // 含まれない。不完全な IR を黙って保存しないよう、check_source の Info 診断
+    // （未解決 import/map の通知）がある場合は明示的な確認を挟み、
+    // 同意がなければ保存しない。
     if (checkSource(source).some((d) => d.severity === 'info')) {
-      showToast(
-        'import / map ブロックは WebUI では解決されません。JSON IR にインポート由来のアイテムは含まれていません（完全な IR は CLI の tdsl build で取得できます）',
-        'info',
+      const proceed = window.confirm(
+        'import / map ブロックは WebUI では解決されないため、この JSON IR にインポート由来のアイテムは含まれません。完全な IR は CLI の tdsl build で取得できます。\n\n静的アイテムのみの JSON IR を保存しますか？',
       )
+      if (!proceed) return
     }
     triggerDownload(new Blob([json], { type: 'application/json' }), 'timeline.json')
   }
