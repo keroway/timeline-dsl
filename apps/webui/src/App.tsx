@@ -1,833 +1,86 @@
-import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type MouseEvent } from 'react'
-import CodeMirror from '@uiw/react-codemirror'
-import { tdsl } from './lang-tdsl'
-import { tdslHover } from './lang-tdsl/hover'
-import { oneDark } from '@codemirror/theme-one-dark'
-import { EditorView, Decoration, ViewPlugin, type ViewUpdate, type DecorationSet } from '@codemirror/view'
-import { StateEffect, StateField } from '@codemirror/state'
-import { autocompletion, snippetCompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
-import { bracketMatching } from '@codemirror/language'
-import { search } from '@codemirror/search'
-import { linter, lintGutter, forceLinting, type Diagnostic as CmDiagnostic } from '@codemirror/lint'
-import { initWasm, compileToIr, renderSvg, renderHtml, checkSource, formatSource } from './wasmLoader'
-import type { Diagnostic } from './wasmLoader'
-import { EXAMPLES } from './examples'
-import { GALLERY_EXAMPLES } from './gallery-meta'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
+import { EditorView } from '@codemirror/view'
+import { forceLinting } from '@codemirror/lint'
+import { type Diagnostic, formatSource } from './wasmLoader'
 import { useToast } from './components/useToast'
-import { buildShareUrl, readSourceFromHash } from './share'
-import {
-  readAutoSnapshots,
-  readManualSnapshots,
-  pushAutoSnapshot,
-  shouldAutoSnapshot,
-  pushManualSnapshot,
-  renameManualSnapshot,
-  deleteManualSnapshot,
-  clearAllHistory,
-  type Snapshot,
-} from './history'
+import { readInitialSource } from './lib/initialSource'
+import { makeTdslLinter } from './editor/extensions'
+import { useWasm } from './hooks/useWasm'
+import { useSettings } from './hooks/useSettings'
+import { useCompiler } from './hooks/useCompiler'
+import { useSvgInteractions } from './hooks/useSvgInteractions'
+import { useSplitPane } from './hooks/useSplitPane'
+import { useExport } from './hooks/useExport'
+import { useHistorySnapshots } from './hooks/useHistorySnapshots'
+import { useSourcePersistence } from './hooks/useSourcePersistence'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useOutsideClick } from './hooks/useOutsideClick'
+import { Toolbar } from './components/Toolbar'
+import { StatusBar } from './components/StatusBar'
+import { MobileTabBar, type MobileTab } from './components/MobileTabBar'
+import { EditorPane } from './components/EditorPane'
+import { PreviewPanel } from './components/PreviewPanel'
+import { DiagnosticsPanel } from './components/DiagnosticsPanel'
+import { Tooltip } from './components/Tooltip'
+import { SettingsModal } from './components/SettingsModal'
+import { GalleryModal } from './components/GalleryModal'
+import { HistoryModal } from './components/HistoryModal'
 import './App.css'
 
-// ─── CodeMirror line highlight effect (プレビュー→エディタ方向) ──────────────────
-
-/** 一時ハイライトをセットする StateEffect。行番号（1-based）を受け取る。 */
-const setLineHighlight = StateEffect.define<number | null>()
-
-/** アクティブなハイライト行を保持する StateField。 */
-const lineHighlightField = StateField.define<DecorationSet>({
-  create() { return Decoration.none },
-  update(deco, tr) {
-    deco = deco.map(tr.changes)
-    for (const effect of tr.effects) {
-      if (effect.is(setLineHighlight)) {
-        if (effect.value === null) {
-          deco = Decoration.none
-        } else {
-          try {
-            const line = tr.state.doc.line(effect.value)
-            deco = Decoration.set([
-              Decoration.line({ class: 'cm-jump-highlight' }).range(line.from),
-            ])
-          } catch {
-            deco = Decoration.none
-          }
-        }
-      }
-    }
-    return deco
-  },
-  provide: (f) => EditorView.decorations.from(f),
-})
-
-/**
- * CodeMirror extension: カーソル行を外部コールバックへ通知する。
- * debounce 16ms (次の animation frame 相当) でパフォーマンスを確保する。
- */
-function makeCursorLineExtension(onCursorLine: (line: number) => void) {
-  let debounceId: ReturnType<typeof setTimeout> | null = null
-  return ViewPlugin.fromClass(
-    class {
-      update(update: ViewUpdate) {
-        if (!update.selectionSet && !update.docChanged) return
-        if (debounceId !== null) clearTimeout(debounceId)
-        debounceId = setTimeout(() => {
-          debounceId = null
-          const pos = update.state.selection.main.head
-          try {
-            const line = update.state.doc.lineAt(pos).number
-            onCursorLine(line)
-          } catch {
-            // ignore out-of-range
-          }
-        }, 16)
-      }
-    }
-  )
-}
-
-/**
- * CodeMirror linter: 渡された ref から最新の WASM Diagnostic[] を読み取り、
- * 行全体（line.from → line.to）にハイライトを描画する。
- * checkSource の二重実行を避けるため、ソースを参照せず ref に依存する。
- */
-function makeTdslLinter(diagnosticsRef: { current: Diagnostic[] }) {
-  return linter(
-    (view): CmDiagnostic[] => {
-      const doc = view.state.doc
-      const out: CmDiagnostic[] = []
-      for (const d of diagnosticsRef.current) {
-        if (d.line < 1 || d.line > doc.lines) continue
-        const line = doc.line(d.line)
-        out.push({
-          from: line.from,
-          to: line.to,
-          severity: d.severity,
-          message: d.message,
-        })
-      }
-      return out
-    },
-    { delay: 0 },
-  )
-}
-
-const SVG_EMBEDDED_CSS = `
-  .tdsl-lane-band-even { fill: #ffffff; }
-  .tdsl-lane-band-odd  { fill: #f5f5f7; }
-  .tdsl-axis-baseline  { stroke: #888888; stroke-width: 1; }
-  .tdsl-axis-tick      { stroke: #e0e0e0; stroke-width: 1; }
-  .tdsl-axis-text      { font-size: 11px; fill: #666666; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-  .tdsl-lane-label     { font-size: 13px; fill: #333333; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-  .tdsl-item-label     { font-size: 11px; fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-  .tdsl-event-stem     { stroke: #666666; stroke-width: 1.5; }
-  .tdsl-event-hit      { fill: transparent; }
-  .tdsl-span           { fill-opacity: 0.78; }
-  .tdsl-event-range    { fill-opacity: 0.75; }
-  .tdsl-event-dot      { stroke: #ffffff; stroke-width: 1; }
-`
-
-function svgWithEmbeddedStyles(svg: string): string {
-  return svg.replace('</style>', SVG_EMBEDDED_CSS + '</style>')
-}
-
-function svgToPngBlob(svg: string, whiteBg: boolean): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const enriched = svgWithEmbeddedStyles(svg)
-    const blob = new Blob([enriched], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth || img.width || 800
-      canvas.height = img.naturalHeight || img.height || 400
-      const ctx = canvas.getContext('2d')!
-      if (whiteBg) {
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-      }
-      ctx.drawImage(img, 0, 0)
-      URL.revokeObjectURL(url)
-      canvas.toBlob((b) => {
-        if (b) resolve(b)
-        else reject(new Error('canvas.toBlob failed'))
-      }, 'image/png')
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG load failed')) }
-    img.src = url
-  })
-}
-
-// Trigger a browser download for the given blob. Centralizes the
-// Blob → object URL → <a download> → revoke dance shared by every export.
-function triggerDownload(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-const DEBOUNCE_MS = 500
-const EDITOR_SOURCE_KEY = 'tdsl:editor:source'
-const FILTER_STATE_KEY = 'tdsl:filter-state'
-
-type ColorScheme = 'dark' | 'light'
-type ThemePreference = 'auto' | 'light' | 'dark'
-
-// ─── Settings & LocalStorage persistence ─────────────────────────────────────
-
-const SETTINGS_KEY = 'tdsl:settings'
-const SPLIT_RATIO_KEY = 'tdsl:split-ratio'
-
-const SPLIT_RATIO_DEFAULT = 0.4
-const SPLIT_RATIO_MIN = 0.15
-const SPLIT_RATIO_MAX = 0.85
-
-function readSplitRatio(): number {
-  try {
-    const raw = localStorage.getItem(SPLIT_RATIO_KEY)
-    if (raw === null) return SPLIT_RATIO_DEFAULT
-    const n = parseFloat(raw)
-    if (!Number.isFinite(n)) return SPLIT_RATIO_DEFAULT
-    return Math.max(SPLIT_RATIO_MIN, Math.min(SPLIT_RATIO_MAX, n))
-  } catch {
-    return SPLIT_RATIO_DEFAULT
-  }
-}
-
-type Settings = {
-  theme: ThemePreference
-  fontSize: number
-  lineWrap: boolean
-  scale: number
-  pngWhiteBg: boolean
-  historyEnabled: boolean
-  autoSaveEnabled: boolean
-}
-
-const SETTINGS_DEFAULTS: Settings = {
-  theme: 'auto',
-  fontSize: 14,
-  lineWrap: false,
-  scale: 0,
-  pngWhiteBg: true,
-  historyEnabled: true,
-  autoSaveEnabled: true,
-}
-
-function readSettings(): Settings {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY)
-    if (!raw) return SETTINGS_DEFAULTS
-    const parsed = JSON.parse(raw) as Partial<Settings>
-    const merged: Settings = { ...SETTINGS_DEFAULTS, ...parsed }
-    if (merged.theme !== 'auto' && merged.theme !== 'light' && merged.theme !== 'dark') {
-      merged.theme = SETTINGS_DEFAULTS.theme
-    }
-    return merged
-  } catch {
-    return SETTINGS_DEFAULTS
-  }
-}
-
-function detectSystemScheme(): ColorScheme {
-  if (typeof window === 'undefined' || !window.matchMedia) return 'dark'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-function resolveColorScheme(pref: ThemePreference, systemScheme: ColorScheme): ColorScheme {
-  return pref === 'auto' ? systemScheme : pref
-}
-
-type LegendItem = { lane: string; label: string; color: string }
-
-type FilterState = { hiddenLanes: Set<string>; tagSearch: string }
-
-type SelectedItem = {
-  label: string
-  type: string
-  lane: string
-  source: string
-  tooltip: string
-}
-
-function extractLegend(container: Element): LegendItem[] {
-  const colorMap = new Map<string, string>()
-  container.querySelectorAll<Element>('[data-lane]').forEach((el) => {
-    const lane = el.getAttribute('data-lane') || ''
-    if (!colorMap.has(lane)) {
-      const fillEl = el.querySelector('.tdsl-span, .tdsl-event-range, .tdsl-event-dot')
-      const style = fillEl?.getAttribute('style') || ''
-      const m = style.match(/fill:([^;]+)/)
-      if (m) colorMap.set(lane, m[1].trim())
-    }
-  })
-  const result: LegendItem[] = []
-  container.querySelectorAll<Element>('.tdsl-lane-label[data-lane]').forEach((el) => {
-    const lane = el.getAttribute('data-lane') || ''
-    const label = el.textContent || lane
-    result.push({ lane, label, color: colorMap.get(lane) || '#888' })
-  })
-  return result
-}
-
-function extractTags(container: Element): string[] {
-  const tags = new Set<string>()
-  container.querySelectorAll<Element>('[data-tags]').forEach((el) => {
-    const raw = el.getAttribute('data-tags') || ''
-    raw.split(',').forEach((t) => { if (t.trim()) tags.add(t.trim()) })
-  })
-  return [...tags].sort()
-}
-
-function loadFilterState(): FilterState {
-  try {
-    const saved = sessionStorage.getItem(FILTER_STATE_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved) as { hiddenLanes?: string[]; tagSearch?: string }
-      return {
-        hiddenLanes: new Set(parsed.hiddenLanes ?? []),
-        tagSearch: parsed.tagSearch ?? '',
-      }
-    }
-  } catch { /* ignore */ }
-  return { hiddenLanes: new Set(), tagSearch: '' }
-}
-
-// ─── TDSL keyword completions & snippets ─────────────────────────────────────
-
-const TDSL_SNIPPETS = [
-  snippetCompletion('timeline "${1:タイトル}" {\n  unit year;\n  range ${2:1900}..${3:2000};\n\n  ${0}\n}', {
-    label: 'timeline', detail: '年表ブロック', type: 'keyword', boost: 10,
-  }),
-  snippetCompletion('lane "${1:レーン名}" as ${2:id} {\n  kind ${3:dynasty};\n  order ${4:10};\n}', {
-    label: 'lane', detail: 'レーン定義', type: 'keyword', boost: 9,
-  }),
-  snippetCompletion('span ${1:lane_id} ${2:1900}..${3:1950} "${4:ラベル}" {};', {
-    label: 'span', detail: 'スパン', type: 'keyword', boost: 8,
-  }),
-  snippetCompletion('event ${1:lane_id} ${2:1900} "${3:ラベル}" {};', {
-    label: 'event', detail: 'イベント', type: 'keyword', boost: 8,
-  }),
-  snippetCompletion('event_range ${1:lane_id} ${2:1900}..${3:1950} "${4:ラベル}" {};', {
-    label: 'event_range', detail: 'イベント範囲', type: 'keyword', boost: 7,
-  }),
-  snippetCompletion('import wikidata as ${1:wd} {\n  entity Q${2:12345} as ${3:alias};\n}', {
-    label: 'import', detail: 'Wikidataインポート', type: 'keyword', boost: 7,
-  }),
-  snippetCompletion('map ${1:wd}.${2:alias} to span {\n  lane ${3:lane_id};\n  start claim(P${4:571}).year;\n  end claim(P${5:576}).year;\n  label label@ja ?? label@en;\n}', {
-    label: 'map', detail: 'マッピング', type: 'keyword', boost: 6,
-  }),
-  snippetCompletion('query "${1:SPARQL}" as ${2:alias};', {
-    label: 'query', detail: 'SPARQLクエリ', type: 'keyword', boost: 5,
-  }),
-  snippetCompletion('color_map {\n  ${1:tag}: "${2:#4682B4}";\n}', {
-    label: 'color_map', detail: 'タグ→色マッピング', type: 'keyword', boost: 5,
-  }),
-]
-
-const STATIC_KEYWORDS = [
-  { label: 'unit', type: 'keyword' as const },
-  { label: 'range', type: 'keyword' as const },
-  { label: 'calendar', type: 'keyword' as const },
-  { label: 'title', type: 'keyword' as const },
-  { label: 'kind', type: 'keyword' as const },
-  { label: 'order', type: 'keyword' as const },
-  { label: 'year', type: 'keyword' as const },
-  { label: 'policy', type: 'keyword' as const },
-  { label: 'label', type: 'property' as const },
-  { label: 'start', type: 'property' as const },
-  { label: 'end', type: 'property' as const },
-  { label: 'time', type: 'property' as const },
-  { label: 'source', type: 'property' as const },
-  { label: 'tags', type: 'property' as const },
-  { label: 'id', type: 'property' as const },
-  { label: 'origin', type: 'property' as const },
-  { label: 'filter', type: 'property' as const },
-  { label: 'lane', type: 'property' as const },
-]
-
-function makeTdslCompletionSource(getSource: () => string) {
-  return function tdslCompletions(context: CompletionContext): CompletionResult | null {
-    const src = getSource()
-    // entity / query エイリアスは map ブロックで `wd.<alias>` の形（import 元.別名）で
-    // しか参照されない。ドットを含むトークンでは**ドット以降だけ**を補完対象にし、
-    // `from` をドットの直後に置くことで `wd.` プレフィックスを保持する
-    // （`from` を語頭に置くと候補挿入時に `wd.` ごと置換されて消えてしまう）。
-    // TDSL ident はハイフンを含みうる（grammar.pest: [A-Za-z_][\w-]*）。
-    const dotted = context.matchBefore(/[\w-]+\.[\w-]*/)
-    if (dotted) {
-      const entityAliases = [...src.matchAll(/\bentity\s+Q\d+\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
-        label: m[1], type: 'variable' as const, detail: 'entity alias',
-      }))
-      const queryAliases = [...src.matchAll(/\bquery\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
-        label: m[1], type: 'variable' as const, detail: 'query alias',
-      }))
-      return {
-        from: dotted.from + dotted.text.indexOf('.') + 1,
-        options: [...entityAliases, ...queryAliases],
-      }
-    }
-
-    // ドット無しトークン: スニペット・キーワード・lane id・import 元エイリアス
-    // （いずれも単独で参照される）。実文法は `import wikidata as wd { … }`。
-    // ident 先頭は英字/アンダースコア限定（数値リテラル `-206` 等を拾わない）。
-    const word = context.matchBefore(/[A-Za-z_][\w-]*/)
-    if (!word || (word.from === word.to && !context.explicit)) return null
-    const laneIds = [...src.matchAll(/\blane\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
-      label: m[1], type: 'variable' as const, detail: 'lane id',
-    }))
-    const importSources = [...src.matchAll(/\bimport\s+[A-Za-z_][\w-]*\s+as\s+([A-Za-z_][\w-]*)\s*\{/g)].map((m) => ({
-      label: m[1], type: 'variable' as const, detail: 'import source',
-    }))
-    return {
-      from: word.from,
-      options: [...TDSL_SNIPPETS, ...STATIC_KEYWORDS, ...laneIds, ...importSources],
-    }
-  }
-}
-
-// ─── Keyboard shortcut reference ─────────────────────────────────────────────
-
-const SHORTCUTS = [
-  { key: 'Ctrl/Cmd + S', desc: '.tdsl をダウンロード' },
-  { key: 'Ctrl/Cmd + Shift + F', desc: 'エディタ内容を整形' },
-  { key: 'Ctrl/Cmd + F', desc: '検索・置換パネルを開く' },
-  { key: 'Escape', desc: '検索パネルを閉じる / 全画面モードを終了' },
-  { key: 'Ctrl/Cmd + Enter', desc: '次の候補へ' },
-  { key: 'Ctrl/Cmd + G', desc: '次の一致へ' },
-  { key: 'Ctrl/Cmd + Z', desc: '元に戻す' },
-  { key: 'Ctrl/Cmd + Shift + Z', desc: 'やり直す' },
-  { key: 'Tab / Space', desc: 'スニペット候補を選択' },
-  { key: 'Ctrl/Cmd + Space', desc: '補完候補を表示' },
-  { key: '? (エディタ外)', desc: '設定を開く' },
-]
-
-type MobileTab = 'editor' | 'preview'
-
-type InitialSourceResult = { source: string; hashError: string | null }
-
-function readInitialSource(): InitialSourceResult {
-  try {
-    const fromHash = readSourceFromHash()
-    if (fromHash !== null) return { source: fromHash, hashError: null }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return {
-      source: EXAMPLES[0].source,
-      hashError: `共有 URL の展開に失敗しました: ${msg}`,
-    }
-  }
-  const param = new URLSearchParams(location.search).get('source')
-  if (param && param.length > 0) return { source: param, hashError: null }
-  try {
-    const saved = localStorage.getItem(EDITOR_SOURCE_KEY)
-    if (saved) return { source: saved, hashError: null }
-  } catch {/* private browsing or quota */}
-  return { source: EXAMPLES[0].source, hashError: null }
-}
-
 function App() {
-  const [initial] = useState<InitialSourceResult>(readInitialSource)
+  const [initial] = useState(readInitialSource)
   const [source, setSource] = useState<string>(initial.source)
-  const [svgContent, setSvgContent] = useState<string>('')
-  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
-  // CodeMirror linter は diagnostics の最新値を参照する必要があるため ref で同期する
-  const diagnosticsRef = useRef<Diagnostic[]>(diagnostics)
-  diagnosticsRef.current = diagnostics
-  const [wasmReady, setWasmReady] = useState(false)
-  const [wasmError, setWasmError] = useState<string | null>(null)
-  const [settings, setSettings] = useState<Settings>(readSettings)
-  const { theme: themePref, fontSize, lineWrap, scale, pngWhiteBg } = settings
-  const [systemScheme, setSystemScheme] = useState<ColorScheme>(detectSystemScheme)
-  const colorScheme = resolveColorScheme(themePref, systemScheme)
   const showToast = useToast()
-  const [mobileTab, setMobileTab] = useState<MobileTab>('editor')
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const editorViewRef = useRef<EditorView | null>(null)
-  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
-
-  // 双方向ジャンプ: エディタ→プレビュー方向のカーソル行
-  const cursorLineRef = useRef<number>(0)
-  // ハイライトタイマー（プレビュー→エディタ方向の 500ms フェード用）
-  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  function updateSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
-    setSettings((prev) => ({ ...prev, [key]: value }))
-  }
-  const [exportMenuOpen, setExportMenuOpen] = useState(false)
-  const exportMenuRef = useRef<HTMLDivElement>(null)
-  const [showSettings, setShowSettings] = useState(false)
-  const [showGallery, setShowGallery] = useState(false)
-  const [fileMenuOpen, setFileMenuOpen] = useState(false)
-  const fileMenuRef = useRef<HTMLDivElement>(null)
-  const [isStalePreview, setIsStalePreview] = useState(false)
-
-  // Tracks programmatic source loads (template/file) that should not be auto-saved
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  // Tracks programmatic source loads (template/file/restore) that should not be auto-saved
   const skipAutoSaveRef = useRef(false)
 
-  // History panel
+  // UI toggles owned by the shell
+  const [mobileTab, setMobileTab] = useState<MobileTab>('editor')
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+  const [fileMenuOpen, setFileMenuOpen] = useState(false)
+  const fileMenuRef = useRef<HTMLDivElement>(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showGallery, setShowGallery] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
-  const [autoSnaps, setAutoSnaps] = useState<Snapshot[]>(() => readAutoSnapshots())
-  const [manualSnaps, setManualSnaps] = useState<Snapshot[]>(() => readManualSnapshots())
-  const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState('')
-  const lastAutoSnapRef = useRef<number>(0)
-
-  // Split pane ratio (editor / preview); persisted to LocalStorage on drag end
-  const [splitRatio, setSplitRatio] = useState<number>(readSplitRatio)
-  const splitRatioRef = useRef<number>(splitRatio)
-  splitRatioRef.current = splitRatio
-  const splitDragRef = useRef<{ startX: number; startRatio: number; containerWidth: number } | null>(null)
-  const mainRef = useRef<HTMLElement>(null)
-
-  // Preview fullscreen mode
   const [previewFullscreen, setPreviewFullscreen] = useState<boolean>(() =>
     new URLSearchParams(location.search).get('preview') === '1'
   )
 
-  // Pan/zoom (direct DOM manipulation avoids React re-renders during drag)
-  const panZoomRef = useRef({ x: 0, y: 0, s: 1 })
-  const [cursorGrab, setCursorGrab] = useState(false)
-  const previewRef = useRef<HTMLDivElement>(null)
-  const svgContainerRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ mx: number; my: number; px: number; py: number } | null>(null)
-  const didDragRef = useRef(false)
+  const { wasmReady, wasmError } = useWasm()
+  const { settings, updateSetting, systemScheme, colorScheme } = useSettings()
+  const { svgContent, diagnostics, diagnosticsRef, isStalePreview } = useCompiler(source, wasmReady, settings.scale)
+  const svg = useSvgInteractions(svgContent, editorViewRef)
+  const { splitRatio, mainRef, handleDividerMouseDown } = useSplitPane()
+  const exportApi = useExport(source, svgContent, settings.pngWhiteBg, showToast)
+  const history = useHistorySnapshots({
+    source,
+    historyEnabled: settings.historyEnabled,
+    showToast,
+    setSource,
+    setShowHistory,
+    skipAutoSaveRef,
+  })
 
-  // Legend, filter & detail panel
-  const [showLegend, setShowLegend] = useState(false)
-  const [legendItems, setLegendItems] = useState<LegendItem[]>([])
-  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
-  const [showFilterPanel, setShowFilterPanel] = useState(false)
-  const [filterState, setFilterState] = useState<FilterState>(loadFilterState)
-  const [allTags, setAllTags] = useState<string[]>([])
+  // インライン linter extension（ref 経由で最新 diagnostics を参照する）
+  const tdslLinterExtension = useMemo(() => makeTdslLinter(diagnosticsRef), [diagnosticsRef])
 
-  function applyTransform(t: { x: number; y: number; s: number }) {
-    panZoomRef.current = t
-    if (svgContainerRef.current) {
-      svgContainerRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.s})`
-    }
-  }
+  useSourcePersistence(source, settings.autoSaveEnabled, skipAutoSaveRef)
+  useOutsideClick(exportMenuRef, exportMenuOpen, setExportMenuOpen)
+  useOutsideClick(fileMenuRef, fileMenuOpen, setFileMenuOpen)
 
-  function resetPanZoom() {
-    applyTransform({ x: 0, y: 0, s: 1 })
-  }
-
-  // Persist settings to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
-    } catch {/* quota exceeded or private browsing — ignore */}
-  }, [settings])
-
-  // Surface a Toast if the initial Hash failed to decode
-  useEffect(() => {
-    if (initial.hashError) showToast(initial.hashError, 'error')
-    // run once after mount; `initial` is from useState lazy initializer (stable)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Track OS color-scheme preference so `auto` follows it live
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return
-    const mql = window.matchMedia('(prefers-color-scheme: dark)')
-    function handleChange(e: MediaQueryListEvent) {
-      setSystemScheme(e.matches ? 'dark' : 'light')
-    }
-    if (mql.addEventListener) {
-      mql.addEventListener('change', handleChange)
-      return () => mql.removeEventListener('change', handleChange)
-    }
-    // Safari < 14 fallback
-    mql.addListener(handleChange)
-    return () => mql.removeListener(handleChange)
-  }, [])
-
-  // Auto-save editor source to LocalStorage (debounced, skips template/file loads)
-  useEffect(() => {
-    if (skipAutoSaveRef.current) {
-      skipAutoSaveRef.current = false
-      return
-    }
-    if (!settings.autoSaveEnabled) return
-    const timer = setTimeout(() => {
-      try {
-        localStorage.setItem(EDITOR_SOURCE_KEY, source)
-      } catch {/* quota exceeded or private browsing */}
-    }, DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-  }, [source, settings.autoSaveEnabled])
-
-  // When autoSaveEnabled is turned OFF, remove the stored source
-  useEffect(() => {
-    if (!settings.autoSaveEnabled) {
-      try {
-        localStorage.removeItem(EDITOR_SOURCE_KEY)
-      } catch {/* ignore */}
-    }
-  }, [settings.autoSaveEnabled])
-
-  // Auto-snapshot on timed interval (5 min + diff present)
-  useEffect(() => {
-    if (!settings.historyEnabled) return
-    const timer = setTimeout(() => {
-      if (shouldAutoSnapshot(source, lastAutoSnapRef.current)) {
-        pushAutoSnapshot(source, '自動保存')
-        lastAutoSnapRef.current = Date.now()
-        setAutoSnaps(readAutoSnapshots())
-      }
-    }, DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-  }, [source, settings.historyEnabled])
-
-  // Initialize WASM on mount
-  useEffect(() => {
-    initWasm()
-      .then(() => setWasmReady(true))
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err)
-        setWasmError(msg)
-      })
-  }, [])
-
-  // Compile + check on source change (debounced)
-  const compileAndCheck = useCallback(
-    (src: string) => {
-      if (!wasmReady) return
-      const diags = checkSource(src)
-      setDiagnostics(diags)
-
-      const hasErrors = diags.some((d) => d.severity === 'error')
-      if (!hasErrors) {
-        try {
-          const svg = renderSvg(src, scale)
-          setSvgContent(svg)
-          setIsStalePreview(false)
-        } catch (e: unknown) {
-          const msg = e instanceof Error ? e.message : String(e)
-          setDiagnostics((prev) => [
-            ...prev,
-            { severity: 'error', message: msg, line: 0, col: 0 },
-          ])
-          setIsStalePreview(true)
-        }
-      } else {
-        setIsStalePreview(true)
-      }
-    },
-    [wasmReady, scale]
-  )
-
-  useEffect(() => {
-    if (!wasmReady) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      compileAndCheck(source)
-    }, DEBOUNCE_MS)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [source, wasmReady, scale, compileAndCheck])
-
-  // Initial compile when WASM becomes ready
-  useEffect(() => {
-    if (wasmReady) {
-      queueMicrotask(() => compileAndCheck(source))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wasmReady])
-
-  // Close export menu on outside click
-  useEffect(() => {
-    if (!exportMenuOpen) return
-    function onOutside(e: globalThis.MouseEvent) {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
-        setExportMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onOutside)
-    return () => document.removeEventListener('mousedown', onOutside)
-  }, [exportMenuOpen])
-
-  // Wheel zoom (passive:false required to call preventDefault)
-  useEffect(() => {
-    const preview = previewRef.current
-    if (!preview) return
-    function onWheel(e: WheelEvent) {
-      e.preventDefault()
-      const rect = preview!.getBoundingClientRect()
-      const cx = e.clientX - rect.left
-      const cy = e.clientY - rect.top
-      const factor = e.deltaY < 0 ? 1.1 : 0.9
-      const pz = panZoomRef.current
-      const newS = Math.max(0.1, Math.min(10, pz.s * factor))
-      const ratio = newS / pz.s
-      applyTransform({ s: newS, x: cx - (cx - pz.x) * ratio, y: cy - (cy - pz.y) * ratio })
-    }
-    preview.addEventListener('wheel', onWheel, { passive: false })
-    return () => preview.removeEventListener('wheel', onWheel)
-  }, [])
-
-  // Extract legend and tags after SVG renders into DOM; also restore cursor highlight
-  useEffect(() => {
-    if (!svgContent) {
-      requestAnimationFrame(() => { setLegendItems([]); setAllTags([]) })
-      return
-    }
-    requestAnimationFrame(() => {
-      const container = svgContainerRef.current
-      if (container) {
-        setLegendItems(extractLegend(container))
-        setAllTags(extractTags(container))
-        // SVG再描画後にカーソル行ハイライトを復元（直接DOM操作）
-        const currentLine = cursorLineRef.current
-        if (currentLine > 0) {
-          container.querySelectorAll<Element>('.tdsl-item-cursor-highlight').forEach((el) => {
-            el.classList.remove('tdsl-item-cursor-highlight')
-          })
-          container.querySelectorAll<HTMLElement>('[data-line]').forEach((el) => {
-            if (parseInt(el.dataset.line || '0', 10) === currentLine) {
-              el.classList.add('tdsl-item-cursor-highlight')
-            }
-          })
-        }
-      }
-    })
-  }, [svgContent])
-
-  // Apply filter state to SVG DOM (opacity control)
-  useEffect(() => {
-    const container = svgContainerRef.current
-    if (!container) return
-    const tagFilter = filterState.tagSearch.trim().toLowerCase()
-    container.querySelectorAll<HTMLElement>('.tdsl-item').forEach((el) => {
-      const lane = el.getAttribute('data-lane') ?? ''
-      const rawTags = el.getAttribute('data-tags') ?? ''
-      const tags = rawTags ? rawTags.split(',').map((t) => t.trim()) : []
-      const laneHidden = filterState.hiddenLanes.has(lane)
-      const tagNoMatch = tagFilter !== '' && !tags.some((t) => t.toLowerCase().includes(tagFilter))
-      el.style.opacity = laneHidden || tagNoMatch ? '0.12' : ''
-    })
-    container.querySelectorAll<HTMLElement>('.tdsl-lane-label[data-lane]').forEach((el) => {
-      const lane = el.getAttribute('data-lane') ?? ''
-      el.style.opacity = filterState.hiddenLanes.has(lane) ? '0.3' : ''
-    })
-  }, [filterState, svgContent])
-
-  // Persist filter state to sessionStorage
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(FILTER_STATE_KEY, JSON.stringify({
-        hiddenLanes: [...filterState.hiddenLanes],
-        tagSearch: filterState.tagSearch,
-      }))
-    } catch { /* ignore */ }
-  }, [filterState])
-
-  // Split pane drag (document-level to prevent losing track when cursor leaves divider)
-  useEffect(() => {
-    function onMouseMove(e: globalThis.MouseEvent) {
-      if (!splitDragRef.current) return
-      const dx = e.clientX - splitDragRef.current.startX
-      const newRatio = Math.max(0.15, Math.min(0.85, splitDragRef.current.startRatio + dx / splitDragRef.current.containerWidth))
-      setSplitRatio(newRatio)
-    }
-    function onMouseUp() {
-      if (!splitDragRef.current) return
-      splitDragRef.current = null
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      try {
-        localStorage.setItem(SPLIT_RATIO_KEY, String(splitRatioRef.current))
-      } catch {/* quota or private browsing — ignore */}
-    }
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-    return () => {
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-    }
-  }, [])
-
-  function handleDividerMouseDown(e: MouseEvent<HTMLDivElement>) {
-    e.preventDefault()
-    const containerWidth = mainRef.current?.clientWidth ?? document.documentElement.clientWidth
-    splitDragRef.current = { startX: e.clientX, startRatio: splitRatio, containerWidth }
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-  }
-
-  // Global `?` key to toggle settings modal (only when editor doesn't have focus)
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === '?' && !(e.target instanceof HTMLTextAreaElement) && !editorViewRef.current?.hasFocus) {
-        e.preventDefault()
-        setShowSettings((v) => !v)
-      }
-      if (e.key === 'Escape') {
-        setShowSettings(false)
-        setPreviewFullscreen(false)
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [])
-
-  // Ctrl/Cmd+S: .tdsl ファイルをダウンロード
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault()
-        downloadTdsl()
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source])
-
-  // Ctrl/Cmd+Shift+F: エディタ内容を整形
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
-        e.preventDefault()
-        handleFormat()
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wasmReady])
-
-  // Close file menu on outside click
-  useEffect(() => {
-    if (!fileMenuOpen) return
-    function onOutside(e: globalThis.MouseEvent) {
-      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
-        setFileMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onOutside)
-    return () => document.removeEventListener('mousedown', onOutside)
-  }, [fileMenuOpen])
   function handleEditorChange(value: string) {
     setSource(value)
   }
 
   function handleGallerySelect(newSource: string) {
-    if (settings.historyEnabled && source.trim()) {
-      pushAutoSnapshot(source, 'テンプレートロード前')
-      lastAutoSnapRef.current = Date.now()
-      setAutoSnaps(readAutoSnapshots())
-    }
+    history.snapshotBeforeLoad('テンプレートロード前')
     skipAutoSaveRef.current = true
     setSource(newSource)
     setShowGallery(false)
-  }
-
-  function handleFontSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    updateSetting('fontSize', parseInt(e.target.value, 10))
   }
 
   function handleFormat() {
@@ -858,250 +111,24 @@ function App() {
     }
   }
 
-  function downloadTdsl() {
-    triggerDownload(new Blob([source], { type: 'text/plain' }), 'timeline.tdsl')
-  }
-
-  function downloadJsonIr() {
-    let json: string
-    try {
-      json = compileToIr(source)
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      showToast(`JSON IR の生成に失敗しました: ${msg}`, 'error')
-      return
-    }
-    // WASM では Wikidata fetch が行われず import/map 由来のアイテムが IR に
-    // 含まれない。不完全な IR を黙って保存しないよう、check_source の Info 診断
-    // （未解決 import/map の通知）がある場合は明示的な確認を挟み、
-    // 同意がなければ保存しない。
-    if (checkSource(source).some((d) => d.severity === 'info')) {
-      const proceed = window.confirm(
-        'import / map ブロックは WebUI では解決されないため、この JSON IR にインポート由来のアイテムは含まれません。完全な IR は CLI の tdsl build で取得できます。\n\n静的アイテムのみの JSON IR を保存しますか？',
-      )
-      if (!proceed) return
-    }
-    triggerDownload(new Blob([json], { type: 'application/json' }), 'timeline.json')
-  }
-
-  function downloadSvg() {
-    if (!svgContent) return
-    triggerDownload(new Blob([svgContent], { type: 'image/svg+xml' }), 'timeline.svg')
-  }
-
-  function downloadPng(whiteBg: boolean = true) {
-    if (!svgContent) return
-    svgToPngBlob(svgContent, whiteBg)
-      .then((blob) => triggerDownload(blob, 'timeline.png'))
-      .catch(() => showToast('PNG の生成に失敗しました', 'error'))
-  }
-
-  function copySvg() {
-    if (!svgContent) return
-    navigator.clipboard.writeText(svgContent)
-      .then(() => showToast('SVG をコピーしました', 'success'))
-      .catch(() => showToast('SVG のコピーに失敗しました', 'error'))
-  }
-
-  function copyPng() {
-    if (!svgContent) return
-    svgToPngBlob(svgContent, pngWhiteBg)
-      .then((blob) => navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]))
-      .then(() => showToast('PNG をコピーしました', 'success'))
-      .catch(() => showToast('PNG のコピーに失敗しました', 'error'))
-  }
-
-  function copyMarkdown() {
-    const md = '```tdsl\n' + source + '\n```'
-    navigator.clipboard.writeText(md)
-      .then(() => showToast('Markdown をコピーしました', 'success'))
-      .catch(() => showToast('Markdown のコピーに失敗しました', 'error'))
-  }
-
-  function copyShareLink() {
-    try {
-      const url = buildShareUrl(source)
-      navigator.clipboard.writeText(url)
-        .then(() => showToast('Share link をコピーしました', 'success'))
-        .catch(() => showToast('Share link のコピーに失敗しました', 'error'))
-    } catch {
-      showToast('Share link の生成に失敗しました', 'error')
-    }
-  }
-
-  function downloadHtml() {
-    if (!svgContent) return
-    try {
-      const html = renderHtml(source)
-      triggerDownload(new Blob([html], { type: 'text/html' }), 'timeline.html')
-    } catch {
-      // keep silent — errors are already shown in diagnostics
-    }
-  }
-
-  // Export to PDF via the browser's native print-to-PDF. The CLI emits a
-  // vector PDF through tdsl-render's `pdf` feature, but that path relies on
-  // fontdb's system-font loading (ADR-0002 D5) which is unavailable in a
-  // browser WASM sandbox — CJK labels would not shape. Printing the HTML
-  // render instead lets the browser resolve fonts natively. We render into a
-  // hidden iframe (no popup-blocker, prints only the iframe content) and let
-  // the user pick "Save as PDF" in the print dialog.
-  function exportPdf() {
-    if (!svgContent) return
-    let html: string
-    try {
-      html = renderHtml(source)
-    } catch {
-      showToast('PDF の生成に失敗しました', 'error')
-      return
-    }
-    showToast('印刷ダイアログで「PDF に保存」を選択してください', 'info')
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const iframe = document.createElement('iframe')
-    iframe.setAttribute('aria-hidden', 'true')
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
-    const cleanup = () => {
-      URL.revokeObjectURL(url)
-      iframe.remove()
-    }
-    iframe.onload = () => {
-      const cw = iframe.contentWindow
-      if (!cw) {
-        showToast('PDF の生成に失敗しました', 'error')
-        cleanup()
-        return
-      }
-      cw.focus()
-      cw.print()
-      // Give the print dialog time to open before tearing down the iframe.
-      setTimeout(cleanup, 1000)
-    }
-    iframe.src = url
-    document.body.appendChild(iframe)
-  }
-
   function openFile() {
     fileInputRef.current?.click()
   }
 
-  // Preview mouse handlers (drag pan + tooltip + item selection)
-  function handlePreviewMouseDown(e: MouseEvent<HTMLDivElement>) {
-    if (e.button !== 0) return
-    const pz = panZoomRef.current
-    dragRef.current = { mx: e.clientX, my: e.clientY, px: pz.x, py: pz.y }
-    didDragRef.current = false
-    setCursorGrab(true)
-  }
-
-  function handlePreviewMouseMove(e: MouseEvent<HTMLDivElement>) {
-    if (dragRef.current) {
-      const dx = e.clientX - dragRef.current.mx
-      const dy = e.clientY - dragRef.current.my
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDragRef.current = true
-      const pz = panZoomRef.current
-      applyTransform({ s: pz.s, x: dragRef.current.px + dx, y: dragRef.current.py + dy })
-      setTooltip(null)
-      return
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string
+      history.snapshotBeforeLoad('ファイルオープン前')
+      skipAutoSaveRef.current = true
+      setSource(text)
     }
-    const target = (e.target as Element).closest<HTMLElement>('[data-tdsl-tooltip]')
-    if (target) {
-      const text = target.dataset.tdslTooltip ?? ''
-      setTooltip({ text, x: e.clientX, y: e.clientY })
-    } else {
-      setTooltip(null)
-    }
+    reader.readAsText(file)
+    // Reset so same file can be re-opened
+    e.target.value = ''
   }
-
-  function handlePreviewMouseUp() {
-    dragRef.current = null
-    setCursorGrab(false)
-  }
-
-  function handlePreviewMouseLeave() {
-    dragRef.current = null
-    setCursorGrab(false)
-    setTooltip(null)
-  }
-
-  function handlePreviewDblClick() {
-    resetPanZoom()
-  }
-
-  function handlePreviewClick(e: MouseEvent<HTMLDivElement>) {
-    if (didDragRef.current) { didDragRef.current = false; return }
-    const target = (e.target as Element).closest<HTMLElement>('[data-label]')
-    if (target) {
-      setSelectedItem({
-        label: target.dataset.label || '',
-        type: target.dataset.type || '',
-        lane: target.dataset.lane || '',
-        source: target.dataset.source || '',
-        tooltip: target.dataset.tdslTooltip || '',
-      })
-
-      // プレビュー → エディタ方向ジャンプ
-      const lineStr = target.dataset.line
-      if (lineStr) {
-        const lineNum = parseInt(lineStr, 10)
-        const view = editorViewRef.current
-        if (view && lineNum > 0) {
-          try {
-            const lineInfo = view.state.doc.line(lineNum)
-            view.dispatch({
-              selection: { anchor: lineInfo.from },
-              scrollIntoView: true,
-              effects: [
-                EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
-                setLineHighlight.of(lineNum),
-              ],
-            })
-            view.focus()
-            // 500ms 後にハイライトをフェードアウト
-            if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current)
-            highlightTimerRef.current = setTimeout(() => {
-              view.dispatch({ effects: setLineHighlight.of(null) })
-              highlightTimerRef.current = null
-            }, 500)
-          } catch {
-            // 行範囲外は無視
-          }
-        }
-      }
-    } else {
-      setSelectedItem(null)
-    }
-  }
-
-  // エディタ→プレビュー方向: カーソル行に対応するSVG要素を強調
-  const handleCursorLine = useCallback((line: number) => {
-    cursorLineRef.current = line
-    const container = svgContainerRef.current
-    if (!container) return
-    // 既存の強調をすべて解除
-    container.querySelectorAll<Element>('.tdsl-item-cursor-highlight').forEach((el) => {
-      el.classList.remove('tdsl-item-cursor-highlight')
-    })
-    // カーソル行に対応するアイテムを強調
-    container.querySelectorAll<HTMLElement>('[data-line]').forEach((el) => {
-      const elLine = parseInt(el.dataset.line || '0', 10)
-      if (elLine === line) {
-        el.classList.add('tdsl-item-cursor-highlight')
-      }
-    })
-  }, [])
-
-  // カーソル行監視 extension（handleCursorLine は useCallback で安定しているため再生成しない）
-  const cursorLineExtension = useMemo(() => makeCursorLineExtension(handleCursorLine), [handleCursorLine])
-
-  // インライン linter extension（ref 経由で最新 diagnostics を参照する）
-  const tdslLinterExtension = useMemo(() => makeTdslLinter(diagnosticsRef), [])
-
-  // diagnostics が更新されたら linter を強制再実行してマーカーを最新化する
-  useEffect(() => {
-    const view = editorViewRef.current
-    if (view) forceLinting(view)
-  }, [diagnostics])
 
   function handleDiagClick(diag: Diagnostic) {
     const view = editorViewRef.current
@@ -1116,740 +143,146 @@ function App() {
     }
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string
-      if (settings.historyEnabled && source.trim()) {
-        pushAutoSnapshot(source, 'ファイルオープン前')
-        lastAutoSnapRef.current = Date.now()
-        setAutoSnaps(readAutoSnapshots())
-      }
-      skipAutoSaveRef.current = true
-      setSource(text)
-    }
-    reader.readAsText(file)
-    // Reset so same file can be re-opened
-    e.target.value = ''
-  }
+  useKeyboardShortcuts({
+    editorViewRef,
+    setShowSettings,
+    setPreviewFullscreen,
+    onSave: exportApi.downloadTdsl,
+    onFormat: handleFormat,
+    source,
+    wasmReady,
+  })
 
-  function handleSaveToHistory() {
-    const snap = pushManualSnapshot(source, `手動保存 — ${new Date().toLocaleString('ja-JP')}`)
-    setManualSnaps(readManualSnapshots())
-    showToast(`履歴に保存しました: ${snap.label}`, 'success')
-  }
+  // Surface a Toast if the initial Hash failed to decode
+  useEffect(() => {
+    if (initial.hashError) showToast(initial.hashError, 'error')
+    // run once after mount; `initial` is from useState lazy initializer (stable)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  function handleRestoreSnapshot(src: string) {
-    skipAutoSaveRef.current = true
-    setSource(src)
-    setShowHistory(false)
-  }
-
-  function handleRenameStart(snap: Snapshot) {
-    setRenamingId(snap.id)
-    setRenameValue(snap.label)
-  }
-
-  function handleRenameCommit() {
-    if (renamingId && renameValue.trim()) {
-      renameManualSnapshot(renamingId, renameValue.trim())
-      setManualSnaps(readManualSnapshots())
-    }
-    setRenamingId(null)
-    setRenameValue('')
-  }
-
-  function handleDeleteManual(id: string) {
-    deleteManualSnapshot(id)
-    setManualSnaps(readManualSnapshots())
-  }
-
-  function handleClearAllHistory() {
-    clearAllHistory()
-    setAutoSnaps([])
-    setManualSnaps([])
-    showToast('履歴を全件削除しました', 'success')
-  }
+  // diagnostics が更新されたら linter を強制再実行してマーカーを最新化する
+  useEffect(() => {
+    const view = editorViewRef.current
+    if (view) forceLinting(view)
+  }, [diagnostics])
 
   const errorCount = diagnostics.filter((d) => d.severity === 'error').length
   const warnCount = diagnostics.filter((d) => d.severity === 'warning').length
+  const historyCount = history.autoSnaps.length + history.manualSnaps.length
 
   const appStyle: CSSProperties = {
-    '--editor-font-size': `${fontSize}px`,
+    '--editor-font-size': `${settings.fontSize}px`,
   } as CSSProperties
 
   return (
     <div className="app" data-theme={colorScheme} style={appStyle}>
-      {/* Header / Toolbar */}
-      <header className="toolbar">
-        <div className="toolbar-left">
-          <span className="app-title">Timeline DSL</span>
-          <div className="toolbar-divider" />
-          {/* ファイルメニュー */}
-          <div className="export-menu-wrapper" ref={fileMenuRef}>
-            <button
-              className="btn"
-              onClick={() => setFileMenuOpen((v) => !v)}
-              title="ファイル操作"
-            >
-              ファイル ▾
-            </button>
-            {fileMenuOpen && (
-              <div className="export-menu export-menu-left">
-                <button className="export-menu-item" onClick={() => { openFile(); setFileMenuOpen(false) }}>
-                  .tdsl を開く
-                </button>
-              </div>
-            )}
-          </div>
-          {/* テンプレートギャラリー */}
-          <button
-            className="btn"
-            onClick={() => setShowGallery(true)}
-            title="テンプレートギャラリーを開く"
-          >
-            テンプレート
-          </button>
-          {settings.historyEnabled && (
-            <>
-              <button
-                className="btn"
-                onClick={handleSaveToHistory}
-                title="現在の DSL を履歴に手動保存"
-              >
-                履歴に保存
-              </button>
-              <button
-                className={`btn${(autoSnaps.length + manualSnaps.length) > 0 ? ' btn-history-badge' : ''}`}
-                onClick={() => setShowHistory(true)}
-                title="履歴パネルを開く"
-              >
-                履歴 {(autoSnaps.length + manualSnaps.length) > 0 ? `(${autoSnaps.length + manualSnaps.length})` : ''}
-              </button>
-            </>
-          )}
-          <button
-            className="btn"
-            onClick={handleFormat}
-            disabled={!wasmReady}
-            title="エディタ内容を整形 (Ctrl/Cmd+Shift+F)"
-          >
-            Format
-          </button>
-        </div>
-        <div className="toolbar-right">
-          {/* エクスポートメニュー */}
-          <div className="export-menu-wrapper" ref={exportMenuRef}>
-            <button
-              className="btn"
-              onClick={() => setExportMenuOpen((v) => !v)}
-              title="エクスポート"
-            >
-              エクスポート ▾
-            </button>
-            {exportMenuOpen && (
-              <div className="export-menu">
-                <div className="export-menu-section">ダウンロード</div>
-                <button className="export-menu-item" onClick={() => { downloadTdsl(); setExportMenuOpen(false) }}>
-                  .tdsl 保存
-                </button>
-                <button className="export-menu-item" onClick={() => { downloadJsonIr(); setExportMenuOpen(false) }}>
-                  JSON IR 保存
-                </button>
-                <button className="export-menu-item" onClick={() => { downloadSvg(); setExportMenuOpen(false) }} disabled={!svgContent}>
-                  SVG 保存
-                </button>
-                <button className="export-menu-item" onClick={() => { downloadHtml(); setExportMenuOpen(false) }} disabled={!svgContent}>
-                  HTML 保存
-                </button>
-                <button className="export-menu-item" onClick={() => { exportPdf(); setExportMenuOpen(false) }} disabled={!svgContent}>
-                  PDF 保存（印刷）
-                </button>
-                <button className="export-menu-item" onClick={() => { downloadPng(true); setExportMenuOpen(false) }} disabled={!svgContent}>
-                  PNG 保存（白背景）
-                </button>
-                <button className="export-menu-item" onClick={() => { downloadPng(false); setExportMenuOpen(false) }} disabled={!svgContent}>
-                  PNG 保存（透過）
-                </button>
-                <div className="export-menu-section">クリップボードへコピー</div>
-                <button className="export-menu-item" onClick={() => { copySvg(); setExportMenuOpen(false) }} disabled={!svgContent}>
-                  SVG をコピー
-                </button>
-                <button className="export-menu-item" onClick={() => { copyPng(); setExportMenuOpen(false) }} disabled={!svgContent}>
-                  PNG をコピー
-                </button>
-                <button className="export-menu-item" onClick={() => { copyMarkdown(); setExportMenuOpen(false) }}>
-                  Markdown をコピー
-                </button>
-                <button className="export-menu-item" onClick={() => { copyShareLink(); setExportMenuOpen(false) }}>
-                  Share link をコピー
-                </button>
-              </div>
-            )}
-          </div>
-          {/* 設定 */}
-          <button
-            className="btn"
-            onClick={() => setShowSettings(true)}
-            title="設定 (?)"
-          >
-            設定
-          </button>
-          {/* About */}
-          <a
-            className="btn"
-            href="https://timeline-dsl-lp.pages.dev/"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="ランディングページ・ドキュメント"
-          >
-            About
-          </a>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".tdsl,text/plain"
-            style={{ display: 'none' }}
-            onChange={handleFileChange}
-          />
-        </div>
-      </header>
+      <Toolbar
+        fileMenuRef={fileMenuRef}
+        fileMenuOpen={fileMenuOpen}
+        setFileMenuOpen={setFileMenuOpen}
+        onOpenFile={openFile}
+        onShowGallery={() => setShowGallery(true)}
+        historyEnabled={settings.historyEnabled}
+        historyCount={historyCount}
+        onSaveToHistory={history.handleSaveToHistory}
+        onShowHistory={() => setShowHistory(true)}
+        onFormat={handleFormat}
+        wasmReady={wasmReady}
+        exportMenuRef={exportMenuRef}
+        exportMenuOpen={exportMenuOpen}
+        setExportMenuOpen={setExportMenuOpen}
+        exportApi={exportApi}
+        svgContent={svgContent}
+        onShowSettings={() => setShowSettings(true)}
+        fileInputRef={fileInputRef}
+        onFileChange={handleFileChange}
+      />
 
-      {/* WASM loading indicator */}
-      {!wasmReady && !wasmError && (
-        <div className="status-bar loading">WASM を初期化中...</div>
-      )}
-      {wasmError && (
-        <div className="status-bar status-error">WASM 初期化エラー: {wasmError}</div>
-      )}
-      {wasmReady && (
-        <div className="status-bar ready">
-          {errorCount > 0 && <span className="badge badge-error">{errorCount} エラー</span>}
-          {warnCount > 0 && <span className="badge badge-warn">{warnCount} 警告</span>}
-          {errorCount === 0 && warnCount === 0 && (
-            <span className="badge badge-ok">問題なし</span>
-          )}
-        </div>
-      )}
+      <StatusBar wasmReady={wasmReady} wasmError={wasmError} errorCount={errorCount} warnCount={warnCount} />
 
-      {/* Mobile tab bar */}
-      <div className="mobile-tab-bar">
-        <button
-          className={`mobile-tab${mobileTab === 'editor' ? ' mobile-tab-active' : ''}`}
-          onClick={() => setMobileTab('editor')}
-        >
-          エディタ
-        </button>
-        <button
-          className={`mobile-tab${mobileTab === 'preview' ? ' mobile-tab-active' : ''}`}
-          onClick={() => setMobileTab('preview')}
-        >
-          プレビュー
-        </button>
-      </div>
+      <MobileTabBar mobileTab={mobileTab} setMobileTab={setMobileTab} />
 
-      {/* Main: Editor + Preview */}
       <main className="main" ref={mainRef}>
-        <div
-          className={`editor-pane${mobileTab !== 'editor' ? ' mobile-hidden' : ''}`}
-          style={{ flex: `0 0 ${splitRatio * 100}%`, ...(previewFullscreen ? { display: 'none' } : {}) }}
-        >
-          <CodeMirror
-            value={source}
-            height="100%"
-            theme={colorScheme === 'dark' ? oneDark : 'light'}
-            extensions={[
-              tdsl(),
-              search({ top: true }),
-              bracketMatching(),
-              autocompletion({ override: [makeTdslCompletionSource(() => source)] }),
-              tdslHover(() => source),
-              lineHighlightField,
-              cursorLineExtension,
-              tdslLinterExtension,
-              lintGutter(),
-              ...(lineWrap ? [EditorView.lineWrapping] : []),
-            ]}
-            onChange={handleEditorChange}
-            onCreateEditor={(view) => { editorViewRef.current = view }}
-            basicSetup={{
-              lineNumbers: true,
-              foldGutter: false,
-              dropCursor: false,
-              allowMultipleSelections: false,
-              indentOnInput: true,
-            }}
-          />
-        </div>
+        <EditorPane
+          source={source}
+          colorScheme={colorScheme}
+          lineWrap={settings.lineWrap}
+          splitRatio={splitRatio}
+          hidden={mobileTab !== 'editor'}
+          fullscreen={previewFullscreen}
+          cursorLineExtension={svg.cursorLineExtension}
+          tdslLinterExtension={tdslLinterExtension}
+          onChange={handleEditorChange}
+          onCreateEditor={(view) => { editorViewRef.current = view }}
+        />
         <div
           className="split-divider"
           onMouseDown={handleDividerMouseDown}
           title="ドラッグして分割幅を調整"
           style={previewFullscreen ? { display: 'none' } : undefined}
         />
-        <div className={`preview-area${mobileTab !== 'preview' ? ' mobile-hidden' : ''}`}>
-          {/* Preview controls overlay */}
-          <div className="preview-controls">
-            <select
-              className="scale-select"
-              value={scale}
-              onChange={(e) => updateSetting('scale', Number(e.target.value))}
-              title="プレビューのスケール（ピクセル/年）"
-            >
-              <option value={0}>Auto</option>
-              <option value={0.5}>0.5×</option>
-              <option value={1}>1×</option>
-              <option value={2}>2×</option>
-              <option value={4}>4×</option>
-              <option value={8}>8×</option>
-            </select>
-            {svgContent && (
-              <>
-                <button
-                  className="btn btn-preview-ctrl"
-                  onClick={resetPanZoom}
-                  title="ビューをリセット（ダブルクリックでも可）"
-                >
-                  リセット
-                </button>
-                <button
-                  className="btn btn-preview-ctrl"
-                  onClick={() => setShowLegend((v) => !v)}
-                  title="凡例を表示/非表示"
-                >
-                  {showLegend ? '凡例 ✕' : '凡例'}
-                </button>
-                <button
-                  className={`btn btn-preview-ctrl${filterState.hiddenLanes.size > 0 || filterState.tagSearch ? ' btn-preview-ctrl-active' : ''}`}
-                  onClick={() => setShowFilterPanel((v) => !v)}
-                  title="フィルタパネルを表示/非表示"
-                >
-                  {showFilterPanel ? 'フィルタ ✕' : 'フィルタ'}
-                </button>
-              </>
-            )}
-            <button
-              className={`btn btn-preview-ctrl${previewFullscreen ? ' btn-preview-ctrl-active' : ''}`}
-              onClick={() => setPreviewFullscreen((v) => !v)}
-              title={previewFullscreen ? '全画面モードを終了（Escape）' : '全画面モードでプレビュー'}
-              aria-label={previewFullscreen ? '全画面モードを終了' : '全画面モードでプレビュー'}
-            >
-              {previewFullscreen ? '✕ 全画面' : '⛶'}
-            </button>
-          </div>
-          {/* Legend panel */}
-          {showLegend && legendItems.length > 0 && (
-            <div className="legend-panel">
-              <div className="legend-header">凡例</div>
-              {legendItems.map((item) => (
-                <div key={item.lane} className="legend-item">
-                  <span className="legend-swatch" style={{ background: item.color }} />
-                  <span className="legend-label">{item.label}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {/* Filter panel */}
-          {showFilterPanel && legendItems.length > 0 && (
-            <div className="filter-panel">
-              <div className="filter-header">フィルタ</div>
-              <div className="filter-section">
-                <div className="filter-section-title">レーン</div>
-                {legendItems.map((item) => (
-                  <label key={item.lane} className="filter-item">
-                    <input
-                      type="checkbox"
-                      checked={!filterState.hiddenLanes.has(item.lane)}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        setFilterState((prev) => {
-                          const next = new Set(prev.hiddenLanes)
-                          if (e.target.checked) next.delete(item.lane)
-                          else next.add(item.lane)
-                          return { ...prev, hiddenLanes: next }
-                        })
-                      }}
-                    />
-                    <span className="filter-swatch" style={{ background: item.color }} />
-                    <span className="filter-label">{item.label}</span>
-                  </label>
-                ))}
-              </div>
-              {allTags.length > 0 && (
-                <div className="filter-section">
-                  <div className="filter-section-title">タグ検索</div>
-                  <input
-                    type="text"
-                    className="filter-tag-input"
-                    value={filterState.tagSearch}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setFilterState((prev) => ({ ...prev, tagSearch: e.target.value }))
-                    }
-                    placeholder="タグ名で絞り込み"
-                  />
-                </div>
-              )}
-              {(filterState.hiddenLanes.size > 0 || filterState.tagSearch) && (
-                <button
-                  className="filter-reset-btn"
-                  onClick={() => setFilterState({ hiddenLanes: new Set(), tagSearch: '' })}
-                >
-                  リセット
-                </button>
-              )}
-            </div>
-          )}
-          {/* Selected item detail panel */}
-          {selectedItem && (
-            <div className="detail-panel">
-              <div className="detail-header">
-                <span>詳細</span>
-                <button className="detail-close" onClick={() => setSelectedItem(null)}>✕</button>
-              </div>
-              <dl className="detail-list">
-                <dt>名前</dt><dd>{selectedItem.label || '—'}</dd>
-                <dt>種類</dt><dd>{selectedItem.type || '—'}</dd>
-                <dt>レーン</dt><dd>{selectedItem.lane || '—'}</dd>
-                {selectedItem.source && <><dt>出典</dt><dd>{selectedItem.source}</dd></>}
-                {selectedItem.tooltip && (
-                  <><dt>情報</dt><dd className="detail-tooltip">{selectedItem.tooltip}</dd></>
-                )}
-              </dl>
-            </div>
-          )}
-          <div
-            ref={previewRef}
-            className={`preview-pane${cursorGrab ? ' grabbing' : ''}`}
-            onMouseDown={handlePreviewMouseDown}
-            onMouseMove={handlePreviewMouseMove}
-            onMouseUp={handlePreviewMouseUp}
-            onMouseLeave={handlePreviewMouseLeave}
-            onDoubleClick={handlePreviewDblClick}
-            onClick={handlePreviewClick}
-          >
-            {svgContent ? (
-              <>
-                {isStalePreview && (
-                  <div className="stale-preview-badge">直前の成功時プレビューを表示中</div>
-                )}
-                <div
-                  ref={svgContainerRef}
-                  className="svg-container"
-                  dangerouslySetInnerHTML={{ __html: svgContent }}
-                />
-              </>
-            ) : (
-              <div className="preview-placeholder">
-                {wasmReady ? 'プレビューなし（エラーを確認してください）' : '読み込み中...'}
-              </div>
-            )}
-          </div>
-        </div>
+        <PreviewPanel
+          hidden={mobileTab !== 'preview'}
+          scale={settings.scale}
+          onScaleChange={(value) => updateSetting('scale', value)}
+          svgContent={svgContent}
+          isStalePreview={isStalePreview}
+          wasmReady={wasmReady}
+          previewRef={svg.previewRef}
+          svgContainerRef={svg.svgContainerRef}
+          cursorGrab={svg.cursorGrab}
+          resetPanZoom={svg.resetPanZoom}
+          previewFullscreen={previewFullscreen}
+          setPreviewFullscreen={setPreviewFullscreen}
+          showLegend={svg.showLegend}
+          setShowLegend={svg.setShowLegend}
+          showFilterPanel={svg.showFilterPanel}
+          setShowFilterPanel={svg.setShowFilterPanel}
+          legendItems={svg.legendItems}
+          allTags={svg.allTags}
+          filterState={svg.filterState}
+          setFilterState={svg.setFilterState}
+          selectedItem={svg.selectedItem}
+          setSelectedItem={svg.setSelectedItem}
+          onMouseDown={svg.handlePreviewMouseDown}
+          onMouseMove={svg.handlePreviewMouseMove}
+          onMouseUp={svg.handlePreviewMouseUp}
+          onMouseLeave={svg.handlePreviewMouseLeave}
+          onDoubleClick={svg.handlePreviewDblClick}
+          onClick={svg.handlePreviewClick}
+        />
       </main>
 
-      {/* Diagnostics panel */}
-      {diagnostics.length > 0 && (
-        <aside className="diagnostics-panel">
-          <div className="diagnostics-header">診断結果</div>
-          <ul className="diagnostics-list">
-            {diagnostics.map((d, i) => (
-              <li
-                key={i}
-                className={`diagnostic-item ${d.severity}${d.line > 0 ? ' clickable' : ''}`}
-                onClick={() => handleDiagClick(d)}
-                role={d.line > 0 ? 'button' : undefined}
-                tabIndex={d.line > 0 ? 0 : undefined}
-                onKeyDown={d.line > 0 ? (e) => e.key === 'Enter' && handleDiagClick(d) : undefined}
-              >
-                <span className="diag-severity">
-                  {d.severity === 'error' ? 'ERROR' : d.severity === 'warning' ? 'WARN' : 'INFO'}
-                </span>
-                {d.line > 0 && (
-                  <span className="diag-location">
-                    {d.line}:{d.col}
-                  </span>
-                )}
-                <span className="diag-message">{d.message}</span>
-              </li>
-            ))}
-          </ul>
-        </aside>
-      )}
-      {tooltip && (
-        <div
-          className="tdsl-tooltip"
-          style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}
-        >
-          {tooltip.text.split('\n').map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
-        </div>
-      )}
-      {/* Settings modal */}
+      <DiagnosticsPanel diagnostics={diagnostics} onDiagClick={handleDiagClick} />
+
+      <Tooltip tooltip={svg.tooltip} />
+
       {showSettings && (
-        <div className="modal-overlay" onClick={() => setShowSettings(false)}>
-          <div className="modal modal-settings" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <span>設定</span>
-              <button className="modal-close" onClick={() => setShowSettings(false)}>✕</button>
-            </div>
-            <div className="settings-body">
-              <div className="settings-section">
-                <div className="settings-label">テーマ</div>
-                <div className="settings-row" role="radiogroup" aria-label="テーマ">
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={themePref === 'auto'}
-                    className={`btn${themePref === 'auto' ? ' btn-active' : ''}`}
-                    onClick={() => updateSetting('theme', 'auto')}
-                    title={`OS の設定に追従（現在: ${systemScheme === 'dark' ? 'ダーク' : 'ライト'}）`}
-                  >
-                    OS 追従
-                  </button>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={themePref === 'light'}
-                    className={`btn${themePref === 'light' ? ' btn-active' : ''}`}
-                    onClick={() => updateSetting('theme', 'light')}
-                  >
-                    ライト
-                  </button>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={themePref === 'dark'}
-                    className={`btn${themePref === 'dark' ? ' btn-active' : ''}`}
-                    onClick={() => updateSetting('theme', 'dark')}
-                  >
-                    ダーク
-                  </button>
-                </div>
-              </div>
-              <div className="settings-section">
-                <div className="settings-label">フォントサイズ</div>
-                <select
-                  className="toolbar-select"
-                  value={fontSize}
-                  onChange={handleFontSizeChange}
-                >
-                  <option value={12}>12px</option>
-                  <option value={13}>13px</option>
-                  <option value={14}>14px</option>
-                  <option value={16}>16px</option>
-                  <option value={18}>18px</option>
-                </select>
-              </div>
-              <div className="settings-section">
-                <div className="settings-label">行折り返し</div>
-                <button
-                  className={`btn${lineWrap ? ' btn-active' : ''}`}
-                  onClick={() => updateSetting('lineWrap', !lineWrap)}
-                >
-                  {lineWrap ? 'オン' : 'オフ'}
-                </button>
-              </div>
-              <div className="settings-section">
-                <div className="settings-label">スケール（ピクセル/年）</div>
-                <select
-                  className="toolbar-select"
-                  value={scale}
-                  onChange={(e) => updateSetting('scale', Number(e.target.value))}
-                >
-                  <option value={0}>Auto</option>
-                  <option value={0.5}>0.5×</option>
-                  <option value={1}>1×</option>
-                  <option value={2}>2×</option>
-                  <option value={4}>4×</option>
-                  <option value={8}>8×</option>
-                </select>
-              </div>
-              <div className="settings-section">
-                <div className="settings-label">PNG 背景色</div>
-                <div className="settings-row">
-                  <button
-                    className={`btn${pngWhiteBg ? ' btn-active' : ''}`}
-                    onClick={() => updateSetting('pngWhiteBg', true)}
-                  >
-                    白背景
-                  </button>
-                  <button
-                    className={`btn${!pngWhiteBg ? ' btn-active' : ''}`}
-                    onClick={() => updateSetting('pngWhiteBg', false)}
-                  >
-                    透過
-                  </button>
-                </div>
-              </div>
-              <div className="settings-section">
-                <div className="settings-label">自動保存</div>
-                <div className="settings-row">
-                  <button
-                    className={`btn${settings.autoSaveEnabled ? ' btn-active' : ''}`}
-                    onClick={() => updateSetting('autoSaveEnabled', !settings.autoSaveEnabled)}
-                    title="編集内容をブラウザに自動保存します（リロード後も復元）"
-                  >
-                    {settings.autoSaveEnabled ? 'オン' : 'オフ'}
-                  </button>
-                  <span className="settings-hint">
-                    {settings.autoSaveEnabled ? 'リロード後に復元されます' : '保存しません（オフ時は既存の保存を削除）'}
-                  </span>
-                </div>
-              </div>
-              <div className="settings-section">
-                <div className="settings-label">履歴スナップショット</div>
-                <div className="settings-row">
-                  <button
-                    className={`btn${settings.historyEnabled ? ' btn-active' : ''}`}
-                    onClick={() => updateSetting('historyEnabled', !settings.historyEnabled)}
-                    title="テンプレートロード・ファイルオープン・5分毎に自動スナップショットを保存"
-                  >
-                    {settings.historyEnabled ? 'オン' : 'オフ'}
-                  </button>
-                  <span className="settings-hint">
-                    {settings.historyEnabled ? '自動スナップショット有効（最大5件）' : '無効（既存履歴は保持）'}
-                  </span>
-                </div>
-              </div>
-              <hr className="settings-divider" />
-              <div className="settings-section">
-                <div className="settings-label">GitHub</div>
-                <a
-                  className="btn"
-                  href="https://github.com/keroway/timeline-dsl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  keroway/timeline-dsl ↗
-                </a>
-              </div>
-              <hr className="settings-divider" />
-              <div className="settings-section">
-                <div className="settings-label">キーボードショートカット</div>
-                <table className="shortcuts-table">
-                  <tbody>
-                    {SHORTCUTS.map(({ key, desc }) => (
-                      <tr key={key}>
-                        <td><kbd className="kbd">{key}</kbd></td>
-                        <td>{desc}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          settings={settings}
+          updateSetting={updateSetting}
+          systemScheme={systemScheme}
+        />
       )}
-      {/* Template gallery modal */}
       {showGallery && (
-        <div className="modal-overlay" onClick={() => setShowGallery(false)}>
-          <div className="modal modal-gallery" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <span>テンプレートギャラリー</span>
-              <button className="modal-close" onClick={() => setShowGallery(false)}>✕</button>
-            </div>
-            <ul className="gallery-list">
-              {GALLERY_EXAMPLES.map((ex) => (
-                <li key={ex.filename}>
-                  <button
-                    className="gallery-item"
-                    onClick={() => handleGallerySelect(ex.source)}
-                  >
-                    <span className="gallery-item-label">{ex.label}</span>
-                    <span className="gallery-item-desc">{ex.description}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <GalleryModal onClose={() => setShowGallery(false)} onSelect={handleGallerySelect} />
       )}
-      {/* History modal */}
       {showHistory && (
-        <div className="modal-overlay" onClick={() => setShowHistory(false)}>
-          <div className="modal modal-history" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <span>履歴</span>
-              <button className="modal-close" onClick={() => setShowHistory(false)}>✕</button>
-            </div>
-            <div className="history-body">
-              {manualSnaps.length > 0 && (
-                <section>
-                  <div className="history-section-title">手動保存</div>
-                  <ul className="history-list">
-                    {manualSnaps.map((snap) => (
-                      <li key={snap.id} className="history-item">
-                        {renamingId === snap.id ? (
-                          <div className="history-rename-row">
-                            <input
-                              className="history-rename-input"
-                              value={renameValue}
-                              autoFocus
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleRenameCommit()
-                                if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
-                              }}
-                            />
-                            <button className="btn btn-sm" onClick={handleRenameCommit}>確定</button>
-                            <button className="btn btn-sm" onClick={() => { setRenamingId(null); setRenameValue('') }}>キャンセル</button>
-                          </div>
-                        ) : (
-                          <div className="history-item-row">
-                            <button
-                              className="history-restore-btn"
-                              onClick={() => handleRestoreSnapshot(snap.source)}
-                              title="このスナップショットを復元"
-                            >
-                              {snap.label}
-                            </button>
-                            <div className="history-item-actions">
-                              <button className="btn btn-sm" onClick={() => handleRenameStart(snap)} title="名前を変更">✎</button>
-                              <button className="btn btn-sm btn-danger" onClick={() => handleDeleteManual(snap.id)} title="削除">✕</button>
-                            </div>
-                          </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-              {autoSnaps.length > 0 && (
-                <section>
-                  <div className="history-section-title">自動スナップショット（最大 {autoSnaps.length}/5 件）</div>
-                  <ul className="history-list">
-                    {autoSnaps.map((snap) => (
-                      <li key={snap.id} className="history-item">
-                        <div className="history-item-row">
-                          <button
-                            className="history-restore-btn"
-                            onClick={() => handleRestoreSnapshot(snap.source)}
-                            title="このスナップショットを復元"
-                          >
-                            {snap.label}
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-              {autoSnaps.length === 0 && manualSnaps.length === 0 && (
-                <div className="history-empty">履歴はありません</div>
-              )}
-              {(autoSnaps.length > 0 || manualSnaps.length > 0) && (
-                <div className="history-footer">
-                  <button className="btn btn-danger" onClick={handleClearAllHistory}>
-                    全件削除
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <HistoryModal
+          onClose={() => setShowHistory(false)}
+          manualSnaps={history.manualSnaps}
+          autoSnaps={history.autoSnaps}
+          renamingId={history.renamingId}
+          renameValue={history.renameValue}
+          setRenameValue={history.setRenameValue}
+          onRestore={history.handleRestoreSnapshot}
+          onRenameStart={history.handleRenameStart}
+          onRenameCommit={history.handleRenameCommit}
+          onRenameCancel={history.cancelRename}
+          onDeleteManual={history.handleDeleteManual}
+          onClearAll={history.handleClearAllHistory}
+        />
       )}
     </div>
   )
