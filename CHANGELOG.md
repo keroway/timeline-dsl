@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **crates.io への cargo publish をリリースフローに組み込み**: `.github/workflows/release.yml` に `publish-crates` ジョブを追加し、タグ push 時に 4 コアクレート（`tdsl-parser` / `tdsl-wikidata` / `tdsl-core` / `tdsl-render`）を Trusted Publishing（OIDC）で crates.io に自動 publish する。ジョブは `continue-on-error` の独立ジョブで、失敗しても GitHub Release / npm / Homebrew をブロックしない。publish 前に workspace version と git tag の一致を検証する。publish 対象外の `tdsl-cli` / `tdsl-wasm` / `tdsl-lsp` には `publish = false` を設定し誤公開を防止。初回ブートストラップ手順（ローカルからの手動 publish + Trusted Publishing 設定）を `docs/release.md` に追記 (#424)
 - **コアクレートを crates.io に公開**: `tdsl-parser` / `tdsl-wikidata` / `tdsl-core` / `tdsl-render` の各 `Cargo.toml` に `description` / `repository` / `keywords` / `categories` を追加し、内部依存に `path + version` の二重指定を整備した。`cargo add tdsl-core` 等で Rust プロジェクトから依存できるようになる。README に Rust ライブラリとしての使用例を追記 (#370)
 - **PDF 出力に用紙サイズ・マージン・メタデータを追加**: `tdsl render --format pdf` に `--pdf-size`（`a4` / `a3` / `letter`）、`--pdf-landscape`（横向き）、`--pdf-margin`（mm）、`--pdf-title`（Title メタデータ上書き）フラグを追加。`svg2pdf::to_chunk` + `pdf-writer` で PDF を自前合成することで MediaBox・CreationDate・Title を記録する。未指定時は年表タイトルを Title に補完し、生成日を自動設定する。負値・非有限・印刷可能領域が残らない過大な `--pdf-margin` は空白／破損 PDF を黙って生成せず明示エラーで停止する (#368)
 

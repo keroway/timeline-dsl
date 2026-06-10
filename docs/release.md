@@ -56,6 +56,63 @@ tag の push により `.github/workflows/vscode-publish.yml` が起動します
 
 ---
 
+## crates.io への公開
+
+### 通常フロー（タグ push で自動）
+
+git tag の push により `.github/workflows/release.yml` の `publish-crates` ジョブが起動し、
+4 コアクレート（`tdsl-parser` / `tdsl-wikidata` / `tdsl-core` / `tdsl-render`）を
+crates.io に自動 publish します（認証は Trusted Publishing / OIDC、長期トークン不要）。
+
+- ジョブは `continue-on-error` の独立ジョブなので、crates.io publish が失敗しても
+  GitHub Release / npm / Homebrew のリリースはブロックされません。
+- ジョブ内で `[workspace.package].version` と git tag の一致を検証します
+  （不一致なら publish せずエラー停止。vscode-publish.yml の整合チェックと同趣旨）。
+- cargo 1.90+ の multi-package publish が依存順（parser/wikidata → core → render）を
+  自動解決するため、順序を意識する必要はありません。
+
+確認手順:
+
+- Actions タブで `publish-crates` ジョブが成功していることを確認
+- https://crates.io/crates/tdsl-parser / https://crates.io/crates/tdsl-wikidata /
+  https://crates.io/crates/tdsl-core / https://crates.io/crates/tdsl-render に
+  新バージョンが反映されていることを確認
+
+### ブートストラップ手順（初回のみ）
+
+crates.io の Trusted Publishing は「クレートが既に crates.io に存在する」ことが前提のため、
+**初回はローカルから API トークンで手動 publish する必要があります**
+（npm の Trusted Publishing ブートストラップ — README.md の npm 公開セクション参照 — と同様の制約）。
+
+1. [crates.io の API Tokens](https://crates.io/settings/tokens) で `publish-new` スコープの
+   トークンを発行し、`cargo login` で設定する
+2. リポジトリ root で 4 クレートを一括 publish する
+
+   ```bash
+   cargo publish -p tdsl-parser -p tdsl-wikidata -p tdsl-core -p tdsl-render --locked
+   ```
+
+3. 公開後、各クレートの crates.io ページ → Settings → Trusted Publishing に
+   GitHub の設定を追加する
+   - Repository owner: `keroway`
+   - Repository name: `timeline-dsl`
+   - Workflow filename: `release.yml`
+   - Environment: 空欄
+4. 以降はタグ push で `publish-crates` ジョブが自動 publish する
+
+### 手動再 publish（CI 失敗時のフォールバック）
+
+`publish-crates` ジョブが失敗した場合は、ローカルから API トークンで再 publish できます。
+
+```bash
+# crates.io のトークンを設定済みであること（cargo login）
+cargo publish -p tdsl-parser -p tdsl-wikidata -p tdsl-core -p tdsl-render --locked
+```
+
+すでに publish 済みのクレートはエラーになるため、未公開のクレートのみ `-p` で指定し直してください。
+
+---
+
 ## Cargo.toml の一括バンプ方法
 
 ```bash
