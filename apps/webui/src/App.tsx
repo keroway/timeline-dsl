@@ -1538,7 +1538,7 @@ function App() {
                 onKeyDown={d.line > 0 ? (e) => e.key === 'Enter' && handleDiagClick(d) : undefined}
               >
                 <span className="diag-severity">
-                  {d.severity === 'error' ? 'ERROR' : 'WARN'}
+                  {d.severity === 'error' ? 'ERROR' : d.severity === 'warning' ? 'WARN' : 'INFO'}
                 </span>
                 {d.line > 0 && (
                   <span className="diag-location">

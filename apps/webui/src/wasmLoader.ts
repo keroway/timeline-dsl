@@ -3,7 +3,7 @@ import init, { compile_to_ir, render_svg_from_source, render_html_from_source, c
 let initialized = false
 
 export interface Diagnostic {
-  severity: 'error' | 'warning'
+  severity: 'error' | 'warning' | 'info'
   message: string
   line: number
   col: number

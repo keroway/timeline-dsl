@@ -383,6 +383,80 @@ span a 80..10 "Inverted" {};
         );
         assert_eq!(err["col"].as_u64().unwrap(), 0);
     }
+
+    // ─── import / map ブロックの Info 診断（issue #418）─────────────────────────
+
+    #[test]
+    fn check_source_import_block_produces_info_diagnostic() {
+        let src = r#"timeline "T" {
+    unit year;
+    range 0..100;
+}
+import wikidata as wd {
+    entity Q7209 as han;
+}
+"#;
+        let json = check_source(src);
+        let diags: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        let infos: Vec<_> = diags.iter().filter(|d| d["severity"] == "info").collect();
+        assert_eq!(infos.len(), 1, "import ブロックに Info 診断が 1 件出るべき");
+        let info = &infos[0];
+        assert!(
+            info["message"].as_str().unwrap().contains("Wikidata fetch"),
+            "Info メッセージに 'Wikidata fetch' が含まれるべき"
+        );
+        // import ブロックは 5 行目に始まる
+        assert_eq!(
+            info["line"].as_u64().unwrap(),
+            5,
+            "Info 診断は import ブロックの開始行（5）を指すべき"
+        );
+        assert!(
+            info["col"].as_u64().unwrap() >= 1,
+            "col は 1-based であるべき"
+        );
+    }
+
+    #[test]
+    fn check_source_map_block_produces_info_diagnostic() {
+        let src = r#"timeline "T" {
+    unit year;
+    range 0..100;
+}
+lane "A" as a {}
+import wikidata as wd {
+    entity Q7209 as han;
+}
+map wd.han to span {
+    lane a;
+    start claim(P571).year;
+    end claim(P576).year;
+    label label@ja;
+}
+"#;
+        let json = check_source(src);
+        let diags: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        let infos: Vec<_> = diags.iter().filter(|d| d["severity"] == "info").collect();
+        assert_eq!(
+            infos.len(),
+            2,
+            "import 1 件 + map 1 件 = Info 診断 2 件が出るべき"
+        );
+    }
+
+    #[test]
+    fn check_source_no_import_no_info() {
+        let json = check_source(VALID_SRC);
+        let diags: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        let infos: Vec<_> = diags.iter().filter(|d| d["severity"] == "info").collect();
+        assert!(
+            infos.is_empty(),
+            "import/map なしのソースに Info 診断は出ないべき"
+        );
+    }
 }
 
 /// Render standalone HTML from TDSL source (static items only).
@@ -403,6 +477,7 @@ pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
 enum Severity {
     Error,
     Warning,
+    Info,
 }
 
 /// A single diagnostic item returned by `check_source`.
@@ -417,7 +492,7 @@ struct Diagnostic {
 /// Check TDSL source and return diagnostics as JSON.
 ///
 /// Returns a JSON array of diagnostic objects: `[{severity, message, line, col}]`.
-/// `severity` is `"error"` or `"warning"`.
+/// `severity` is `"error"`, `"warning"`, or `"info"`.
 ///
 /// `line`/`col` are **1-based** when a source position is available (parse errors via
 /// `ParseError::source_location`, validation warnings via the item's `source_span`),
@@ -425,10 +500,9 @@ struct Diagnostic {
 /// attributes. Diagnostics that carry no position (lowering errors such as unknown-lane
 /// references) report `line: 0, col: 0`; the WebUI treats a `0` line as non-clickable.
 ///
-/// **Note on `import` blocks**: `import wikidata` blocks are not resolved in the browser
-/// (no network access). Unresolved imports are **silently skipped** — they produce no
-/// diagnostics, but the resulting IR / SVG will omit those items. Use static `span`,
-/// `event`, and `event_range` statements for content that must render in the browser.
+/// **Note on `import`/`map` blocks**: Wikidata fetch is not available in the browser.
+/// Each `import` or `map` block receives an `"info"` diagnostic pointing to its start
+/// line so the user knows to run `tdsl build` for full resolution.
 #[wasm_bindgen]
 pub fn check_source(source: &str) -> String {
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
@@ -450,6 +524,24 @@ pub fn check_source(source: &str) -> String {
             return serde_json::to_string(&diagnostics).unwrap_or_else(|_| "[]".to_string());
         }
     };
+
+    // import / map ブロックはブラウザ環境では Wikidata fetch を行わないため silent に無視される。
+    // ユーザーが気づけるよう各ブロックの先頭行に Info 診断を付与する。
+    for stmt in &file.statements {
+        let is_wikidata_block = matches!(
+            &stmt.node,
+            tdsl_parser::ast::Statement::Import(_) | tdsl_parser::ast::Statement::Map(_)
+        );
+        if is_wikidata_block {
+            let (line, col) = tdsl_parser::byte_offset_to_line_col(source, stmt.span.start);
+            diagnostics.push(Diagnostic {
+                severity: Severity::Info,
+                message: "Wikidata fetch はブラウザ環境では実行されません。CLI の `tdsl build` を使用してください。".to_string(),
+                line,
+                col,
+            });
+        }
+    }
 
     match lower_static_with_source(&file, Some(source)) {
         Ok(ir) => {
