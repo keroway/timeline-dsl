@@ -5,6 +5,26 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # svg2pdf ↔ pdf-writer は lockstep で更新する必要がある。
+      # pdf.rs は svg2pdf::to_chunk() が返す Chunk の Ref と自前 alloc の Ref を
+      # 混在させるため、両者の pdf-writer が一致しないと二重リンクで型不一致になり
+      # ビルドが落ちる（PR #415）。svg2pdf は現状 pdf-writer ^0.12 を要求し、新しい
+      # pdf-writer 対応版が未リリース。片側だけ dependabot に bump させると逆向きの
+      # 不整合が起きるため、両者の minor/major 更新を抑止し互換確認のうえ手動で
+      # まとめて引き上げる。patch は許可。
+      #
+      # 注: resvg（PNG 用）と svg2pdf（PDF 用）はそれぞれ自身の usvg を介して
+      # 完結しており Tree を受け渡さないため、usvg 世代を揃える必要はなく、
+      # resvg は独立して更新してよい（ここでは抑止しない）。
+      - dependency-name: "pdf-writer"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "svg2pdf"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
 
   - package-ecosystem: github-actions
     directory: "/"
