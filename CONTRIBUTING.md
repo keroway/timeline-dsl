@@ -86,6 +86,7 @@ cargo test --workspace && cargo clippy --workspace && cargo fmt --check
 4. `crates/tdsl-core/src/lower.rs` — AST → IR の lowering ロジックを追加
 5. 必要に応じて `crates/tdsl-core/src/ir.rs` の IR 型を更新
 6. `cargo test --workspace` で全テストが通ることを確認
+7. `docs/dsl-spec.md` と `docs/dsl-spec.en.md` を**両言語同時に**更新する（dsl-spec は日英ペアで管理しており、片方だけの更新は不可。EBNF・コード例は両言語で内容を一致させる）
 
 ---
 

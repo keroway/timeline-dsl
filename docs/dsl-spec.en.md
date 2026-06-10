@@ -13,6 +13,7 @@ Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describin
 
 <statement>    ::= <timeline>
                  | <lane>
+                 | <group>
                  | <span>
                  | <event>
                  | <event_range>
@@ -32,6 +33,8 @@ Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describin
 <lane>         ::= "lane" <string> ["as" <identifier>] "{" { <lane_prop> } "}"
 <lane_prop>    ::= "kind" <identifier> ";"
                  | "order" <number> ";"
+
+<group>        ::= "group" <string> "{" <lane> { <lane> } "}"
 
 <span>         ::= "span" <identifier> <time_value> ".." <time_value> <string>
                    <block_options> ";"
@@ -58,11 +61,23 @@ Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describin
                    "{" { <mapping_rule> } "}"
 <mapping_target> ::= "span" | "event" | "event_range"
 <mapping_rule> ::= "lane" <identifier> ";"
-                 | "start" <expr> ";"
-                 | "end" <expr> ";"
-                 | "time" <expr> ";"
-                 | "label" <expr> ";"
+                 | "start" <map_expr> ";"
+                 | "end" <map_expr> ";"
+                 | "time" <map_expr> ";"
+                 | "label" <lang_expr> ";"
                  | "tags" "[" <string_list> "]" ";"
+                 | "filter" <filter_expr> ";"
+                 | "expand" "claim(" <property_id> ")" ";"
+<filter_expr>  ::= <filter_or>
+<filter_or>    ::= <filter_and> { "||" <filter_and> }
+<filter_and>   ::= <filter_not> { "&&" <filter_not> }
+<filter_not>   ::= ["!"] <filter_atom>
+<filter_atom>  ::= "(" <filter_expr> ")"
+                 | <label_ref> <string_match_op> <string>
+                 | <filter_operand> <compare_op> <filter_operand>
+<string_match_op> ::= "contains" | "startswith"
+<compare_op>   ::= ">=" | "<=" | "==" | "!=" | ">" | "<"
+<filter_operand> ::= "null" | <claim_expr> | <number>
 
 <template_block> ::= "template" <string> ["as" <identifier>]
                    "to" <mapping_target> "{" { <mapping_rule> } "}"
@@ -71,10 +86,10 @@ Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describin
                    "{" { <apply_override> } "}"
 <apply_override> ::= "lane" <identifier> ";"
 
-<expr>         ::= <claim_expr> | <lang_expr> | <literal>
-<claim_expr>   ::= "claim(" <property_id> ")" ["." <function>] [<claim_offset>]
-<map_expr>     ::= <claim_expr> { "??" (<claim_expr> | <number>) }
-<lang_expr>    ::= "label@" <lang_code> ["??" <lang_expr>]
+<claim_expr>   ::= "claim(" <property_id> ")" ["." "qualifier(" <property_id> ")"] ["." <function>] [<claim_offset>]
+<map_expr>     ::= (<claim_expr> | <number>) { "??" (<claim_expr> | <number>) }
+<lang_expr>    ::= <label_ref> { "??" <label_ref> }
+<label_ref>    ::= "label@" <lang_code>
 
 <source_ref>   ::= <identifier> ":" <qid>
 <string_list>  ::= <string> { "," <string> }
@@ -130,6 +145,21 @@ lane "Han" as han { kind dynasty; order 20; }
 | `as <id>` | Optional | Internal identifier. Auto-generated as a slug from the label if omitted |
 | `kind` | Optional | Classification (`dynasty`, `person`, `nation`, etc.) |
 | `order` | Optional | Initial display order (integer) |
+
+### group
+
+Defines a group that bundles multiple lanes into a visual hierarchy. When rendered, a group label and group boundary lines are displayed.
+
+```
+group "Ancient" {
+    lane "Qin" as qin { kind dynasty; order 10; }
+    lane "Han" as han { kind dynasty; order 20; }
+}
+```
+
+- A group must contain one or more `lane` declarations
+- Lanes inside a group carry a `group` field (the group name) in the IR. The field is omitted for lanes that do not use `group`
+- Existing `.tdsl` files that do not use `group` keep working as before (backward compatible)
 
 ### span
 
@@ -239,6 +269,14 @@ map wd.han_dynasty to span {
 }
 ```
 
+The `<target_type>` in `map <alias> to <target_type> { ... }` must be **one of `span` / `event` / `event_range`**. Any other value (e.g., `timeline` or `item`) causes the parse error `Unknown map target type '<value>' (expected one of: span, event, event_range)` (see [E004 in the error catalog](./error-catalog.md#e004-不明な-map-ターゲット型)).
+
+| target_type | Generated item kind | Required time properties |
+|---|---|---|
+| `span` | Period (start to end) | `start` / `end` |
+| `event` | Point event | `time` |
+| `event_range` | Range event | `start` / `end` |
+
 > `source` is automatically assigned to imported items as `wd:<entity_id>`. Explicit specification inside a `map` block is deprecated.
 
 | Property | Description |
@@ -249,6 +287,64 @@ map wd.han_dynasty to span {
 | `time` | Expression to compute the point in time (for `event`) |
 | `label` | Expression to compute the label |
 | `tags` | List of tags |
+| `filter` | Condition expression to filter entities (multiple `filter` rules are all evaluated as AND) |
+
+#### filter expressions
+
+Use `filter` rules to narrow down entities. Multiple `filter` rules are all evaluated as AND.
+
+**Numeric comparison** (`>=`, `<=`, `==`, `!=`, `>`, `<`):
+
+```
+filter claim(P580).year > 1000;
+filter claim(P576).year != null;
+```
+
+**String matching** (`contains` / `startswith`):
+
+```
+filter label@en contains "dynasty";       // only entities whose label contains "dynasty"
+filter label@en startswith "Han";         // only entities whose label starts with "Han"
+filter !(label@en contains "candidate");  // only entities whose label does not contain "candidate"
+```
+
+`label@<lang>` accepts any language code. Entities that have no label in the specified language evaluate to `false` (excluded) — there is no silent fallback.
+
+**Logical operators** (`&&`, `||`, `!`, parentheses):
+
+```
+filter label@en contains "dynasty" && claim(P580).year > 0;
+filter claim(P580).year > 500 || claim(P571).year > 500;
+```
+
+### template / apply
+
+Define a reusable mapping pattern with `template`, and apply it to multiple imports with `apply`.
+
+```
+// Template definition
+template "Dynasty span" as dynasty_span
+    to span {
+        start claim(P571).year;
+        end claim(P576).year;
+        label label@en ?? label@ja;
+    }
+
+// Apply the template (only `lane` can be overridden on the apply side)
+apply dynasty_span to dynasties {
+    lane dynasty;
+}
+```
+
+| Element | Description |
+|---|---|
+| `template <name> [as <id>] to <target_type> { ... }` | Defines mapping rules (uses the same properties as `map`) |
+| `apply <template_id> to <import_id> { ... }` | Applies a defined template to the specified import |
+| `lane <id>;` (inside `apply`) | Overrides the template's `lane` on the apply side |
+
+The properties available in a template are the same as in a `map` block (`lane`, `start`, `end`, `time`, `label`, `tags`, `filter`). Inside `apply`, only `lane` can be overridden.
+
+Complete sample: [`examples/template_apply_example.tdsl`](../examples/template_apply_example.tdsl)
 
 ### Expressions
 
@@ -273,6 +369,39 @@ end claim(P570).year ?? 9999;
 // chain + literal: try P580, then P571, then 0
 time claim(P580).year ?? claim(P571).year ?? 0;
 ```
+
+#### Qualifier access
+
+Accesses the qualifier properties of a statement.
+
+```
+claim(P39).qualifier(P580).year   // Year of qualifier P580 (start time) on the P39 statement
+claim(P39).qualifier(P582).year   // Year of qualifier P582 (end time) on the P39 statement
+```
+
+If the qualifier does not exist, the expression yields no value (no silent fallback).
+
+#### expand — generate multiple items from multiple statements
+
+Adding `expand claim(P)` inside a `map` block loops over all non-deprecated statements of property P on the entity and generates one item per statement. Without `expand`, only the first statement is consulted, as before.
+
+```tdsl
+import wd as w {
+    entity Q9682;  // example: Elizabeth II
+}
+
+// Example: expand all positions held (P39) into spans
+map w to span {
+    lane offices;
+    expand claim(P39);
+    start claim(P39).qualifier(P580).year;
+    end   claim(P39).qualifier(P582).year ?? 9999;
+    label label@en;
+}
+```
+
+If there are multiple P39 statements, multiple spans are generated.
+Statements missing the qualifiers (P580/P582) skip that item (because `start`/`end` cannot be resolved).
 
 #### label expression
 
@@ -340,7 +469,7 @@ Both line comments and block comments are supported.
 | `tdsl build <file>` | Convert `.tdsl` to JSON IR |
 | `tdsl check <file>` | Syntax and semantic check |
 | `tdsl ast <file>` | Dump the AST |
-| `tdsl render <file>` | Generate HTML / SVG (`--format html\|svg`, `--interactive`) |
+| `tdsl render <file>` | Generate HTML / SVG / PDF / PNG (`--format html\|svg\|pdf\|png`, `--interactive`) |
 | `tdsl decompile <json>` | Convert JSON IR back to `.tdsl` source |
 | `tdsl fetch <QID>` | Inspect a Wikidata entity |
 | `tdsl search <query>` | Search Wikidata for candidates |
@@ -376,21 +505,29 @@ tdsl render /tmp/manual.tdsl --output /tmp/manual.html
 
 ### `tdsl render`
 
-`tdsl render` visualizes the timeline as a standalone HTML file rather than outputting JSON IR.
+`tdsl render` outputs the timeline as HTML / SVG / PDF / PNG.
 
 ```bash
-tdsl render input.tdsl --output timeline.html [--scale N] [--offline]
+tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--interactive] [--scale N] [--offline]
 ```
 
 | Option | Description |
 |---|---|
 | `--output` | Output path; defaults to stdout if omitted |
+| `--format` | Output format: `html` (default) / `svg` / `pdf` / `png` |
+| `--interactive` | Interactive mode with zoom, pan, search, legend, and detail panel (uses JavaScript). Only valid with `--format html` |
 | `--scale` | Pixel width per year (default: 2) |
+| `--dpi` | DPI for PNG output (default: 96). Only valid with `--format png` |
 | `--offline` | Skip Wikidata fetch |
 
 ### Output specification
 
-- **Format**: Single HTML file with inline SVG + CSS. No JavaScript dependencies.
+- **Formats**:
+  - `html`: Single HTML file with inline SVG + CSS. JavaScript-free by default (`--interactive` enables JS)
+  - `svg`: Standalone SVG file
+  - `pdf`: PDF file (via `svg2pdf` / `usvg`, CJK fonts supported)
+  - `png`: PNG raster image (resolution adjustable with `--dpi`)
+- **Interactive mode** (`--interactive`): Adds zoom, pan, full-text search, legend, and detail panel. Colors defined in `color_map` are automatically applied
 - **Layout**:
   - Horizontal axis: time (uses `timeline.range`)
   - Vertical axis: lanes stacked top-to-bottom in ascending `order`
@@ -399,67 +536,10 @@ tdsl render input.tdsl --output timeline.html [--scale N] [--offline]
   - `span` → rounded rectangle (centered in the lane band)
   - `event_range` → narrower rectangle (lower part of the lane band)
   - `event` → vertical line + small circle marker
-- **Tooltips**: Hovering over each element shows a `<title>` element with the label, duration, tags, source, and ID.
-
-### Constraints (MVP)
-
-- No zoom, pan, or search (no JS)
-- Tag-to-color map not applied (`span` is blue, `event_range` is red — fixed colors)
-- No raster output such as PNG/PDF (use browser print or screenshot as an alternative)
+- **Colors**: Tag colors defined in `timeline { color_map { tag_name: "#hex"; } }` are applied
+- **Tooltips**: Hovering over each element shows a `<title>` element with the label, duration, tags, source, and ID
 
 ## License and Data Usage
 
 - **Wikidata structured data**: CC0 license. Free to use without attribution.
 - **Wikipedia text and figures**: CC BY-SA 4.0. Attribution and same-license application required when quoting.
-
-## Future Extensions (Not Yet Implemented)
-
-### template / apply
-
-A syntax for templating mapping rules and applying them to multiple entities.
-
-```
-template PersonLife(entity) {
-    lane entity.label@en ?? entity.label@ja as entity.qid;
-    let birth = entity.claim(P569).year;
-    let death = entity.claim(P570).year;
-    if birth != null && death != null {
-        span entity.qid birth..death "Life" {
-            tags ["person"];
-            source wd:entity.qid;
-        };
-    }
-}
-
-apply PersonLife to wd.SengokuSamurai;
-```
-
-### Field-level priority
-
-Use `policy field_priority { ... }` to specify per-field strategies on re-import:
-
-```
-import wikidata as wd {
-    entity Q7209 as han_dynasty;
-    policy field_priority {
-        label: manual;    // keep manually edited labels
-        time: wikidata;   // overwrite with the latest Wikidata values
-        tags: merge;      // combine tags from both sources
-    }
-}
-```
-
-| Field | Strategy | Effect |
-|---|---|---|
-| `label` | `manual` | Keep the existing label |
-| `label` | `wikidata` | Overwrite with the Wikidata label |
-| `time` | `manual` | Keep the existing start/end/time |
-| `time` | `wikidata` | Overwrite with Wikidata time values |
-| `tags` | `manual` | Keep existing tags |
-| `tags` | `wikidata` | Overwrite with Wikidata tags |
-| `tags` | `merge` | Combine tags from both sources (no duplicates) |
-
-All fields have default values, so you can specify only a subset:
-- `label`: default `manual`
-- `time`: default `wikidata`
-- `tags`: default `merge`
