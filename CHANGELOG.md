@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **WebUI の JSON IR エクスポートで import / map が黙って欠落する問題を改善**: WASM 環境では Wikidata fetch が実行されないため、import / map ブロックを含むソースの JSON IR エクスポートはインポート由来のアイテムを含まない部分的な IR になるが、その旨の通知がなかった。未解決 import / map がある場合は Info Toast で「完全な IR は CLI の `tdsl build` で取得できる」ことを明示するようにした（#428 のフォローアップ）
+- **VS Code 拡張のハイライトに `expand` / `qualifier` キーワードを反映**: v1.16.0 #361 で `keywords.ts` に追加された 2 キーワードが、コミット済みの生成ファイル `tdsl.tmLanguage.json` に反映されていなかった（生成は `npm run build` 時のみ実行されるため）。`gen-grammar-keywords.mjs` で再生成してドリフトを解消
 
 ### Docs
 
