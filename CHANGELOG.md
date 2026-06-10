@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **WASM facade に `JsRenderOptions` を追加し orientation / grid / theme などをパラメータ化**: `render_svg_from_source_with_options` / `render_html_from_source_with_options` を追加。`JsRenderOptions` クラス（TypeScript 型定義付き）を通じて `orientation`（horizontal / vertical）・`grid`（none / decade / year / month）・`theme`（default / dark / print / pastel）・`show_table`・`show_event_labels` を JS から制御できるようになった。既存の `render_svg_from_source` / `render_html_from_source` は変更なし（後方互換）。`wasmLoader.ts` に `renderSvgWithOptions` / `renderHtmlWithOptions` および `RenderOptions` TypeScript interface を追加 (#417)
+
 ### Fixed
 
 - **WebUI の JSON IR エクスポートで import / map が黙って欠落する問題を修正**: WASM 環境では Wikidata fetch が実行されないため、import / map ブロックを含むソースの JSON IR エクスポートはインポート由来のアイテムを含まない部分的な IR になるが、その旨の通知なく保存されていた。未解決 import / map がある場合は確認ダイアログで「インポート由来のアイテムは含まれない。完全な IR は CLI の `tdsl build` で取得できる」ことを明示し、同意した場合のみ静的アイテムの IR を保存するようにした（#428 のフォローアップ）
