@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **コアクレートを crates.io に公開**: `tdsl-parser` / `tdsl-wikidata` / `tdsl-core` / `tdsl-render` の各 `Cargo.toml` に `description` / `repository` / `keywords` / `categories` を追加し、内部依存に `path + version` の二重指定を整備した。`cargo add tdsl-core` 等で Rust プロジェクトから依存できるようになる。README に Rust ライブラリとしての使用例を追記 (#370)
 - **PDF 出力に用紙サイズ・マージン・メタデータを追加**: `tdsl render --format pdf` に `--pdf-size`（`a4` / `a3` / `letter`）、`--pdf-landscape`（横向き）、`--pdf-margin`（mm）、`--pdf-title`（Title メタデータ上書き）フラグを追加。`svg2pdf::to_chunk` + `pdf-writer` で PDF を自前合成することで MediaBox・CreationDate・Title を記録する。未指定時は年表タイトルを Title に補完し、生成日を自動設定する。負値・非有限・印刷可能領域が残らない過大な `--pdf-margin` は空白／破損 PDF を黙って生成せず明示エラーで停止する (#368)
 
+### Docs
+
+- **README.md / README.ja.md に既存機能の記載を追加**: `tdsl render` の `--watch`（変更監視・自動再レンダリング）/ `--grid`（補助グリッド線）/ `--orientation vertical`（縦方向レイアウト）のコマンド例をクイックスタートに、`group` ブロック構文の説明と例を DSL 文法セクションに追記（#426）
+
 ### Tests
 
 - **e2e-smoke.sh に v1.14〜v1.16 の新オプションのスモークケースを追加**: `tdsl render --grid decade/year/month`（グリッド線数の段階比較）、`--orientation vertical`（SVG が縦長になること）、`--show-table`（HTML に一覧表が付く／付けない場合は付かないこと）、`tdsl build --json-schema`（入力ファイルなしで TimelineIr スキーマを出力）を検証する。常駐プロセスとなる `tdsl render --watch` は対象外とし、理由をスクリプト内コメントに明記（#425）
