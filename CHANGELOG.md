@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Docs
 
 - **README.md / README.ja.md に既存機能の記載を追加**: `tdsl render` の `--watch`（変更監視・自動再レンダリング）/ `--grid`（補助グリッド線）/ `--orientation vertical`（縦方向レイアウト）のコマンド例をクイックスタートに、`group` ブロック構文の説明と例を DSL 文法セクションに追記（#426）
+- **dsl-spec.md の EBNF を v1.13〜v1.16 の文法に同期**: v1.13 で追加された `group` ブロックの EBNF ルール（`<group>`）と本文説明を追加。`<mapping_rule>` の `start` / `end` / `time` が参照する式を未定義の `<expr>` から実際の文法に対応する `<map_expr>`（整数リテラル `??` フォールバック対応、#359）へ、`label` を `<lang_expr>` へ修正。filter の文字列マッチ（`contains` / `startswith`）が単一の `label@<lang>` 参照のみを取ることを `<label_ref>` として明確化 (#419)
 
 ### Tests
 

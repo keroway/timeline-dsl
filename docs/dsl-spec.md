@@ -13,6 +13,7 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 
 <statement>    ::= <timeline>
                  | <lane>
+                 | <group>
                  | <span>
                  | <event>
                  | <event_range>
@@ -32,6 +33,8 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <lane>         ::= "lane" <string> ["as" <identifier>] "{" { <lane_prop> } "}"
 <lane_prop>    ::= "kind" <identifier> ";"
                  | "order" <number> ";"
+
+<group>        ::= "group" <string> "{" <lane> { <lane> } "}"
 
 <span>         ::= "span" <identifier> <time_value> ".." <time_value> <string>
                    <block_options> ";"
@@ -58,10 +61,10 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
                    "{" { <mapping_rule> } "}"
 <mapping_target> ::= "span" | "event" | "event_range"
 <mapping_rule> ::= "lane" <identifier> ";"
-                 | "start" <expr> ";"
-                 | "end" <expr> ";"
-                 | "time" <expr> ";"
-                 | "label" <expr> ";"
+                 | "start" <map_expr> ";"
+                 | "end" <map_expr> ";"
+                 | "time" <map_expr> ";"
+                 | "label" <lang_expr> ";"
                  | "tags" "[" <string_list> "]" ";"
                  | "filter" <filter_expr> ";"
                  | "expand" "claim(" <property_id> ")" ";"
@@ -70,7 +73,7 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <filter_and>   ::= <filter_not> { "&&" <filter_not> }
 <filter_not>   ::= ["!"] <filter_atom>
 <filter_atom>  ::= "(" <filter_expr> ")"
-                 | <lang_expr> <string_match_op> <string>
+                 | <label_ref> <string_match_op> <string>
                  | <filter_operand> <compare_op> <filter_operand>
 <string_match_op> ::= "contains" | "startswith"
 <compare_op>   ::= ">=" | "<=" | "==" | "!=" | ">" | "<"
@@ -83,10 +86,10 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
                    "{" { <apply_override> } "}"
 <apply_override> ::= "lane" <identifier> ";"
 
-<expr>         ::= <claim_expr> | <lang_expr> | <literal>
 <claim_expr>   ::= "claim(" <property_id> ")" ["." "qualifier(" <property_id> ")"] ["." <function>] [<claim_offset>]
-<map_expr>     ::= <claim_expr> { "??" (<claim_expr> | <number>) }
-<lang_expr>    ::= "label@" <lang_code> ["??" <lang_expr>]
+<map_expr>     ::= (<claim_expr> | <number>) { "??" (<claim_expr> | <number>) }
+<lang_expr>    ::= <label_ref> { "??" <label_ref> }
+<label_ref>    ::= "label@" <lang_code>
 
 <source_ref>   ::= <identifier> ":" <qid>
 <string_list>  ::= <string> { "," <string> }
@@ -142,6 +145,21 @@ lane "漢" as han { kind dynasty; order 20; }
 | `as <id>` | 任意 | 内部識別子。省略時はラベルからスラッグを自動生成 |
 | `kind` | 任意 | 分類（`dynasty`, `person`, `nation` 等） |
 | `order` | 任意 | 初期表示順（整数） |
+
+### group
+
+複数の lane をまとめて視覚的に階層化するグループを定義する。レンダリング時にグループラベルとグループ境界線が表示される。
+
+```
+group "古代" {
+    lane "秦" as qin { kind dynasty; order 10; }
+    lane "漢" as han { kind dynasty; order 20; }
+}
+```
+
+- グループ内には 1 つ以上の `lane` 宣言を記述する
+- グループ内の lane は IR 上で `group`（グループ名）を持つ。`group` を使わない lane では省略される
+- `group` を使わない既存の `.tdsl` はそのまま動作する（後方互換）
 
 ### span
 
