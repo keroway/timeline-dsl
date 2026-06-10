@@ -103,6 +103,15 @@ tdsl render examples/china_dynasties.tdsl --format pdf --output china.pdf
 # Output as A3 landscape PDF with 15 mm margins
 tdsl render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-landscape --pdf-margin 15 --output china_a3.pdf
 
+# Vertical layout (time axis runs top to bottom)
+tdsl render examples/china_dynasties.tdsl --orientation vertical --output china_vertical.html
+
+# Auxiliary grid lines (decade / year / month)
+tdsl render examples/china_dynasties.tdsl --grid decade --output china_grid.html
+
+# Watch mode: re-render automatically on file changes (--output required; html / svg only)
+tdsl render examples/china_dynasties.tdsl --watch --output china.html
+
 # Compile with Wikidata integration
 tdsl build examples/china_with_import.tdsl --pretty
 
@@ -207,6 +216,17 @@ Defines a vertical category on the timeline. Use `as` to specify the internal ID
 
 ```
 lane "Han" as han { kind dynasty; order 20; }
+```
+
+### group block
+
+Groups multiple lanes together. The rendered output shows a group label and boundary lines for visual hierarchy. Existing `.tdsl` files without `group` work as before.
+
+```
+group "Ancient China" {
+    lane "Qin" as qin { kind dynasty; order 10; }
+    lane "Han" as han { kind dynasty; order 20; }
+}
 ```
 
 ### span / event / event_range

@@ -103,6 +103,15 @@ tdsl render examples/china_dynasties.tdsl --format pdf --output china.pdf
 # A3 横向き・マージン 15mm で PDF を出力
 tdsl render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-landscape --pdf-margin 15 --output china_a3.pdf
 
+# 縦方向レイアウト（時間軸を上から下に描画）
+tdsl render examples/china_dynasties.tdsl --orientation vertical --output china_vertical.html
+
+# 補助グリッド線（decade / year / month）
+tdsl render examples/china_dynasties.tdsl --grid decade --output china_grid.html
+
+# ウォッチモード：ファイル変更を検知して自動再レンダリング（--output 必須、html / svg のみ対応）
+tdsl render examples/china_dynasties.tdsl --watch --output china.html
+
 # Wikidata連携つきコンパイル
 tdsl build examples/china_with_import.tdsl --pretty
 
@@ -207,6 +216,17 @@ timeline "中国王朝年表" {
 
 ```
 lane "漢" as han { kind dynasty; order 20; }
+```
+
+### group ブロック
+
+複数の lane をまとめてグループ化する。レンダリング時にグループラベルと境界線が表示され、視覚的に階層化される。`group` を使わない既存の `.tdsl` はそのまま動作する。
+
+```
+group "古代中国" {
+    lane "秦" as qin { kind dynasty; order 10; }
+    lane "漢" as han { kind dynasty; order 20; }
+}
 ```
 
 ### span / event / event_range
