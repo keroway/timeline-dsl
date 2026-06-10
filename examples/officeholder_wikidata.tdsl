@@ -1,0 +1,56 @@
+// 役職（P39）展開サンプル（Wikidata連携）
+//
+// このサンプルで示しているDSL機能:
+//   - expand claim(P39) による複数 Statement → 複数アイテム展開
+//     （1 人の人物が歴任した役職をすべて個別の span として生成）
+//   - claim(P39).qualifier(P580).year / claim(P39).qualifier(P582).year による
+//     Statement の qualifier（開始時点・終了時点）へのアクセス
+//   - ?? 演算子によるリテラルフォールバック（終了時点がない現職等に対応）
+//
+// 注意: このサンプルは Wikidata 連携必須です。--offline ではアイテムは生成されません
+//   （エラーにはなりません）。ビルドには Wikidata へのネットワーク接続が必要です。
+//   例: cargo run -p tdsl-cli -- build examples/officeholder_wikidata.tdsl --pretty
+//   check はパースと静的検証のみなのでオフラインでも実行できます:
+//   cargo run -p tdsl-cli -- check examples/officeholder_wikidata.tdsl
+
+timeline "20世紀イギリスの政治家・君主の役職年表" {
+    title "役職年表（P39 展開）";
+    unit year;
+    range 1890..2025;
+    calendar proleptic_gregorian;
+}
+
+lane "ウィンストン・チャーチル" as churchill { kind person; order 10; }
+lane "エリザベス2世" as elizabeth { kind person; order 20; }
+
+import wikidata as officials {
+    entity Q8016 as winston_churchill; // ウィンストン・チャーチル
+    entity Q9682 as elizabeth_ii;      // エリザベス2世
+    policy merge_by_source;
+}
+
+// チャーチルが歴任した役職（P39）をすべて span として展開する。
+// expand がない場合は最初の Statement のみが対象になるが、
+// expand claim(P39) を書くと P39 の non-deprecated な Statement 全件をループし、
+// 各 Statement につき 1 アイテムを生成する。
+map officials.winston_churchill to span {
+    lane churchill;
+    expand claim(P39);
+    // qualifier(P580) = その役職の開始時点、qualifier(P582) = 終了時点
+    start claim(P39).qualifier(P580).year;
+    // 終了時点 qualifier がない Statement は 1965 年（没年）にフォールバック
+    end claim(P39).qualifier(P582).year ?? 1965;
+    label label@ja ?? label@en;
+    tags ["person", "office"];
+}
+
+// エリザベス2世の役職（イギリス女王など）も同様に展開
+map officials.elizabeth_ii to span {
+    lane elizabeth;
+    expand claim(P39);
+    start claim(P39).qualifier(P580).year;
+    // 終了時点 qualifier がない Statement は 2022 年（没年）にフォールバック
+    end claim(P39).qualifier(P582).year ?? 2022;
+    label label@ja ?? label@en;
+    tags ["person", "office"];
+}

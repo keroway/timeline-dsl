@@ -304,6 +304,8 @@ apply dynasty_span to wd {
 | `examples/china_dynasties.tdsl` | Static definitions only — Qin, Han, and Three Kingdoms |
 | `examples/china_with_import.tdsl` | With Wikidata integration — imports Qin and Han from QIDs |
 | `examples/template_apply_example.tdsl` | Sample usage of template / apply syntax |
+| `examples/grouped_dynasties.tdsl` | Sample usage of the group block — visually grouped lanes, static definitions |
+| `examples/officeholder_wikidata.tdsl` | Positions held (P39) expanded into multiple spans. Wikidata integration (expand / qualifier) |
 | `examples/fictional_empire.tdsl` | Manual timeline for a fictional world |
 | `examples/fictional_empire_items.csv` | Sample CSV input for `import-csv` |
 | `examples/japanese_history.tdsl` | Japanese history (Nara–Edo). Multi-lane, static definitions |

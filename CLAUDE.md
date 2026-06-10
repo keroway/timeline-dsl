@@ -166,6 +166,8 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.ts` をミラーし
 - `examples/sci_tech_timeline.tdsl` -- 科学技術史
 - `examples/fictional_empire.tdsl` -- 架空の帝国（CSV連携例付き）
 - `examples/template_apply_example.tdsl` -- `template` / `apply` 構文の使用例
+- `examples/grouped_dynasties.tdsl` -- `group` ブロックの使用例（静的定義のみ）
+- `examples/officeholder_wikidata.tdsl` -- `expand claim(P39)` / `qualifier(P580/P582)` の使用例（Wikidata連携）
 
 ## 注意点
 
