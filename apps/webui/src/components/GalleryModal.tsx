@@ -1,4 +1,5 @@
 import { GALLERY_EXAMPLES } from '../gallery-meta'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type GalleryModalProps = {
   onClose: () => void
@@ -6,12 +7,21 @@ type GalleryModalProps = {
 }
 
 export function GalleryModal({ onClose, onSelect }: GalleryModalProps) {
+  const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose })
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal-gallery" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal modal-gallery"
+        onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gallery-modal-title"
+        tabIndex={-1}
+      >
         <div className="modal-header">
-          <span>テンプレートギャラリー</span>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <span id="gallery-modal-title">テンプレートギャラリー</span>
+          <button className="modal-close" onClick={onClose} aria-label="ギャラリーを閉じる">✕</button>
         </div>
         <ul className="gallery-list">
           {GALLERY_EXAMPLES.map((ex) => (

@@ -1,6 +1,7 @@
 import type { ChangeEvent } from 'react'
 import type { ColorScheme, Settings } from '../lib/settings'
 import { SHORTCUTS } from '../editor/shortcuts'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type SettingsModalProps = {
   onClose: () => void
@@ -11,6 +12,7 @@ type SettingsModalProps = {
 
 export function SettingsModal({ onClose, settings, updateSetting, systemScheme }: SettingsModalProps) {
   const { theme: themePref, fontSize, lineWrap, scale, pngWhiteBg } = settings
+  const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose })
 
   function handleFontSizeChange(e: ChangeEvent<HTMLSelectElement>) {
     updateSetting('fontSize', parseInt(e.target.value, 10))
@@ -18,10 +20,18 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal-settings" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal modal-settings"
+        onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-modal-title"
+        tabIndex={-1}
+      >
         <div className="modal-header">
-          <span>設定</span>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <span id="settings-modal-title">設定</span>
+          <button className="modal-close" onClick={onClose} aria-label="設定を閉じる">✕</button>
         </div>
         <div className="settings-body">
           <div className="settings-section">
