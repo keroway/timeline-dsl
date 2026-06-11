@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CI に `tdsl.tmLanguage.json` の生成ドリフト検知ステップを追加**: `Build WebUI` ジョブに `gen-grammar-keywords.mjs` を再実行して `git diff --exit-code` でドリフトを検出するステップを追加した。`apps/webui/src/lang-tdsl/keywords.ts` を変更したのに `editors/vscode/syntaxes/tdsl.tmLanguage.json` の再生成・コミットを忘れた PR を CI が自動で fail させる（PR #448 で発生した手動再生成ケースの再発防止）(#452)
 - **WASM facade に `JsRenderOptions` を追加し orientation / grid / theme などをパラメータ化**: `render_svg_from_source_with_options` / `render_html_from_source_with_options` を追加。`JsRenderOptions` クラス（TypeScript 型定義付き）を通じて `orientation`（horizontal / vertical）・`grid`（none / decade / year / month）・`theme`（default / dark / print / pastel）・`show_table`・`show_event_labels` を JS から制御できるようになった。既存の `render_svg_from_source` / `render_html_from_source` は変更なし（後方互換）。`wasmLoader.ts` に `renderSvgWithOptions` / `renderHtmlWithOptions` および `RenderOptions` TypeScript interface を追加 (#417)
 
 ### Fixed

@@ -54,6 +54,14 @@ jobs:
         working-directory: apps/webui
         run: npm run build
 
+      - name: Check tmLanguage.json drift
+        run: |
+          node editors/vscode/scripts/gen-grammar-keywords.mjs
+          if ! git diff --exit-code -- editors/vscode/syntaxes/tdsl.tmLanguage.json; then
+            echo "::error file=editors/vscode/syntaxes/tdsl.tmLanguage.json::tdsl.tmLanguage.json is out of sync with apps/webui/src/lang-tdsl/keywords.ts. Run \`cd apps/webui && npm run build\` (or \`node editors/vscode/scripts/gen-grammar-keywords.mjs\`) and commit the regenerated file."
+            exit 1
+          fi
+
   bench-compile:
     name: Bench (compile only)
     runs-on: ubuntu-latest
