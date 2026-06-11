@@ -81,3 +81,4 @@ VS Code 拡張の `editors/vscode/syntaxes/tdsl.tmLanguage.json` のキーワー
 2. `crates/tdsl-parser/src/builder.rs` / `crates/tdsl-core/src/lower.rs` を更新
 3. **`apps/webui/src/lang-tdsl/keywords.ts`** の `BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS` に追加
 4. `cargo test --workspace` と `npm run build` がパスすることを確認（`npm run build` で `tdsl.tmLanguage.json` が自動更新される）
+5. 再生成された `editors/vscode/syntaxes/tdsl.tmLanguage.json` を **必ずコミット**する。コミット忘れは CI の `Build WebUI` ジョブ内の "Check tmLanguage.json drift" ステップで検出され失敗する
