@@ -2,6 +2,9 @@
 
 export type ColorScheme = 'dark' | 'light'
 export type ThemePreference = 'auto' | 'light' | 'dark'
+export type SvgOrientation = 'horizontal' | 'vertical'
+export type SvgGrid = 'none' | 'decade' | 'year' | 'month'
+export type SvgTheme = 'default' | 'dark' | 'print' | 'pastel'
 
 export type Settings = {
   theme: ThemePreference
@@ -11,6 +14,9 @@ export type Settings = {
   pngWhiteBg: boolean
   historyEnabled: boolean
   autoSaveEnabled: boolean
+  svgOrientation: SvgOrientation
+  svgGrid: SvgGrid
+  svgTheme: SvgTheme
 }
 
 export const SETTINGS_KEY = 'tdsl:settings'
@@ -28,6 +34,9 @@ export const SETTINGS_DEFAULTS: Settings = {
   pngWhiteBg: true,
   historyEnabled: true,
   autoSaveEnabled: true,
+  svgOrientation: 'horizontal',
+  svgGrid: 'none',
+  svgTheme: 'default',
 }
 
 export function readSplitRatio(): number {
@@ -50,6 +59,15 @@ export function readSettings(): Settings {
     const merged: Settings = { ...SETTINGS_DEFAULTS, ...parsed }
     if (merged.theme !== 'auto' && merged.theme !== 'light' && merged.theme !== 'dark') {
       merged.theme = SETTINGS_DEFAULTS.theme
+    }
+    if (!['horizontal', 'vertical'].includes(merged.svgOrientation)) {
+      merged.svgOrientation = SETTINGS_DEFAULTS.svgOrientation
+    }
+    if (!['none', 'decade', 'year', 'month'].includes(merged.svgGrid)) {
+      merged.svgGrid = SETTINGS_DEFAULTS.svgGrid
+    }
+    if (!['default', 'dark', 'print', 'pastel'].includes(merged.svgTheme)) {
+      merged.svgTheme = SETTINGS_DEFAULTS.svgTheme
     }
     return merged
   } catch {
