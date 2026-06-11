@@ -52,7 +52,11 @@ function App() {
 
   const { wasmReady, wasmError } = useWasm()
   const { settings, updateSetting, systemScheme, colorScheme } = useSettings()
-  const { svgContent, diagnostics, diagnosticsRef, isStalePreview } = useCompiler(source, wasmReady, settings.scale)
+  const renderOpts = useMemo(
+    () => ({ orientation: settings.svgOrientation, grid: settings.svgGrid, theme: settings.svgTheme }),
+    [settings.svgOrientation, settings.svgGrid, settings.svgTheme]
+  )
+  const { svgContent, diagnostics, diagnosticsRef, isStalePreview } = useCompiler(source, wasmReady, settings.scale, renderOpts)
   const svg = useSvgInteractions(svgContent, editorViewRef)
   const { splitRatio, mainRef, handleDividerMouseDown } = useSplitPane()
   const exportApi = useExport(source, svgContent, settings.pngWhiteBg, showToast)

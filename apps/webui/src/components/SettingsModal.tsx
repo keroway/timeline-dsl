@@ -112,6 +112,47 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
               </button>
             </div>
           </div>
+          <hr className="settings-divider" />
+          <div className="settings-section">
+            <div className="settings-label">SVG プレビュー設定</div>
+          </div>
+          <div className="settings-section">
+            <div className="settings-label">向き</div>
+            <select
+              className="toolbar-select"
+              value={settings.svgOrientation}
+              onChange={(e) => updateSetting('svgOrientation', e.target.value as Settings['svgOrientation'])}
+            >
+              <option value="horizontal">水平</option>
+              <option value="vertical">垂直</option>
+            </select>
+          </div>
+          <div className="settings-section">
+            <div className="settings-label">グリッド密度</div>
+            <select
+              className="toolbar-select"
+              value={settings.svgGrid}
+              onChange={(e) => updateSetting('svgGrid', e.target.value as Settings['svgGrid'])}
+            >
+              <option value="none">なし</option>
+              <option value="decade">10年</option>
+              <option value="year">1年</option>
+              <option value="month">月</option>
+            </select>
+          </div>
+          <div className="settings-section">
+            <div className="settings-label">SVG テーマ</div>
+            <select
+              className="toolbar-select"
+              value={settings.svgTheme}
+              onChange={(e) => updateSetting('svgTheme', e.target.value as Settings['svgTheme'])}
+            >
+              <option value="default">デフォルト</option>
+              <option value="dark">ダーク</option>
+              <option value="print">印刷</option>
+              <option value="pastel">パステル</option>
+            </select>
+          </div>
           <div className="settings-section">
             <div className="settings-label">自動保存</div>
             <div className="settings-row">
