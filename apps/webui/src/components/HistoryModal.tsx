@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { Snapshot } from '../history'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type HistoryModalProps = {
   onClose: () => void
@@ -32,12 +33,22 @@ export function HistoryModal(props: HistoryModalProps) {
     onClearAll,
   } = props
 
+  const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose })
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal-history" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal modal-history"
+        onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="history-modal-title"
+        tabIndex={-1}
+      >
         <div className="modal-header">
-          <span>履歴</span>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <span id="history-modal-title">履歴</span>
+          <button className="modal-close" onClick={onClose} aria-label="履歴を閉じる">✕</button>
         </div>
         <div className="history-body">
           {manualSnaps.length > 0 && (
