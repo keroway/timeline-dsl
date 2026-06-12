@@ -50,6 +50,10 @@ jobs:
         working-directory: apps/webui
         run: npm run lint
 
+      - name: Test
+        working-directory: apps/webui
+        run: npm test
+
       - name: Build
         working-directory: apps/webui
         run: npm run build
