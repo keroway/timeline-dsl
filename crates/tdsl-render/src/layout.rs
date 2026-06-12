@@ -281,35 +281,25 @@ impl<'a> LayoutModel<'a> {
         let mut items = Vec::new();
         for item in &ir.items {
             let lane_id = item_lane_id(item);
-            let Some(&lane_primary) = lane_y.get(lane_id) else {
+            let Some(&lane_axis) = lane_y.get(lane_id) else {
                 continue;
             };
             let item_tags = get_item_tags(item);
             let color = resolve_item_color(item_tags, &opts.color_map, lane_id, &lane_colors);
             let tooltip = item_tooltip(item);
-            if is_vertical {
-                compute_item_vertical(
-                    item,
-                    &mut items,
-                    lane_primary,
+            compute_item(
+                item,
+                &mut items,
+                ItemLayoutArgs {
+                    lane_axis,
                     year_min,
                     year_max,
-                    &opts,
+                    opts: &opts,
+                    orientation: opts.orientation.clone(),
                     color,
                     tooltip,
-                );
-            } else {
-                compute_item_horizontal(
-                    item,
-                    &mut items,
-                    lane_primary,
-                    year_min,
-                    year_max,
-                    &opts,
-                    color,
-                    tooltip,
-                );
-            }
+                },
+            );
         }
 
         Self {
@@ -492,17 +482,52 @@ impl<'a> LayoutModel<'a> {
 
 // --- item layout helpers ---
 
-#[allow(clippy::too_many_arguments)]
-fn compute_item_horizontal<'a>(
-    item: &'a Item,
-    items: &mut Vec<LaidItem<'a>>,
-    lane_cy: f64,
+/// Arguments for [`compute_item`].
+///
+/// Bundling them collapses the orientation-specific compute functions into one
+/// and removes the `too_many_arguments` clippy escape that the previous
+/// horizontal/vertical pair required.
+struct ItemLayoutArgs<'a> {
+    /// Lane axis position. For horizontal layouts this is the lane center Y
+    /// coordinate; for vertical layouts it is the lane center X coordinate.
+    lane_axis: f64,
     year_min: i64,
     year_max: i64,
-    opts: &RenderOptions,
+    opts: &'a RenderOptions,
+    orientation: Orientation,
     color: String,
     tooltip: String,
-) {
+}
+
+/// Compute the laid-out coordinates for a single item.
+///
+/// The orientation-specific projection collapses into a single primary/cross
+/// axis pair: the time axis is the *primary* axis (X horizontally, Y
+/// vertically) and the lane axis is the *cross* axis. The final
+/// [`LaidItem`] fields are populated by mapping (primary, cross) back into
+/// (x, y) using [`ItemLayoutArgs::orientation`].
+///
+/// For [`Item::Event`] in vertical orientation, the `LaidItem::Event` fields
+/// are reused with shifted semantics: `x` holds the lane axis, and
+/// `y_top`/`y_bottom`/`y_dot` hold time-axis values. The SVG emitter detects
+/// this via [`LayoutModel::is_vertical`] and renders the stem horizontally.
+fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLayoutArgs<'_>) {
+    let ItemLayoutArgs {
+        lane_axis,
+        year_min,
+        year_max,
+        opts,
+        orientation,
+        color,
+        tooltip,
+    } = args;
+    let is_vertical = orientation == Orientation::Vertical;
+    let primary_anchor = if is_vertical {
+        opts.top_margin
+    } else {
+        opts.left_gutter
+    };
+
     match item {
         Item::Span {
             start,
@@ -516,113 +541,20 @@ fn compute_item_horizontal<'a>(
             // 仕様 §1.4: start は year/月の頭、end は year/月の末日を採用（混在精度補完）
             let sf = start_frac(*start, *start_month, *start_day);
             let ef = end_frac(*end, *end_month, *end_day);
-            let (x, width) =
-                span_x_width_frac(sf, ef, year_min, year_max, opts.scale, opts.left_gutter);
+            let (primary_start, primary_extent) =
+                primary_axis_segment(sf, ef, year_min, year_max, opts.scale, primary_anchor);
+            let cross_start = lane_axis - SPAN_HALF_H;
+            let cross_extent = SPAN_HALF_H * 2.0;
+            let (x, y, width, height) = if is_vertical {
+                (cross_start, primary_start, cross_extent, primary_extent)
+            } else {
+                (primary_start, cross_start, primary_extent, cross_extent)
+            };
             items.push(LaidItem::Span {
                 item,
                 x,
-                y: lane_cy - SPAN_HALF_H,
-                width,
-                height: SPAN_HALF_H * 2.0,
-                color,
-                tooltip,
-            });
-        }
-        Item::EventRange {
-            start,
-            end,
-            start_month,
-            start_day,
-            end_month,
-            end_day,
-            ..
-        } => {
-            let sf = start_frac(*start, *start_month, *start_day);
-            let ef = end_frac(*end, *end_month, *end_day);
-            let (x, width) =
-                span_x_width_frac(sf, ef, year_min, year_max, opts.scale, opts.left_gutter);
-            items.push(LaidItem::EventRange {
-                item,
-                x,
-                y: lane_cy + EVENT_RANGE_Y_OFFSET,
-                width,
-                height: EVENT_RANGE_H,
-                color,
-                tooltip,
-            });
-        }
-        Item::Event {
-            time,
-            time_month,
-            time_day,
-            ..
-        } => {
-            if !year_in_range(*time, year_min, year_max) {
-                return;
-            }
-            let frac = to_year_frac(*time, *time_month, *time_day);
-            let x = frac_to_x(frac, year_min, opts.scale, opts.left_gutter);
-            items.push(LaidItem::Event {
-                item,
-                x,
-                y_top: lane_cy - EVENT_STEM_H,
-                y_bottom: lane_cy + EVENT_STEM_H,
-                y_dot: lane_cy,
-                color,
-                tooltip,
-            });
-        }
-    }
-}
-
-/// Compute item coordinates for vertical layout.
-///
-/// In vertical orientation:
-/// - `lane_primary` is the lane's center X coordinate.
-/// - `LaidItem::Span { x, y, width, height }`:
-///   - x = lane_primary - SPAN_HALF_H (left edge of the band)
-///   - y = top_margin + (start_frac - year_min) * scale
-///   - width = SPAN_HALF_H * 2
-///   - height = (end_frac - start_frac) * scale
-/// - `LaidItem::Event { x, y_top, y_bottom, y_dot }`:
-///   - The fields are repurposed: x = lane_primary, y_top/y_bottom = stem extents (Y),
-///     y_dot = dot Y. The SVG emitter switches to a horizontal stem when `is_vertical()`.
-#[allow(clippy::too_many_arguments)]
-fn compute_item_vertical<'a>(
-    item: &'a Item,
-    items: &mut Vec<LaidItem<'a>>,
-    lane_primary: f64,
-    year_min: i64,
-    year_max: i64,
-    opts: &RenderOptions,
-    color: String,
-    tooltip: String,
-) {
-    match item {
-        Item::Span {
-            start,
-            end,
-            start_month,
-            start_day,
-            end_month,
-            end_day,
-            ..
-        } => {
-            let sf = start_frac(*start, *start_month, *start_day);
-            let ef = end_frac(*end, *end_month, *end_day);
-            let (y, height) = span_y_height_frac_vertical(
-                sf,
-                ef,
-                year_min,
-                year_max,
-                opts.scale,
-                opts.top_margin,
-            );
-            items.push(LaidItem::Span {
-                item,
-                x: lane_primary - SPAN_HALF_H,
                 y,
-                width: SPAN_HALF_H * 2.0,
+                width,
                 height,
                 color,
                 tooltip,
@@ -639,19 +571,32 @@ fn compute_item_vertical<'a>(
         } => {
             let sf = start_frac(*start, *start_month, *start_day);
             let ef = end_frac(*end, *end_month, *end_day);
-            let (y, height) = span_y_height_frac_vertical(
-                sf,
-                ef,
-                year_min,
-                year_max,
-                opts.scale,
-                opts.top_margin,
-            );
+            let (primary_start, primary_extent) =
+                primary_axis_segment(sf, ef, year_min, year_max, opts.scale, primary_anchor);
+            // Horizontal bands sit just below the lane center
+            // (EVENT_RANGE_Y_OFFSET); vertical bands are centered on the lane
+            // axis. This asymmetry is preserved verbatim from the original
+            // split implementation.
+            let (x, y, width, height) = if is_vertical {
+                (
+                    lane_axis - EVENT_RANGE_H / 2.0,
+                    primary_start,
+                    EVENT_RANGE_H,
+                    primary_extent,
+                )
+            } else {
+                (
+                    primary_start,
+                    lane_axis + EVENT_RANGE_Y_OFFSET,
+                    primary_extent,
+                    EVENT_RANGE_H,
+                )
+            };
             items.push(LaidItem::EventRange {
                 item,
-                x: lane_primary - EVENT_RANGE_H / 2.0,
+                x,
                 y,
-                width: EVENT_RANGE_H,
+                width,
                 height,
                 color,
                 tooltip,
@@ -667,14 +612,29 @@ fn compute_item_vertical<'a>(
                 return;
             }
             let frac = to_year_frac(*time, *time_month, *time_day);
-            let y_dot = opts.top_margin + (frac - year_min as f64) * opts.scale;
-            // For vertical events, `x` = lane center, `y_top`/`y_bottom` are Y extents of the stem.
-            // The SVG emitter checks is_vertical() and draws a horizontal stem instead.
+            let primary = primary_anchor + (frac - year_min as f64) * opts.scale;
+            let (x, y_top, y_bottom, y_dot) = if is_vertical {
+                // x = lane axis; y_top/y_bottom/y_dot all live on the time axis.
+                (
+                    lane_axis,
+                    primary - EVENT_STEM_H,
+                    primary + EVENT_STEM_H,
+                    primary,
+                )
+            } else {
+                // x = time axis; y_top/y_bottom/y_dot live on the lane axis.
+                (
+                    primary,
+                    lane_axis - EVENT_STEM_H,
+                    lane_axis + EVENT_STEM_H,
+                    lane_axis,
+                )
+            };
             items.push(LaidItem::Event {
                 item,
-                x: lane_primary,
-                y_top: y_dot - EVENT_STEM_H,
-                y_bottom: y_dot + EVENT_STEM_H,
+                x,
+                y_top,
+                y_bottom,
                 y_dot,
                 color,
                 tooltip,
@@ -869,40 +829,26 @@ fn year_in_range(year: i64, year_min: i64, year_max: i64) -> bool {
     year >= year_min && year <= year_max
 }
 
-fn span_x_width_frac(
+/// Compute the (start, extent) of a span/event-range projected onto the time
+/// (primary) axis.
+///
+/// `anchor` is the pixel coordinate where `year_min` falls on the primary
+/// axis: `left_gutter` for horizontal layouts, `top_margin` for vertical
+/// layouts. The same formula serves both orientations.
+fn primary_axis_segment(
     start_frac: f64,
     end_frac: f64,
     year_min: i64,
     year_max: i64,
     scale: f64,
-    left_gutter: f64,
+    anchor: f64,
 ) -> (f64, f64) {
     let s = start_frac.max(year_min as f64);
     let e = end_frac.min(year_max as f64);
     if e < s {
-        return (frac_to_x(start_frac, year_min, scale, left_gutter), 0.0);
+        return (anchor + (start_frac - year_min as f64) * scale, 0.0);
     }
-    (frac_to_x(s, year_min, scale, left_gutter), (e - s) * scale)
-}
-
-/// Compute (y, height) for a span/event-range in vertical layout.
-fn span_y_height_frac_vertical(
-    start_frac: f64,
-    end_frac: f64,
-    year_min: i64,
-    year_max: i64,
-    scale: f64,
-    top_margin: f64,
-) -> (f64, f64) {
-    let s = start_frac.max(year_min as f64);
-    let e = end_frac.min(year_max as f64);
-    if e < s {
-        let y = top_margin + (start_frac - year_min as f64) * scale;
-        return (y, 0.0);
-    }
-    let y = top_margin + (s - year_min as f64) * scale;
-    let height = (e - s) * scale;
-    (y, height)
+    (anchor + (s - year_min as f64) * scale, (e - s) * scale)
 }
 
 fn derive_range_from_items(ir: &TimelineIr) -> Option<(i64, i64)> {
@@ -1263,11 +1209,22 @@ mod tests {
 
     #[test]
     fn span_clamps_to_range() {
-        let (x, w) = span_x_width_frac(-600.0, 300.0, -500, 200, 2.0, 120.0);
+        let (x, w) = primary_axis_segment(-600.0, 300.0, -500, 200, 2.0, 120.0);
         // start clamped to -500 → x=120
         assert_eq!(x, 120.0);
         // end clamped to 200 → width = (200-(-500))*2 = 1400
         assert_eq!(w, 1400.0);
+    }
+
+    #[test]
+    fn primary_axis_segment_matches_anchor_for_vertical() {
+        // Same arithmetic as the horizontal case but with a different anchor
+        // (top_margin instead of left_gutter); ensures the unified helper
+        // covers the orientation that previously had its own
+        // span_y_height_frac_vertical implementation.
+        let (y, h) = primary_axis_segment(-600.0, 300.0, -500, 200, 2.0, 40.0);
+        assert_eq!(y, 40.0);
+        assert_eq!(h, 1400.0);
     }
 
     #[test]
