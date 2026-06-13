@@ -508,6 +508,125 @@ map wd.han to span {
         assert!(svg.starts_with("<svg"), "should produce SVG output");
     }
 
+    // ─── lint_source / lint_fix_source テスト ─────────────────────────────────
+
+    #[test]
+    fn lint_source_returns_empty_array_for_clean_source() {
+        let src = r#"timeline "T" { unit year; range 0..100; }
+lane "A" as a { kind custom; }
+span a 10..20 "S" { id "s1"; tags ["x"]; };
+"#;
+        let json = lint_source(src);
+        let issues: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        assert!(
+            issues.is_empty(),
+            "clean source should produce no lint issues, got: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn lint_source_reports_unknown_lane() {
+        let src = r#"timeline "T" { unit year; range 0..100; }
+lane "A" as a { kind custom; }
+span nonexistent 10..20 "S" { id "s1"; };
+"#;
+        let json = lint_source(src);
+        let issues: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        let unknown_lane = issues
+            .iter()
+            .find(|d| d["code"] == "unknown_lane")
+            .expect("unknown_lane should be reported");
+        assert_eq!(unknown_lane["severity"], "error");
+        assert!(unknown_lane["line"].as_u64().unwrap() >= 1);
+        assert_eq!(unknown_lane["fixable"], false);
+    }
+
+    #[test]
+    fn lint_source_reports_missing_id_as_fixable_warning() {
+        let src = r#"timeline "T" { unit year; range 0..100; }
+lane "A" as a { kind custom; }
+event a 10 "E" {};
+"#;
+        let json = lint_source(src);
+        let issues: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        let missing = issues
+            .iter()
+            .find(|d| d["code"] == "missing_id")
+            .expect("missing_id should be reported");
+        assert_eq!(missing["severity"], "warning");
+        assert_eq!(missing["fixable"], true);
+    }
+
+    #[test]
+    fn lint_source_parse_error_returns_single_entry() {
+        let src = "this is !!! not valid tdsl";
+        let json = lint_source(src);
+        let issues: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0]["code"], "parse_error");
+        assert_eq!(issues[0]["severity"], "error");
+        assert_eq!(issues[0]["fixable"], false);
+    }
+
+    #[test]
+    fn lint_fix_source_returns_unchanged_for_clean_source() {
+        let src = r#"timeline "T" { unit year; range 0..100; }
+lane "A" as a { kind custom; }
+span a 10..20 "S" { id "s1"; tags ["x"]; };
+"#;
+        let out = lint_fix_source_native(src).expect("clean source should not error");
+        assert_eq!(out, src, "clean source should be returned unchanged");
+    }
+
+    #[test]
+    fn lint_fix_source_applies_fixes_for_fixable_input() {
+        // span 範囲が反転、tags に空文字・重複、id 欠落の 3 種の fix を含むソース。
+        let src = r#"
+timeline "T" { unit year; range 0..100; }
+lane "A" as a { kind custom; }
+span a 50..10 "S" { tags ["x", "", "x"]; };
+event a 30 "E" {};
+"#;
+        let fixed = lint_fix_source_native(src).expect("fixable source should not error");
+        assert_ne!(fixed, src, "fix should rewrite the source");
+
+        // 再パースして fixable 系の issue が解消されていること
+        let json = lint_source(&fixed);
+        let issues: Vec<serde_json::Value> =
+            serde_json::from_str(&json).expect("must return JSON array");
+        assert!(
+            !issues.iter().any(|d| matches!(
+                d["code"].as_str(),
+                Some("start_gt_end") | Some("invalid_tags") | Some("missing_id")
+            )),
+            "fixable issues should be gone after lint_fix_source, got: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn lint_fix_source_parse_error_propagates() {
+        // ParseError は JsValue にラップされるためネイティブ実装の Result を直接確認する。
+        let src = "this is not valid tdsl {{{";
+        assert!(
+            tdsl_core::lint::fix_source(src).is_err(),
+            "invalid source should yield ParseError"
+        );
+    }
+
+    /// `lint_fix_source` の WASM 境界（`Result<String, JsValue>`）はネイティブテストから呼べないため、
+    /// 内部ロジックと等価な thin wrapper を用意して挙動を検証する。
+    fn lint_fix_source_native(source: &str) -> Result<String, String> {
+        match tdsl_core::lint::fix_source(source) {
+            Ok(Some(fixed)) => Ok(fixed),
+            Ok(None) => Ok(source.to_string()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
     #[test]
     fn render_svg_with_vertical_orientation() {
         let ir = make_ir(1900, 2000);
@@ -781,4 +900,75 @@ pub fn check_source(source: &str) -> String {
     }
 
     serde_json::to_string(&diagnostics).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// A single lint issue returned by `lint_source`.
+#[derive(serde::Serialize)]
+struct LintDiagnostic {
+    code: String,
+    severity: String,
+    line: u32,
+    message: String,
+    fixable: bool,
+}
+
+/// Run lint rules on TDSL source and return issues as JSON.
+///
+/// Returns a JSON array of `{code, severity, line, message, fixable}` objects.
+/// `severity` is `"error"` or `"warning"` (lint does not emit `"info"`).
+/// `line` is **1-based** and matches `check_source`'s line numbering.
+/// `fixable` is `true` when `lint_fix_source` can automatically resolve the issue.
+///
+/// On parse error, the array contains a single entry with `code: "parse_error"`
+/// so callers can still surface the failure through the same path as lint issues.
+#[wasm_bindgen]
+pub fn lint_source(source: &str) -> String {
+    let file = match tdsl_parser::parse(source) {
+        Ok(f) => f,
+        Err(e) => {
+            let line = e.source_location(source).map_or(0u32, |loc| loc.line);
+            let diag = LintDiagnostic {
+                code: "parse_error".to_string(),
+                severity: "error".to_string(),
+                line,
+                message: e.to_string(),
+                fixable: false,
+            };
+            return serde_json::to_string(&[diag]).unwrap_or_else(|_| "[]".to_string());
+        }
+    };
+
+    let diagnostics: Vec<LintDiagnostic> = tdsl_core::lint::lint_issues(&file, source)
+        .into_iter()
+        .map(|issue| LintDiagnostic {
+            code: issue.code,
+            severity: match issue.severity {
+                tdsl_core::lint::LintSeverity::Error => "error".to_string(),
+                tdsl_core::lint::LintSeverity::Warning => "warning".to_string(),
+            },
+            line: issue.line as u32,
+            message: issue.message,
+            fixable: issue.fixable,
+        })
+        .collect();
+
+    serde_json::to_string(&diagnostics).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// Apply `tdsl lint --fix` to TDSL source and return the rewritten source.
+///
+/// - When at least one fixable issue is applied, the rewritten source is returned.
+/// - When the input has no fixable issues, the original source is returned unchanged
+///   (callers can compare lengths / equality to detect a no-op).
+/// - On parse failure, returns `Err(parse_error_message)`.
+///
+/// Comments are not preserved because `tdsl-parser` skips them at the PEG layer,
+/// matching the behavior of `format_source` and the `tdsl lint --fix` CLI.
+#[wasm_bindgen]
+pub fn lint_fix_source(source: &str) -> Result<String, JsValue> {
+    match tdsl_core::lint::fix_source(source) {
+        Ok(Some(fixed)) => Ok(fixed),
+        Ok(None) => Ok(source.to_string()),
+        Err(e) => Err(JsValue::from_str(&e.to_string())),
+    }
 }
