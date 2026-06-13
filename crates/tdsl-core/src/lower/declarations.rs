@@ -1,0 +1,78 @@
+use tdsl_parser::ast;
+
+use crate::error::LoweringError;
+use crate::ir::Meta;
+
+use super::context::LoweringContext;
+
+impl LoweringContext {
+    /// Pass 1: Collect timeline meta and lane declarations.
+    pub(crate) fn pass1_declarations(&mut self, file: &ast::File, line_offsets: Option<&[usize]>) {
+        for stmt in &file.statements {
+            match &stmt.node {
+                ast::Statement::Timeline(t) => {
+                    if self.meta.is_some() {
+                        self.errors.push(LoweringError::MultipleTimelines);
+                        continue;
+                    }
+                    let color_map = t
+                        .color_map
+                        .iter()
+                        .cloned()
+                        .collect::<std::collections::HashMap<_, _>>();
+                    let (
+                        range_yy,
+                        range_start_month,
+                        range_start_day,
+                        range_end_month,
+                        range_end_day,
+                    ) = match t.range.as_ref() {
+                        Some(r) => (
+                            (r.start.year(), r.end.year()),
+                            r.start.month(),
+                            r.start.day(),
+                            r.end.month(),
+                            r.end.day(),
+                        ),
+                        None => ((0, 2000), None, None, None, None),
+                    };
+                    self.meta = Some(Meta {
+                        title: t.title.clone().unwrap_or_else(|| t.name.clone()),
+                        unit: t.unit.clone().unwrap_or_else(|| "year".to_string()),
+                        range: range_yy,
+                        range_start_month,
+                        range_start_day,
+                        range_end_month,
+                        range_end_day,
+                        calendar: t
+                            .calendar
+                            .clone()
+                            .unwrap_or_else(|| "proleptic_gregorian".to_string()),
+                        color_map,
+                    });
+                }
+                ast::Statement::Lane(l) => {
+                    self.lower_lane_decl(l, None, &stmt.span, line_offsets);
+                }
+                ast::Statement::Group(g) => {
+                    for l in &g.lanes {
+                        self.lower_lane_decl(l, Some(&g.label), &stmt.span, line_offsets);
+                    }
+                }
+                ast::Statement::Template(t) => {
+                    let key = t.alias.clone().unwrap_or_else(|| t.name.clone());
+                    if self.templates.contains_key(&key) {
+                        self.errors
+                            .push(LoweringError::DuplicateTemplate(key.clone()));
+                        continue;
+                    }
+                    self.templates.insert(key, t.clone());
+                }
+                _ => {}
+            }
+        }
+        if self.meta.is_none() {
+            self.errors.push(LoweringError::NoTimeline);
+        }
+    }
+}
