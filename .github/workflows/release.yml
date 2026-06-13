@@ -141,7 +141,7 @@ jobs:
           const {readFileSync} = require('fs');
           // Minimal smoke: ensure the generated JS module exports the expected symbols
           const js = readFileSync('crates/tdsl-wasm/pkg/tdsl_wasm.js', 'utf8');
-          ['compile_to_ir', 'render_svg_from_source', 'render_html_from_source', 'check_source']
+          ['compile_to_ir', 'render_svg_from_source', 'render_html_from_source', 'check_source', 'lint_source', 'lint_fix_source']
             .forEach(fn => { if (!js.includes(fn)) throw new Error('Missing export: ' + fn); });
           console.log('WASM smoke test passed');
           "

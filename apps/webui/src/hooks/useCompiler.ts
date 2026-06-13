@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEBOUNCE_MS } from '../lib/constants'
-import { type Diagnostic, type RenderOptions, checkSource, renderSvgWithOptions } from '../wasmLoader'
+import { type Diagnostic, type LintIssue, type RenderOptions, checkSource, lintSource, renderSvgWithOptions } from '../wasmLoader'
+
+// lint 結果を Diagnostic に変換する。`[lint:<code>]` プレフィックスで `check_source`
+// の診断と区別できるようにし、行のみ持つ lint には col=1 を付与して既存パネルが
+// 1-based として扱えるようにする。`parse_error` だけは `check_source` の側で同じ位置に
+// 出るため lint 側では捨てて二重表示を避ける。
+function lintIssueToDiagnostic(issue: LintIssue): Diagnostic {
+  return {
+    severity: issue.severity,
+    message: `[lint:${issue.code}]${issue.fixable ? ' (fixable)' : ''} ${issue.message}`,
+    line: issue.line,
+    col: issue.line > 0 ? 1 : 0,
+  }
+}
 
 export type CompilerState = {
   svgContent: string
@@ -31,7 +44,11 @@ export function useCompiler(source: string, wasmReady: boolean, scale: number, r
   const compileAndCheck = useCallback(
     (src: string) => {
       if (!wasmReady) return
-      const diags = checkSource(src)
+      const checkDiags = checkSource(src)
+      const lintDiags = lintSource(src)
+        .filter((i) => i.code !== 'parse_error')
+        .map(lintIssueToDiagnostic)
+      const diags = [...checkDiags, ...lintDiags]
       setDiagnostics(diags)
 
       const hasErrors = diags.some((d) => d.severity === 'error')
