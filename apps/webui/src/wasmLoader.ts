@@ -1,4 +1,4 @@
-import init, { JsRenderOptions, compile_to_ir, render_svg_from_source, render_html_from_source, render_svg_from_source_with_options, render_html_from_source_with_options, check_source, format_source } from './wasm/tdsl_wasm.js'
+import init, { JsRenderOptions, compile_to_ir, render_svg_from_source, render_html_from_source, render_svg_from_source_with_options, render_html_from_source_with_options, check_source, format_source, lint_source, lint_fix_source } from './wasm/tdsl_wasm.js'
 
 let initialized = false
 
@@ -7,6 +7,14 @@ export interface Diagnostic {
   message: string
   line: number
   col: number
+}
+
+export interface LintIssue {
+  code: string
+  severity: 'error' | 'warning'
+  line: number
+  message: string
+  fixable: boolean
 }
 
 export interface RenderOptions {
@@ -66,4 +74,16 @@ export function checkSource(source: string): Diagnostic[] {
 
 export function formatSource(source: string): string {
   return format_source(source)
+}
+
+export function lintSource(source: string): LintIssue[] {
+  try {
+    return JSON.parse(lint_source(source)) as LintIssue[]
+  } catch {
+    return []
+  }
+}
+
+export function lintFixSource(source: string): string {
+  return lint_fix_source(source)
 }

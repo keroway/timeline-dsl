@@ -69,6 +69,32 @@ export function compile_to_ir(source: string): string;
 export function format_source(source: string): string;
 
 /**
+ * Apply `tdsl lint --fix` to TDSL source and return the rewritten source.
+ *
+ * - When at least one fixable issue is applied, the rewritten source is returned.
+ * - When the input has no fixable issues, the original source is returned unchanged
+ *   (callers can compare lengths / equality to detect a no-op).
+ * - On parse failure, returns `Err(parse_error_message)`.
+ *
+ * Comments are not preserved because `tdsl-parser` skips them at the PEG layer,
+ * matching the behavior of `format_source` and the `tdsl lint --fix` CLI.
+ */
+export function lint_fix_source(source: string): string;
+
+/**
+ * Run lint rules on TDSL source and return issues as JSON.
+ *
+ * Returns a JSON array of `{code, severity, line, message, fixable}` objects.
+ * `severity` is `"error"` or `"warning"` (lint does not emit `"info"`).
+ * `line` is **1-based** and matches `check_source`'s line numbering.
+ * `fixable` is `true` when `lint_fix_source` can automatically resolve the issue.
+ *
+ * On parse error, the array contains a single entry with `code: "parse_error"`
+ * so callers can still surface the failure through the same path as lint issues.
+ */
+export function lint_source(source: string): string;
+
+/**
  * Initialize the panic hook for better error messages in the browser console.
  */
 export function main(): void;
@@ -122,6 +148,8 @@ export interface InitOutput {
     readonly jsrenderoptions_set_orientation: (a: number, b: number, c: number) => void;
     readonly jsrenderoptions_set_theme: (a: number, b: number, c: number) => void;
     readonly jsrenderoptions_theme: (a: number, b: number) => void;
+    readonly lint_fix_source: (a: number, b: number, c: number) => void;
+    readonly lint_source: (a: number, b: number, c: number) => void;
     readonly render_html_from_source: (a: number, b: number, c: number) => void;
     readonly render_html_from_source_with_options: (a: number, b: number, c: number, d: number) => void;
     readonly render_svg_from_source: (a: number, b: number, c: number, d: number) => void;
