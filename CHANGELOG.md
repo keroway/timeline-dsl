@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Criterion ベンチマークを main push 時に CI で実行し結果をアーティファクト保存**: `bench` ジョブを追加し、`main` ブランチへの push 時のみ `cargo bench --workspace` を実際に実行するようにした。従来の `bench-compile`（`--no-run`）は PR 時のコンパイル確認として継続。Criterion HTML レポートと stdout ログを `criterion-reports-<sha>` アーティファクトとして 90 日間保存し、性能トレンドをダウンロード確認できるようになった。ジョブは非ブロッキング・並列実行 (#434)
 - **lint を WASM 経由で WebUI に提供**: `tdsl-wasm` に `lint_source(source) -> JSON`（issue 一覧）と `lint_fix_source(source) -> String`（修正後ソース）を追加。WebUI の診断パネルに lint 結果（`[lint:<code>]` プレフィックス + fixable 表示）を統合し、Toolbar に "Lint Fix" ボタンを追加した。Format ボタンと同様の UX で、自動修正の適用前に確認ダイアログでコメント / フォーマットが書き換わる旨を通知する。CI の WASM smoke / verify ステップに新 export を追記 (#429)
 - **WebUI モーダルに focus trap を実装し a11y を改善**: `useFocusTrap` フックを新規追加し、設定 / ギャラリー / 履歴モーダル表示中の Tab / Shift+Tab フォーカスをモーダル内で循環させるようにした。モーダルを閉じた際は呼び出し元の要素へフォーカスが復帰する。Escape キーでも閉じられるよう統一し、ギャラリー / 履歴モーダルにも Escape クローズを追加。各モーダルに `role="dialog"` / `aria-modal="true"` / `aria-labelledby` を付与し、閉じるボタンに `aria-label` を追加 (#435)
 - **CI に `tdsl.tmLanguage.json` の生成ドリフト検知ステップを追加**: `Build WebUI` ジョブに `gen-grammar-keywords.mjs` を再実行して `git diff --exit-code` でドリフトを検出するステップを追加した。`apps/webui/src/lang-tdsl/keywords.ts` を変更したのに `editors/vscode/syntaxes/tdsl.tmLanguage.json` の再生成・コミットを忘れた PR を CI が自動で fail させる（PR #448 で発生した手動再生成ケースの再発防止）(#452)
