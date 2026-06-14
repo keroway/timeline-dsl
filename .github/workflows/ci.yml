@@ -82,6 +82,34 @@ jobs:
       - name: Compile benchmarks
         run: cargo bench --no-run
 
+  bench:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.94
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: bench
+
+      - name: Run benchmarks
+        run: cargo bench --workspace 2>&1 | tee bench-output.txt
+
+      - name: Upload criterion reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: criterion-reports-${{ github.sha }}
+          path: |
+            target/criterion/
+            bench-output.txt
+          retention-days: 90
+
   build-wasm-check:
     name: WASM build check
     runs-on: ubuntu-latest
