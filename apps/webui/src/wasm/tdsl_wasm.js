@@ -255,6 +255,78 @@ export function format_source(source) {
 }
 
 /**
+ * Apply `tdsl lint --fix` to TDSL source and return the rewritten source.
+ *
+ * - When at least one fixable issue is applied, the rewritten source is returned.
+ * - When the input has no fixable issues, the original source is returned unchanged
+ *   (callers can compare lengths / equality to detect a no-op).
+ * - On parse failure, returns `Err(parse_error_message)`.
+ *
+ * Comments are not preserved because `tdsl-parser` skips them at the PEG layer,
+ * matching the behavior of `format_source` and the `tdsl lint --fix` CLI.
+ * @param {string} source
+ * @returns {string}
+ */
+export function lint_fix_source(source) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(source, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.lint_fix_source(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr2 = r0;
+        var len2 = r1;
+        if (r3) {
+            ptr2 = 0; len2 = 0;
+            throw takeObject(r2);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Run lint rules on TDSL source and return issues as JSON.
+ *
+ * Returns a JSON array of `{code, severity, line, message, fixable}` objects.
+ * `severity` is `"error"` or `"warning"` (lint does not emit `"info"`).
+ * `line` is **1-based** and matches `check_source`'s line numbering.
+ * `fixable` is `true` when `lint_fix_source` can automatically resolve the issue.
+ *
+ * On parse error, the array contains a single entry with `code: "parse_error"`
+ * so callers can still surface the failure through the same path as lint issues.
+ * @param {string} source
+ * @returns {string}
+ */
+export function lint_source(source) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(source, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.lint_source(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred2_0 = r0;
+        deferred2_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
  * Initialize the panic hook for better error messages in the browser console.
  */
 export function main() {
