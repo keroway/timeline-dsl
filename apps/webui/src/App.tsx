@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
 import { EditorView } from '@codemirror/view'
 import { forceLinting } from '@codemirror/lint'
-import { type Diagnostic, formatSource } from './wasmLoader'
+import { type Diagnostic, formatSource, lintFixSource } from './wasmLoader'
 import { useToast } from './components/useToast'
 import { readInitialSource } from './lib/initialSource'
 import { makeTdslLinter } from './editor/extensions'
@@ -115,6 +115,34 @@ function App() {
     }
   }
 
+  function handleLintFix() {
+    if (!wasmReady) return
+    const view = editorViewRef.current
+    if (!view) return
+    const currentSource = view.state.doc.toString()
+    let fixed: string
+    try {
+      fixed = lintFixSource(currentSource)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      showToast(`Lint fix に失敗しました: ${msg}`, 'error')
+      return
+    }
+    if (fixed === currentSource) {
+      showToast('自動修正可能な lint 問題はありません', 'info')
+      return
+    }
+    const hadComment = currentSource.includes('//') || currentSource.includes('/*')
+    const warning = hadComment
+      ? 'lint --fix を適用します。コメントとフォーマットは保持されません。続行しますか？'
+      : 'lint --fix を適用します。フォーマットも再整形されます。続行しますか？'
+    if (!window.confirm(warning)) return
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: fixed },
+    })
+    showToast('lint --fix を適用しました', 'success')
+  }
+
   function openFile() {
     fileInputRef.current?.click()
   }
@@ -191,6 +219,7 @@ function App() {
         onSaveToHistory={history.handleSaveToHistory}
         onShowHistory={() => setShowHistory(true)}
         onFormat={handleFormat}
+        onLintFix={handleLintFix}
         wasmReady={wasmReady}
         exportMenuRef={exportMenuRef}
         exportMenuOpen={exportMenuOpen}

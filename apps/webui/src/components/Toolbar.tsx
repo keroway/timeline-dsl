@@ -12,6 +12,7 @@ type ToolbarProps = {
   onSaveToHistory: () => void
   onShowHistory: () => void
   onFormat: () => void
+  onLintFix: () => void
   wasmReady: boolean
   exportMenuRef: RefObject<HTMLDivElement | null>
   exportMenuOpen: boolean
@@ -35,6 +36,7 @@ export function Toolbar(props: ToolbarProps) {
     onSaveToHistory,
     onShowHistory,
     onFormat,
+    onLintFix,
     wasmReady,
     exportMenuRef,
     exportMenuOpen,
@@ -101,6 +103,14 @@ export function Toolbar(props: ToolbarProps) {
           title="エディタ内容を整形 (Ctrl/Cmd+Shift+F)"
         >
           Format
+        </button>
+        <button
+          className="btn"
+          onClick={onLintFix}
+          disabled={!wasmReady}
+          title="lint の自動修正可能な問題を一括修正"
+        >
+          Lint Fix
         </button>
       </div>
       <div className="toolbar-right">
