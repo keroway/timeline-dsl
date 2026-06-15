@@ -30,6 +30,25 @@
     "url": "https://github.com/keroway/timeline-dsl/issues"
   },
   "homepage": "https://github.com/keroway/timeline-dsl#readme",
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:tdsl"
+  ],
+  "scripts": {
+    "compile": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "vscode:prepublish": "npm run compile"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.75.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.4.0"
+  },
   "contributes": {
     "languages": [
       {
@@ -56,6 +75,17 @@
         "language": "tdsl",
         "path": "./snippets/tdsl.json"
       }
-    ]
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Timeline DSL",
+      "properties": {
+        "timelineDsl.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "`tdsl` バイナリへの絶対パス。空の場合は PATH から `tdsl` を解決する。"
+        }
+      }
+    }
   }
 }
