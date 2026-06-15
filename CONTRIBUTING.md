@@ -90,6 +90,18 @@ cargo test --workspace && cargo clippy --workspace && cargo fmt --check
 
 ---
 
+## Git 設定
+
+コミット作者メールには GitHub の noreply アドレスを使用してください。
+
+```bash
+git config user.email "4470654+keroway@users.noreply.github.com"
+```
+
+個人の gmail アドレスはコミット履歴に残さないようにしてください（`.mailmap` で表示名を正規化済み）。
+
+---
+
 ## コミットメッセージ形式
 
 [Conventional Commits](https://www.conventionalcommits.org/ja/v1.0.0/) に従ってください。
