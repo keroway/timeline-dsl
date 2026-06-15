@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **VS Code 拡張に TypeScript ビルド基盤と Language Client / Server の足場を追加**: `editors/vscode/` に TypeScript ビルド設定（`tsconfig.json` / `esbuild` バンドラ）と Extension Host 側の Language Client 足場コードを追加した。LSP サーバ（`tdsl-lsp`）を VS Code から起動・通信する土台となる実装で、Language Features（hover / completion / diagnostics）を VS Code 上で提供するための準備段階 (#469)
 - **CI に gitleaks による secret scan を追加**: GitHub Actions CI に gitleaks を使ったシークレットスキャンジョブを追加した。PR / push 時に `.gitleaks.toml` のルールに従いソースコード中の認証情報・API キー等の流出を自動検知し、false positive は `# gitleaks:allow` コメントで除外できる (#467)
 - **`.mailmap` とコミット設定でメール漏洩を予防**: `git log` / `git shortlog` で実メールアドレスが露出しないよう `.mailmap` を追加し、プライバシーアドレスを公開用ダミーアドレスにマッピングした (#464)
+
+## [1.19.0] - 2026-06-16
+
+### Added
+
 - **CI に `tdsl.tmLanguage.json` の生成ドリフト検知ステップを追加**: `Build WebUI` ジョブに `gen-grammar-keywords.mjs` を再実行して `git diff --exit-code` でドリフトを検出するステップを追加した。`apps/webui/src/lang-tdsl/keywords.ts` を変更したのに `editors/vscode/syntaxes/tdsl.tmLanguage.json` の再生成・コミットを忘れた PR を CI が自動で fail させる（PR #448 で発生した手動再生成ケースの再発防止）(#452)
 - **Criterion ベンチマークを main push 時に CI で実行し結果をアーティファクト保存**: `bench` ジョブを追加し、`main` ブランチへの push 時のみ `cargo bench --workspace` を実際に実行するようにした。従来の `bench-compile`（`--no-run`）は PR 時のコンパイル確認として継続。Criterion HTML レポートと stdout ログを `criterion-reports-<sha>` アーティファクトとして 90 日間保存し、性能トレンドをダウンロード確認できるようになった。ジョブは非ブロッキング・並列実行 (#434)
 
@@ -399,6 +404,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.19.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.15.0...v1.16.0
