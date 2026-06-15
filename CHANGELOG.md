@@ -9,11 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Criterion ベンチマークを main push 時に CI で実行し結果をアーティファクト保存**: `bench` ジョブを追加し、`main` ブランチへの push 時のみ `cargo bench --workspace` を実際に実行するようにした。従来の `bench-compile`（`--no-run`）は PR 時のコンパイル確認として継続。Criterion HTML レポートと stdout ログを `criterion-reports-<sha>` アーティファクトとして 90 日間保存し、性能トレンドをダウンロード確認できるようになった。ジョブは非ブロッキング・並列実行 (#434)
-- **lint を WASM 経由で WebUI に提供**: `tdsl-wasm` に `lint_source(source) -> JSON`（issue 一覧）と `lint_fix_source(source) -> String`（修正後ソース）を追加。WebUI の診断パネルに lint 結果（`[lint:<code>]` プレフィックス + fixable 表示）を統合し、Toolbar に "Lint Fix" ボタンを追加した。Format ボタンと同様の UX で、自動修正の適用前に確認ダイアログでコメント / フォーマットが書き換わる旨を通知する。CI の WASM smoke / verify ステップに新 export を追記 (#429)
-- **WebUI モーダルに focus trap を実装し a11y を改善**: `useFocusTrap` フックを新規追加し、設定 / ギャラリー / 履歴モーダル表示中の Tab / Shift+Tab フォーカスをモーダル内で循環させるようにした。モーダルを閉じた際は呼び出し元の要素へフォーカスが復帰する。Escape キーでも閉じられるよう統一し、ギャラリー / 履歴モーダルにも Escape クローズを追加。各モーダルに `role="dialog"` / `aria-modal="true"` / `aria-labelledby` を付与し、閉じるボタンに `aria-label` を追加 (#435)
+- **VS Code 拡張に TypeScript ビルド基盤と Language Client / Server の足場を追加**: `editors/vscode/` に TypeScript ビルド設定（`tsconfig.json` / `esbuild` バンドラ）と Extension Host 側の Language Client 足場コードを追加した。LSP サーバ（`tdsl-lsp`）を VS Code から起動・通信する土台となる実装で、Language Features（hover / completion / diagnostics）を VS Code 上で提供するための準備段階 (#469)
+- **CI に gitleaks による secret scan を追加**: GitHub Actions CI に gitleaks を使ったシークレットスキャンジョブを追加した。PR / push 時に `.gitleaks.toml` のルールに従いソースコード中の認証情報・API キー等の流出を自動検知し、false positive は `# gitleaks:allow` コメントで除外できる (#467)
+- **`.mailmap` とコミット設定でメール漏洩を予防**: `git log` / `git shortlog` で実メールアドレスが露出しないよう `.mailmap` を追加し、プライバシーアドレスを公開用ダミーアドレスにマッピングした (#464)
 - **CI に `tdsl.tmLanguage.json` の生成ドリフト検知ステップを追加**: `Build WebUI` ジョブに `gen-grammar-keywords.mjs` を再実行して `git diff --exit-code` でドリフトを検出するステップを追加した。`apps/webui/src/lang-tdsl/keywords.ts` を変更したのに `editors/vscode/syntaxes/tdsl.tmLanguage.json` の再生成・コミットを忘れた PR を CI が自動で fail させる（PR #448 で発生した手動再生成ケースの再発防止）(#452)
+- **Criterion ベンチマークを main push 時に CI で実行し結果をアーティファクト保存**: `bench` ジョブを追加し、`main` ブランチへの push 時のみ `cargo bench --workspace` を実際に実行するようにした。従来の `bench-compile`（`--no-run`）は PR 時のコンパイル確認として継続。Criterion HTML レポートと stdout ログを `criterion-reports-<sha>` アーティファクトとして 90 日間保存し、性能トレンドをダウンロード確認できるようになった。ジョブは非ブロッキング・並列実行 (#434)
+
+### Changed
+
+- **`lower.rs`（約1,300行）をパス別モジュールに分割**: lowering の 4 パス（Pass 1: timeline/lane 収集・Pass 2: 静的アイテム変換・Pass 3: import 解決・Pass 4: map 適用）を `crates/tdsl-core/src/lower/` 配下の独立モジュールに分離した。外部 API（`lower_static` / `lower_with_wikidata` 等）は変更なく、各パスの責務が明確化してテストを書きやすくなった (#433)
+- **`layout.rs` の `compute_item_horizontal` / `compute_item_vertical` の重複実装を orientation 抽象化で統合**: `tdsl-render` の `layout.rs` にあった水平・垂直レイアウト向けの2つの独立実装を、orientation を引数に取る単一の `compute_item` に統合した。コード量を削減し、将来レイアウトモードを追加する際の変更箇所を一本化した (#432)
+
+## [1.18.0] - 2026-06-16
+
+### Added
+
 - **WASM facade に `JsRenderOptions` を追加し orientation / grid / theme などをパラメータ化**: `render_svg_from_source_with_options` / `render_html_from_source_with_options` を追加。`JsRenderOptions` クラス（TypeScript 型定義付き）を通じて `orientation`（horizontal / vertical）・`grid`（none / decade / year / month）・`theme`（default / dark / print / pastel）・`show_table`・`show_event_labels` を JS から制御できるようになった。既存の `render_svg_from_source` / `render_html_from_source` は変更なし（後方互換）。`wasmLoader.ts` に `renderSvgWithOptions` / `renderHtmlWithOptions` および `RenderOptions` TypeScript interface を追加 (#417)
+- **WebUI の Settings パネルに orientation / grid / theme の選択 UI を追加**: 設定パネルにトグルボタン形式のレイアウト方向（水平 / 垂直）・グリッド線（none / decade / year / month）・SVG テーマ（default / dark / print / pastel）の選択 UI を追加し、SVG プレビューにリアルタイムで反映するようにした。#417 で追加した WASM `JsRenderOptions` と連携し、WebUI からレンダリングパラメータを制御できるようになった (#420)
+- **lint を WASM 経由で WebUI に提供**: `tdsl-wasm` に `lint_source(source) -> JSON`（issue 一覧）と `lint_fix_source(source) -> String`（修正後ソース）を追加。WebUI の診断パネルに lint 結果（`[lint:<code>]` プレフィックス + fixable 表示）を統合し、Toolbar に "Lint Fix" ボタンを追加した。Format ボタンと同様の UX で、自動修正の適用前に確認ダイアログでコメント / フォーマットが書き換わる旨を通知する。CI の WASM smoke / verify ステップに新 export を追記 (#429)
+- **WebUI に Vitest ユニットテストを導入し CI に組み込む**: WebUI に Vitest テストスイートを導入し、#430 のコンポーネント分割で生まれたカスタムフック・ヘルパー関数のユニットテストを追加した。CI の Build WebUI ジョブに `npm run test -- --run` ステップを組み込み、PR / push 時にフロントエンドのテストが自動実行されるようにした (#431)
+- **WebUI モーダルに focus trap を実装し a11y を改善**: `useFocusTrap` フックを新規追加し、設定 / ギャラリー / 履歴モーダル表示中の Tab / Shift+Tab フォーカスをモーダル内で循環させるようにした。モーダルを閉じた際は呼び出し元の要素へフォーカスが復帰する。Escape キーでも閉じられるよう統一し、ギャラリー / 履歴モーダルにも Escape クローズを追加。各モーダルに `role="dialog"` / `aria-modal="true"` / `aria-labelledby` を付与し、閉じるボタンに `aria-label` を追加 (#435)
+
+### Changed
+
+- **App.tsx（約1,800行）をコンポーネント・フック・ヘルパーに分割**: WebUI のメインコンポーネントを責務別に分割し、App.tsx を1,858行から291行まで削減した。Editor / Preview / DiagnosticsPanel / Toolbar / Modals などのコンポーネント群、`useCompile` / `useExport` / `useFocusTrap` などのカスタムフック、および共通ヘルパー関数を独立したファイルに分離し、テスタビリティと保守性を改善した (#430)
 
 ### Fixed
 
@@ -380,6 +399,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.18.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.14.0...v1.15.0
