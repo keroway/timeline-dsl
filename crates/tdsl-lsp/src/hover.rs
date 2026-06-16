@@ -141,7 +141,7 @@ fn qid_hover_markdown(qid: &str, entity: Option<&WikidataEntity>) -> String {
 
     match entity {
         None => {
-            md.push_str("_キャッシュ未取得（`tdsl fetch <QID>` または `tdsl build` で取得可能）_");
+            md.push_str("_キャッシュ未取得（`tdsl build` または `tdsl render` でオンラインビルドすると取得可能）_");
         }
         Some(e) => {
             if let Some(label) = e.label_with_fallback(&["ja", "en"]) {
