@@ -24,6 +24,10 @@ jobs:
       - name: Install vsce
         run: npm install -g @vscode/vsce
 
+      - name: Install extension dependencies
+        working-directory: editors/vscode
+        run: npm install
+
       - name: Verify package.json version matches tag
         working-directory: editors/vscode
         run: |
