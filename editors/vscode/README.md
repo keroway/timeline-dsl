@@ -26,7 +26,7 @@ When the `tdsl` CLI is installed, this extension automatically starts the LSP se
 
 - **Diagnostics** — error and warning highlighting, updated on every edit
 - **Completion** — context-aware keyword and snippet suggestions (e.g. `claim(P123)`, `label@ja` inside `map {}`)
-- **Hover** — lane label/kind/order on hover; QID hover shows cached entity info (populated by `tdsl fetch` or `tdsl build`; shows a hint if not cached)
+- **Hover** — lane label/kind/order on hover; QID hover shows cached entity info (cache is populated by `tdsl build` or `tdsl render`; shows a hint if not cached)
 - **Go to Definition** — jump to lane declarations
 - **Find References** — find all usages of a lane ID
 - **Rename** — rename a lane and all its references (only lanes declared with an explicit `as <alias>`; auto-slug lanes are not renameable)
