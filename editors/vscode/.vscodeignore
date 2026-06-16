@@ -2,3 +2,10 @@
 .vscodeignore
 **/*.map
 *.vsix
+src/**
+tsconfig.json
+esbuild.config.mjs
+scripts/**
+node_modules/**
+.gitignore
+package-lock.json
