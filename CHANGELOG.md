@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **VS Code 拡張に LSP クライアントを統合**: `tdsl lsp` を stdio で spawn して VS Code の LanguageClient と接続する本体実装を追加。診断・補完・hover・定義ジャンプ・コードアクション・ドキュメントシンボル・参照検索・リネーム・フォーマットが VS Code 上で動作する。PATH 優先 + `timelineDsl.serverPath` 設定でバイナリの上書き解決が可能で、解決失敗時はインストール手順を案内するエラー通知を表示する (#470, #388)
+
 ## [1.18.0] - 2026-06-16
 
 ### Added

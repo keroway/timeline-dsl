@@ -4,8 +4,11 @@
 *.vsix
 src/**
 tsconfig.json
+tsconfig.test.json
 esbuild.config.mjs
 scripts/**
 node_modules/**
+out-test/**
+**/*.test.*
 .gitignore
 package-lock.json

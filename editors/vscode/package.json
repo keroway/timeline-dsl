@@ -6,7 +6,7 @@
   "publisher": "keroway",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.75.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
     "Programming Languages"
@@ -38,6 +38,7 @@
     "compile": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
     "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test \"out-test/**/*.test.js\"",
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
@@ -45,7 +46,7 @@
   },
   "devDependencies": {
     "@types/node": "^18.19.0",
-    "@types/vscode": "^1.75.0",
+    "@types/vscode": "^1.82.0",
     "esbuild": "^0.28.1",
     "typescript": "^5.4.0"
   },
