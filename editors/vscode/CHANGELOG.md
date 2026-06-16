@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- LSP クライアント統合 (#388 / #470): `tdsl lsp` を spawn して VS Code に LanguageClient 接続
+  - 診断（エラー・警告）、補完、hover、定義ジャンプ、コードアクション、ドキュメントシンボル、参照検索、リネーム、フォーマットが VS Code 上で動作する
+  - PATH 優先 + `timelineDsl.serverPath` 設定でバイナリの上書き解決が可能
+  - バイナリ解決に失敗した場合にインストール手順を案内するエラー通知を表示する
+
 ## [1.18.0] - 2026-06-16
 
 ### Changed

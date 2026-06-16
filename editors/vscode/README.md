@@ -1,6 +1,6 @@
 # Timeline DSL — VS Code Extension
 
-Syntax highlighting for **Timeline DSL** (`.tdsl`) files.
+Syntax highlighting and language intelligence for **Timeline DSL** (`.tdsl`) files.
 
 Timeline DSL is a domain-specific language for building historical timelines with [Wikidata](https://www.wikidata.org/) integration.
 
@@ -12,12 +12,46 @@ Timeline DSL is a domain-specific language for building historical timelines wit
 
 ## Features
 
-- Syntax highlighting for all Timeline DSL constructs
+### Syntax Highlighting
+
 - Keywords: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`
 - String literals, comments (`//` and `/* */`)
 - Wikidata entity IDs (`Q123`), property IDs (`P569`), and references (`wd:Q123`)
 - Wikidata expressions: `claim(P571).year`, `label@ja`
 - Numeric literals including negative years (e.g. `-221` for 221 BCE)
+
+### Language Server (LSP) — requires `tdsl` binary
+
+When the `tdsl` CLI is installed, this extension automatically starts the LSP server (`tdsl lsp`) and provides:
+
+- **Diagnostics** — real-time error and warning highlighting
+- **Completion** — keyword, lane ID, and property suggestions
+- **Hover** — lane info, Wikidata entity details on hover
+- **Go to Definition** — jump to lane declarations
+- **Find References** — find all usages of a lane ID
+- **Rename** — rename a lane ID and all its references at once
+- **Code Actions** — quick fixes from `tdsl lint`
+- **Document Symbols** — outline view and breadcrumb navigation
+- **Formatting** — format the document via `tdsl fmt`
+
+#### Installing the `tdsl` binary
+
+```bash
+# Homebrew (macOS / Linux)
+brew tap keroway/tap
+brew install tdsl
+
+# Cargo
+cargo install --git https://github.com/keroway/timeline-dsl tdsl-cli
+```
+
+See the [installation guide](https://github.com/keroway/timeline-dsl#installation) for other platforms and options.
+
+#### Configuration
+
+| Setting | Default | Description |
+|---|---|---|
+| `timelineDsl.serverPath` | `""` | Path to the `tdsl` binary. If empty, the binary is resolved from `PATH`. |
 
 ## Example
 
