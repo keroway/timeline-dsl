@@ -91,7 +91,8 @@ pub fn svg_to_png(svg_str: &str, png_opts: PngOptions) -> Result<Vec<u8>, PngErr
     let mut opt = Options::default();
     opt.fontdb_mut().load_system_fonts();
 
-    let tree = Tree::from_data(svg_str.as_bytes(), &opt)?;
+    let resolved = svg::resolve_lane_var_fallbacks(svg_str);
+    let tree = Tree::from_data(resolved.as_bytes(), &opt)?;
     let size = tree.size().to_int_size();
     let base_width = size.width();
     let base_height = size.height();

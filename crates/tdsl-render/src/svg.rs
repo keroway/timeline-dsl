@@ -696,6 +696,35 @@ fn escape_xml_attr(s: &str) -> String {
     out
 }
 
+/// Pre-process an SVG string for raster renderers (`usvg`) that do not support
+/// CSS custom properties. Replaces `var(--tdsl-lane-N, <fallback>)` with the
+/// plain `<fallback>` value so that fill colours resolve to the palette hex.
+///
+/// The `:root { --tdsl-lane-N: #hex; }` block is left as-is; `usvg` ignores
+/// unknown CSS without error.
+pub(crate) fn resolve_lane_var_fallbacks(svg: &str) -> String {
+    const PREFIX: &str = "var(--tdsl-lane-";
+    let mut out = String::with_capacity(svg.len());
+    let mut rest = svg;
+    while let Some(start) = rest.find(PREFIX) {
+        out.push_str(&rest[..start]);
+        rest = &rest[start + PREFIX.len()..];
+        match (rest.find(','), rest.find(')')) {
+            (Some(comma), Some(close)) if comma < close => {
+                let fallback = rest[comma + 1..close].trim();
+                out.push_str(fallback);
+                rest = &rest[close + 1..];
+            }
+            _ => {
+                // No fallback or malformed — emit the prefix and keep scanning.
+                out.push_str(PREFIX);
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Format float with up to 2 decimals, trimming trailing zeros.
 fn fmt_f(v: f64) -> String {
     if v.fract() == 0.0 {
@@ -1249,5 +1278,29 @@ mod tests {
             svg.contains(r#"class="tdsl-event-label" x="#),
             "vertical event label must include x attribute"
         );
+    }
+
+    #[test]
+    fn resolve_lane_var_fallbacks_single() {
+        let input = r#"style="fill:var(--tdsl-lane-0, #4682B4);""#;
+        assert_eq!(
+            resolve_lane_var_fallbacks(input),
+            r#"style="fill:#4682B4;""#
+        );
+    }
+
+    #[test]
+    fn resolve_lane_var_fallbacks_multiple() {
+        let input = "fill:var(--tdsl-lane-0, #4682B4);fill-opacity:0.75; stroke:var(--tdsl-lane-2, #27AE60);";
+        assert_eq!(
+            resolve_lane_var_fallbacks(input),
+            "fill:#4682B4;fill-opacity:0.75; stroke:#27AE60;"
+        );
+    }
+
+    #[test]
+    fn resolve_lane_var_fallbacks_leaves_root_block_untouched() {
+        let input = ":root { --tdsl-lane-0: #4682B4; }";
+        assert_eq!(resolve_lane_var_fallbacks(input), input);
     }
 }
