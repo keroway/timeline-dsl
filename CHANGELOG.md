@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-06-17
+
 ### Added
 
 - **VS Code 拡張に LSP クライアントを統合**: `tdsl lsp` を stdio で spawn して VS Code の LanguageClient と接続する本体実装を追加。診断・補完・hover・定義ジャンプ・コードアクション・ドキュメントシンボル・参照検索・リネーム・フォーマットが VS Code 上で動作する。PATH 優先 + `timelineDsl.serverPath` 設定でバイナリの上書き解決が可能で、解決失敗時はインストール手順を案内するエラー通知を表示する (#470, #388)
+
+### Docs
+
+- **VS Code 拡張 README の LSP 機能説明を実装に合わせて正確化**: 実装済みの `tdsl lsp` コマンドや設定項目（`timelineDsl.serverPath`）の説明を追記し、LanguageClient が提供する機能一覧を正確に反映した (#483)
 
 ## [1.18.0] - 2026-06-16
 
@@ -397,6 +403,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.19.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.15.0...v1.16.0
