@@ -92,6 +92,11 @@ pub struct RenderOptions {
     /// When true, labels (and optionally dates) are always rendered next to Event and EventRange
     /// dots/bars as SVG text elements.  Disabled by default to keep the chart uncluttered.
     pub show_event_labels: bool,
+    /// When true (default), lane palette colours are emitted as CSS custom properties
+    /// (`var(--tdsl-lane-N, #hex)`) in SVG inline styles, allowing embedding pages to
+    /// override lane colours via `:root { --tdsl-lane-N: … }`. Set to false for raster
+    /// renderers (`usvg`-based PNG/PDF) that do not support CSS custom properties.
+    pub use_css_vars: bool,
 }
 
 impl Default for RenderOptions {
@@ -112,6 +117,7 @@ impl Default for RenderOptions {
             grid: GridStyle::None,
             show_table: false,
             show_event_labels: false,
+            use_css_vars: true,
         }
     }
 }
@@ -238,14 +244,22 @@ impl<'a> LayoutModel<'a> {
         let tick_step = pick_tick_step(year_max - year_min, opts.scale, AXIS_LABEL_PX);
 
         // lane_colors: palette-assigned CSS color per lane ID.
+        // When use_css_vars is true the value is a CSS custom property reference
+        // (var(--tdsl-lane-N, #hex)) so embedding pages can override lane colours.
+        // Raster renderers (PNG/PDF) set use_css_vars=false and receive plain hex
+        // values, because usvg does not support CSS custom properties.
         let lane_colors: HashMap<String, String> = lanes_ordered
             .iter()
             .enumerate()
             .map(|(idx, lane)| {
-                (
-                    lane.id.clone(),
-                    LANE_PALETTE[idx % LANE_PALETTE.len()].to_string(),
-                )
+                let palette_idx = idx % LANE_PALETTE.len();
+                let hex = LANE_PALETTE[palette_idx];
+                let color = if opts.use_css_vars {
+                    format!("var(--tdsl-lane-{palette_idx}, {hex})")
+                } else {
+                    hex.to_string()
+                };
+                (lane.id.clone(), color)
             })
             .collect();
 
