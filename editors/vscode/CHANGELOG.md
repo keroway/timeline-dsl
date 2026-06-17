@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-06-17
+
 ### Added
 
 - LSP クライアント統合 (#388 / #470): `tdsl lsp` を spawn して VS Code に LanguageClient 接続
