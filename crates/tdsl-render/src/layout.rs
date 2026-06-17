@@ -237,14 +237,17 @@ impl<'a> LayoutModel<'a> {
 
         let tick_step = pick_tick_step(year_max - year_min, opts.scale, AXIS_LABEL_PX);
 
-        // lane_colors: palette-assigned CSS color per lane ID.
+        // lane_colors: CSS variable reference with hex fallback per lane ID.
+        // Format: "var(--tdsl-lane-N, #hex)" allowing LP sites to override via :root.
         let lane_colors: HashMap<String, String> = lanes_ordered
             .iter()
             .enumerate()
             .map(|(idx, lane)| {
+                let palette_idx = idx % LANE_PALETTE.len();
+                let hex = LANE_PALETTE[palette_idx];
                 (
                     lane.id.clone(),
-                    LANE_PALETTE[idx % LANE_PALETTE.len()].to_string(),
+                    format!("var(--tdsl-lane-{palette_idx}, {hex})"),
                 )
             })
             .collect();

@@ -793,6 +793,58 @@ mod tests {
         );
     }
 
+    // ─── CSS variable tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn render_svg_lane_color_uses_css_variables() {
+        // SVG style block must contain :root { --tdsl-lane-N: hex; } definitions.
+        // Item inline styles must use var(--tdsl-lane-N, fallback) format.
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "css var test".into(),
+                unit: "year".into(),
+                range: (-300, 300),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "han".into(),
+                label: "漢".into(),
+                kind: "dynasty".into(),
+                order: 10,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::Span {
+                id: "span:han".into(),
+                lane: "han".into(),
+                start: -206,
+                end: 220,
+                label: "漢".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                end_month: None,
+                end_day: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        assert!(
+            svg.contains("--tdsl-lane-0:"),
+            "style block must define --tdsl-lane-0, got:\n{svg}"
+        );
+        assert!(
+            svg.contains("var(--tdsl-lane-0,"),
+            "item fill must use CSS variable var(--tdsl-lane-0, ...), got:\n{svg}"
+        );
+    }
+
     // ─── Golden SVG snapshot tests ─────────────────────────────────────────
 
     /// Read an example file relative to the workspace root.

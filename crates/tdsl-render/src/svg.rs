@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use tdsl_core::ir::Item;
 
-use crate::layout::{GridStyle, LaidItem, LayoutModel, format_year, month_abbr};
+use crate::layout::{GridStyle, LANE_PALETTE, LaidItem, LayoutModel, format_year, month_abbr};
 
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
 pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
@@ -25,9 +25,17 @@ pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
 
     // Embed font-family and axis text size for standalone SVG viewers (no CDN dependency).
     // Use .tdsl-root text selector to scope styles and prevent CSS leakage when embedded inline.
+    // :root block defines --tdsl-lane-N custom properties so LP sites can override lane colors.
+    let mut root_css = String::from(":root {");
+    for (i, hex) in LANE_PALETTE.iter().enumerate() {
+        write!(root_css, " --tdsl-lane-{i}: {hex};")?;
+    }
+    root_css.push_str(" }");
     writeln!(
         s,
-        r#"  <style>.tdsl-root text {{ font-family: {font_family}; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }} .tdsl-axis-day-tick {{ stroke: #ddd; stroke-width: 1; }} .tdsl-axis-day-text {{ font-size: 9px; fill: #888; }} .tdsl-event-label {{ font-size: 10px; fill: #333; pointer-events: none; }}</style>"#
+        r#"  <style>{root_css} .tdsl-root text {{ font-family: {font_family}; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }} .tdsl-axis-day-tick {{ stroke: #ddd; stroke-width: 1; }} .tdsl-axis-day-text {{ font-size: 9px; fill: #888; }} .tdsl-event-label {{ font-size: 10px; fill: #333; pointer-events: none; }}</style>"#,
+        root_css = root_css,
+        font_family = font_family,
     )?;
 
     render_lane_bands(&mut s, layout)?;
