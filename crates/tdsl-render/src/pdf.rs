@@ -154,7 +154,10 @@ pub fn svg_to_pdf(svg_str: &str, pdf_opts: PdfOptions) -> Result<Vec<u8>, PdfErr
     // Yu Gothic, …) are resolved correctly — same strategy as png.rs.
     opt.fontdb_mut().load_system_fonts();
 
-    let tree = Tree::from_str(svg_str, &opt)?;
+    // Resolve CSS custom property var(--tdsl-lane-N, #hex) → #hex so that usvg
+    // (which does not support CSS variables) renders the correct lane colours.
+    let resolved = svg::resolve_lane_vars_in_styles(svg_str);
+    let tree = Tree::from_str(&resolved, &opt)?;
 
     // ── 1. Determine page dimensions ──────────────────────────────────────
     let (mut pw, mut ph) = pdf_opts.page_size.portrait_pt();

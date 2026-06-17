@@ -696,6 +696,62 @@ fn escape_xml_attr(s: &str) -> String {
     out
 }
 
+/// Resolve CSS custom property references in SVG `style="…"` attributes for
+/// raster renderers that do not support CSS variables.
+///
+/// Only the content of `style="…"` attribute values is modified.
+/// User-visible text (title elements, text labels, aria-label attributes) is
+/// never touched because those values are not bounded by `style="…"`.
+/// Replaces `var(--tdsl-lane-N, <fallback>)` with `<fallback>` inside each
+/// matched attribute.
+pub(crate) fn resolve_lane_vars_in_styles(svg: &str) -> String {
+    const ATTR: &str = "style=\"";
+    let mut out = String::with_capacity(svg.len());
+    let mut rest = svg;
+    while let Some(start) = rest.find(ATTR) {
+        let after_open = start + ATTR.len();
+        out.push_str(&rest[..after_open]);
+        rest = &rest[after_open..];
+        match rest.find('"') {
+            Some(end) => {
+                out.push_str(&resolve_vars_in_css_value(&rest[..end]));
+                out.push('"');
+                rest = &rest[end + 1..];
+            }
+            None => {
+                // Malformed — emit remainder verbatim.
+                out.push_str(rest);
+                return out;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Replace `var(--tdsl-lane-N, <fallback>)` with `<fallback>` within a single
+/// CSS property value string. Other content is passed through unchanged.
+fn resolve_vars_in_css_value(css: &str) -> String {
+    const PREFIX: &str = "var(--tdsl-lane-";
+    let mut out = String::with_capacity(css.len());
+    let mut rest = css;
+    while let Some(start) = rest.find(PREFIX) {
+        out.push_str(&rest[..start]);
+        rest = &rest[start + PREFIX.len()..];
+        match (rest.find(','), rest.find(')')) {
+            (Some(comma), Some(close)) if comma < close => {
+                out.push_str(rest[comma + 1..close].trim());
+                rest = &rest[close + 1..];
+            }
+            _ => {
+                out.push_str(PREFIX);
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Format float with up to 2 decimals, trimming trailing zeros.
 fn fmt_f(v: f64) -> String {
     if v.fract() == 0.0 {
@@ -1249,6 +1305,36 @@ mod tests {
             svg.contains(r#"class="tdsl-event-label" x="#),
             "vertical event label must include x attribute"
         );
+    }
+
+    #[test]
+    fn resolve_lane_vars_in_styles_replaces_within_style_attr() {
+        let input = r#"<rect style="fill:var(--tdsl-lane-0, #4682B4);" x="0"/>"#;
+        let got = resolve_lane_vars_in_styles(input);
+        assert_eq!(got, r#"<rect style="fill:#4682B4;" x="0"/>"#);
+    }
+
+    #[test]
+    fn resolve_lane_vars_in_styles_leaves_text_content_untouched() {
+        // User label that contains the variable syntax must not be modified.
+        let input = r#"<title>var(--tdsl-lane-0, #color)</title><rect style="fill:var(--tdsl-lane-0, #4682B4);"/>"#;
+        let got = resolve_lane_vars_in_styles(input);
+        assert!(got.contains("<title>var(--tdsl-lane-0, #color)</title>"));
+        assert!(got.contains(r#"style="fill:#4682B4;""#));
+    }
+
+    #[test]
+    fn resolve_lane_vars_in_styles_leaves_root_css_block_untouched() {
+        let input = ":root { --tdsl-lane-0: #4682B4; }";
+        assert_eq!(resolve_lane_vars_in_styles(input), input);
+    }
+
+    #[test]
+    fn resolve_lane_vars_in_styles_handles_multiple_attrs() {
+        let input = r#"<rect style="fill:var(--tdsl-lane-0, #4682B4);fill-opacity:0.75;"/><circle style="fill:var(--tdsl-lane-1, #E67E22);"/>"#;
+        let got = resolve_lane_vars_in_styles(input);
+        assert!(got.contains(r#"style="fill:#4682B4;fill-opacity:0.75;""#));
+        assert!(got.contains(r#"style="fill:#E67E22;""#));
     }
 
 }
