@@ -74,9 +74,11 @@ impl PngOptions {
 /// 5. Encodes the pixmap as a PNG byte buffer.
 pub fn render_png(
     ir: &TimelineIr,
-    opts: RenderOptions,
+    mut opts: RenderOptions,
     png_opts: PngOptions,
 ) -> Result<Vec<u8>, PngError> {
+    // usvg does not support CSS custom properties; force plain hex lane colours.
+    opts.use_css_vars = false;
     let layout = LayoutModel::compute(ir, opts);
     let svg_str = svg::render_svg(&layout)?;
     svg_to_png(&svg_str, png_opts)
@@ -91,8 +93,7 @@ pub fn svg_to_png(svg_str: &str, png_opts: PngOptions) -> Result<Vec<u8>, PngErr
     let mut opt = Options::default();
     opt.fontdb_mut().load_system_fonts();
 
-    let resolved = svg::resolve_lane_var_fallbacks(svg_str);
-    let tree = Tree::from_data(resolved.as_bytes(), &opt)?;
+    let tree = Tree::from_data(svg_str.as_bytes(), &opt)?;
     let size = tree.size().to_int_size();
     let base_width = size.width();
     let base_height = size.height();

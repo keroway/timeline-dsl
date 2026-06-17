@@ -845,6 +845,60 @@ mod tests {
         );
     }
 
+    #[test]
+    fn render_svg_use_css_vars_false_emits_plain_hex() {
+        // use_css_vars=false is for PNG/PDF paths (usvg has no CSS var support).
+        // Inline styles must fall back to plain hex, not var().
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "hex test".into(),
+                unit: "year".into(),
+                range: (-300, 300),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "han".into(),
+                label: "漢".into(),
+                kind: "dynasty".into(),
+                order: 10,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::Span {
+                id: "span:han".into(),
+                lane: "han".into(),
+                start: -206,
+                end: 220,
+                label: "漢".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                end_month: None,
+                end_day: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            use_css_vars: false,
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts).unwrap();
+        assert!(
+            !svg.contains("var(--tdsl-lane-"),
+            "use_css_vars=false must not emit CSS var() references, got:\n{svg}"
+        );
+        assert!(
+            svg.contains("fill:#"),
+            "use_css_vars=false must emit plain hex fills, got:\n{svg}"
+        );
+    }
+
     // ─── Golden SVG snapshot tests ─────────────────────────────────────────
 
     /// Read an example file relative to the workspace root.

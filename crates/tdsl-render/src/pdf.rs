@@ -122,9 +122,11 @@ impl Default for PdfOptions {
 /// 4. Converts the SVG to a PDF byte buffer via [`svg_to_pdf`].
 pub fn render_pdf(
     ir: &TimelineIr,
-    opts: RenderOptions,
+    mut opts: RenderOptions,
     mut pdf_opts: PdfOptions,
 ) -> Result<Vec<u8>, PdfError> {
+    // usvg does not support CSS custom properties; force plain hex lane colours.
+    opts.use_css_vars = false;
     let layout = LayoutModel::compute(ir, opts);
     let svg_str = svg::render_svg(&layout)?;
 
@@ -152,8 +154,7 @@ pub fn svg_to_pdf(svg_str: &str, pdf_opts: PdfOptions) -> Result<Vec<u8>, PdfErr
     // Yu Gothic, …) are resolved correctly — same strategy as png.rs.
     opt.fontdb_mut().load_system_fonts();
 
-    let resolved = svg::resolve_lane_var_fallbacks(svg_str);
-    let tree = Tree::from_str(&resolved, &opt)?;
+    let tree = Tree::from_str(svg_str, &opt)?;
 
     // ── 1. Determine page dimensions ──────────────────────────────────────
     let (mut pw, mut ph) = pdf_opts.page_size.portrait_pt();
