@@ -1336,5 +1336,4 @@ mod tests {
         assert!(got.contains(r#"style="fill:#4682B4;fill-opacity:0.75;""#));
         assert!(got.contains(r#"style="fill:#E67E22;""#));
     }
-
 }
