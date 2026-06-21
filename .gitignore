@@ -6,6 +6,7 @@
 !.claude/hooks/
 !.claude/rules/
 .serena/
+.pi/
 CLAUDE.md.bak
 
 # Playwright テスト成果物
