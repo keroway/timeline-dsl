@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-06-22
+
 ### Added
 
+- **SVG 出力の lane 色を `--tdsl-lane-*` CSS variables 化**: `render_svg` の `<style>` ブロックに `:root { --tdsl-lane-N: #hex; }` を追加し、lane アイテムの fill を `var(--tdsl-lane-N, #hex)` 形式に変更した。LP サイトが `global.css` で同名トークンを上書きするだけで dark mode / high-contrast テーマに追従できる。デフォルト hex を fallback として保持するため standalone SVG でも描画は保証される。usvg は `var()` を解釈しないため、`RenderOptions.use_css_vars` フラグで PNG/PDF 出力時は plain hex を格納する (#485, #486)
 - **DSL コメントを AST に保持しフォーマッタで再現**: パーサにコメント収集パス（`comments::scan_comments`）を追加し、`File.comments: Vec<Spanned<Comment>>` に行（`//`）・ブロック（`/* */`）コメントを byte span 付きで保持するようにした。文字列リテラル内の `//` / `/* */` はコメントとして誤認識しない (#472)
 - **`tdsl fmt` がコメントを保持**: フォーマッタ（`format_file` / `format_source`）がトップレベルのコメント（文の前後・同一行末尾）を位置を保ったまま再 emit するようになった。ブロック内部のコメントは内容を失わずにブロック境界に移動される。整形は冪等（idempotent）で、lowering はコメントを無視するため IR は不変 (#473, #362)
 
