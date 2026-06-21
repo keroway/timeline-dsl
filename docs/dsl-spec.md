@@ -426,6 +426,8 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
    ブロックコメント */
 ```
 
+> **コメントの扱い**: コメントはパース時に読み飛ばされ、AST・IR には保持されません。そのため `tdsl fmt` で整形すると消去され、`tdsl decompile`（IR 起点）でも復元できません。これは IR を単一の真実とする設計上の制約です（コメント保持は #362 で追跡中）。
+
 ## Wikidataプロパティリファレンス
 
 ### 人物
@@ -546,4 +548,3 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 
 - **Wikidataの構造化データ**: CC0ライセンス。出典表示なしで自由に利用可能
 - **Wikipediaの文章・図表**: CC BY-SA 4.0。引用時は出典表示と同ライセンス適用が必須
-

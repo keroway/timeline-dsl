@@ -536,7 +536,7 @@ tdsl import-csv [OPTIONS] <CSV>
 
 - 紀元前は **年精度のみ**（`-206-01` などは拒否される。仕様書 §1.3 と整合）。
 - 月の範囲は 1〜12、日の範囲は 1〜31（カレンダー妥当性の細かな検証は lowering 側で行う）。
-- 不正フォーマット時は CSV 行番号付きで「`time must be YYYY-MM-DD, YYYY-MM, or YYYY (got `2020-13-01`): ...`」のように原因が表示される。
+- 不正フォーマット時は CSV 行番号付きで「`time must be YYYY-MM-DD, YYYY-MM, or YYYY (got`2020-13-01`): ...`」のように原因が表示される。
 
 ### オプション
 
@@ -724,6 +724,8 @@ tdsl decompile out.json --output recovered.tdsl
 tdsl build examples/china_dynasties.tdsl --pretty | tdsl decompile --output recovered.tdsl
 ```
 
+> **制約（コメント非対応）**: `decompile` は JSON IR を起点とするため、元の `.tdsl` に書かれていたコメント（`//`・`/* */`）は復元できません。コメントは AST 段階で失われ IR には現れないため、これは IR を単一の真実とする設計上の恒久的な制約です。
+
 ---
 
 ## `completions`
@@ -802,6 +804,7 @@ tdsl lsp
 | `textDocument/formatting` | DSL ソースを正準形（2 スペースインデント・ブロック間空行 1 行）に整形する全文置換 TextEdit を返す |
 
 > **`import` / `map` / `apply` ブロックについて**: LSP の診断はネットワークアクセスを伴わない静的解析（offline）で行うため、Wikidata 取得が前提のエンティティ解決は行いません。ただし、ネットワーク不要で判定できる **静的な参照エラー** は offline でも検出します:
+>
 > - `map <alias>.<key>` の `alias` が未宣言（`import ... as <alias>` が存在しない）→ **Error**
 > - `apply <template> to <import>` の `template` / `import` が未宣言 → **Error**
 >

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs
+
+- **decompile のコメント非対応を明記**: `tdsl decompile` は JSON IR を起点とし IR にコメント情報が存在しないため、元ソースのコメント（`//`・`/* */`）を復元できないことを `docs/dsl-spec.md` / `docs/dsl-spec.en.md` / `docs/cli-spec.md` および `decompile` の doc コメントに明記した。IR を単一の真実とする設計上の恒久的制約である (#474)
+
 ## [1.19.0] - 2026-06-17
 
 ### Added
@@ -174,6 +178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **時間式に整数オフセット演算（`+` / `-`）を追加**: `map` ブロックの時間値式で `start claim(P569).year + 1` / `end claim(P570).year - 5` のような整数オフセットを記述できるようにした。`ClaimExpr` に `offset: Option<i32>`（`None` デフォルトで後方互換）を追加し、lowering 時に year へ加算する。decompile / inspect 出力および WebUI Format でも `+ N` / `- N` 形式で再現される（#148）
 
 ### Changed
+
 - `tdsl-wasm` is now published to npm as `@keroway/tdsl-wasm` on each release tag push. Install with `npm install @keroway/tdsl-wasm` ([#292])
 - **SVG CSS スコープの改善**: SVG ルート要素に `class="tdsl-root"` を追加し、埋め込みスタイルのセレクタを `.tdsl-root text { }` にスコープ。Obsidian 等の外部ホストに SVG をインライン埋め込みした際のグローバル `text { }` セレクタによる CSS 干渉を防ぐ ([#293])
 - **`RenderOptions::font_family` フィールドを追加**: SVG 出力のフォントファミリーをカスタマイズ可能に。`None`（デフォルト）は CJK 対応フォントスタックを維持 ([#293])
