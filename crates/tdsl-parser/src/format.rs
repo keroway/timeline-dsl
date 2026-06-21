@@ -1,17 +1,26 @@
 //! AST → DSL ソース再 emit（フォーマッタ）。
 //!
 //! `parse` で得た [`crate::ast::File`] を 2 スペースインデント・ブロック間空行 1 行で
-//! 整形して文字列として返す。コメントは AST に残らないため整形後は消える。
+//! 整形して文字列として返す。
+//!
+//! コメントは [`File::comments`] に保持されており、byte span を根拠に再 emit される（#473）。
+//! - トップレベル文間・先頭・末尾の独立行コメントはその位置に leading として保持される。
+//! - 文と同一行の trailing コメントはその文の行末に保持される。
+//! - ブロック内部のコメントは AST には保持されるが、フォーマッタはフィールド順に再
+//!   emit するため、ブロック境界（直前文の末尾または次文の直前）に移動される（内容は欠落
+//!   しない）。いずれのケースも再パース・再整形で冪等（idempotent）。
+//!
+//! lowering は [`File::comments`] を一切参照しないため、コメント保持は IR に影響しない。
 //!
 //! 公開 API は [`format_source`]（ソース文字列を整形）と [`format_file`]（AST を直接整形）。
 
 use std::fmt::Write;
 
 use crate::ast::{
-    ApplyBlock, ClaimExpr, CompareOp, EventDecl, EventRangeDecl, FieldPriorityConfig,
+    ApplyBlock, ClaimExpr, Comment, CompareOp, EventDecl, EventRangeDecl, FieldPriorityConfig,
     FieldStrategy, File, FilterExpr, FilterOperand, GroupDecl, ImportBlock, ImportItem, ItemProps,
     LabelExpr, LaneDecl, MapBlock, MapExpr, MapFallback, MapProp, MapTargetType, ReimportPolicy,
-    SourceRef, SpanDecl, Statement, StringMatchOp, TemplateBlock, TimelineBlock,
+    SourceRef, SpanDecl, Spanned, Statement, StringMatchOp, TemplateBlock, TimelineBlock,
 };
 use crate::error::ParseError;
 
@@ -29,13 +38,70 @@ pub fn format_source(source: &str) -> Result<String, ParseError> {
 /// 整形ルールは [`format_source`] と同一（2 スペースインデント・ブロック間空行 1 行）。
 pub fn format_file(file: &File) -> String {
     let mut out = String::new();
+
+    // コメントを出現順（byte span 順）に並べて順に消費する。
+    let mut comments: Vec<&Spanned<Comment>> = file.comments.iter().collect();
+    comments.sort_by_key(|c| c.span.start);
+    let mut ci = 0usize;
+
     for (i, stmt) in file.statements.iter().enumerate() {
+        // この文より前に出現する未消費コメントを振り分ける。
+        // own_line=true → この文の leading、own_line=false → 直前文の trailing。
+        let mut leading: Vec<&Comment> = Vec::new();
+        while ci < comments.len() && comments[ci].span.start < stmt.span.start {
+            let c = &comments[ci].node;
+            if c.own_line || i == 0 {
+                leading.push(c);
+            } else {
+                append_trailing(&mut out, c);
+            }
+            ci += 1;
+        }
+
+        // 文間の空行（先頭を除く）。leading コメントがあればその上に空行が入る。
         if i > 0 {
             out.push('\n');
         }
+        for c in &leading {
+            push_comment_line(&mut out, c);
+        }
         write_statement(&mut out, &stmt.node);
     }
+
+    // 最後の文より後ろのコメント（末尾コメント）。
+    let mut dangling_started = false;
+    while ci < comments.len() {
+        let c = &comments[ci].node;
+        if !c.own_line && !dangling_started && !out.is_empty() {
+            append_trailing(&mut out, c);
+        } else {
+            if !dangling_started && !file.statements.is_empty() {
+                out.push('\n');
+            }
+            push_comment_line(&mut out, c);
+            dangling_started = true;
+        }
+        ci += 1;
+    }
+
     out
+}
+
+/// コメントを独立行として出力する（末尾に改行を付ける）。
+fn push_comment_line(out: &mut String, c: &Comment) {
+    out.push_str(&c.text);
+    out.push('\n');
+}
+
+/// 直前に出力した行の末尾に trailing コメントを追記する。
+fn append_trailing(out: &mut String, c: &Comment) {
+    // 直前文の末尾改行を一旦除去して同一行に連結する。
+    if out.ends_with('\n') {
+        out.pop();
+    }
+    out.push(' ');
+    out.push_str(&c.text);
+    out.push('\n');
 }
 
 fn escape_string(s: &str) -> String {
@@ -740,5 +806,82 @@ mod tests {
         let src = r#"apply t to imports {}"#;
         let out = fmt(src);
         assert_eq!(out, "apply t to imports {}\n");
+    }
+
+    // ─── comment preservation (#473) ────────────────────────────────────
+
+    #[test]
+    fn format_preserves_leading_line_comment() {
+        let src = "// header\nlane \"A\" as a {}\n";
+        let out = fmt(src);
+        assert_eq!(out, "// header\nlane \"A\" as a {}\n");
+    }
+
+    #[test]
+    fn format_preserves_comment_between_statements() {
+        let src = "lane \"A\" as a {}\n// section\nlane \"B\" as b {}\n";
+        let out = fmt(src);
+        assert_eq!(
+            out,
+            "lane \"A\" as a {}\n\n// section\nlane \"B\" as b {}\n"
+        );
+    }
+
+    #[test]
+    fn format_preserves_trailing_same_line_comment() {
+        let src = "lane \"A\" as a {} // tail\n";
+        let out = fmt(src);
+        assert_eq!(out, "lane \"A\" as a {} // tail\n");
+    }
+
+    #[test]
+    fn format_preserves_block_comment() {
+        let src = "/* doc */\nlane \"A\" as a {}\n";
+        let out = fmt(src);
+        assert_eq!(out, "/* doc */\nlane \"A\" as a {}\n");
+    }
+
+    #[test]
+    fn format_preserves_trailing_eof_comment() {
+        let src = "lane \"A\" as a {}\n// footer\n";
+        let out = fmt(src);
+        assert_eq!(out, "lane \"A\" as a {}\n\n// footer\n");
+    }
+
+    #[test]
+    fn format_comment_preservation_is_idempotent() {
+        let src = r#"// file header
+lane "A" as a {} // inline
+// before B
+lane "B" as b { kind dynasty; order 2; }
+// footer
+"#;
+        let once = format_source(src).unwrap();
+        let twice = format_source(&once).unwrap();
+        assert_eq!(once, twice, "comment preservation must be idempotent");
+    }
+
+    #[test]
+    fn format_block_interior_comment_is_relocated_not_lost() {
+        // ブロック内部コメントは内容が残り、再整形で冪等になる。
+        let src = "lane \"A\" as a { kind dynasty; /* inline */ order 2; }\nlane \"B\" {}\n";
+        let once = format_source(src).unwrap();
+        assert!(once.contains("/* inline */"), "comment content preserved");
+        let twice = format_source(&once).unwrap();
+        assert_eq!(once, twice, "relocated comment must be idempotent");
+    }
+
+    #[test]
+    fn format_comment_only_source() {
+        let src = "// just a comment\n";
+        let out = fmt(src);
+        assert_eq!(out, "// just a comment\n");
+    }
+
+    #[test]
+    fn format_output_with_comments_reparses() {
+        let src = "// header\nlane \"A\" as a {} // tail\nlane \"B\" {}\n";
+        let out = fmt(src);
+        parse(&out).expect("formatted output with comments must reparse");
     }
 }

@@ -1,5 +1,6 @@
 pub mod ast;
 pub mod builder;
+pub mod comments;
 pub mod error;
 pub mod format;
 
@@ -16,7 +17,10 @@ struct TdslParser;
 /// Parse a DSL source string into an AST [`ast::File`].
 pub fn parse(source: &str) -> Result<ast::File, error::ParseError> {
     let pairs = TdslParser::parse(Rule::file, source)?;
-    builder::build_file(pairs)
+    let mut file = builder::build_file(pairs)?;
+    // grammar の COMMENT は silent のため、コメントは別パスで収集して AST に保持する（#472）。
+    file.comments = comments::scan_comments(source);
+    Ok(file)
 }
 
 /// 単独の時刻リテラル文字列を [`ast::TimeValue`] にパースする。
@@ -571,6 +575,10 @@ mod tests {
         "#;
         let file = parse(src).unwrap();
         assert_eq!(file.statements.len(), 1);
+        // コメントは AST に保持される（#472）: 行コメント + インラインブロックコメント。
+        assert_eq!(file.comments.len(), 2);
+        assert_eq!(file.comments[0].node.text, "// This is a comment");
+        assert_eq!(file.comments[1].node.text, "/* inline comment */");
     }
 
     #[test]
@@ -755,6 +763,10 @@ mod tests {
         "#;
         let file = parse(src).unwrap();
         assert_eq!(file.statements.len(), 1);
+        // 複数行ブロックコメントも byte span 付きで AST に保持される（#472）。
+        assert_eq!(file.comments.len(), 1);
+        assert_eq!(file.comments[0].node.kind, ast::CommentKind::Block);
+        assert!(file.comments[0].node.text.contains("multi-line"));
         match &file.statements[0].node {
             ast::Statement::Lane(l) => assert_eq!(l.label, "秦"),
             _ => panic!("expected Lane"),
