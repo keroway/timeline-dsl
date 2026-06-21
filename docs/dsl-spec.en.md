@@ -423,6 +423,8 @@ Both line comments and block comments are supported.
    a block comment */
 ```
 
+> **How comments are handled**: Comments are skipped during parsing and are not retained in the AST or IR. Therefore they are removed when you reformat with `tdsl fmt`, and cannot be restored by `tdsl decompile` (which starts from the IR). This is a design constraint of treating the IR as the single source of truth (comment preservation is tracked in #362).
+
 ## Wikidata Property Reference
 
 ### People

@@ -16,6 +16,12 @@ fn format_time(year: i64, month: Option<u8>, day: Option<u8>) -> String {
     }
 }
 
+/// IR (`TimelineIr`) を `.tdsl` ソース文字列へ逆変換する。
+///
+/// **コメント非対応**: decompile は JSON IR を起点とし、IR にはコメント情報が
+/// 一切含まれない（コメントは AST 段階で失われ IR には現れない）。そのため
+/// 元ソースにあった `//` 行コメント・`/* */` ブロックコメントは復元できない。
+/// これは IR を単一の真実とする設計上の恒久的な制約であり、将来も変わらない。
 pub fn decompile(ir: &TimelineIr) -> String {
     let mut out = String::new();
 
