@@ -1,6 +1,30 @@
 use crate::{decompile, error, ir, lower};
 
 #[test]
+fn lower_ignores_comments_ir_invariant() {
+    // コメントの有無に関わらず IR は不変（#473: lowering はコメントを無視）。
+    let with_comments = r#"
+        // タイムライン設定
+        timeline "T" { unit year; range 0..2000; } /* trailing */
+        // レーン
+        lane "A" as a { kind dynasty; order 1; }
+        span a 100..200 "Span A" {}; // span コメント
+    "#;
+    let without_comments = r#"
+        timeline "T" { unit year; range 0..2000; }
+        lane "A" as a { kind dynasty; order 1; }
+        span a 100..200 "Span A" {};
+    "#;
+    let ir_a = lower::lower_static(&tdsl_parser::parse(with_comments).unwrap()).unwrap();
+    let ir_b = lower::lower_static(&tdsl_parser::parse(without_comments).unwrap()).unwrap();
+    assert_eq!(
+        serde_json::to_value(&ir_a).unwrap(),
+        serde_json::to_value(&ir_b).unwrap(),
+        "comments must not affect the lowered IR"
+    );
+}
+
+#[test]
 fn lower_static_basic() {
     let src = r#"
         timeline "Test" { title "Test"; unit year; range 0..2000; }

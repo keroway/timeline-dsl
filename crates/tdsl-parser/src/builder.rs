@@ -87,7 +87,11 @@ pub fn build_file(pairs: Pairs<'_, Rule>) -> Result<File> {
             _ => {}
         }
     }
-    Ok(File { statements })
+    // コメントは build 段階では空。[`crate::parse`] が別パス（`comments::scan_comments`）で埋める。
+    Ok(File {
+        statements,
+        comments: Vec::new(),
+    })
 }
 
 // ─── Timeline ───────────────────────────────────────────────

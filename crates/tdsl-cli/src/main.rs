@@ -299,9 +299,9 @@ enum Commands {
     /// Use --write to update the file in-place, or --check (for CI) to exit non-zero when
     /// the file is not already formatted.
     ///
-    /// NOTE: comments (`//` and `/* */`) are lost during formatting because they are
-    /// stripped at the grammar level (COMMENT is a silent rule). A full comment-preserving
-    /// formatter is tracked in a separate issue.
+    /// NOTE: top-level comments (`//` and `/* */`) are preserved in place. Comments inside
+    /// blocks are kept (content is not lost) but relocated to the nearest block boundary.
+    /// `tdsl decompile` cannot restore comments because it starts from the IR.
     Fmt {
         /// Input .tdsl file path
         #[arg(value_name = "FILE")]

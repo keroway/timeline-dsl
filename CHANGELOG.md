@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **DSL コメントを AST に保持しフォーマッタで再現**: パーサにコメント収集パス（`comments::scan_comments`）を追加し、`File.comments: Vec<Spanned<Comment>>` に行（`//`）・ブロック（`/* */`）コメントを byte span 付きで保持するようにした。文字列リテラル内の `//` / `/* */` はコメントとして誤認識しない (#472)
+- **`tdsl fmt` がコメントを保持**: フォーマッタ（`format_file` / `format_source`）がトップレベルのコメント（文の前後・同一行末尾）を位置を保ったまま再 emit するようになった。ブロック内部のコメントは内容を失わずにブロック境界に移動される。整形は冪等（idempotent）で、lowering はコメントを無視するため IR は不変 (#473, #362)
+
 ### Docs
 
+- **コメント保持の仕様を明記**: `docs/dsl-spec.md` の「コメントの扱い」を `tdsl fmt` での保持振る舞い・lowering 不変・`tdsl decompile` の非対応に更新し、`fmt`（`main.rs` / `commands/fmt.rs`）と `lint::fix_source` の既知制約 doc コメントを修正した (#474)
 - **decompile のコメント非対応を明記**: `tdsl decompile` は JSON IR を起点とし IR にコメント情報が存在しないため、元ソースのコメント（`//`・`/* */`）を復元できないことを `docs/dsl-spec.md` / `docs/dsl-spec.en.md` / `docs/cli-spec.md` および `decompile` の doc コメントに明記した。IR を単一の真実とする設計上の恒久的制約である (#474)
 
 ## [1.19.0] - 2026-06-17

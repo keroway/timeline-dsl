@@ -16,6 +16,34 @@ pub struct Spanned<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct File {
     pub statements: Vec<Spanned<Statement>>,
+    /// 元ソースに含まれていたコメント（出現順、byte span 付き）。
+    ///
+    /// コメントは [`crate::parse`] 時に専用パスで収集され、文（statement）とは独立に
+    /// 保持される。lowering では一切参照されないため IR には影響しない（#362 / #473）。
+    /// フォーマッタ（[`crate::format_file`]）はこの情報を使ってコメントを再 emit する。
+    pub comments: Vec<Spanned<Comment>>,
+}
+
+/// コメントの種類。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommentKind {
+    /// `// ...` 行コメント。
+    Line,
+    /// `/* ... */` ブロックコメント（複数行可）。
+    Block,
+}
+
+/// 1 個のコメント。区切り文字（`//` / `/* */`）を含む生テキストを保持する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Comment {
+    pub kind: CommentKind,
+    /// 区切り文字を含むコメント全文（例: `// foo`、`/* foo */`）。
+    pub text: String,
+    /// 行頭（直前が改行または BOF で、間に空白以外が無い）に出現したコメントか。
+    ///
+    /// `true` の場合は独立行コメント（後続文の leading コメント）として、
+    /// `false` の場合は同一行末尾の trailing コメントとして整形される。
+    pub own_line: bool,
 }
 
 /// DSL の各トップレベル文（statement）に対応する enum。

@@ -336,7 +336,8 @@ pub fn apply_lint_fixes(file: &mut tdsl_parser::ast::File) -> usize {
 /// - 修正が 0 件（変更なし）の場合は `Ok(None)`。
 /// - パース失敗時は [`tdsl_parser::error::ParseError`]。
 ///
-/// `tdsl lint --fix` と同じく全文を再 emit するため、コメントは整形時に失われる。
+/// `tdsl lint --fix` と同じく全文を再 emit する。コメントは AST に保持され、
+/// トップレベル位置のコメントはそのまま、ブロック内部のコメントは境界に移動して保持される（#473）。
 /// LSP の Code Action（quick fix）から全文置換 [`WorkspaceEdit`] を組み立てる用途で使う。
 ///
 /// [`WorkspaceEdit`]: https://microsoft.github.io/language-server-protocol/
