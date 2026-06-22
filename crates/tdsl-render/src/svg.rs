@@ -704,6 +704,10 @@ fn escape_xml_attr(s: &str) -> String {
 /// never touched because those values are not bounded by `style="…"`.
 /// Replaces `var(--tdsl-lane-N, <fallback>)` with `<fallback>` inside each
 /// matched attribute.
+///
+/// Only compiled when a raster/vector backend is enabled (`png` or `pdf`);
+/// SVG/HTML output keeps the `var()` references for CSS theming.
+#[cfg(any(feature = "png", feature = "pdf"))]
 pub(crate) fn resolve_lane_vars_in_styles(svg: &str) -> String {
     const ATTR: &str = "style=\"";
     let mut out = String::with_capacity(svg.len());
@@ -731,6 +735,7 @@ pub(crate) fn resolve_lane_vars_in_styles(svg: &str) -> String {
 
 /// Replace `var(--tdsl-lane-N, <fallback>)` with `<fallback>` within a single
 /// CSS property value string. Other content is passed through unchanged.
+#[cfg(any(feature = "png", feature = "pdf"))]
 fn resolve_vars_in_css_value(css: &str) -> String {
     const PREFIX: &str = "var(--tdsl-lane-";
     let mut out = String::with_capacity(css.len());
@@ -1307,6 +1312,7 @@ mod tests {
         );
     }
 
+    #[cfg(any(feature = "png", feature = "pdf"))]
     #[test]
     fn resolve_lane_vars_in_styles_replaces_within_style_attr() {
         let input = r#"<rect style="fill:var(--tdsl-lane-0, #4682B4);" x="0"/>"#;
@@ -1314,6 +1320,7 @@ mod tests {
         assert_eq!(got, r#"<rect style="fill:#4682B4;" x="0"/>"#);
     }
 
+    #[cfg(any(feature = "png", feature = "pdf"))]
     #[test]
     fn resolve_lane_vars_in_styles_leaves_text_content_untouched() {
         // User label that contains the variable syntax must not be modified.
@@ -1323,12 +1330,14 @@ mod tests {
         assert!(got.contains(r#"style="fill:#4682B4;""#));
     }
 
+    #[cfg(any(feature = "png", feature = "pdf"))]
     #[test]
     fn resolve_lane_vars_in_styles_leaves_root_css_block_untouched() {
         let input = ":root { --tdsl-lane-0: #4682B4; }";
         assert_eq!(resolve_lane_vars_in_styles(input), input);
     }
 
+    #[cfg(any(feature = "png", feature = "pdf"))]
     #[test]
     fn resolve_lane_vars_in_styles_handles_multiple_attrs() {
         let input = r#"<rect style="fill:var(--tdsl-lane-0, #4682B4);fill-opacity:0.75;"/><circle style="fill:var(--tdsl-lane-1, #E67E22);"/>"#;
