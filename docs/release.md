@@ -74,8 +74,8 @@ crates.io に自動 publish します（認証は Trusted Publishing / OIDC、�
 確認手順:
 
 - Actions タブで `publish-crates` ジョブが成功していることを確認
-- https://crates.io/crates/tdsl-parser / https://crates.io/crates/tdsl-wikidata /
-  https://crates.io/crates/tdsl-core / https://crates.io/crates/tdsl-render に
+- <https://crates.io/crates/tdsl-parser> / <https://crates.io/crates/tdsl-wikidata> /
+  <https://crates.io/crates/tdsl-core> / <https://crates.io/crates/tdsl-render> に
   新バージョンが反映されていることを確認
 
 ### ブートストラップ手順（初回のみ）
@@ -123,6 +123,14 @@ cargo set-version X.Y.Z --workspace
 # [workspace.package]
 # version = "X.Y.Z"
 ```
+
+> **注意（手動編集時）**: `[workspace.package].version` だけでなく、各クレートの
+> 内部依存に書かれた `version = "X.Y.Z"` 要求も同じ版へ揃えること。
+> 例: `crates/tdsl-core/Cargo.toml` の `tdsl-parser = { path = "...", version = "X.Y.Z" }`、
+> `crates/tdsl-render/Cargo.toml` の `tdsl-core` / `tdsl-parser`（dev-deps 含む）。
+> `cargo set-version --workspace` を使えば自動で揃うため、手動編集より推奨。
+> 揃え忘れても `^` セマンティクスで publish 自体は通るが、公開クレートが宣言する
+> 依存要求が古い版に固定され不整合になる。
 
 ---
 
