@@ -73,7 +73,11 @@ impl HttpWikidataClient {
 
     pub fn with_options(timeout: std::time::Duration, max_retries: u32) -> Self {
         let http = reqwest::Client::builder()
-            .user_agent("tdsl/0.1.0 (https://github.com/keroway/timeline-dsl)")
+            .user_agent(concat!(
+                "tdsl/",
+                env!("CARGO_PKG_VERSION"),
+                " (https://github.com/keroway/timeline-dsl)"
+            ))
             .timeout(timeout)
             .build()
             .expect("failed to create HTTP client");
