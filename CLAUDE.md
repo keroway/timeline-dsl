@@ -141,7 +141,7 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.ts` をミラーし
 - `color_map` ブロック（タグ→色マッピングの宣言的定義）
 - `tdsl decompile`（JSON IR → `.tdsl` 逆変換）
 - Wikidata取得キャッシュ（TTL管理、`~/.cache/tdsl/` に保存）
-- Wikidata APIリトライ（HTTP 429・5xx に対するexponential backoff、最大3回）
+- Wikidata APIリトライ（HTTP 429・5xx に対するexponential backoff、最大5回 / `DEFAULT_MAX_RETRIES`）
 - `tdsl cache status` / `tdsl cache clear` によるキャッシュ管理
 - フィールド別インポート優先度（`policy field_priority { ... }`）
 - WebUI（WASM + Vite/React）: CodeMirror 6 シンタックスハイライト・SVGプレビュー・スケール制御・診断パネル
@@ -190,4 +190,3 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.ts` をミラーし
 - **`.claude/hooks/post-stop-check.sh`** -- Stop hook。応答完了時に変更ファイルを見て `cargo fmt --check` / `cargo clippy -D warnings` / `cargo test --workspace` を実行（WebUI 変更時は `npm run lint` も）。スキップは `TDSL_SKIP_STOP_HOOK=1`。
 
 実装着手時は `.claude/rules/implementation-strict.md` の「§3 着手前チェックリスト」を埋めてから書き始めること。
-

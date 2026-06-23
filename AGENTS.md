@@ -91,9 +91,10 @@ You MUST update:
 
 - All imported items must have:
   - `source = wd:<QID>`
-  - `origin = "imported"`
+  - `origin = "wikidata"` (set by lowering in `lower/mapping.rs`)
 
-- Do NOT allow manual override of source in MVP
+- Static items carry the `origin` value declared in the DSL (`origin` option); do NOT
+  overwrite it during lowering.
 
 ---
 
@@ -114,13 +115,18 @@ You MUST update:
 
 # 5. Unsupported / Deferred Features
 
-These are intentionally NOT implemented in MVP:
+> NOTE: The features below are the *current* gaps. `query "..." as alias`,
+> `template` / `apply`, and qualifier mapping (`claim(P39).qualifier(P580)`) are
+> already implemented and tested — do NOT treat them as unimplemented. See
+> `CLAUDE.md` for the authoritative implementation-status list.
 
-- `map source`
-- `query "... " as alias`
-- `template / apply`
-- complex Wikidata qualifier mapping (P39 + P580/P582)
-- full time precision handling
+Still intentionally NOT implemented:
+
+- `map source` — a `source:` property inside a `map` block (`MapProp` has no
+  `Source` variant; only item-level `source wd:<QID>` exists)
+- Sub-year precision beyond month/day (e.g. time-of-day)
+- BCE (`year < 0`) month/day precision — imported BCE data is rounded to year
+  precision in `lower/mapping.rs` (`strip_bc`)
 
 If encountered:
 
