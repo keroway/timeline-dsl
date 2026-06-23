@@ -22,6 +22,11 @@ pub(crate) struct LoweringContext {
     #[cfg(feature = "wikidata")]
     pub(crate) import_record_index_by_item_id: HashMap<String, usize>,
     pub(crate) errors: Vec<LoweringError>,
+    /// Non-fatal lowering diagnostics (e.g. a mapped entity that produced no item
+    /// because a required field could not be resolved). Surfaced by callers that
+    /// opt into the `*_with_diagnostics` lowering APIs; never silently dropped
+    /// inside lowering.
+    pub(crate) warnings: Vec<String>,
     pub(crate) lane_auto_id: usize,
 
     // Import resolution state
@@ -58,6 +63,7 @@ impl LoweringContext {
             #[cfg(feature = "wikidata")]
             import_record_index_by_item_id: HashMap::new(),
             errors: Vec::new(),
+            warnings: Vec::new(),
             lane_auto_id: 0,
             #[cfg(feature = "wikidata")]
             import_entities: HashMap::new(),
@@ -71,10 +77,11 @@ impl LoweringContext {
         }
     }
 
-    pub(crate) fn finish(mut self) -> Result<TimelineIr, Vec<LoweringError>> {
+    pub(crate) fn finish(mut self) -> Result<(TimelineIr, Vec<String>), Vec<LoweringError>> {
         if !self.errors.is_empty() {
             return Err(self.errors);
         }
+        let warnings = std::mem::take(&mut self.warnings);
 
         let lanes: Vec<Lane> = self
             .lane_order
@@ -88,13 +95,16 @@ impl LoweringContext {
 
         let meta = self.meta.ok_or_else(|| vec![LoweringError::NoTimeline])?;
 
-        Ok(TimelineIr {
-            meta,
-            lanes,
-            items: self.items,
-            imports: self.imports,
-            sources: self.sources,
-        })
+        Ok((
+            TimelineIr {
+                meta,
+                lanes,
+                items: self.items,
+                imports: self.imports,
+                sources: self.sources,
+            },
+            warnings,
+        ))
     }
 
     pub(crate) fn register_static_id(&mut self, id: &str) -> bool {

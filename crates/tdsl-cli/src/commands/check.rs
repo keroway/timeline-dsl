@@ -7,12 +7,17 @@ pub(crate) fn cmd_check(input: &std::path::Path) -> Result<(), String> {
         // miette 出力済みのためメッセージは空にして重複を避ける
         String::new()
     })?;
-    let ir = tdsl_core::lower::lower_static(&file).map_err(|errs| {
-        errs.iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<_>>()
-            .join("\n")
-    })?;
+    let (ir, lower_warnings) = tdsl_core::lower::lower_static_with_diagnostics(&file, None)
+        .map_err(|errs| {
+            errs.iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })?;
+
+    for w in &lower_warnings {
+        eprintln!("Warning: {w}");
+    }
 
     let warnings = tdsl_core::validate::validate(&ir);
     for w in &warnings {

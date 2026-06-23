@@ -199,7 +199,22 @@ impl LoweringContext {
             return;
         }
 
-        if lane_ref.is_empty() || label.is_empty() {
+        // Describe the mapping target for diagnostics (entity + optional expand context).
+        let target_desc = match expand_ctx {
+            Some((prop, idx)) => format!("{} ({prop}#{idx})", entity.id),
+            None => entity.id.clone(),
+        };
+
+        if lane_ref.is_empty() {
+            self.warnings.push(format!(
+                "Mapped entity {target_desc} produced no item: required `lane` is unresolved/empty"
+            ));
+            return;
+        }
+        if label.is_empty() {
+            self.warnings.push(format!(
+                "Mapped entity {target_desc} produced no item: required `label` could not be resolved"
+            ));
             return;
         }
 
@@ -257,6 +272,10 @@ impl LoweringContext {
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
+                } else {
+                    self.warnings.push(format!(
+                        "Mapped entity {target_desc} produced no `span`: `start`/`end` could not be resolved"
+                    ));
                 }
             }
             MapTargetType::Event => {
@@ -276,6 +295,10 @@ impl LoweringContext {
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
+                } else {
+                    self.warnings.push(format!(
+                        "Mapped entity {target_desc} produced no `event`: `time` could not be resolved"
+                    ));
                 }
             }
             MapTargetType::EventRange => {
@@ -299,6 +322,10 @@ impl LoweringContext {
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
+                } else {
+                    self.warnings.push(format!(
+                        "Mapped entity {target_desc} produced no `event_range`: `start`/`end` could not be resolved"
+                    ));
                 }
             }
         }

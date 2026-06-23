@@ -20,6 +20,7 @@
 **表示例（v1.14.0 以降: miette キャレット表示）**
 
 before（v1.13.0 以前）:
+
 ```
 Error: Syntax error:  --> 1:1
   |
@@ -30,6 +31,7 @@ Error: Syntax error:  --> 1:1
 ```
 
 after（v1.14.0 以降）:
+
 ```
 tdsl::parse_error
 
@@ -302,6 +304,36 @@ span dynasty -206..9 "秦"
 
 ---
 
+## Lowering 警告（tdsl-core: map / apply）
+
+`map` / `apply` で宣言した Wikidata エンティティが、必須フィールドを解決できず
+アイテムを 1 件も生成しなかった場合の警告です。エラーではないためビルドは続行
+しますが、「インポートしたのに何も出力されない」サイレントな取りこぼしを検知
+するために報告されます（AGENTS.md §4.1「No silent fallback」）。`tdsl build` /
+`tdsl check` が `Warning:` として stderr に出力します。
+
+### W210: マッピング対象が必須フィールド未解決でアイテム未生成
+
+**メッセージ**:
+
+- `Mapped entity {id} produced no item: required`lane`is unresolved/empty`
+- `Mapped entity {id} produced no item: required`label`could not be resolved`
+- `Mapped entity {id} produced no`span`:`start`/`end`could not be resolved`
+- `Mapped entity {id} produced no`event`:`time`could not be resolved`
+- `Mapped entity {id} produced no`event_range`:`start`/`end`could not be resolved`
+
+`expand` 使用時は `{id}` に `(プロパティ#インデックス)` が付与され、どの
+statement が解決できなかったかを示します（例: `Q7209 (P39#2)`）。
+
+**原因**: 指定した `claim(...)` がエンティティに存在しない、対象言語の `label`
+が無い、`lane` プロパティが未指定、などにより必須値が `None` になっています。
+
+**修正方法**: マッピング式（`claim(P...).year` 等）のプロパティ番号を確認し、
+`??` でフォールバックを与えるか、`label@en` 等の取得言語を追加してください。
+対象エンティティが本当にその情報を持たない場合は `map` 対象から除外します。
+
+---
+
 ## Wikidataエラー（tdsl-wikidata）
 
 Wikidata APIとの通信・データ解析で発生するエラーです。
@@ -459,6 +491,7 @@ span dynasty -206..-9 "秦" {
 **メッセージ**: `Invalid calendar date: YYYY-MM-DD`
 
 **原因**: `YYYY-MM-DD` 形式の日付が実在しません。典型的なケースとして以下があります。
+
 - 2月30日・2月31日（2月は28日または29日まで）
 - 4月・6月・9月・11月の31日（これらの月は30日まで）
 - 閏年でない年の2月29日（例: `1900-02-29`、`2021-02-29`）

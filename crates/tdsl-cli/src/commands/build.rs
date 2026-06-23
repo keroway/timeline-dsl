@@ -94,7 +94,7 @@ pub(crate) fn load_ir(
     })?;
 
     let ir = if offline {
-        tdsl_core::lower::lower_static(&file)
+        tdsl_core::lower::lower_static_with_diagnostics(&file, None)
     } else {
         let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
         let http_client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
@@ -107,17 +107,24 @@ pub(crate) fn load_ir(
         );
         spinner.set_message("Wikidata からエンティティを取得中...");
         spinner.enable_steady_tick(std::time::Duration::from_millis(80));
-        let result = rt.block_on(tdsl_core::lower::lower_with_wikidata(&file, &client));
+        let result = rt.block_on(tdsl_core::lower::lower_with_wikidata_and_diagnostics(
+            &file, &client, None,
+        ));
         spinner.finish_and_clear();
         result
     };
 
-    let ir = ir.map_err(|errs| {
+    let (ir, lower_warnings) = ir.map_err(|errs| {
         errs.iter()
             .map(|e| e.to_string())
             .collect::<Vec<_>>()
             .join("\n")
     })?;
+
+    // Lowering 由来の非致命的警告（マップ対象が未解決でアイテム未生成 等）。
+    for w in &lower_warnings {
+        eprintln!("Warning: {w}");
+    }
 
     let warnings = tdsl_core::validate::validate(&ir);
     for w in &warnings {
