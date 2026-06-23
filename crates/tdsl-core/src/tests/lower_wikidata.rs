@@ -1132,3 +1132,63 @@ async fn unknown_lane_stops_before_wikidata_fetch() {
         "Wikidata フェッチは UnknownLane エラー検出後は実行されないこと"
     );
 }
+
+#[tokio::test]
+async fn lower_with_wikidata_warns_when_required_field_unresolved() {
+    // エンティティに P571/P576 が無いため start/end が解決できず、
+    // span は 1 件も生成されないが、エラーではなく warning として報告される。
+    let src = r#"
+        timeline "T" { unit year; range -500..1000; }
+        lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+        import wikidata as wd {
+            entity Q7209 as han_dynasty;
+        }
+
+        map wd.han_dynasty to span {
+            lane dynasty;
+            start claim(P571).year;
+            end claim(P576).year;
+            label label@ja ?? label@en;
+        }
+    "#;
+
+    let file = tdsl_parser::parse(src).unwrap();
+
+    // 時刻 claim を持たないエンティティ（label のみ）。
+    let mut labels = HashMap::new();
+    labels.insert(
+        "ja".to_string(),
+        LabelValue {
+            language: "ja".to_string(),
+            value: "漢".to_string(),
+        },
+    );
+    let entity = WikidataEntity {
+        id: "Q7209".to_string(),
+        labels,
+        claims: HashMap::new(),
+    };
+    let mut entities = HashMap::new();
+    entities.insert("Q7209".to_string(), entity);
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let (ir, warnings) = lower::lower_with_wikidata_and_diagnostics(&file, &client, None)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        ir.items.len(),
+        0,
+        "必須フィールド未解決でアイテムは生成されない"
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("Q7209") && w.contains("span")),
+        "未解決を示す warning が報告されること: {warnings:?}"
+    );
+}

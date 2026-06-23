@@ -24,6 +24,15 @@ pub fn lower_static_with_source(
     file: &ast::File,
     source: Option<&str>,
 ) -> Result<TimelineIr, Vec<LoweringError>> {
+    lower_static_with_diagnostics(file, source).map(|(ir, _)| ir)
+}
+
+/// `lower_static_with_source` と同じだが、lowering 中に蓄積した非致命的な警告
+/// （必須フィールド未解決でアイテムが生成されなかった等）も返す。
+pub fn lower_static_with_diagnostics(
+    file: &ast::File,
+    source: Option<&str>,
+) -> Result<(TimelineIr, Vec<String>), Vec<LoweringError>> {
     let line_offsets = source.map(build_line_offsets);
     let mut ctx = LoweringContext::new();
     ctx.pass1_declarations(file, line_offsets.as_deref());
@@ -48,6 +57,19 @@ pub async fn lower_with_wikidata_and_source(
     client: &dyn WikidataClient,
     source: Option<&str>,
 ) -> Result<TimelineIr, Vec<LoweringError>> {
+    lower_with_wikidata_and_diagnostics(file, client, source)
+        .await
+        .map(|(ir, _)| ir)
+}
+
+/// `lower_with_wikidata_and_source` と同じだが、lowering 中に蓄積した非致命的な
+/// 警告（マップ対象エンティティが必須フィールド未解決でアイテムを生成しなかった等）も返す。
+#[cfg(feature = "wikidata")]
+pub async fn lower_with_wikidata_and_diagnostics(
+    file: &ast::File,
+    client: &dyn WikidataClient,
+    source: Option<&str>,
+) -> Result<(TimelineIr, Vec<String>), Vec<LoweringError>> {
     let line_offsets = source.map(build_line_offsets);
     let mut ctx = LoweringContext::new();
     ctx.pass1_declarations(file, line_offsets.as_deref());
