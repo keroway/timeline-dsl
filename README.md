@@ -301,17 +301,19 @@ apply dynasty_span to wd {
 
 | File | Content |
 |---|---|
-| `examples/china_dynasties.tdsl` | Static definitions only — Qin, Han, and Three Kingdoms |
-| `examples/china_with_import.tdsl` | With Wikidata integration — imports Qin and Han from QIDs |
-| `examples/template_apply_example.tdsl` | Sample usage of template / apply syntax |
-| `examples/grouped_dynasties.tdsl` | Sample usage of the group block — visually grouped lanes, static definitions |
-| `examples/officeholder_wikidata.tdsl` | Positions held (P39) expanded into multiple spans. Wikidata integration (expand / qualifier) |
-| `examples/fictional_empire.tdsl` | Manual timeline for a fictional world |
+| `examples/china_dynasties.tdsl` | Static definitions only — Qin, Han, Three Kingdoms; explicit item IDs |
+| `examples/china_with_import.tdsl` | With Wikidata integration — imports Qin and Han from QIDs (CLI/network sample) |
+| `examples/template_apply_example.tdsl` | Sample usage of template / apply syntax and `policy field_priority` |
+| `examples/grouped_dynasties.tdsl` | Sample usage of the `group` block — visually grouped lanes, static definitions |
+| `examples/officeholder_wikidata.tdsl` | Positions held (P39) expanded into multiple spans. Wikidata integration (`expand` / `qualifier(P580/P582)`) |
+| `examples/fictional_empire.tdsl` | Manual timeline for a fictional world; demonstrates `color_map` and CSV import workflow |
 | `examples/fictional_empire_items.csv` | Sample CSV input for `import-csv` |
 | `examples/japanese_history.tdsl` | Japanese history (Nara–Edo). Multi-lane, static definitions |
-| `examples/samurai_wikidata.tdsl` | Birth/death years of feudal lords. Wikidata integration (P569/P570) |
-| `examples/world_wars.tdsl` | Modern wars timeline, centered on event_range |
+| `examples/samurai_wikidata.tdsl` | Birth/death years of feudal lords. Wikidata integration (P569/P570; CLI/network sample) |
+| `examples/world_wars.tdsl` | Modern wars timeline, centered on `event_range`; includes month/day precision dates |
 | `examples/sci_tech_timeline.tdsl` | Science and technology timeline, centered on event |
+| `examples/apollo_11.tdsl` | Apollo 11 mission timeline with month/day precision dates |
+| `examples/internet_history.tdsl` | Internet/Web history with mixed `span` and `event` items |
 
 ## GitHub Actions Integration
 
@@ -367,6 +369,7 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 ```
 
 Highlighted elements:
+
 - Keywords: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`, `color_map`
 - String literals (double-quoted)
 - Comments (`//` and `/* */`)
@@ -423,7 +426,7 @@ A browser-based editor powered by WASM. Create and preview timelines without ins
 - **Font size selector**: Choose editor font size from 12px to 18px
 - **Light/dark theme**: Switch color schemes with one click
 - **File operations**: Open a local `.tdsl` file / download as `.tdsl`, SVG, or standalone HTML
-- **Sample switcher**: Select from multiple examples to try immediately
+- **Template gallery**: Select examples sourced directly from `examples/*.tdsl`; network-required samples are marked as CLI-only references
 - **Tooltips**: Hover over SVG items to see item details
 
 > **Limitation**: Wikidata imports (`import wikidata`) are not resolved in the browser. Only static `span`, `event`, and `event_range` items are previewed.

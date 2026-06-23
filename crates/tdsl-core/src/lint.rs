@@ -201,24 +201,35 @@ fn collect_lane_ids(file: &tdsl_parser::ast::File) -> std::collections::HashSet<
     let mut out = std::collections::HashSet::new();
     let mut auto = 0usize;
     for stmt in &file.statements {
-        if let Statement::Lane(lane) = &stmt.node {
-            let id = match &lane.alias {
-                Some(alias) => alias.clone(),
-                None => {
-                    let slug = lane_slug(&lane.label);
-                    if slug.is_empty() {
-                        let generated = format!("lane_{auto}");
-                        auto += 1;
-                        generated
-                    } else {
-                        slug
-                    }
+        match &stmt.node {
+            Statement::Lane(lane) => {
+                out.insert(resolve_lane_id(lane, &mut auto));
+            }
+            Statement::Group(group) => {
+                for lane in &group.lanes {
+                    out.insert(resolve_lane_id(lane, &mut auto));
                 }
-            };
-            out.insert(id);
+            }
+            _ => {}
         }
     }
     out
+}
+
+fn resolve_lane_id(lane: &tdsl_parser::ast::LaneDecl, auto: &mut usize) -> String {
+    match &lane.alias {
+        Some(alias) => alias.clone(),
+        None => {
+            let slug = lane_slug(&lane.label);
+            if slug.is_empty() {
+                let generated = format!("lane_{auto}");
+                *auto += 1;
+                generated
+            } else {
+                slug
+            }
+        }
+    }
 }
 
 fn lane_slug(s: &str) -> String {
@@ -415,6 +426,23 @@ span nonexistent 10..20 "S" { id "s1"; };
         assert!(
             issues.iter().any(|i| i.code == "unknown_lane"),
             "expected unknown_lane, got: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn lint_accepts_group_lane_references() {
+        let src = r#"
+timeline "T" { unit year; range 0..100; }
+group "G" {
+  lane "A" as a { kind custom; }
+}
+span a 10..20 "S" { id "s1"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        assert!(
+            !issues.iter().any(|i| i.code == "unknown_lane"),
+            "expected group lane to be known, got: {issues:?}"
         );
     }
 

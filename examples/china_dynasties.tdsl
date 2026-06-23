@@ -1,26 +1,64 @@
 // 中国王朝年表サンプル
-
 timeline "中国王朝年表" {
-    title "中国王朝年表";
-    unit year;
-    range -500..2000;
-    calendar proleptic_gregorian;
+  title "中国王朝年表";
+  unit year;
+  range -500..2000;
+  calendar proleptic_gregorian;
 }
 
-lane "秦" as qin { kind dynasty; order 10; }
-lane "漢" as han { kind dynasty; order 20; }
-lane "三国" as sanguo { kind dynasty; order 30; }
+lane "秦" as qin {
+  kind dynasty;
+  order 10;
+}
+
+lane "漢" as han {
+  kind dynasty;
+  order 20;
+}
+
+lane "三国" as sanguo {
+  kind dynasty;
+  order 30;
+}
 
 // 王朝の存続期間
-span qin -221..-206 "秦" { tags ["dynasty"]; source wd:Q7183; id "span:qin"; };
-span han -206..220 "漢" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };
-span sanguo 220..280 "三国時代" { tags ["dynasty"]; id "span:sanguo"; };
+span qin -221..-206 "秦" {
+  tags ["dynasty"];
+  source wd:Q7183;
+  id "span:qin";
+};
+
+span han -206..220 "漢" {
+  tags ["dynasty"];
+  source wd:Q7209;
+  id "span:han";
+};
+
+span sanguo 220..280 "三国時代" {
+  tags ["dynasty"];
+  id "span:sanguo";
+};
 
 // 主要な出来事
-event qin -221 "秦の天下統一" {};
-event han -209 "陳勝・呉広の乱" {};
-event han -202 "垓下の戦い" {};
+event qin -221 "秦の天下統一" {
+  id "event:qin:-221";
+};
+
+event han -209 "陳勝・呉広の乱" {
+  id "event:han:-209";
+};
+
+event han -202 "垓下の戦い" {
+  id "event:han:-202";
+};
 
 // 期間イベント
-event_range han 184..204 "黄巾の乱" { tags ["war"]; };
-event_range sanguo 228..234 "諸葛亮の北伐" { tags ["war"]; };
+event_range han 184..204 "黄巾の乱" {
+  tags ["war"];
+  id "event_range:han:184";
+};
+
+event_range sanguo 228..234 "諸葛亮の北伐" {
+  tags ["war"];
+  id "event_range:sanguo:228";
+};

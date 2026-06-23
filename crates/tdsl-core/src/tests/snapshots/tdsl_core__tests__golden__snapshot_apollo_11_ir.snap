@@ -1,6 +1,6 @@
 ---
 source: crates/tdsl-core/src/tests/golden.rs
-assertion_line: 66
+assertion_line: 65
 expression: ir
 ---
 {
@@ -34,7 +34,7 @@ expression: ir
   "items": [
     {
       "type": "span",
-      "id": "span:mission:1969-07-16",
+      "id": "span:mission:1969",
       "lane": "mission",
       "start": 1969,
       "end": 1969,
@@ -49,7 +49,7 @@ expression: ir
     },
     {
       "type": "event",
-      "id": "event:events:1969-07-16",
+      "id": "event:events:1969",
       "lane": "events",
       "time": 1969,
       "label": "サターンV打ち上げ",
@@ -61,7 +61,7 @@ expression: ir
     },
     {
       "type": "event",
-      "id": "event:events:1969-07-19",
+      "id": "event:events:1969_2",
       "lane": "events",
       "time": 1969,
       "label": "月軌道投入",
@@ -70,7 +70,7 @@ expression: ir
     },
     {
       "type": "event",
-      "id": "event:events:1969-07-20",
+      "id": "event:events:1969_3",
       "lane": "events",
       "time": 1969,
       "label": "月面着陸",
@@ -82,7 +82,7 @@ expression: ir
     },
     {
       "type": "event",
-      "id": "event:events:1969-07-21",
+      "id": "event:events:1969_4",
       "lane": "events",
       "time": 1969,
       "label": "船外活動 (EVA)",
@@ -91,7 +91,7 @@ expression: ir
     },
     {
       "type": "event",
-      "id": "event:events:1969-07-22",
+      "id": "event:events:1969_5",
       "lane": "events",
       "time": 1969,
       "label": "月面離陸",
@@ -100,7 +100,7 @@ expression: ir
     },
     {
       "type": "event",
-      "id": "event:events:1969-07-24",
+      "id": "event:events:1969_6",
       "lane": "events",
       "time": 1969,
       "label": "地球帰還",
