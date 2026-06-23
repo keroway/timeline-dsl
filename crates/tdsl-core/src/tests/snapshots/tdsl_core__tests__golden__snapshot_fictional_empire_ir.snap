@@ -1,6 +1,6 @@
 ---
 source: crates/tdsl-core/src/tests/golden.rs
-assertion_line: 58
+assertion_line: 57
 expression: ir
 ---
 {
@@ -11,7 +11,10 @@ expression: ir
       1000,
       1300
     ],
-    "calendar": "proleptic_gregorian"
+    "calendar": "proleptic_gregorian",
+    "color_map": {
+      "war": "#dc2626"
+    }
   },
   "lanes": [
     {

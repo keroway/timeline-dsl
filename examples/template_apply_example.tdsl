@@ -1,48 +1,58 @@
 // template / apply 構文のサンプル
 // template で再利用可能なマップパターンを定義し、apply で複数のimportに適用する
-
+// policy field_priority で再インポート時のフィールド単位マージ戦略も例示する
 timeline "中国王朝年表（テンプレート版）" {
-    title "中国王朝年表";
-    unit year;
-    range -500..700;
-    calendar proleptic_gregorian;
+  title "中国王朝年表";
+  unit year;
+  range -500..700;
+  calendar proleptic_gregorian;
 }
 
-lane "王朝" as dynasty { kind dynasty; order 1; }
-lane "人物" as person { kind person; order 2; }
+lane "王朝" as dynasty {
+  kind dynasty;
+  order 1;
+}
+
+lane "人物" as person {
+  kind person;
+  order 2;
+}
 
 // 王朝スパンを生成するテンプレート
 // apply 時に lane を指定することで異なるレーンに配置可能
-template "王朝スパン" as dynasty_span
-    to span {
-        start claim(P571).year;
-        end claim(P576).year;
-        label label@ja ?? label@en;
-    }
+template "王朝スパン" as dynasty_span to span {
+  start claim(P571).year;
+  end claim(P576).year;
+  label label@ja ?? label@en;
+}
 
 // 人物の生涯を event_range で生成するテンプレート（設計書 PersonLife 相当）
-template "人物の生涯" as person_life
-    to event_range {
-        start claim(P569).year;
-        end claim(P570).year;
-        label label@ja ?? label@en;
-    }
+template "人物の生涯" as person_life to event_range {
+  start claim(P569).year;
+  end claim(P570).year;
+  label label@ja ?? label@en;
+}
 
 import wikidata as dynasties {
-    entity Q7209 as han;   // 漢朝
-    entity Q7183 as qin;   // 秦
-}
+  entity Q7209 as han;
+  entity Q7183 as qin;
+  policy field_priority {
+    label: manual;
+    time: wikidata;
+    tags: merge;
+  }
+} // 漢朝 // 秦
 
 import wikidata as emperors {
-    entity Q33857 as kangxi;  // 康熙帝
-}
+  entity Q33857 as kangxi;
+} // 康熙帝
 
 // dynasty_span テンプレートを dynasties import に適用（lane=dynasty に配置）
 apply dynasty_span to dynasties {
-    lane dynasty;
+  lane dynasty;
 }
 
 // person_life テンプレートを emperors import に適用（lane=person に配置）
 apply person_life to emperors {
-    lane person;
+  lane person;
 }

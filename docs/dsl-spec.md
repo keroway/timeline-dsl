@@ -548,6 +548,22 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 - **色**: `timeline { color_map { タグ名: "#hex"; } }` で定義したタグ色が適用される
 - **ツールチップ**: 各要素にマウスを乗せると `<title>` 要素でラベル・期間・タグ・ソース・ID が表示される
 
+## サンプルと WebUI ギャラリー
+
+`examples/*.tdsl` は WebUI テンプレートギャラリーのソースでもあり、ギャラリー側は `.tdsl` 本文を埋め込まず raw import で参照する。
+各サンプルの description は、例示している DSL 機能を明示する。
+
+| 機能 | 代表サンプル |
+|---|---|
+| `group { ... }` | `examples/grouped_dynasties.tdsl` |
+| `color_map { ... }` | `examples/fictional_empire.tdsl` |
+| 月・日精度の日付 | `examples/world_wars.tdsl`, `examples/apollo_11.tdsl` |
+| `policy field_priority { ... }` | `examples/template_apply_example.tdsl` |
+| `claim(P39).qualifier(P580/P582)` | `examples/officeholder_wikidata.tdsl` |
+| CSV 取り込み導線 | `examples/fictional_empire.tdsl`, `examples/fictional_empire_items.csv` |
+
+Wikidata を必要とするサンプルは WebUI では「CLI 専用・構文リファレンス」として表示する。ブラウザ/WASM 実行では `import wikidata` を解決しないため、オンライン取得は `tdsl build` / `tdsl render` を CLI で実行する。
+
 ## ライセンスとデータ利用
 
 - **Wikidataの構造化データ**: CC0ライセンス。出典表示なしで自由に利用可能

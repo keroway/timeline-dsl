@@ -1,6 +1,6 @@
 ---
 source: crates/tdsl-core/src/tests/golden.rs
-assertion_line: 42
+assertion_line: 41
 expression: ir
 ---
 {
@@ -118,7 +118,11 @@ expression: ir
       "tags": [
         "war",
         "wwii"
-      ]
+      ],
+      "start_month": 9,
+      "start_day": 1,
+      "end_month": 9,
+      "end_day": 2
     },
     {
       "type": "event_range",
@@ -131,17 +135,23 @@ expression: ir
         "war",
         "wwii",
         "pacific"
-      ]
+      ],
+      "start_month": 12,
+      "start_day": 8,
+      "end_month": 9,
+      "end_day": 2
     },
     {
       "type": "event",
-      "id": "event:war:1939",
+      "id": "event:war:1939-09-01",
       "lane": "war",
       "time": 1939,
       "label": "ドイツ、ポーランド侵攻（WWII開戦）",
       "tags": [
         "wwii"
-      ]
+      ],
+      "time_month": 9,
+      "time_day": 1
     },
     {
       "type": "event",

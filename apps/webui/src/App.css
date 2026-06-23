@@ -1057,6 +1057,17 @@ body,
   flex-direction: column;
 }
 
+.gallery-note {
+  margin: 10px 18px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--badge-warn-border);
+  border-radius: 8px;
+  background: var(--badge-warn-bg);
+  color: var(--badge-warn-fg);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .gallery-list {
   list-style: none;
   margin: 0;
@@ -1081,15 +1092,43 @@ body,
   background: var(--bg-elevated);
 }
 
+.gallery-item-network {
+  border-left: 3px solid var(--badge-warn-border);
+  padding-left: 15px;
+}
+
+.gallery-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .gallery-item-label {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
 }
 
-.gallery-item-desc {
+.gallery-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border: 1px solid var(--badge-warn-border);
+  border-radius: 999px;
+  background: var(--badge-warn-bg);
+  color: var(--badge-warn-fg);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.gallery-item-desc,
+.gallery-item-network-note {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.gallery-item-network-note {
+  color: var(--badge-warn-fg);
 }
 
 /* History modal */

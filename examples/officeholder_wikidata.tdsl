@@ -12,45 +12,52 @@
 //   例: cargo run -p tdsl-cli -- build examples/officeholder_wikidata.tdsl --pretty
 //   check はパースと静的検証のみなのでオフラインでも実行できます:
 //   cargo run -p tdsl-cli -- check examples/officeholder_wikidata.tdsl
-
 timeline "20世紀イギリスの政治家・君主の役職年表" {
-    title "役職年表（P39 展開）";
-    unit year;
-    range 1890..2025;
-    calendar proleptic_gregorian;
+  title "役職年表（P39 展開）";
+  unit year;
+  range 1890..2025;
+  calendar proleptic_gregorian;
 }
 
-lane "ウィンストン・チャーチル" as churchill { kind person; order 10; }
-lane "エリザベス2世" as elizabeth { kind person; order 20; }
+lane "ウィンストン・チャーチル" as churchill {
+  kind person;
+  order 10;
+}
+
+lane "エリザベス2世" as elizabeth {
+  kind person;
+  order 20;
+}
 
 import wikidata as officials {
-    entity Q8016 as winston_churchill; // ウィンストン・チャーチル
-    entity Q9682 as elizabeth_ii;      // エリザベス2世
-    policy merge_by_source;
-}
+  entity Q8016 as winston_churchill;
+  entity Q9682 as elizabeth_ii;
+  policy merge_by_source;
+} // ウィンストン・チャーチル // エリザベス2世
 
 // チャーチルが歴任した役職（P39）をすべて span として展開する。
 // expand がない場合は最初の Statement のみが対象になるが、
 // expand claim(P39) を書くと P39 の non-deprecated な Statement 全件をループし、
 // 各 Statement につき 1 アイテムを生成する。
 map officials.winston_churchill to span {
-    lane churchill;
-    expand claim(P39);
-    // qualifier(P580) = その役職の開始時点、qualifier(P582) = 終了時点
-    start claim(P39).qualifier(P580).year;
-    // 終了時点 qualifier がない Statement は 1965 年（没年）にフォールバック
-    end claim(P39).qualifier(P582).year ?? 1965;
-    label label@ja ?? label@en;
-    tags ["person", "office"];
+  lane churchill;
+  expand claim(P39);
+  start claim(P39).qualifier(P580).year;
+  end claim(P39).qualifier(P582).year ?? 1965;
+  label label@ja ?? label@en;
+  tags ["person", "office"];
 }
 
+// qualifier(P580) = その役職の開始時点、qualifier(P582) = 終了時点
+// 終了時点 qualifier がない Statement は 1965 年（没年）にフォールバック
 // エリザベス2世の役職（イギリス女王など）も同様に展開
 map officials.elizabeth_ii to span {
-    lane elizabeth;
-    expand claim(P39);
-    start claim(P39).qualifier(P580).year;
-    // 終了時点 qualifier がない Statement は 2022 年（没年）にフォールバック
-    end claim(P39).qualifier(P582).year ?? 2022;
-    label label@ja ?? label@en;
-    tags ["person", "office"];
+  lane elizabeth;
+  expand claim(P39);
+  start claim(P39).qualifier(P580).year;
+  end claim(P39).qualifier(P582).year ?? 2022;
+  label label@ja ?? label@en;
+  tags ["person", "office"];
 }
+
+// 終了時点 qualifier がない Statement は 2022 年（没年）にフォールバック

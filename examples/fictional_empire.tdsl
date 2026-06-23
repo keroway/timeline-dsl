@@ -1,14 +1,48 @@
+// 架空帝国年表サンプル
+//
+// このサンプルで示しているDSL機能:
+//   - 架空世界の span / event / event_range
+//   - color_map によるタグ別スタイル指定
+//   - examples/fictional_empire_items.csv と tdsl import-csv の連携導線
+//
+// CSV から項目を追加する例:
+//   cargo run -p tdsl-cli -- import-csv examples/fictional_empire_items.csv --append examples/fictional_empire.tdsl
 timeline "ルメリア帝国年表" {
-    title "ルメリア帝国年表";
-    unit year;
-    range 1000..1300;
-    calendar proleptic_gregorian;
+  title "ルメリア帝国年表";
+  unit year;
+  range 1000..1300;
+  calendar proleptic_gregorian;
+  color_map {
+    war: "#dc2626";
+  }
 }
 
-lane "王国" as kingdom { kind custom; order 10; }
-lane "事件" as incidents { kind custom; order 20; }
+lane "王国" as kingdom {
+  kind custom;
+  order 10;
+}
 
-span kingdom 1001..1180 "アルカディア王国" { tags ["dynasty", "fictional"]; id "span:arcadia"; };
-event incidents 1042 "竜騎士団の創設" { tags ["founding", "fictional"]; id "event:knights"; };
-event_range incidents 1175..1180 "黒霧戦争" { tags ["war", "fictional"]; id "range:black_mist"; };
-event incidents 1201 "王都再建宣言" { tags ["reform", "fictional"]; id "event:rebuild"; };
+lane "事件" as incidents {
+  kind custom;
+  order 20;
+}
+
+span kingdom 1001..1180 "アルカディア王国" {
+  tags ["dynasty", "fictional"];
+  id "span:arcadia";
+};
+
+event incidents 1042 "竜騎士団の創設" {
+  tags ["founding", "fictional"];
+  id "event:knights";
+};
+
+event_range incidents 1175..1180 "黒霧戦争" {
+  tags ["war", "fictional"];
+  id "range:black_mist";
+};
+
+event incidents 1201 "王都再建宣言" {
+  tags ["reform", "fictional"];
+  id "event:rebuild";
+};

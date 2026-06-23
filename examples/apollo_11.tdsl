@@ -1,18 +1,48 @@
 // 日精度の例: アポロ11号ミッション（1969年7月）
 timeline "アポロ11号" {
-    title "Apollo 11 Mission";
-    unit day;
-    range 1969-07-15..1969-07-25;
+  title "Apollo 11 Mission";
+  unit day;
+  range 1969-07-15..1969-07-25;
 }
 
-lane "ミッション" as mission { kind custom; order 1; }
-lane "重要イベント" as events { kind custom; order 2; }
+lane "ミッション" as mission {
+  kind custom;
+  order 1;
+}
 
-span mission 1969-07-16..1969-07-24 "ミッション期間" { tags ["mission"]; };
+lane "重要イベント" as events {
+  kind custom;
+  order 2;
+}
 
-event events 1969-07-16 "サターンV打ち上げ" { tags ["launch"]; };
-event events 1969-07-19 "月軌道投入" {};
-event events 1969-07-20 "月面着陸" { tags ["highlight"]; };
-event events 1969-07-21 "船外活動 (EVA)" {};
-event events 1969-07-22 "月面離陸" {};
-event events 1969-07-24 "地球帰還" { tags ["highlight"]; };
+span mission 1969-07-16..1969-07-24 "ミッション期間" {
+  tags ["mission"];
+  id "span:mission:1969";
+};
+
+event events 1969-07-16 "サターンV打ち上げ" {
+  tags ["launch"];
+  id "event:events:1969";
+};
+
+event events 1969-07-19 "月軌道投入" {
+  id "event:events:1969_2";
+};
+
+event events 1969-07-20 "月面着陸" {
+  tags ["highlight"];
+  id "event:events:1969_3";
+};
+
+event events 1969-07-21 "船外活動 (EVA)" {
+  id "event:events:1969_4";
+};
+
+event events 1969-07-22 "月面離陸" {
+  id "event:events:1969_5";
+};
+
+event events 1969-07-24 "地球帰還" {
+  tags ["highlight"];
+  id "event:events:1969_6";
+};

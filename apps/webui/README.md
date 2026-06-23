@@ -46,7 +46,8 @@ npm run build
 ## アーキテクチャ
 
 - `src/wasmLoader.ts` — WASM 初期化と関数ラッパー
-- `src/examples.ts` — サンプル .tdsl コンテンツ
+- `src/gallery-meta.ts` — テンプレートギャラリーのメタ情報。本文は `examples/*.tdsl` を raw import して単一の真実源にする
+- `src/examples.ts` — 初期表示用のオフラインテンプレート一覧（`gallery-meta.ts` から派生）
 - `src/App.tsx` — メインアプリコンポーネント
 - `src/wasm/` — wasm-pack ビルド成果物（.gitignore 対象）
 

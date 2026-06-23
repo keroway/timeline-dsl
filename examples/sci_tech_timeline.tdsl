@@ -6,52 +6,165 @@
 //   - tags による詳細分類（mechanical / electrical / computing 等）
 //   - 広い range（1400〜2000）での長期年表
 //   - 静的定義のみ（Wikidata 不要）
-
 timeline "科学技術の発明・発見年表" {
-    title "科学技術の発明・発見年表";
-    unit year;
-    range 1400..2000;
-    calendar proleptic_gregorian;
+  title "科学技術の発明・発見年表";
+  unit year;
+  range 1400..2000;
+  calendar proleptic_gregorian;
 }
 
 // 分野別レーン
-lane "発明"   as invention   { kind event; order 10; }
-lane "発見"   as discovery   { kind event; order 20; }
-lane "通信"   as communication { kind event; order 30; }
-lane "計算機" as computing   { kind event; order 40; }
+lane "発明" as invention {
+  kind event;
+  order 10;
+}
+
+lane "発見" as discovery {
+  kind event;
+  order 20;
+}
+
+lane "通信" as communication {
+  kind event;
+  order 30;
+}
+
+lane "計算機" as computing {
+  kind event;
+  order 40;
+}
 
 // ── 印刷・機械 ──
-event invention 1450 "グーテンベルクの活版印刷術"     { tags ["mechanical", "printing"]; };
-event invention 1590 "複式顕微鏡の発明"               { tags ["optical"]; };
-event invention 1609 "ガリレオの望遠鏡"               { tags ["optical"]; };
-event invention 1769 "ワットの蒸気機関改良"           { tags ["mechanical", "industrial"]; };
-event invention 1804 "蒸気機関車（トレビシック）"     { tags ["mechanical", "transport"]; };
-event invention 1885 "ガソリン自動車（ベンツ）"       { tags ["mechanical", "transport"]; };
-event invention 1903 "ライト兄弟の動力飛行"           { tags ["mechanical", "transport"]; };
+event invention 1450 "グーテンベルクの活版印刷術" {
+  tags ["mechanical", "printing"];
+  id "event:invention:1450";
+};
+
+event invention 1590 "複式顕微鏡の発明" {
+  tags ["optical"];
+  id "event:invention:1590";
+};
+
+event invention 1609 "ガリレオの望遠鏡" {
+  tags ["optical"];
+  id "event:invention:1609";
+};
+
+event invention 1769 "ワットの蒸気機関改良" {
+  tags ["mechanical", "industrial"];
+  id "event:invention:1769";
+};
+
+event invention 1804 "蒸気機関車（トレビシック）" {
+  tags ["mechanical", "transport"];
+  id "event:invention:1804";
+};
+
+event invention 1885 "ガソリン自動車（ベンツ）" {
+  tags ["mechanical", "transport"];
+  id "event:invention:1885";
+};
+
+event invention 1903 "ライト兄弟の動力飛行" {
+  tags ["mechanical", "transport"];
+  id "event:invention:1903";
+};
 
 // ── 電気・電磁気 ──
-event discovery 1820 "電磁気の発見（エルステッド）"   { tags ["electrical"]; };
-event invention 1831 "電磁誘導（ファラデー）"         { tags ["electrical"]; };
-event invention 1879 "白熱電球（エジソン）"           { tags ["electrical"]; };
-event discovery 1895 "X線の発見（レントゲン）"        { tags ["physics"]; };
-event discovery 1896 "放射能の発見（ベクレル）"       { tags ["physics"]; };
+event discovery 1820 "電磁気の発見（エルステッド）" {
+  tags ["electrical"];
+  id "event:discovery:1820";
+};
+
+event invention 1831 "電磁誘導（ファラデー）" {
+  tags ["electrical"];
+  id "event:invention:1831";
+};
+
+event invention 1879 "白熱電球（エジソン）" {
+  tags ["electrical"];
+  id "event:invention:1879";
+};
+
+event discovery 1895 "X線の発見（レントゲン）" {
+  tags ["physics"];
+  id "event:discovery:1895";
+};
+
+event discovery 1896 "放射能の発見（ベクレル）" {
+  tags ["physics"];
+  id "event:discovery:1896";
+};
 
 // ── 通信 ──
-event communication 1837 "電信機の実用化（モールス）"  { tags ["telegraph"]; };
-event communication 1876 "電話の発明（ベル）"          { tags ["telephone"]; };
-event communication 1895 "無線通信の発明（マルコーニ）" { tags ["radio"]; };
-event communication 1920 "ラジオ放送開始"              { tags ["radio", "broadcast"]; };
-event communication 1969 "ARPANET（インターネットの原型）" { tags ["internet"]; };
-event communication 1991 "World Wide Web 公開（バーナーズ＝リー）" { tags ["internet", "web"]; };
+event communication 1837 "電信機の実用化（モールス）" {
+  tags ["telegraph"];
+  id "event:communication:1837";
+};
+
+event communication 1876 "電話の発明（ベル）" {
+  tags ["telephone"];
+  id "event:communication:1876";
+};
+
+event communication 1895 "無線通信の発明（マルコーニ）" {
+  tags ["radio"];
+  id "event:communication:1895";
+};
+
+event communication 1920 "ラジオ放送開始" {
+  tags ["radio", "broadcast"];
+  id "event:communication:1920";
+};
+
+event communication 1969 "ARPANET（インターネットの原型）" {
+  tags ["internet"];
+  id "event:communication:1969";
+};
+
+event communication 1991 "World Wide Web 公開（バーナーズ＝リー）" {
+  tags ["internet", "web"];
+  id "event:communication:1991";
+};
 
 // ── 計算機・コンピュータ ──
-event computing 1822 "差分機関（チャールズ・バベッジ）" { tags ["mechanical"]; };
-event computing 1936 "チューリングマシン（理論）"       { tags ["theory"]; };
-event computing 1945 "ENIAC（世界初の汎用電子計算機）"  { tags ["hardware"]; };
-event computing 1971 "マイクロプロセッサ（インテル 4004）" { tags ["hardware", "chip"]; };
-event computing 1981 "IBM PC 発売"                      { tags ["hardware", "personal"]; };
-event computing 1994 "Linux 1.0 リリース"               { tags ["software", "os"]; };
+event computing 1822 "差分機関（チャールズ・バベッジ）" {
+  tags ["mechanical"];
+  id "event:computing:1822";
+};
+
+event computing 1936 "チューリングマシン（理論）" {
+  tags ["theory"];
+  id "event:computing:1936";
+};
+
+event computing 1945 "ENIAC（世界初の汎用電子計算機）" {
+  tags ["hardware"];
+  id "event:computing:1945";
+};
+
+event computing 1971 "マイクロプロセッサ（インテル 4004）" {
+  tags ["hardware", "chip"];
+  id "event:computing:1971";
+};
+
+event computing 1981 "IBM PC 発売" {
+  tags ["hardware", "personal"];
+  id "event:computing:1981";
+};
+
+event computing 1994 "Linux 1.0 リリース" {
+  tags ["software", "os"];
+  id "event:computing:1994";
+};
 
 // ── 生命科学 ──
-event discovery 1859 "進化論（ダーウィン『種の起源』）"  { tags ["biology"]; };
-event discovery 1953 "DNA二重らせん構造の解明"           { tags ["biology", "genetics"]; };
+event discovery 1859 "進化論（ダーウィン『種の起源』）" {
+  tags ["biology"];
+  id "event:discovery:1859";
+};
+
+event discovery 1953 "DNA二重らせん構造の解明" {
+  tags ["biology", "genetics"];
+  id "event:discovery:1953";
+};

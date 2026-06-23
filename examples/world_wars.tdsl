@@ -2,51 +2,127 @@
 //
 // このサンプルで示しているDSL機能:
 //   - event_range で戦争期間全体を表現
+//   - 月・日精度の日付（1939-09-01..1945-09-02 など）
 //   - 複数の lane（戦争・政治・社会）を使った多軸表現
 //   - event で転換点・重要事件を点イベントとして追加
 //   - tags によるイベント分類
 //   - 静的定義のみ（Wikidata 不要）
-
 timeline "近代戦争年表" {
-    title "近代戦争年表（第一次・第二次世界大戦）";
-    unit year;
-    range 1900..1950;
-    calendar proleptic_gregorian;
+  title "近代戦争年表（第一次・第二次世界大戦）";
+  unit year;
+  range 1900..1950;
+  calendar proleptic_gregorian;
 }
 
 // レーン定義
-lane "戦争" as war       { kind event; order 10; }
-lane "政治" as politics  { kind event; order 20; }
-lane "社会" as society   { kind event; order 30; }
+lane "戦争" as war {
+  kind event;
+  order 10;
+}
+
+lane "政治" as politics {
+  kind event;
+  order 20;
+}
+
+lane "社会" as society {
+  kind event;
+  order 30;
+}
 
 // ── 第一次世界大戦（1914–1918）──
-event_range war 1914..1918 "第一次世界大戦" { tags ["war", "wwi"]; id "range:wwi"; };
+event_range war 1914..1918 "第一次世界大戦" {
+  tags ["war", "wwi"];
+  id "range:wwi";
+};
 
 // WWI 主要事件
-event war     1914 "サラエボ事件（開戦の引き金）" { tags ["wwi"]; };
-event politics 1917 "ロシア革命"                  { tags ["wwi", "revolution"]; };
-event war     1918 "第一次世界大戦終結"            { tags ["wwi"]; };
-event politics 1919 "パリ講和会議・ヴェルサイユ条約" { tags ["wwi", "treaty"]; };
+event war 1914 "サラエボ事件（開戦の引き金）" {
+  tags ["wwi"];
+  id "event:war:1914";
+};
+
+event politics 1917 "ロシア革命" {
+  tags ["wwi", "revolution"];
+  id "event:politics:1917";
+};
+
+event war 1918 "第一次世界大戦終結" {
+  tags ["wwi"];
+  id "event:war:1918";
+};
+
+event politics 1919 "パリ講和会議・ヴェルサイユ条約" {
+  tags ["wwi", "treaty"];
+  id "event:politics:1919";
+};
 
 // ── 戦間期 ──
-event politics 1929 "世界恐慌"       { tags ["economy"]; };
-event politics 1933 "ナチス政権樹立" { tags ["politics"]; };
+event politics 1929 "世界恐慌" {
+  tags ["economy"];
+  id "event:politics:1929";
+};
+
+event politics 1933 "ナチス政権樹立" {
+  tags ["politics"];
+  id "event:politics:1933";
+};
 
 // ── 第二次世界大戦（1939–1945）──
-event_range war 1939..1945 "第二次世界大戦" { tags ["war", "wwii"]; id "range:wwii"; };
+event_range war 1939-09-01..1945-09-02 "第二次世界大戦" {
+  tags ["war", "wwii"];
+  id "range:wwii";
+};
 
 // 太平洋戦争（日本の参戦期間）
-event_range war 1941..1945 "太平洋戦争"     { tags ["war", "wwii", "pacific"]; id "range:pacific_war"; };
+event_range war 1941-12-08..1945-09-02 "太平洋戦争" {
+  tags ["war", "wwii", "pacific"];
+  id "range:pacific_war";
+};
 
 // WWII 主要事件
-event war     1939 "ドイツ、ポーランド侵攻（WWII開戦）" { tags ["wwii"]; };
-event war     1940 "ダンケルク撤退・フランス陥落"         { tags ["wwii"]; };
-event war     1941 "独ソ戦開始・日本の真珠湾攻撃"         { tags ["wwii"]; };
-event war     1942 "ミッドウェー海戦・スターリングラード攻防戦" { tags ["wwii"]; };
-event war     1944 "ノルマンディー上陸作戦"                { tags ["wwii"]; };
-event war     1945 "第二次世界大戦終結"                    { tags ["wwii"]; };
-event society 1945 "国際連合設立"                          { tags ["wwii", "international"]; };
+event war 1939-09-01 "ドイツ、ポーランド侵攻（WWII開戦）" {
+  tags ["wwii"];
+  id "event:war:1939-09-01";
+};
+
+event war 1940 "ダンケルク撤退・フランス陥落" {
+  tags ["wwii"];
+  id "event:war:1940";
+};
+
+event war 1941 "独ソ戦開始・日本の真珠湾攻撃" {
+  tags ["wwii"];
+  id "event:war:1941";
+};
+
+event war 1942 "ミッドウェー海戦・スターリングラード攻防戦" {
+  tags ["wwii"];
+  id "event:war:1942";
+};
+
+event war 1944 "ノルマンディー上陸作戦" {
+  tags ["wwii"];
+  id "event:war:1944";
+};
+
+event war 1945 "第二次世界大戦終結" {
+  tags ["wwii"];
+  id "event:war:1945";
+};
+
+event society 1945 "国際連合設立" {
+  tags ["wwii", "international"];
+  id "event:society:1945";
+};
 
 // 社会的変化
-event society 1918 "スペイン風邪（パンデミック）" { tags ["pandemic", "wwi"]; };
-event society 1920 "国際連盟発足"               { tags ["international"]; };
+event society 1918 "スペイン風邪（パンデミック）" {
+  tags ["pandemic", "wwi"];
+  id "event:society:1918";
+};
+
+event society 1920 "国際連盟発足" {
+  tags ["international"];
+  id "event:society:1920";
+};

@@ -1,5 +1,6 @@
 ---
 source: crates/tdsl-render/src/lib.rs
+assertion_line: 925
 expression: svg
 ---
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="timeline" class="tdsl-root">
@@ -81,24 +82,24 @@ id: event:politics:1933</title></line><circle class="tdsl-event-dot" style="fill
 1933
 tags: politics
 id: event:politics:1933</title></circle></g>
-  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 第二次世界大戦、1939〜1945、tags: war, wwii、id: range:wwii、レーン: 戦争" tabindex="0" data-tdsl-tooltip="第二次世界大戦&#10;1939〜1945&#10;tags: war, wwii&#10;id: range:wwii" data-lane="war" data-tags="war,wwii"><rect class="tdsl-event-range" style="fill:var(--tdsl-lane-0, #4682B4);fill-opacity:0.75;" x="198" y="84" width="14.00" height="10" rx="2"><title>第二次世界大戦
-1939〜1945
+  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 第二次世界大戦、1939 Sep 1〜1945 Sep 2、tags: war, wwii、id: range:wwii、レーン: 戦争" tabindex="0" data-tdsl-tooltip="第二次世界大戦&#10;1939 Sep 1〜1945 Sep 2&#10;tags: war, wwii&#10;id: range:wwii" data-lane="war" data-tags="war,wwii"><rect class="tdsl-event-range" style="fill:var(--tdsl-lane-0, #4682B4);fill-opacity:0.75;" x="199.33" y="84" width="12.01" height="10" rx="2"><title>第二次世界大戦
+1939 Sep 1〜1945 Sep 2
 tags: war, wwii
 id: range:wwii</title></rect></g>
-  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 太平洋戦争、1941〜1945、tags: war, wwii, pacific、id: range:pacific_war、レーン: 戦争" tabindex="0" data-tdsl-tooltip="太平洋戦争&#10;1941〜1945&#10;tags: war, wwii, pacific&#10;id: range:pacific_war" data-lane="war" data-tags="war,wwii,pacific"><rect class="tdsl-event-range" style="fill:var(--tdsl-lane-0, #4682B4);fill-opacity:0.75;" x="202" y="84" width="10.00" height="10" rx="2"><title>太平洋戦争
-1941〜1945
+  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="期間イベント: 太平洋戦争、1941 Dec 8〜1945 Sep 2、tags: war, wwii, pacific、id: range:pacific_war、レーン: 戦争" tabindex="0" data-tdsl-tooltip="太平洋戦争&#10;1941 Dec 8〜1945 Sep 2&#10;tags: war, wwii, pacific&#10;id: range:pacific_war" data-lane="war" data-tags="war,wwii,pacific"><rect class="tdsl-event-range" style="fill:var(--tdsl-lane-0, #4682B4);fill-opacity:0.75;" x="203.87" y="84" width="7.47" height="10" rx="2"><title>太平洋戦争
+1941 Dec 8〜1945 Sep 2
 tags: war, wwii, pacific
 id: range:pacific_war</title></rect></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ドイツ、ポーランド侵攻（WWII開戦）、1939、tags: wwii、id: event:war:1939、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ドイツ、ポーランド侵攻（WWII開戦）&#10;1939&#10;tags: wwii&#10;id: event:war:1939" data-lane="war" data-tags="wwii"><rect class="tdsl-event-hit" x="190" y="50" width="16" height="40"><title>ドイツ、ポーランド侵攻（WWII開戦）
-1939
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ドイツ、ポーランド侵攻（WWII開戦）、1939 Sep 1、tags: wwii、id: event:war:1939-09-01、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ドイツ、ポーランド侵攻（WWII開戦）&#10;1939 Sep 1&#10;tags: wwii&#10;id: event:war:1939-09-01" data-lane="war" data-tags="wwii"><rect class="tdsl-event-hit" x="191.33" y="50" width="16" height="40"><title>ドイツ、ポーランド侵攻（WWII開戦）
+1939 Sep 1
 tags: wwii
-id: event:war:1939</title></rect><line class="tdsl-event-stem" x1="198" y1="50" x2="198" y2="90"><title>ドイツ、ポーランド侵攻（WWII開戦）
-1939
+id: event:war:1939-09-01</title></rect><line class="tdsl-event-stem" x1="199.33" y1="50" x2="199.33" y2="90"><title>ドイツ、ポーランド侵攻（WWII開戦）
+1939 Sep 1
 tags: wwii
-id: event:war:1939</title></line><circle class="tdsl-event-dot" style="fill:var(--tdsl-lane-0, #4682B4);" cx="198" cy="70" r="4"><title>ドイツ、ポーランド侵攻（WWII開戦）
-1939
+id: event:war:1939-09-01</title></line><circle class="tdsl-event-dot" style="fill:var(--tdsl-lane-0, #4682B4);" cx="199.33" cy="70" r="4"><title>ドイツ、ポーランド侵攻（WWII開戦）
+1939 Sep 1
 tags: wwii
-id: event:war:1939</title></circle></g>
+id: event:war:1939-09-01</title></circle></g>
   <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: ダンケルク撤退・フランス陥落、1940、tags: wwii、id: event:war:1940、レーン: 戦争" tabindex="0" data-tdsl-tooltip="ダンケルク撤退・フランス陥落&#10;1940&#10;tags: wwii&#10;id: event:war:1940" data-lane="war" data-tags="wwii"><rect class="tdsl-event-hit" x="192" y="50" width="16" height="40"><title>ダンケルク撤退・フランス陥落
 1940
 tags: wwii
