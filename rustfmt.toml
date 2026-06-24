@@ -1,0 +1,2 @@
+# Keep rustfmt behavior aligned with the workspace Rust edition and editor/agent integrations.
+style_edition = "2024"
