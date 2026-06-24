@@ -23,6 +23,8 @@ export interface RenderOptions {
   theme?: 'default' | 'dark' | 'print' | 'pastel'
   showTable?: boolean
   showEventLabels?: boolean
+  /** Height of each lane in pixels. `0`/undefined uses the renderer default (60). */
+  laneHeight?: number
 }
 
 export async function initWasm(): Promise<void> {
@@ -46,6 +48,7 @@ export function renderSvgWithOptions(source: string, scale: number = 0, opts: Re
   if (opts.theme !== undefined) jsOpts.theme = opts.theme
   if (opts.showTable !== undefined) jsOpts.show_table = opts.showTable
   if (opts.showEventLabels !== undefined) jsOpts.show_event_labels = opts.showEventLabels
+  if (opts.laneHeight !== undefined) jsOpts.lane_height = opts.laneHeight
   return render_svg_from_source_with_options(source, scale, jsOpts)
 }
 
@@ -60,6 +63,7 @@ export function renderHtmlWithOptions(source: string, opts: RenderOptions = {}):
   if (opts.theme !== undefined) jsOpts.theme = opts.theme
   if (opts.showTable !== undefined) jsOpts.show_table = opts.showTable
   if (opts.showEventLabels !== undefined) jsOpts.show_event_labels = opts.showEventLabels
+  if (opts.laneHeight !== undefined) jsOpts.lane_height = opts.laneHeight
   return render_html_from_source_with_options(source, jsOpts)
 }
 

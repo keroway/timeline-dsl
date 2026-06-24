@@ -15,11 +15,21 @@
  * | `theme` | `"default"`, `"dark"`, `"print"`, `"pastel"` | `"default"` |
  * | `show_table` | `true`, `false` | `false` |
  * | `show_event_labels` | `true`, `false` | `false` |
+ * | `lane_height` | px per lane; `0` = renderer default (60) | `0` |
+ *
+ * `lane_height` controls vertical density: the SVG height, each lane band, the
+ * bar thickness and intra-lane padding all follow it. Leave it at `0` (the
+ * default) to keep the historical appearance.
  */
 export class JsRenderOptions {
     free(): void;
     [Symbol.dispose](): void;
     constructor();
+    /**
+     * Height of each lane in pixels. `0` (default) uses the renderer default (60).
+     * Larger values increase vertical density (taller bands and thicker bars).
+     */
+    lane_height: number;
     /**
      * When true, labels are rendered next to Event/EventRange items.
      */
@@ -133,9 +143,11 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_get_jsrenderoptions_lane_height: (a: number) => number;
     readonly __wbg_get_jsrenderoptions_show_event_labels: (a: number) => number;
     readonly __wbg_get_jsrenderoptions_show_table: (a: number) => number;
     readonly __wbg_jsrenderoptions_free: (a: number, b: number) => void;
+    readonly __wbg_set_jsrenderoptions_lane_height: (a: number, b: number) => void;
     readonly __wbg_set_jsrenderoptions_show_event_labels: (a: number, b: number) => void;
     readonly __wbg_set_jsrenderoptions_show_table: (a: number, b: number) => void;
     readonly check_source: (a: number, b: number, c: number) => void;

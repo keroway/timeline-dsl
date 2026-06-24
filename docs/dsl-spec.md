@@ -526,6 +526,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `--format` | 出力形式。`html`（デフォルト）/ `svg` / `pdf` / `png` |
 | `--interactive` | ズーム・パン・検索・凡例・詳細パネル付きインタラクティブモード（JavaScript使用）。`--format html` のみ有効 |
 | `--scale` | 1年あたりのピクセル幅（デフォルト 2） |
+| `--lane-height` | 各レーンの高さ（px、デフォルト 60）。縦密度を制御し、バーの太さも追従する |
 | `--dpi` | PNG 出力の DPI（デフォルト 96）。`--format png` のみ有効 |
 | `--offline` | Wikidata fetch を省略 |
 

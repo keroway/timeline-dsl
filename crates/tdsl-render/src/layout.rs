@@ -99,11 +99,16 @@ pub struct RenderOptions {
     pub use_css_vars: bool,
 }
 
+/// Default lane height in pixels. Bar thickness and intra-lane padding scale
+/// relative to this baseline, so a lane_height of 60 reproduces the historical
+/// (pre-#507) geometry exactly.
+pub(crate) const DEFAULT_LANE_HEIGHT: f64 = 60.0;
+
 impl Default for RenderOptions {
     fn default() -> Self {
         Self {
             scale: 2.0,
-            lane_height: 60.0,
+            lane_height: DEFAULT_LANE_HEIGHT,
             left_gutter: 120.0,
             top_margin: 40.0,
             right_margin: 20.0,
@@ -542,6 +547,15 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
         opts.left_gutter
     };
 
+    // Bar thickness / intra-lane padding follow lane_height (#507): taller lanes
+    // get proportionally thicker bars. At the default lane_height (60) the factor
+    // is 1.0, so the geometry is byte-for-byte identical to the pre-#507 output.
+    let density = (opts.lane_height / DEFAULT_LANE_HEIGHT).max(0.1);
+    let span_half_h = SPAN_HALF_H * density;
+    let event_range_h = EVENT_RANGE_H * density;
+    let event_range_y_offset = EVENT_RANGE_Y_OFFSET * density;
+    let event_stem_h = EVENT_STEM_H * density;
+
     match item {
         Item::Span {
             start,
@@ -557,8 +571,8 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             let ef = end_frac(*end, *end_month, *end_day);
             let (primary_start, primary_extent) =
                 primary_axis_segment(sf, ef, year_min, year_max, opts.scale, primary_anchor);
-            let cross_start = lane_axis - SPAN_HALF_H;
-            let cross_extent = SPAN_HALF_H * 2.0;
+            let cross_start = lane_axis - span_half_h;
+            let cross_extent = span_half_h * 2.0;
             let (x, y, width, height) = if is_vertical {
                 (cross_start, primary_start, cross_extent, primary_extent)
             } else {
@@ -593,17 +607,17 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             // split implementation.
             let (x, y, width, height) = if is_vertical {
                 (
-                    lane_axis - EVENT_RANGE_H / 2.0,
+                    lane_axis - event_range_h / 2.0,
                     primary_start,
-                    EVENT_RANGE_H,
+                    event_range_h,
                     primary_extent,
                 )
             } else {
                 (
                     primary_start,
-                    lane_axis + EVENT_RANGE_Y_OFFSET,
+                    lane_axis + event_range_y_offset,
                     primary_extent,
-                    EVENT_RANGE_H,
+                    event_range_h,
                 )
             };
             items.push(LaidItem::EventRange {
@@ -631,16 +645,16 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
                 // x = lane axis; y_top/y_bottom/y_dot all live on the time axis.
                 (
                     lane_axis,
-                    primary - EVENT_STEM_H,
-                    primary + EVENT_STEM_H,
+                    primary - event_stem_h,
+                    primary + event_stem_h,
                     primary,
                 )
             } else {
                 // x = time axis; y_top/y_bottom/y_dot live on the lane axis.
                 (
                     primary,
-                    lane_axis - EVENT_STEM_H,
-                    lane_axis + EVENT_STEM_H,
+                    lane_axis - event_stem_h,
+                    lane_axis + event_stem_h,
                     lane_axis,
                 )
             };
@@ -1171,6 +1185,60 @@ mod tests {
             "expected width > 13 (end-of-year extension), got {}",
             span.1
         );
+    }
+
+    #[test]
+    fn span_thickness_follows_lane_height() {
+        // #507: bar thickness scales with lane_height. Default (60) keeps the
+        // historical 24px span; doubling lane_height doubles the bar thickness.
+        let ir = TimelineIr {
+            meta: mk_meta((0, 100)),
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "k".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::Span {
+                id: "s1".into(),
+                lane: "x".into(),
+                start: 10,
+                end: 50,
+                label: "S".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                end_month: None,
+                end_day: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let span_height = |lane_height: f64| {
+            let opts = RenderOptions {
+                lane_height,
+                ..RenderOptions::default()
+            };
+            LayoutModel::compute(&ir, opts)
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    LaidItem::Span { height, .. } => Some(*height),
+                    _ => None,
+                })
+                .expect("span should be laid out")
+        };
+        // Default lane_height (60) reproduces the historical 24px (2 * SPAN_HALF_H).
+        assert!((span_height(60.0) - 24.0).abs() < 0.001);
+        // Doubling lane_height doubles bar thickness (density factor 2.0).
+        assert!((span_height(120.0) - 48.0).abs() < 0.001);
+        // Halving lane_height halves it.
+        assert!((span_height(30.0) - 12.0).abs() < 0.001);
     }
 
     #[test]

@@ -1,9 +1,11 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_get_jsrenderoptions_lane_height: (a: number) => number;
 export const __wbg_get_jsrenderoptions_show_event_labels: (a: number) => number;
 export const __wbg_get_jsrenderoptions_show_table: (a: number) => number;
 export const __wbg_jsrenderoptions_free: (a: number, b: number) => void;
+export const __wbg_set_jsrenderoptions_lane_height: (a: number, b: number) => void;
 export const __wbg_set_jsrenderoptions_show_event_labels: (a: number, b: number) => void;
 export const __wbg_set_jsrenderoptions_show_table: (a: number, b: number) => void;
 export const check_source: (a: number, b: number, c: number) => void;
