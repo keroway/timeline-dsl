@@ -67,11 +67,14 @@ PR を送る前に以下をすべて通過させてください。
 
 - [ ] `cargo test --workspace` が通ること
 - [ ] `cargo clippy --workspace` でエラーがないこと（警告も可能な限り解消する）
-- [ ] `cargo fmt --check` が通ること（フォーマットが崩れていないこと）
+- [ ] `cargo fmt --all -- --check` が通ること（フォーマットが崩れていないこと）
+
+このリポジトリでは `rustfmt.toml` で `style_edition = "2024"` を明示し、
+workspace の Rust edition と rustfmt の import 並びを揃えています。
 
 ```bash
 # まとめて実行する場合
-cargo test --workspace && cargo clippy --workspace && cargo fmt --check
+cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check
 ```
 
 ---
