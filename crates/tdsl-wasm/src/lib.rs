@@ -489,6 +489,31 @@ map wd.han to span {
     }
 
     #[test]
+    fn js_opts_lane_height_zero_uses_renderer_default() {
+        // lane_height defaults to 0 → renderer default (60), preserving back-compat.
+        let opts = JsRenderOptions::new();
+        assert_eq!(opts.lane_height, 0.0);
+        let ro = js_opts_to_render_options(&opts, 2.0);
+        assert!((ro.lane_height - RenderOptions::default().lane_height).abs() < 0.001);
+    }
+
+    #[test]
+    fn js_opts_lane_height_override_is_applied() {
+        let mut opts = JsRenderOptions::new();
+        opts.lane_height = 96.0;
+        let ro = js_opts_to_render_options(&opts, 2.0);
+        assert!((ro.lane_height - 96.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn js_opts_negative_lane_height_falls_back_to_default() {
+        let mut opts = JsRenderOptions::new();
+        opts.lane_height = -10.0;
+        let ro = js_opts_to_render_options(&opts, 2.0);
+        assert!((ro.lane_height - RenderOptions::default().lane_height).abs() < 0.001);
+    }
+
+    #[test]
     fn js_opts_unknown_string_falls_back_to_defaults() {
         let mut opts = JsRenderOptions::new();
         opts.set_orientation("invalid".to_string());
@@ -665,12 +690,20 @@ pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
 /// | `theme` | `"default"`, `"dark"`, `"print"`, `"pastel"` | `"default"` |
 /// | `show_table` | `true`, `false` | `false` |
 /// | `show_event_labels` | `true`, `false` | `false` |
+/// | `lane_height` | px per lane; `0` = renderer default (60) | `0` |
+///
+/// `lane_height` controls vertical density: the SVG height, each lane band, the
+/// bar thickness and intra-lane padding all follow it. Leave it at `0` (the
+/// default) to keep the historical appearance.
 #[wasm_bindgen]
 pub struct JsRenderOptions {
     /// `"horizontal"` (default) or `"vertical"`
     pub show_table: bool,
     /// When true, labels are rendered next to Event/EventRange items.
     pub show_event_labels: bool,
+    /// Height of each lane in pixels. `0` (default) uses the renderer default (60).
+    /// Larger values increase vertical density (taller bands and thicker bars).
+    pub lane_height: f64,
     orientation: String,
     grid: String,
     theme: String,
@@ -689,6 +722,7 @@ impl JsRenderOptions {
         JsRenderOptions {
             show_table: false,
             show_event_labels: false,
+            lane_height: 0.0,
             orientation: "horizontal".to_string(),
             grid: "none".to_string(),
             theme: "default".to_string(),
@@ -743,14 +777,23 @@ fn js_opts_to_render_options(opts: &JsRenderOptions, scale: f64) -> RenderOption
         "pastel" => Theme::Pastel,
         _ => Theme::Default,
     };
+    let defaults = RenderOptions::default();
+    // lane_height == 0 (or negative) means "use the renderer default" so that
+    // existing callers that never touch the field keep the historical look.
+    let lane_height = if opts.lane_height > 0.0 {
+        opts.lane_height
+    } else {
+        defaults.lane_height
+    };
     RenderOptions {
         scale,
+        lane_height,
         orientation,
         grid,
         theme,
         show_table: opts.show_table,
         show_event_labels: opts.show_event_labels,
-        ..RenderOptions::default()
+        ..defaults
     }
 }
 

@@ -519,6 +519,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `--format` | Output format: `html` (default) / `svg` / `pdf` / `png` |
 | `--interactive` | Interactive mode with zoom, pan, search, legend, and detail panel (uses JavaScript). Only valid with `--format html` |
 | `--scale` | Pixel width per year (default: 2) |
+| `--lane-height` | Height of each lane in px (default: 60). Controls vertical density; bar thickness follows it |
 | `--dpi` | DPI for PNG output (default: 96). Only valid with `--format png` |
 | `--offline` | Skip Wikidata fetch |
 

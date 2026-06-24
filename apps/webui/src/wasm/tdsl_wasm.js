@@ -14,6 +14,11 @@
  * | `theme` | `"default"`, `"dark"`, `"print"`, `"pastel"` | `"default"` |
  * | `show_table` | `true`, `false` | `false` |
  * | `show_event_labels` | `true`, `false` | `false` |
+ * | `lane_height` | px per lane; `0` = renderer default (60) | `0` |
+ *
+ * `lane_height` controls vertical density: the SVG height, each lane band, the
+ * bar thickness and intra-lane padding all follow it. Leave it at `0` (the
+ * default) to keep the historical appearance.
  */
 export class JsRenderOptions {
     __destroy_into_raw() {
@@ -25,6 +30,15 @@ export class JsRenderOptions {
     free() {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_jsrenderoptions_free(ptr, 0);
+    }
+    /**
+     * Height of each lane in pixels. `0` (default) uses the renderer default (60).
+     * Larger values increase vertical density (taller bands and thicker bars).
+     * @returns {number}
+     */
+    get lane_height() {
+        const ret = wasm.__wbg_get_jsrenderoptions_lane_height(this.__wbg_ptr);
+        return ret;
     }
     /**
      * When true, labels are rendered next to Event/EventRange items.
@@ -63,7 +77,7 @@ export class JsRenderOptions {
     }
     constructor() {
         const ret = wasm.jsrenderoptions_new();
-        this.__wbg_ptr = ret >>> 0;
+        this.__wbg_ptr = ret;
         JsRenderOptionsFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
@@ -128,6 +142,14 @@ export class JsRenderOptions {
             wasm.__wbindgen_add_to_stack_pointer(16);
             wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
         }
+    }
+    /**
+     * Height of each lane in pixels. `0` (default) uses the renderer default (60).
+     * Larger values increase vertical density (taller bands and thicker bars).
+     * @param {number} arg0
+     */
+    set lane_height(arg0) {
+        wasm.__wbg_set_jsrenderoptions_lane_height(this.__wbg_ptr, arg0);
     }
     /**
      * When true, labels are rendered next to Event/EventRange items.
@@ -481,7 +503,7 @@ export function render_svg_from_source_with_options(source, scale, opts) {
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
-        __wbg___wbindgen_throw_6b64449b9b9ed33c: function(arg0, arg1) {
+        __wbg___wbindgen_throw_ea4887a5f8f9a9db: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
         __wbg_error_a6fa202b58aa1cd3: function(arg0, arg1) {
@@ -523,7 +545,7 @@ function __wbg_get_imports() {
 
 const JsRenderOptionsFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_jsrenderoptions_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_jsrenderoptions_free(ptr, 1));
 
 function addHeapObject(obj) {
     if (heap_next === heap.length) heap.push(heap.length + 1);
@@ -555,8 +577,7 @@ function getDataViewMemory0() {
 }
 
 function getStringFromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return decodeText(ptr, len);
+    return decodeText(ptr >>> 0, len);
 }
 
 let cachedUint8ArrayMemory0 = null;
@@ -646,8 +667,9 @@ if (!('encodeInto' in cachedTextEncoder)) {
 
 let WASM_VECTOR_LEN = 0;
 
-let wasmModule, wasm;
+let wasmModule, wasmInstance, wasm;
 function __wbg_finalize_init(instance, module) {
+    wasmInstance = instance;
     wasm = instance.exports;
     wasmModule = module;
     cachedDataViewMemory0 = null;
