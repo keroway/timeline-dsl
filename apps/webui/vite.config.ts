@@ -11,6 +11,29 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 export default defineConfig({
   plugins: [react(), wasm()],
   base: './',
+  build: {
+    rollupOptions: {
+      output: {
+        // Split heavy vendors into their own cacheable chunks so the single
+        // entry chunk no longer exceeds the 500KB warning threshold and the
+        // browser can cache React / CodeMirror independently of app code.
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('/react') || id.includes('/scheduler/')) {
+            return 'react-vendor'
+          }
+          if (
+            id.includes('/@codemirror/') ||
+            id.includes('/@uiw/') ||
+            id.includes('/@lezer/')
+          ) {
+            return 'codemirror-vendor'
+          }
+          return undefined
+        },
+      },
+    },
+  },
   server: {
     fs: {
       allow: [repoRoot],
