@@ -7,18 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-06-24
+
 ### Added
 
+- **`JsRenderOptions` に `lane_height` を追加**: WASM/JS から縦方向の lane 密度を指定できるようにした。未指定・0・負値・不正文字列はレンダラ既定値にフォールバックする (#507, #508)
 - **`map` / `apply` の必須フィールド未解決を lowering 警告として報告**: マッピング対象の Wikidata エンティティが `lane` / `label` / `start` / `end` / `time` を解決できずアイテムを 1 件も生成しなかった場合、従来は無診断でスキップしていたが、非致命的な警告として収集し `tdsl build` / `tdsl check` が `Warning:` で表示するようにした（AGENTS.md §4.1「No silent fallback」）。新 API `lower_static_with_diagnostics` / `lower_with_wikidata_and_diagnostics` を追加（既存 `lower_*` は後方互換のため warnings を破棄）。`expand` 使用時は警告に `(プロパティ#インデックス)` を付与する (#498)
+
+### Changed
+
+- **WebUI ギャラリーのテンプレートを刷新**: トップページのサンプルテンプレートを更新した (#506)
 
 ### Fixed
 
 - **Wikidata クライアントの User-Agent を実バージョンに同期**: ハードコードされていた `tdsl/0.1.0` を `env!("CARGO_PKG_VERSION")` でコンパイル時に埋め込むようにした。リリースごとに自動で正しいバージョンが反映される (#496)
 
+### Security
+
+- **WebUI の npm 推移的依存の脆弱性を非破壊修正**: `@babel/core` (low, GHSA-4x5r-pxfx-6jf8) と `brace-expansion` (moderate, GHSA-jxxr-4gwj-5jf2) を `npm audit fix`（非 --force）で解消した。いずれも devDependency の推移的依存でアプリ実行時バンドルには影響しない。残る `uuid` 系 (moderate) は破壊的変更が必要なため #513 で追跡 (#512)
+
 ### Docs
 
 - **AGENTS.md の実装状況を現状に同期**: §5「Unsupported / Deferred Features」が実装済みの `query` / `template` / `apply` / qualifier mapping（P39+P580/P582）を「未実装」と誤記していたのを修正し、実際に未実装の項目（`map` ブロック内 `source:`、月日超の精度、紀元前の月日精度）のみを残した。§4.3 の imported item の `origin` 値を実装に合わせ `"wikidata"` に修正。CLAUDE.md のリトライ回数記述を実装（`DEFAULT_MAX_RETRIES = 5`）に合わせて「最大3回」→「最大5回」に修正 (#497)
 - **error-catalog に lowering 警告 W210 を追記**: `map` / `apply` の必須フィールド未解決による無生成警告を文書化した (#498)
+
+### Chore
+
+- **rustfmt の `style_edition = "2024"` を明示**: `rustfmt.toml` を追加し、workspace の Rust edition とエディタ/エージェント側 rustfmt の import 並びを揃えてフォーマット差分を防止した (#509, #510)
 
 ## [1.20.0] - 2026-06-22
 
