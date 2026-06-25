@@ -77,15 +77,22 @@ impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> LspResult<InitializeResult> {
         // client が WorkspaceEdit の documentChanges をサポートするか記録する。
         // 非対応なら Code Action は changes フォールバックで返す（versioned 不可）。
-        let supports_document_changes = params
-            .capabilities
-            .workspace
-            .as_ref()
-            .and_then(|w| w.workspace_edit.as_ref())
-            .and_then(|we| we.document_changes)
-            .unwrap_or(false);
+        // silent な unwrap_or(false) を避け、false に倒れた理由を観測可能にする。
+        let support = resolve_document_changes_support(&params);
+        let supports_document_changes = support.is_supported();
         self.supports_document_changes
             .store(supports_document_changes, Ordering::Relaxed);
+        if !supports_document_changes {
+            self.client
+                .log_message(
+                    MessageType::INFO,
+                    format!(
+                        "client does not support WorkspaceEdit.documentChanges ({support:?}); \
+                         code actions will use the non-versioned `changes` fallback"
+                    ),
+                )
+                .await;
+        }
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -365,6 +372,46 @@ impl LanguageServer for Backend {
     }
 }
 
+/// クライアントの `WorkspaceEdit.documentChanges` サポート状況の解決結果。
+///
+/// silent な `unwrap_or(false)` を避け、`false` に倒れた理由を区別して観測可能にする。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DocumentChangesSupport {
+    /// クライアントが明示的に `true` を申告。versioned な `documentChanges` を返せる。
+    Supported,
+    /// クライアントが明示的に `false` を申告。`changes` フォールバックを使う。
+    ExplicitlyUnsupported,
+    /// capability が未申告（`workspace` / `workspace_edit` / `document_changes` の
+    /// いずれかが `None`）。LSP 仕様上は非対応扱いとし `changes` フォールバックを使う。
+    Unspecified,
+}
+
+impl DocumentChangesSupport {
+    fn is_supported(self) -> bool {
+        matches!(self, DocumentChangesSupport::Supported)
+    }
+}
+
+/// `InitializeParams` から `documentChanges` サポート状況を解決する。
+///
+/// `client.capabilities.workspace.workspace_edit.document_changes` の有無と値を
+/// 明示的に場合分けし、握り潰しを避ける。
+fn resolve_document_changes_support(params: &InitializeParams) -> DocumentChangesSupport {
+    match params
+        .capabilities
+        .workspace
+        .as_ref()
+        .and_then(|w| w.workspace_edit.as_ref())
+        .map(|we| we.document_changes)
+    {
+        Some(Some(true)) => DocumentChangesSupport::Supported,
+        Some(Some(false)) => DocumentChangesSupport::ExplicitlyUnsupported,
+        // workspace_edit はあるが document_changes が None、
+        // または workspace / workspace_edit 自体が None。
+        Some(None) | None => DocumentChangesSupport::Unspecified,
+    }
+}
+
 /// stdio 経由で LSP サーバを起動する。
 ///
 /// `tdsl lsp` サブコマンドから呼ばれる。
@@ -375,4 +422,84 @@ pub async fn run_server() {
 
     let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DocumentChangesSupport, resolve_document_changes_support};
+    use tower_lsp::lsp_types::{
+        ClientCapabilities, InitializeParams, WorkspaceClientCapabilities,
+        WorkspaceEditClientCapabilities,
+    };
+
+    /// `document_changes` を指定した `InitializeParams` を組み立てる。
+    /// `workspace` / `workspace_edit` の有無も併せて制御する。
+    fn params(
+        with_workspace: bool,
+        with_workspace_edit: bool,
+        document_changes: Option<bool>,
+    ) -> InitializeParams {
+        let workspace = with_workspace.then(|| WorkspaceClientCapabilities {
+            workspace_edit: with_workspace_edit.then(|| WorkspaceEditClientCapabilities {
+                document_changes,
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        InitializeParams {
+            capabilities: ClientCapabilities {
+                workspace,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn explicit_true_is_supported() {
+        let p = params(true, true, Some(true));
+        assert_eq!(
+            resolve_document_changes_support(&p),
+            DocumentChangesSupport::Supported
+        );
+        assert!(resolve_document_changes_support(&p).is_supported());
+    }
+
+    #[test]
+    fn explicit_false_is_explicitly_unsupported() {
+        let p = params(true, true, Some(false));
+        assert_eq!(
+            resolve_document_changes_support(&p),
+            DocumentChangesSupport::ExplicitlyUnsupported
+        );
+        assert!(!resolve_document_changes_support(&p).is_supported());
+    }
+
+    #[test]
+    fn missing_document_changes_is_unspecified() {
+        let p = params(true, true, None);
+        assert_eq!(
+            resolve_document_changes_support(&p),
+            DocumentChangesSupport::Unspecified
+        );
+    }
+
+    #[test]
+    fn missing_workspace_edit_is_unspecified() {
+        let p = params(true, false, None);
+        assert_eq!(
+            resolve_document_changes_support(&p),
+            DocumentChangesSupport::Unspecified
+        );
+    }
+
+    #[test]
+    fn missing_workspace_is_unspecified() {
+        let p = params(false, false, None);
+        assert_eq!(
+            resolve_document_changes_support(&p),
+            DocumentChangesSupport::Unspecified
+        );
+        assert!(!resolve_document_changes_support(&p).is_supported());
+    }
 }
