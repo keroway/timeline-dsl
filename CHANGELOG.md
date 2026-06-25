@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-06-26
+
+### Changed
+
+- **WebUI: WASM を遅延ロードし vendor チャンクを分割**: `wasmLoader.ts` の WASM glue を静的 import から動的 `import()` に変更し、独立した遅延チャンクとして分離。`vite.config.ts` の `manualChunks` で `react-vendor` / `codemirror-vendor` を分割した。メイン entry JS が 740.41 kB → 137.66 kB（gzip 236.67 → 43.87 kB）に縮小し、500KB 超チャンク警告を解消 (#515)
+
+### Fixed
+
+- **LSP: `documentChanges` capability の silent fallback を解消**: `backend.rs` の `.unwrap_or(false)` を `DocumentChangesSupport` enum（`Supported` / `ExplicitlyUnsupported` / `Unspecified`）と解決関数に置き換え、非対応時は INFO ログで観測可能にした（AGENTS.md §4.1「No silent fallback」）(#517)
+
+### Security
+
+- **WebUI: 未使用の `vite-plugin-top-level-await` を削除**: Vite 8 のネイティブ top-level await により不要だった依存を削除し、脆弱な推移的依存 `uuid`（moderate, GHSA-w5hq-g745-h8pq）を除去。`npm audit` が 0 vulnerabilities になった (#513)
+
+### Tests
+
+- **CLI 統合テストスイートを拡張**: `tests/cli_integration_test.rs` に build（単一 / merge / `--output`）/ check（valid / 構文不正 / 未定義 lane）/ lint / import-csv（stdout / `--output` / `--append`）のカバレッジを追加（+10、計 17）。パスは `CARGO_MANIFEST_DIR` 起点で CWD 非依存、offline 前提 (#516)
+
 ## [1.21.0] - 2026-06-24
 
 ### Added

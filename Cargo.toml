@@ -1,17 +1,17 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/tdsl-parser",
-    "crates/tdsl-core",
-    "crates/tdsl-wikidata",
-    "crates/tdsl-render",
-    "crates/tdsl-cli",
-    "crates/tdsl-wasm",
-    "crates/tdsl-lsp",
+  "crates/tdsl-parser",
+  "crates/tdsl-core",
+  "crates/tdsl-wikidata",
+  "crates/tdsl-render",
+  "crates/tdsl-cli",
+  "crates/tdsl-wasm",
+  "crates/tdsl-lsp",
 ]
 
 [workspace.package]
-version = "1.21.0"
+version = "1.22.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/keroway/timeline-dsl"
