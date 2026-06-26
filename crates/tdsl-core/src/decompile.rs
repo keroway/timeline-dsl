@@ -23,6 +23,9 @@ fn format_time(year: i64, month: Option<u8>, day: Option<u8>) -> String {
 /// 元ソースにあった `//` 行コメント・`/* */` ブロックコメントは復元できない。
 /// これは IR を単一の真実とする設計上の恒久的な制約であり、将来も変わらない。
 pub fn decompile(ir: &TimelineIr) -> String {
+    // 以降の `write!` / `writeln!` は `String` への書き込みであり、`fmt::Write` の
+    // 実装は決して失敗しない（infallible）。そのため `.unwrap()` がパニックする
+    // 経路は存在しない（AGENTS §4.1 の unwrap 規約に対する明示的な理由付け）。
     let mut out = String::new();
 
     let title = escape(&ir.meta.title);
