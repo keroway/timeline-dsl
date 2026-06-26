@@ -92,9 +92,7 @@ mod tests {
                 .iter()
                 .map(|v| {
                     v.as_str()
-                        .unwrap_or_else(|| {
-                            panic!("keywords.json の `{name}` に非文字列要素がある")
-                        })
+                        .unwrap_or_else(|| panic!("keywords.json の `{name}` に非文字列要素がある"))
                         .to_string()
                 })
                 .collect()
