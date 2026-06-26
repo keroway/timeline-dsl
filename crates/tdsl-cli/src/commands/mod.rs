@@ -2,6 +2,7 @@ pub(crate) mod build;
 pub(crate) mod cache;
 pub(crate) mod check;
 pub(crate) mod decompile;
+pub(crate) mod export_csv;
 pub(crate) mod fetch;
 pub(crate) mod fmt;
 pub(crate) mod init;

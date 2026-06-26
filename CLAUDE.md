@@ -124,7 +124,7 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.ts` をミラーし
 - PEG文法 + パーサ（7種のstatement: timeline, lane, span, event, event_range, import, map）
 - AST → IR変換（静的 / Wikidata連携 両方）
 - Wikidata HTTPクライアント（wbgetentities API, wbsearchentities, SPARQL）
-- CLI サブコマンド: `build` / `check` / `ast` / `fetch` / `search` / `inspect` / `resolve` / `scaffold` / `render` / `init` / `import-csv` / `lint` / `decompile` / `merge` / `cache` / `lsp`
+- CLI サブコマンド: `build` / `check` / `ast` / `fetch` / `search` / `inspect` / `resolve` / `scaffold` / `render` / `init` / `import-csv` / `export-csv` / `lint` / `decompile` / `merge` / `cache` / `lsp`
 - JSON IR出力（`origin` フィールドを含む）
 - コメント（行 `//` / ブロック `/* */`）
 - `map` の `target_type` は enum 型（span / event / event_range のみ許可）
@@ -140,6 +140,7 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.ts` をミラーし
 - `template` / `apply` 構文（共通フォーマットのテンプレート再利用）
 - `color_map` ブロック（タグ→色マッピングの宣言的定義）
 - `tdsl decompile`（JSON IR → `.tdsl` 逆変換）
+- `tdsl export-csv`（IR → CSV。`import-csv` と対称。先頭 8 列が往復で保持され、`source`/`origin` は参照用に出力）
 - Wikidata取得キャッシュ（TTL管理、`~/.cache/tdsl/` に保存）
 - Wikidata APIリトライ（HTTP 429・5xx に対するexponential backoff、最大5回 / `DEFAULT_MAX_RETRIES`）
 - `tdsl cache status` / `tdsl cache clear` によるキャッシュ管理
@@ -154,7 +155,7 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.ts` をミラーし
 
 ### 未実装（今後の拡張）
 
-- CSV/スプレッドシート変換（手動フロー以外の高度な取り込み）
+- CSV エクスポート時の `source`/`origin` 往復（現状 `import-csv` がそれらの列を読まず失われる）
 
 ## サンプルファイル
 

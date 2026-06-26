@@ -396,3 +396,111 @@ fn import_csv_append_grows_existing_file() {
     );
     let _ = std::fs::remove_file(&target);
 }
+
+// ---------------------------------------------------------------------------
+// export-csv: stdout / --output / .json input / import round-trip
+// ---------------------------------------------------------------------------
+
+/// `tdsl export-csv <tdsl> --offline` emits a CSV header and item rows to stdout.
+#[test]
+fn export_csv_stdout_contains_header_and_rows() {
+    let out = tdsl_bin()
+        .arg("export-csv")
+        .arg(repo_path("examples/fictional_empire.tdsl"))
+        .arg("--offline")
+        .output()
+        .expect("failed to run tdsl");
+    assert!(
+        out.status.success(),
+        "export-csv exited non-zero: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8(out.stdout).expect("non-UTF-8 stdout");
+    let mut lines = stdout.lines();
+    assert_eq!(
+        lines.next().unwrap(),
+        "lane,type,start,end,time,label,tags,id,source,origin",
+        "first line must be the CSV header"
+    );
+    assert!(
+        lines.next().is_some_and(|l| l.starts_with("kingdom,span,")),
+        "should emit the kingdom span row"
+    );
+}
+
+/// `tdsl export-csv <tdsl> --output <path>` writes the CSV to a file.
+#[test]
+fn export_csv_output_flag_writes_file() {
+    let out_path = unique_temp("export.csv");
+    let out = tdsl_bin()
+        .arg("export-csv")
+        .arg(repo_path("examples/fictional_empire.tdsl"))
+        .arg("--offline")
+        .arg("--output")
+        .arg(&out_path)
+        .output()
+        .expect("failed to run tdsl");
+    assert!(out.status.success(), "export-csv --output exited non-zero");
+    let written = std::fs::read_to_string(&out_path).expect("output file should exist");
+    assert!(written.starts_with("lane,type,start,end,time,label,tags,id,source,origin"));
+    let _ = std::fs::remove_file(&out_path);
+}
+
+/// `tdsl export-csv` accepts a `.json` IR file (build → export round-trip via IR).
+#[test]
+fn export_csv_accepts_json_ir_input() {
+    let ir_path = unique_temp("ir.json");
+    let built = tdsl_bin()
+        .args(["build", "--offline", "--output"])
+        .arg(&ir_path)
+        .arg(repo_path("examples/fictional_empire.tdsl"))
+        .output()
+        .expect("failed to run tdsl build");
+    assert!(built.status.success(), "build exited non-zero");
+
+    let out = tdsl_bin()
+        .arg("export-csv")
+        .arg(&ir_path)
+        .output()
+        .expect("failed to run tdsl export-csv");
+    assert!(out.status.success(), "export-csv (json) exited non-zero");
+    let stdout = String::from_utf8(out.stdout).expect("non-UTF-8 stdout");
+    assert!(stdout.starts_with("lane,type,start,end,time,label,tags,id,source,origin"));
+    let _ = std::fs::remove_file(&ir_path);
+}
+
+/// `export-csv` → `import-csv` round-trips item lines (8 import columns are stable).
+#[test]
+fn export_csv_then_import_csv_round_trips() {
+    let csv_path = unique_temp("roundtrip.csv");
+    let exported = tdsl_bin()
+        .arg("export-csv")
+        .arg(repo_path("examples/fictional_empire.tdsl"))
+        .arg("--offline")
+        .arg("--output")
+        .arg(&csv_path)
+        .output()
+        .expect("failed to run tdsl export-csv");
+    assert!(exported.status.success(), "export-csv exited non-zero");
+
+    let reimported = tdsl_bin()
+        .arg("import-csv")
+        .arg(&csv_path)
+        .output()
+        .expect("failed to run tdsl import-csv");
+    assert!(
+        reimported.status.success(),
+        "import-csv exited non-zero: {}",
+        String::from_utf8_lossy(&reimported.stderr)
+    );
+    let snippet = String::from_utf8(reimported.stdout).expect("non-UTF-8 stdout");
+    assert!(
+        snippet.contains("span kingdom 1001..1180"),
+        "round-trip must preserve the span item: {snippet}"
+    );
+    assert!(
+        snippet.contains("event_range incidents 1175..1180"),
+        "round-trip must preserve the event_range item: {snippet}"
+    );
+    let _ = std::fs::remove_file(&csv_path);
+}

@@ -15,9 +15,9 @@ assert_fails() {
   fi
 }
 
-echo "[e2e] verify CLI help includes all 13 documented commands"
+echo "[e2e] verify CLI help includes all 14 documented commands"
 cargo run -q -p tdsl-cli -- --help >"$TMP_DIR/help.txt"
-for cmd in build check ast fetch search inspect resolve scaffold render init import-csv lint fmt; do
+for cmd in build check ast fetch search inspect resolve scaffold render init import-csv export-csv lint fmt; do
   grep -Eq "[[:space:]]${cmd}[[:space:]]" "$TMP_DIR/help.txt"
 done
 
@@ -234,6 +234,22 @@ grep -Eq "span|event" "$TMP_DIR/csv_snippet.tdsl"
 echo "[e2e] import-csv: write snippet to output file"
 cargo run -q -p tdsl-cli -- import-csv examples/fictional_empire_items.csv --output "$TMP_DIR/csv_out.tdsl"
 test -s "$TMP_DIR/csv_out.tdsl"
+
+# ---- tdsl export-csv (IR -> CSV, symmetric with import-csv) ------------------
+echo "[e2e] export-csv: .tdsl source to stdout with header"
+cargo run -q -p tdsl-cli -- export-csv examples/fictional_empire.tdsl --offline >"$TMP_DIR/export.csv"
+test -s "$TMP_DIR/export.csv"
+head -n1 "$TMP_DIR/export.csv" | grep -Fxq "lane,type,start,end,time,label,tags,id,source,origin"
+
+echo "[e2e] export-csv: accepts .json IR input (build -> export)"
+cargo run -q -p tdsl-cli -- build examples/fictional_empire.tdsl --offline --output "$TMP_DIR/export_ir.json"
+cargo run -q -p tdsl-cli -- export-csv "$TMP_DIR/export_ir.json" >"$TMP_DIR/export_from_json.csv"
+diff "$TMP_DIR/export.csv" "$TMP_DIR/export_from_json.csv"
+
+echo "[e2e] export-csv -> import-csv round-trip preserves items"
+cargo run -q -p tdsl-cli -- import-csv "$TMP_DIR/export.csv" >"$TMP_DIR/export_roundtrip.tdsl"
+grep -Fq "span kingdom 1001..1180" "$TMP_DIR/export_roundtrip.tdsl"
+grep -Fq "event_range incidents 1175..1180" "$TMP_DIR/export_roundtrip.tdsl"
 
 # ---- online-required commands: verify --help exits cleanly ------------------
 echo "[e2e] fetch/search/inspect/resolve/scaffold: --help exits 0"

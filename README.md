@@ -189,7 +189,14 @@ tdsl lint /tmp/manual.tdsl --fix
 
 # 4) Render to HTML
 tdsl render /tmp/manual.tdsl --output /tmp/manual.html
+
+# 5) Export items back to CSV (symmetric with import-csv)
+tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 ```
+
+> `export-csv` writes the IR to CSV (`lane,type,start,end,time,label,tags,id,source,origin`).
+> Re-importing the first 8 columns via `import-csv` yields a semantically equal IR; `source` /
+> `origin` are emitted for reference but ignored on import. See [docs/cli-spec.md](docs/cli-spec.md#export-csv).
 
 ## DSL Syntax
 

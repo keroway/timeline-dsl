@@ -39,6 +39,7 @@ tdsl [OPTIONS] <COMMAND>
 | [`render`](#render) | `.tdsl` をスタンドアロン HTML/SVG/PNG/PDF 年表にレンダリング |
 | [`init`](#init) | 手動編集用の最小 `.tdsl` テンプレートを生成 |
 | [`import-csv`](#import-csv) | CSV から年表アイテムを取り込む |
+| [`export-csv`](#export-csv) | IR を CSV に書き出す（`import-csv` と対称） |
 | [`fmt`](#fmt) | `.tdsl` ファイルを正準フォーマット |
 | [`lint`](#lint) | `.tdsl` ファイルのリントと自動修正 |
 | [`cache`](#cache) | Wikidata ローカルキャッシュの管理 |
@@ -567,6 +568,70 @@ events,event,,,221,"秦の統一",unification,qin_unify
 war,event_range,-206,-202,,"楚漢戦争",war,chuhan_war
 mission,event,,,1969-07-20,"アポロ11号着陸",space,event:apollo
 ww2,span,1939-09-01,1945-09-02,,"第二次世界大戦",war,span:ww2
+```
+
+---
+
+## `export-csv`
+
+IR を CSV に書き出します。`import-csv` と対称な往復（ラウンドトリップ）を目的とし、出力は
+**IR を単一の真実源**として生成されます（パーサ出力には直接依存しません）。
+
+```
+tdsl export-csv [OPTIONS] <FILE>
+```
+
+### 引数
+
+| 引数 | 説明 |
+|---|---|
+| `<FILE>` | 入力ファイル。`.tdsl` ソース（lowering して IR 化）または `.json`（IR を直接読み込み） |
+
+### CSV 列仕様
+
+ヘッダは `lane,type,start,end,time,label,tags,id,source,origin` の 10 列です。先頭 8 列は
+`import-csv` が受理する列と一致し、ラウンドトリップで保持されます。`source` / `origin` は
+参照用に出力されますが、**`import-csv` では無視される**ため往復では失われます。
+
+| 列名 | 説明 |
+|---|---|
+| `lane` | レーン ID |
+| `type` | アイテム種別（`span` / `event` / `event_range`） |
+| `start` / `end` | `span`/`event_range` の開始・終了時刻（`event` では空欄） |
+| `time` | `event` の発生時刻（`span`/`event_range` では空欄） |
+| `label` | 表示ラベル |
+| `tags` | タグ（`|`区切り。`import-csv` は `|` と `,` の両方を受理） |
+| `id` | アイテム ID |
+| `source` | 出典（例 `wd:Q1`）。空欄可。`import-csv` は無視 |
+| `origin` | 由来（例 `wikidata`）。空欄可。`import-csv` は無視 |
+
+時刻は `YYYY` / `YYYY-MM` / `YYYY-MM-DD` で出力されます（紀元前は年精度のみ。`import-csv` と整合）。
+
+### オプション
+
+| オプション | 説明 | デフォルト |
+|---|---|---|
+| `-o, --output <OUTPUT>` | 出力 CSV ファイルのパス | 標準出力 |
+| `--offline` | Wikidata 取得をスキップ（静的アイテムのみ）。`.json` 入力では無視 | `false` |
+| `--no-cache` | ローカルキャッシュをバイパスして再取得 | `false` |
+| `--cache-ttl <SECONDS>` | キャッシュ TTL（秒。0 で無効） | `86400` |
+
+### 実行例
+
+```bash
+# .tdsl を CSV に書き出し（標準出力、静的のみ）
+tdsl export-csv my_timeline.tdsl --offline
+
+# ファイルに保存
+tdsl export-csv my_timeline.tdsl --offline --output items.csv
+
+# IR JSON から書き出し
+tdsl build my_timeline.tdsl --offline --output ir.json
+tdsl export-csv ir.json --output items.csv
+
+# import-csv との往復（先頭 8 列が意味的に同値）
+tdsl export-csv my_timeline.tdsl --offline --output items.csv
+tdsl import-csv items.csv
 ```
 
 ---

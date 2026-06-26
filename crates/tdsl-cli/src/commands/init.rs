@@ -69,14 +69,14 @@ pub(crate) fn cmd_import_csv(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CsvItemType {
+pub(crate) enum CsvItemType {
     Span,
     Event,
     EventRange,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct ImportedCsvItem {
+pub(crate) struct ImportedCsvItem {
     lane: String,
     item_type: CsvItemType,
     start: Option<tdsl_parser::ast::TimeValue>,
@@ -203,7 +203,9 @@ fn is_valid_ident(input: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
-fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvItem>, String> {
+pub(crate) fn parse_csv_items(
+    path: &std::path::Path,
+) -> Result<Vec<ImportedCsvItem>, String> {
     let mut reader = csv::ReaderBuilder::new()
         .trim(csv::Trim::All)
         .from_path(path)
@@ -314,7 +316,7 @@ fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvItem>, Strin
     Ok(items)
 }
 
-fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
+pub(crate) fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
     let mut out = String::new();
     for item in items {
         let mut options = String::new();
