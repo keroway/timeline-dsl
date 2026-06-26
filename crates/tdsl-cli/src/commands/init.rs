@@ -203,9 +203,7 @@ fn is_valid_ident(input: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
-pub(crate) fn parse_csv_items(
-    path: &std::path::Path,
-) -> Result<Vec<ImportedCsvItem>, String> {
+pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvItem>, String> {
     let mut reader = csv::ReaderBuilder::new()
         .trim(csv::Trim::All)
         .from_path(path)
