@@ -189,7 +189,14 @@ tdsl lint /tmp/manual.tdsl --fix
 
 # 4) HTMLに描画
 tdsl render /tmp/manual.tdsl --output /tmp/manual.html
+
+# 5) 項目を CSV に書き出し（import-csv と対称）
+tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 ```
+
+> `export-csv` は IR を CSV（`lane,type,start,end,time,label,tags,id,source,origin`）に書き出します。
+> 先頭 8 列を `import-csv` で再取り込むと意味的に同値の IR が得られます。`source` / `origin` は
+> 参照用に出力されますが import 時には無視されます。詳細は [docs/cli-spec.md](docs/cli-spec.md#export-csv) を参照。
 
 ## DSL文法
 
@@ -367,6 +374,7 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 ```
 
 ハイライト対象:
+
 - キーワード: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`, `color_map`
 - 文字列リテラル（ダブルクォート）
 - コメント（`//` と `/* */`）

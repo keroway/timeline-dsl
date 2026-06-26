@@ -293,6 +293,32 @@ enum Commands {
         append: Option<PathBuf>,
     },
 
+    /// Export timeline items from IR to CSV (`lane,type,start,end,time,label,tags,id,source,origin`).
+    /// Symmetric with `import-csv`: re-importing the 8 import columns yields a semantically
+    /// equal IR. The `source` / `origin` columns are preserved for reference but ignored by
+    /// `import-csv`. Output is generated from the IR (single source of truth), not the parser.
+    ExportCsv {
+        /// Input `.tdsl` source or `.json` IR file path
+        #[arg(value_name = "FILE")]
+        input: PathBuf,
+
+        /// Output CSV file path (default: stdout)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Skip Wikidata fetching (only export static items). Ignored for `.json` IR input.
+        #[arg(long, default_value_t = false)]
+        offline: bool,
+
+        /// Bypass the local Wikidata cache and force a fresh API request
+        #[arg(long, default_value_t = false)]
+        no_cache: bool,
+
+        /// Cache time-to-live in seconds (0 disables caching, default: 86400 = 24h)
+        #[arg(long, default_value_t = 86400u64)]
+        cache_ttl: u64,
+    },
+
     /// Format a .tdsl file with canonical style (2-space indent, blank line between blocks).
     ///
     /// By default the formatted source is written to stdout.
@@ -670,6 +696,22 @@ fn main() {
             output,
             append,
         } => commands::init::cmd_import_csv(&input, output.as_deref(), append.as_deref()),
+        Commands::ExportCsv {
+            input,
+            output,
+            offline,
+            no_cache,
+            cache_ttl,
+        } => commands::export_csv::cmd_export_csv(
+            &input,
+            output.as_deref(),
+            offline,
+            tdsl_wikidata::CacheOptions {
+                no_cache,
+                ttl: std::time::Duration::from_secs(cache_ttl),
+            },
+            wikidata_timeout,
+        ),
         Commands::Fmt {
             input,
             check,
