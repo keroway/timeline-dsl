@@ -13,13 +13,14 @@ Timeline DSL の時刻値は当初「整数の年」のみを受け付けてい�
 
 ### 1.1 リテラル
 
-3 種類の精度を許可する:
+4 種類の精度を許可する:
 
 | 形式 | 例 | 精度 |
 |---|---|---|
 | `YYYY` | `1969`, `-206` | 年 |
-| `YYYY-MM` | `1969-07` | 月 |
-| `YYYY-MM-DD` | `1969-07-20` | 日 |
+| `YYYY-MM` | `1969-07`, `-0206-01` | 月 |
+| `YYYY-MM-DD` | `1969-07-20`, `-0206-01-15` | 日 |
+| `YYYY-MM-DDTHH:MM` | `1969-07-20T20:17` | 分 |
 
 ### 1.2 PEG ルール（実装ガイド）
 
@@ -39,14 +40,11 @@ time_value     = { date_lit | year_month_lit | year_lit }       // 長いもの�
 
 ### 1.3 紀元前（負の年）
 
-紀元前は **年精度のみサポートする**。
+紀元前も月日・時分精度をサポートする。
 
-- 構文上、`year_month` / `date` は符号なしの `year_pos` のみを受け付ける
-- 理由:
-  - PEG での `-206-01-01` のあいまい性を避ける
-  - ユースケースが極めて稀（Wikidata 上にもほぼデータなし）
-  - 文法・lowering・lint メッセージがシンプルになる
-- Wikidata 由来データで紀元前の月日が来た場合は **lowering で year に丸める**
+- 月日付き BCE は符号付き 1〜4 桁年で表す（例: `-0206-01-15`）
+- `TimeValue` は負の年でも `month` / `day` / `hour` / `minute` を保持する
+- Wikidata 由来データも BCE の月日・時分精度を丸めず IR に保持する
 
 ### 1.4 範囲（`..`）
 
@@ -59,6 +57,7 @@ span partial 1900..1969-07-20 "混在許可" {};   // year + date OK
 ```
 
 精度混在時の補完規則（lowering で適用）:
+
 - 範囲の **start** に year 単位が来た場合 → `MM=01, DD=01` 相当
 - 範囲の **end** に year 単位が来た場合 → `MM=12, DD=31` 相当
 - 範囲の **start/end** で `YearMonth` が来た場合 → start は `DD=01`、end はその月の末日
@@ -153,17 +152,20 @@ pub struct Meta {
 ## 4. Wikidata 整合性
 
 既存実装で対応済み:
+
 - `crates/tdsl-wikidata/src/entity.rs` の `time_value_to_timepoint()` が precision 9/10/11 に応じて year/month/day を抽出
 - `crates/tdsl-core/src/lower.rs` の `eval_claim_expr()` が `claim(P569).month` / `.day` アクセサを評価し、対応する Item フィールドにセット
 
 追加対応:
-- 紀元前データ（`year < 0`）の場合、lowering で month/day を `None` に強制する
+
+- 紀元前データ（`year < 0`）の場合も、Wikidata precision に応じて month/day/hour/minute を保持する
 
 ## 5. レンダリング
 
 ### 5.1 `unit month`
 
 既に実装済み:
+
 - `crates/tdsl-render/src/layout.rs:216` `month_ticks()` が `unit == "month"` のとき年内に月目盛り（2〜12月）を生成
 - `to_year_frac()` が year/month/day を分数年に変換
 
@@ -172,6 +174,7 @@ pub struct Meta {
 ### 5.2 `unit day`
 
 **本仕様外（別 Issue で対応）**。実装時に必要となる項目:
+
 - `day_ticks()` の追加（月内日目盛り）
 - 月またぎラベルの設計（年・月・日のレベル別ラベル）
 - スケール（pixel-per-day）の妥当な範囲設計

@@ -48,12 +48,20 @@ fn load_ir_for_export(
     }
 }
 
-/// IR の年 + 月日精度を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` 形式へ整形する。
-/// 負の年は year 精度のみ（仕様 §1.3、`import-csv` と一致）。
-fn format_time(year: i64, month: Option<u8>, day: Option<u8>) -> String {
-    match (month, day) {
-        (Some(m), Some(d)) if year >= 0 => format!("{year:04}-{m:02}-{d:02}"),
-        (Some(m), _) if year >= 0 => format!("{year:04}-{m:02}"),
+/// IR の年 + 月日・時分精度を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` 形式へ整形する。
+fn format_time(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+) -> String {
+    match (month, day, hour, minute) {
+        (Some(m), Some(d), Some(h), Some(min)) => {
+            format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}")
+        }
+        (Some(m), Some(d), _, _) => format!("{year:04}-{m:02}-{d:02}"),
+        (Some(m), _, _, _) => format!("{year:04}-{m:02}"),
         _ => format!("{year}"),
     }
 }
@@ -91,8 +99,12 @@ fn item_to_row(item: &Item) -> [String; 10] {
             end,
             start_month,
             start_day,
+            start_hour,
+            start_minute,
             end_month,
             end_day,
+            end_hour,
+            end_minute,
             label,
             tags,
             source,
@@ -102,8 +114,8 @@ fn item_to_row(item: &Item) -> [String; 10] {
         } => [
             lane.clone(),
             "span".to_string(),
-            format_time(*start, *start_month, *start_day),
-            format_time(*end, *end_month, *end_day),
+            format_time(*start, *start_month, *start_day, *start_hour, *start_minute),
+            format_time(*end, *end_month, *end_day, *end_hour, *end_minute),
             String::new(),
             label.clone(),
             join_tags(tags),
@@ -116,6 +128,8 @@ fn item_to_row(item: &Item) -> [String; 10] {
             time,
             time_month,
             time_day,
+            time_hour,
+            time_minute,
             label,
             tags,
             source,
@@ -127,7 +141,7 @@ fn item_to_row(item: &Item) -> [String; 10] {
             "event".to_string(),
             String::new(),
             String::new(),
-            format_time(*time, *time_month, *time_day),
+            format_time(*time, *time_month, *time_day, *time_hour, *time_minute),
             label.clone(),
             join_tags(tags),
             id.clone(),
@@ -140,8 +154,12 @@ fn item_to_row(item: &Item) -> [String; 10] {
             end,
             start_month,
             start_day,
+            start_hour,
+            start_minute,
             end_month,
             end_day,
+            end_hour,
+            end_minute,
             label,
             tags,
             source,
@@ -151,8 +169,8 @@ fn item_to_row(item: &Item) -> [String; 10] {
         } => [
             lane.clone(),
             "event_range".to_string(),
-            format_time(*start, *start_month, *start_day),
-            format_time(*end, *end_month, *end_day),
+            format_time(*start, *start_month, *start_day, *start_hour, *start_minute),
+            format_time(*end, *end_month, *end_day, *end_hour, *end_minute),
             String::new(),
             label.clone(),
             join_tags(tags),
@@ -199,8 +217,12 @@ mod tests {
                     origin: None,
                     start_month: Some(9),
                     start_day: Some(1),
+                    start_hour: None,
+                    start_minute: None,
                     end_month: Some(9),
                     end_day: Some(2),
+                    end_hour: None,
+                    end_minute: None,
                     source_span: None,
                 },
                 Item::Event {
@@ -213,6 +235,8 @@ mod tests {
                     origin: Some("wikidata".to_string()),
                     time_month: Some(7),
                     time_day: Some(20),
+                    time_hour: None,
+                    time_minute: None,
                     source_span: None,
                 },
                 Item::EventRange {
@@ -226,8 +250,12 @@ mod tests {
                     origin: None,
                     start_month: None,
                     start_day: None,
+                    start_hour: None,
+                    start_minute: None,
                     end_month: None,
                     end_day: None,
+                    end_hour: None,
+                    end_minute: None,
                     source_span: None,
                 },
             ],

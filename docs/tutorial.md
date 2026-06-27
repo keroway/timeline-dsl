@@ -305,7 +305,7 @@ event han -209 "陳勝・呉広の乱" {
 
 Wikidata からインポートしたファイルに追記する場合も、同じ文法でアイテムを追加できます。
 
-スプレッドシートで管理しているアイテムを取り込みたい場合は、`tdsl import-csv` を使うと CSV を `.tdsl` スニペットに変換できます。`start` / `end` / `time` 列は `YYYY-MM-DD` / `YYYY-MM` / `YYYY` の 3 精度に対応しています（紀元前は年精度のみ）。
+スプレッドシートで管理しているアイテムを取り込みたい場合は、`tdsl import-csv` を使うと CSV を `.tdsl` スニペットに変換できます。`start` / `end` / `time` 列は `YYYY-MM-DDTHH:MM` / `YYYY-MM-DD` / `YYYY-MM` / `YYYY` の精度に対応しています（紀元前の月日も `-0206-01-15` のように指定できます）。
 
 ```bash
 # CSV を標準出力に変換

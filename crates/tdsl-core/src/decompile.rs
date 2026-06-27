@@ -6,12 +6,20 @@ fn escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-/// IR の年 + 月日精度を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` 形式の文字列に整形する。
-/// 負の年は year 精度のみサポート（仕様 §1.3）。
-fn format_time(year: i64, month: Option<u8>, day: Option<u8>) -> String {
-    match (month, day) {
-        (Some(m), Some(d)) if year >= 0 => format!("{year:04}-{m:02}-{d:02}"),
-        (Some(m), _) if year >= 0 => format!("{year:04}-{m:02}"),
+/// IR の年 + 月日・時分精度を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` 形式の文字列に整形する。
+fn format_time(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+) -> String {
+    match (month, day, hour, minute) {
+        (Some(m), Some(d), Some(h), Some(min)) => {
+            format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}")
+        }
+        (Some(m), Some(d), _, _) => format!("{year:04}-{m:02}-{d:02}"),
+        (Some(m), _, _, _) => format!("{year:04}-{m:02}"),
         _ => format!("{year}"),
     }
 }
@@ -36,11 +44,15 @@ pub fn decompile(ir: &TimelineIr) -> String {
         ir.meta.range.0,
         ir.meta.range_start_month,
         ir.meta.range_start_day,
+        ir.meta.range_start_hour,
+        ir.meta.range_start_minute,
     );
     let range_end_str = format_time(
         ir.meta.range.1,
         ir.meta.range_end_month,
         ir.meta.range_end_day,
+        ir.meta.range_end_hour,
+        ir.meta.range_end_minute,
     );
     writeln!(out, "    range {range_start_str}..{range_end_str};").unwrap();
     writeln!(out, "    calendar {};", ir.meta.calendar).unwrap();
@@ -76,8 +88,12 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 end,
                 start_month,
                 start_day,
+                start_hour,
+                start_minute,
                 end_month,
                 end_day,
+                end_hour,
+                end_minute,
                 label,
                 tags,
                 source,
@@ -86,8 +102,9 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 ..
             } => {
                 let props = render_props(id, tags, source, origin);
-                let start_s = format_time(*start, *start_month, *start_day);
-                let end_s = format_time(*end, *end_month, *end_day);
+                let start_s =
+                    format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
+                let end_s = format_time(*end, *end_month, *end_day, *end_hour, *end_minute);
                 writeln!(
                     out,
                     r#"span {lane} {start_s}..{end_s} "{}" {props};"#,
@@ -100,6 +117,8 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 time,
                 time_month,
                 time_day,
+                time_hour,
+                time_minute,
                 label,
                 tags,
                 source,
@@ -108,7 +127,7 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 ..
             } => {
                 let props = render_props(id, tags, source, origin);
-                let time_s = format_time(*time, *time_month, *time_day);
+                let time_s = format_time(*time, *time_month, *time_day, *time_hour, *time_minute);
                 writeln!(out, r#"event {lane} {time_s} "{}" {props};"#, escape(label)).unwrap();
             }
             Item::EventRange {
@@ -117,8 +136,12 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 end,
                 start_month,
                 start_day,
+                start_hour,
+                start_minute,
                 end_month,
                 end_day,
+                end_hour,
+                end_minute,
                 label,
                 tags,
                 source,
@@ -127,8 +150,9 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 ..
             } => {
                 let props = render_props(id, tags, source, origin);
-                let start_s = format_time(*start, *start_month, *start_day);
-                let end_s = format_time(*end, *end_month, *end_day);
+                let start_s =
+                    format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
+                let end_s = format_time(*end, *end_month, *end_day, *end_hour, *end_minute);
                 writeln!(
                     out,
                     r#"event_range {lane} {start_s}..{end_s} "{}" {props};"#,
@@ -205,8 +229,12 @@ mod tests {
                     origin: None,
                     start_month: None,
                     start_day: None,
+                    start_hour: None,
+                    start_minute: None,
                     end_month: None,
                     end_day: None,
+                    end_hour: None,
+                    end_minute: None,
                     source_span: None,
                 },
                 Item::Event {
@@ -219,6 +247,8 @@ mod tests {
                     origin: Some("imported".to_string()),
                     time_month: None,
                     time_day: None,
+                    time_hour: None,
+                    time_minute: None,
                     source_span: None,
                 },
                 Item::EventRange {
@@ -232,8 +262,12 @@ mod tests {
                     origin: None,
                     start_month: None,
                     start_day: None,
+                    start_hour: None,
+                    start_minute: None,
                     end_month: None,
                     end_day: None,
+                    end_hour: None,
+                    end_minute: None,
                     source_span: None,
                 },
             ],

@@ -802,8 +802,12 @@ mod tests {
                     origin: None,
                     start_month: None,
                     start_day: None,
+                    start_hour: None,
+                    start_minute: None,
                     end_month: None,
                     end_day: None,
+                    end_hour: None,
+                    end_minute: None,
                     source_span: None,
                 },
                 Item::Event {
@@ -816,6 +820,8 @@ mod tests {
                     origin: None,
                     time_month: None,
                     time_day: None,
+                    time_hour: None,
+                    time_minute: None,
                     source_span: None,
                 },
             ],
@@ -957,8 +963,12 @@ mod tests {
                 origin: None,
                 start_month: None,
                 start_day: None,
+                start_hour: None,
+                start_minute: None,
                 end_month: None,
                 end_day: None,
+                end_hour: None,
+                end_minute: None,
                 source_span: None,
             }],
             imports: vec![],
@@ -993,9 +1003,12 @@ mod tests {
 
     #[test]
     fn format_date_includes_month_abbr() {
-        assert_eq!(format_date(1900, Some(2), None), "1900 Feb");
-        assert_eq!(format_date(-206, Some(3), Some(15)), "BC206 Mar 15");
-        assert_eq!(format_date(2000, None, None), "2000");
+        assert_eq!(format_date(1900, Some(2), None, None, None), "1900 Feb");
+        assert_eq!(
+            format_date(-206, Some(3), Some(15), None, None),
+            "BC206 Mar 15"
+        );
+        assert_eq!(format_date(2000, None, None, None, None), "2000");
     }
 
     #[test]
@@ -1027,6 +1040,8 @@ mod tests {
                 origin: None,
                 time_month: Some(2),
                 time_day: None,
+                time_hour: None,
+                time_minute: None,
                 source_span: None,
             }],
             imports: vec![],
@@ -1267,8 +1282,12 @@ mod tests {
                 origin: None,
                 start_month: None,
                 start_day: None,
+                start_hour: None,
+                start_minute: None,
                 end_month: None,
                 end_day: None,
+                end_hour: None,
+                end_minute: None,
                 source_span: None,
             }],
             imports: vec![],

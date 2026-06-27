@@ -29,6 +29,7 @@ A domain-specific language (DSL) compiler for timelines. Define timelines as tex
 - **WebUI** — Real-time editing and preview in the browser (WASM-powered), with font size and light/dark theme selection
 - **Lane structure** — Organize dynasties, people, nations, etc. into lanes (vertical categories)
 - **3 time element types** — `span` (duration), `event` (point event), `event_range` (range event)
+- **Extended time precision** — Year, month, day, minute-level time-of-day (`YYYY-MM-DDTHH:MM`), and BCE month/day dates (e.g. `-0206-01-15`)
 - **License tracking** — Automatically records the source of Wikidata data (CC0)
 
 ## Installation

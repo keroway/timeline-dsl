@@ -527,17 +527,18 @@ tdsl import-csv [OPTIONS] <CSV>
 
 ### 時刻リテラル
 
-`start` / `end` / `time` 列は v1.10 以降、年・月・日の 3 精度を判別パースします。`.tdsl` 本文と同じ表記が利用できます。
+`start` / `end` / `time` 列は、年・月・日・時分精度を判別パースします。`.tdsl` 本文と同じ表記が利用できます。
 
 | 表記 | 例 | 精度 |
 |---|---|---|
+| `YYYY-MM-DDTHH:MM` | `1969-07-20T20:17` | 分 |
 | `YYYY-MM-DD` | `1969-07-20` | 日 |
 | `YYYY-MM` | `1939-09` | 月 |
 | `YYYY` | `1180` / `-206` | 年 |
 
-- 紀元前は **年精度のみ**（`-206-01` などは拒否される。仕様書 §1.3 と整合）。
+- 紀元前の月日・時分精度も許可する（例: `-0206-01`, `-0206-01-15`）。
 - 月の範囲は 1〜12、日の範囲は 1〜31（カレンダー妥当性の細かな検証は lowering 側で行う）。
-- 不正フォーマット時は CSV 行番号付きで「`time must be YYYY-MM-DD, YYYY-MM, or YYYY (got`2020-13-01`): ...`」のように原因が表示される。
+- 不正フォーマット時は CSV 行番号付きで「`time must be YYYY-MM-DDTHH:MM, YYYY-MM-DD, YYYY-MM, or YYYY (got`2020-13-01`): ...`」のように原因が表示される。
 
 ### オプション
 
@@ -605,7 +606,7 @@ tdsl export-csv [OPTIONS] <FILE>
 | `source` | 出典（例 `wd:Q1`）。空欄可。`import-csv` は無視 |
 | `origin` | 由来（例 `wikidata`）。空欄可。`import-csv` は無視 |
 
-時刻は `YYYY` / `YYYY-MM` / `YYYY-MM-DD` で出力されます（紀元前は年精度のみ。`import-csv` と整合）。
+時刻は `YYYY` / `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` で出力されます（紀元前の月日・時分精度も保持し、`import-csv` と整合）。
 
 ### オプション
 
