@@ -136,6 +136,64 @@ fn lower_static_event_with_date_precision() {
 }
 
 #[test]
+fn lower_static_event_with_time_of_day_precision() {
+    let src = r#"
+        timeline "T" { title "T"; unit day; range 1969-07-20T00:00..1969-07-21T00:00; }
+        lane "A" as a { kind custom; order 1; }
+        event a 1969-07-20T20:17 "月面着陸" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    assert_eq!(ir.meta.range_start_hour, Some(0));
+    assert_eq!(ir.meta.range_end_minute, Some(0));
+    match &ir.items[0] {
+        ir::Item::Event {
+            time_month,
+            time_day,
+            time_hour,
+            time_minute,
+            ..
+        } => {
+            assert_eq!(*time_month, Some(7));
+            assert_eq!(*time_day, Some(20));
+            assert_eq!(*time_hour, Some(20));
+            assert_eq!(*time_minute, Some(17));
+        }
+        _ => panic!("expected event"),
+    }
+}
+
+#[test]
+fn lower_static_span_with_bce_date_precision() {
+    let src = r#"
+        timeline "T" { title "T"; unit day; range -0206-01-01..-0206-12-31; }
+        lane "A" as a { kind custom; order 1; }
+        span a -0206-01-15..-0206-02-20 "BCE" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    match &ir.items[0] {
+        ir::Item::Span {
+            start,
+            start_month,
+            start_day,
+            end,
+            end_month,
+            end_day,
+            ..
+        } => {
+            assert_eq!(*start, -206);
+            assert_eq!(*start_month, Some(1));
+            assert_eq!(*start_day, Some(15));
+            assert_eq!(*end, -206);
+            assert_eq!(*end_month, Some(2));
+            assert_eq!(*end_day, Some(20));
+        }
+        _ => panic!("expected span"),
+    }
+}
+
+#[test]
 fn lower_static_span_with_date_precision() {
     let src = r#"
         timeline "T" { title "T"; unit month; range 1939-09-01..1945-09-30; }

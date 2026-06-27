@@ -267,10 +267,10 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
                 return Err(format!("CSV row {row_no}: {field} must not be empty"));
             }
             tdsl_parser::parse_time_literal(raw).map_err(|e| {
-                    format!(
-                        "CSV row {row_no}: {field} must be YYYY-MM-DD, YYYY-MM, or YYYY (got `{raw}`): {e}"
-                    )
-                })
+                format!(
+                    "CSV row {row_no}: {field} must be YYYY-MM-DDTHH:MM, YYYY-MM-DD, YYYY-MM, or YYYY (got `{raw}`): {e}"
+                )
+            })
         };
 
         let (start, end, time) = match item_type {
@@ -535,15 +535,18 @@ a,event,,,2020-13-01,foo,,\n",
     }
 
     #[test]
-    fn parse_csv_items_rejects_negative_year_with_month() {
-        // 紀元前は year 精度のみ
+    fn parse_csv_items_accepts_negative_year_with_month() {
+        // #520: 紀元前も月日精度を保持する
         let path = write_temp_csv(
             "lane,type,start,end,time,label,tags,id\n\
-a,event,,,-206-01,foo,,\n",
+a,event,,,-0206-01,foo,,\n",
         );
-        let err = parse_csv_items(&path).unwrap_err();
+        let items = parse_csv_items(&path).unwrap();
         std::fs::remove_file(path).ok();
-        assert!(err.contains("CSV row 2"), "{err}");
+        assert!(matches!(
+            items[0].time,
+            Some(tdsl_parser::ast::TimeValue::YearMonth(-206, 1))
+        ));
     }
 
     #[test]

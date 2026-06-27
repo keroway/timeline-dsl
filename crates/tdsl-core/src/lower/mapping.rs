@@ -228,13 +228,8 @@ impl LoweringContext {
         let item_source = Some(source_id.clone());
         let origin = Some("wikidata".to_string());
 
-        // 仕様 §4: 紀元前（year < 0）のデータは year 精度に丸める
-        let strip_bc = |tp: &TimePoint| -> (Option<u8>, Option<u8>) {
-            if tp.year < 0 {
-                (None, None)
-            } else {
-                (tp.month, tp.day)
-            }
+        let time_parts = |tp: &TimePoint| -> (Option<u8>, Option<u8>, Option<u8>, Option<u8>) {
+            (tp.month, tp.day, tp.hour, tp.minute)
         };
 
         // Generate item ID. When expand is active, include the property and statement index
@@ -254,8 +249,8 @@ impl LoweringContext {
             MapTargetType::Span => {
                 if let (Some(s), Some(e)) = (start, end) {
                     let id = make_id("span", s.year);
-                    let (s_month, s_day) = strip_bc(&s);
-                    let (e_month, e_day) = strip_bc(&e);
+                    let (s_month, s_day, s_hour, s_minute) = time_parts(&s);
+                    let (e_month, e_day, e_hour, e_minute) = time_parts(&e);
                     let item = Item::Span {
                         id,
                         lane: lane_ref,
@@ -267,8 +262,12 @@ impl LoweringContext {
                         origin,
                         start_month: s_month,
                         start_day: s_day,
+                        start_hour: s_hour,
+                        start_minute: s_minute,
                         end_month: e_month,
                         end_day: e_day,
+                        end_hour: e_hour,
+                        end_minute: e_minute,
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
@@ -281,7 +280,7 @@ impl LoweringContext {
             MapTargetType::Event => {
                 if let Some(t) = time {
                     let id = make_id("event", t.year);
-                    let (t_month, t_day) = strip_bc(&t);
+                    let (t_month, t_day, t_hour, t_minute) = time_parts(&t);
                     let item = Item::Event {
                         id,
                         lane: lane_ref,
@@ -292,6 +291,8 @@ impl LoweringContext {
                         origin,
                         time_month: t_month,
                         time_day: t_day,
+                        time_hour: t_hour,
+                        time_minute: t_minute,
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
@@ -304,8 +305,8 @@ impl LoweringContext {
             MapTargetType::EventRange => {
                 if let (Some(s), Some(e)) = (start, end) {
                     let id = make_id("event_range", s.year);
-                    let (s_month, s_day) = strip_bc(&s);
-                    let (e_month, e_day) = strip_bc(&e);
+                    let (s_month, s_day, s_hour, s_minute) = time_parts(&s);
+                    let (e_month, e_day, e_hour, e_minute) = time_parts(&e);
                     let item = Item::EventRange {
                         id,
                         lane: lane_ref,
@@ -317,8 +318,12 @@ impl LoweringContext {
                         origin,
                         start_month: s_month,
                         start_day: s_day,
+                        start_hour: s_hour,
+                        start_minute: s_minute,
                         end_month: e_month,
                         end_day: e_day,
+                        end_hour: e_hour,
+                        end_minute: e_minute,
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
@@ -358,6 +363,8 @@ pub(crate) fn eval_map_expr(
                     year: *n,
                     month: None,
                     day: None,
+                    hour: None,
+                    minute: None,
                     precision: 9,
                 });
             }
@@ -371,6 +378,8 @@ pub(crate) fn eval_map_expr(
 /// - `.year` or no accessor: year only
 /// - `.month`: year + month (if precision >= 10)
 /// - `.day`: year + month + day (if precision >= 11)
+/// - `.hour`: year + month + day + hour (if precision >= 12)
+/// - `.minute`: year + month + day + hour + minute (if precision >= 13)
 ///
 /// If `expr.offset` is set, the integer offset is added to the resolved year.
 ///
@@ -405,10 +414,14 @@ pub(crate) fn eval_claim_expr(
             let mut result = match expr.accessor.as_deref() {
                 Some("month") => tp.month.map(|_| tp)?,
                 Some("day") => tp.day.map(|_| tp)?,
+                Some("hour") => tp.hour.map(|_| tp)?,
+                Some("minute") => tp.minute.map(|_| tp)?,
                 Some("year") | None => TimePoint {
                     year: tp.year,
                     month: None,
                     day: None,
+                    hour: None,
+                    minute: None,
                     precision: tp.precision,
                 },
                 _ => return None,
@@ -575,8 +588,12 @@ pub(crate) fn merge_items_by_field_priority(
                 origin,
                 start_month: ex_sm,
                 start_day: ex_sd,
+                start_hour: ex_sh,
+                start_minute: ex_smin,
                 end_month: ex_em,
                 end_day: ex_ed,
+                end_hour: ex_eh,
+                end_minute: ex_emin,
                 source_span,
             },
             Item::Span {
@@ -586,8 +603,12 @@ pub(crate) fn merge_items_by_field_priority(
                 tags: in_tags,
                 start_month: in_sm,
                 start_day: in_sd,
+                start_hour: in_sh,
+                start_minute: in_smin,
                 end_month: in_em,
                 end_day: in_ed,
+                end_hour: in_eh,
+                end_minute: in_emin,
                 ..
             },
         ) => Item::Span {
@@ -601,8 +622,12 @@ pub(crate) fn merge_items_by_field_priority(
             origin,
             start_month: in_sm.or(ex_sm),
             start_day: in_sd.or(ex_sd),
+            start_hour: in_sh.or(ex_sh),
+            start_minute: in_smin.or(ex_smin),
             end_month: in_em.or(ex_em),
             end_day: in_ed.or(ex_ed),
+            end_hour: in_eh.or(ex_eh),
+            end_minute: in_emin.or(ex_emin),
             source_span,
         },
         (
@@ -616,6 +641,8 @@ pub(crate) fn merge_items_by_field_priority(
                 origin,
                 time_month: ex_tm,
                 time_day: ex_td,
+                time_hour: ex_th,
+                time_minute: ex_tmin,
                 source_span,
             },
             Item::Event {
@@ -624,6 +651,8 @@ pub(crate) fn merge_items_by_field_priority(
                 tags: in_tags,
                 time_month: in_tm,
                 time_day: in_td,
+                time_hour: in_th,
+                time_minute: in_tmin,
                 ..
             },
         ) => Item::Event {
@@ -636,6 +665,8 @@ pub(crate) fn merge_items_by_field_priority(
             origin,
             time_month: in_tm.or(ex_tm),
             time_day: in_td.or(ex_td),
+            time_hour: in_th.or(ex_th),
+            time_minute: in_tmin.or(ex_tmin),
             source_span,
         },
         (
@@ -650,8 +681,12 @@ pub(crate) fn merge_items_by_field_priority(
                 origin,
                 start_month: ex_sm,
                 start_day: ex_sd,
+                start_hour: ex_sh,
+                start_minute: ex_smin,
                 end_month: ex_em,
                 end_day: ex_ed,
+                end_hour: ex_eh,
+                end_minute: ex_emin,
                 source_span,
             },
             Item::EventRange {
@@ -661,8 +696,12 @@ pub(crate) fn merge_items_by_field_priority(
                 tags: in_tags,
                 start_month: in_sm,
                 start_day: in_sd,
+                start_hour: in_sh,
+                start_minute: in_smin,
                 end_month: in_em,
                 end_day: in_ed,
+                end_hour: in_eh,
+                end_minute: in_emin,
                 ..
             },
         ) => Item::EventRange {
@@ -676,8 +715,12 @@ pub(crate) fn merge_items_by_field_priority(
             origin,
             start_month: in_sm.or(ex_sm),
             start_day: in_sd.or(ex_sd),
+            start_hour: in_sh.or(ex_sh),
+            start_minute: in_smin.or(ex_smin),
             end_month: in_em.or(ex_em),
             end_day: in_ed.or(ex_ed),
+            end_hour: in_eh.or(ex_eh),
+            end_minute: in_emin.or(ex_emin),
             source_span,
         },
         (_, incoming) => incoming,

@@ -161,14 +161,17 @@ integer        = @{ "-"? ~ ASCII_DIGIT+ }
 qid            = @{ "Q" ~ ASCII_DIGIT+ }
 property_id    = @{ "P" ~ ASCII_DIGIT+ }
 
-// time literal: YYYY-MM-DD / YYYY-MM / YYYY[Y...] (negative years allowed only at year precision)
+// time literal: YYYY-MM-DDTHH:MM / YYYY-MM-DD / YYYY-MM / YYYY[Y...]
 // year_pos は YYYY-MM 形式専用なので 4 桁まで（仕様 §1.2）。
 // year_lit は桁数制限なし（後方互換: 既存の `range 0..10000;` 等を許容するため）。
+// 月日付きの紀元前は `-0206-01-01` のような符号付き固定幅年で表す。
 year_pos       = @{ ASCII_DIGIT{1,4} }
+year_signed    = @{ "-"? ~ ASCII_DIGIT{1,4} }
 year_lit       = @{ "-"? ~ ASCII_DIGIT+ }
-year_month_lit = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ !("-" ~ ASCII_DIGIT) }
-date_lit       = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} }
-time_value     = { date_lit | year_month_lit | year_lit }
+year_month_lit = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ !("-" ~ ASCII_DIGIT) }
+date_lit       = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ !("T" ~ ASCII_DIGIT) }
+date_time_lit  = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ "T" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} }
+time_value     = { date_time_lit | date_lit | year_month_lit | year_lit }
 // 単独の時刻リテラルを行全体に対してパースするためのエントリポイント。
 // `tdsl-parser::parse_time_literal` から CSV 経路 (#260) などで再利用される。
 time_literal_only = { SOI ~ time_value ~ EOI }

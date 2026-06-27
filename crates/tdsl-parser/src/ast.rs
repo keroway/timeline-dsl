@@ -74,17 +74,18 @@ pub struct TimelineBlock {
     pub color_map: Vec<(String, String)>,
 }
 
-/// 時刻リテラル。年・月・日の3精度を保持する。
+/// 時刻リテラル。年・月・日・時・分の精度を保持する。
 ///
 /// `Year(y)` は `YYYY` または `-YYYY`（紀元前）、
 /// `YearMonth(y, m)` は `YYYY-MM`、
-/// `Date(y, m, d)` は `YYYY-MM-DD` に対応する。
-/// 紀元前（負の年）は文法上 year 精度のみ許容される（仕様書 §1.3）。
+/// `Date(y, m, d)` は `YYYY-MM-DD`、
+/// `DateTime(y, m, d, hh, mm)` は `YYYY-MM-DDTHH:MM` に対応する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimeValue {
     Year(i64),
     YearMonth(i64, u8),
     Date(i64, u8, u8),
+    DateTime(i64, u8, u8, u8, u8),
 }
 
 impl TimeValue {
@@ -93,7 +94,7 @@ impl TimeValue {
         match self {
             TimeValue::Year(y) => *y,
             TimeValue::YearMonth(y, _) => *y,
-            TimeValue::Date(y, _, _) => *y,
+            TimeValue::Date(y, _, _) | TimeValue::DateTime(y, _, _, _, _) => *y,
         }
     }
 
@@ -101,14 +102,28 @@ impl TimeValue {
         match self {
             TimeValue::Year(_) => None,
             TimeValue::YearMonth(_, m) => Some(*m),
-            TimeValue::Date(_, m, _) => Some(*m),
+            TimeValue::Date(_, m, _) | TimeValue::DateTime(_, m, _, _, _) => Some(*m),
         }
     }
 
     pub fn day(&self) -> Option<u8> {
         match self {
             TimeValue::Year(_) | TimeValue::YearMonth(_, _) => None,
-            TimeValue::Date(_, _, d) => Some(*d),
+            TimeValue::Date(_, _, d) | TimeValue::DateTime(_, _, d, _, _) => Some(*d),
+        }
+    }
+
+    pub fn hour(&self) -> Option<u8> {
+        match self {
+            TimeValue::DateTime(_, _, _, h, _) => Some(*h),
+            _ => None,
+        }
+    }
+
+    pub fn minute(&self) -> Option<u8> {
+        match self {
+            TimeValue::DateTime(_, _, _, _, m) => Some(*m),
+            _ => None,
         }
     }
 
@@ -119,7 +134,7 @@ impl TimeValue {
         match self {
             TimeValue::Year(y) => (*y, 0, 0),
             TimeValue::YearMonth(y, m) => (*y, *m, 0),
-            TimeValue::Date(y, m, d) => (*y, *m, *d),
+            TimeValue::Date(y, m, d) | TimeValue::DateTime(y, m, d, _, _) => (*y, *m, *d),
         }
     }
 }
@@ -130,6 +145,9 @@ impl std::fmt::Display for TimeValue {
             TimeValue::Year(y) => write!(f, "{y}"),
             TimeValue::YearMonth(y, m) => write!(f, "{y:04}-{m:02}"),
             TimeValue::Date(y, m, d) => write!(f, "{y:04}-{m:02}-{d:02}"),
+            TimeValue::DateTime(y, m, d, h, min) => {
+                write!(f, "{y:04}-{m:02}-{d:02}T{h:02}:{min:02}")
+            }
         }
     }
 }

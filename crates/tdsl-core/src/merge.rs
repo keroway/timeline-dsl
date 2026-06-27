@@ -126,8 +126,12 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             origin,
             start_month,
             start_day,
+            start_hour,
+            start_minute,
             end_month,
             end_day,
+            end_hour,
+            end_minute,
             source_span,
             ..
         } => Item::Span {
@@ -141,8 +145,12 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             origin,
             start_month,
             start_day,
+            start_hour,
+            start_minute,
             end_month,
             end_day,
+            end_hour,
+            end_minute,
             source_span,
         },
         Item::Event {
@@ -154,6 +162,8 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             origin,
             time_month,
             time_day,
+            time_hour,
+            time_minute,
             source_span,
             ..
         } => Item::Event {
@@ -166,6 +176,8 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             origin,
             time_month,
             time_day,
+            time_hour,
+            time_minute,
             source_span,
         },
         Item::EventRange {
@@ -178,8 +190,12 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             origin,
             start_month,
             start_day,
+            start_hour,
+            start_minute,
             end_month,
             end_day,
+            end_hour,
+            end_minute,
             source_span,
             ..
         } => Item::EventRange {
@@ -193,8 +209,12 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             origin,
             start_month,
             start_day,
+            start_hour,
+            start_minute,
             end_month,
             end_day,
+            end_hour,
+            end_minute,
             source_span,
         },
     }
@@ -247,8 +267,12 @@ mod tests {
             origin: None,
             start_month: None,
             start_day: None,
+            start_hour: None,
+            start_minute: None,
             end_month: None,
             end_day: None,
+            end_hour: None,
+            end_minute: None,
             source_span: None,
         }
     }

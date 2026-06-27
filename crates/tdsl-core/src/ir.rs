@@ -45,12 +45,24 @@ pub struct Meta {
     /// `range` start の日精度。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range_start_day: Option<u8>,
+    /// `range` start の時精度。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_start_hour: Option<u8>,
+    /// `range` start の分精度。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_start_minute: Option<u8>,
     /// `range` end の月精度。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range_end_month: Option<u8>,
     /// `range` end の日精度。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range_end_day: Option<u8>,
+    /// `range` end の時精度。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_end_hour: Option<u8>,
+    /// `range` end の分精度。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_end_minute: Option<u8>,
     /// 使用するカレンダー体系（例: `"proleptic_gregorian"`）。
     pub calendar: String,
     /// タグ→CSS カラー文字列のマッピング（`color_map` ブロックで宣言）。
@@ -94,15 +106,23 @@ pub enum Item {
         source: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         origin: Option<String>,
-        // Precision fields (month/day only when precision >= 10/11)
+        // Precision fields (month/day/hour/minute)
         #[serde(skip_serializing_if = "Option::is_none")]
         start_month: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         start_day: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        start_hour: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        start_minute: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         end_month: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         end_day: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        end_hour: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        end_minute: Option<u8>,
         /// DSL ソース上の定義位置（双方向ジャンプ用）。
         #[serde(skip_serializing_if = "Option::is_none")]
         source_span: Option<SourceSpan>,
@@ -123,6 +143,10 @@ pub enum Item {
         time_month: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         time_day: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        time_hour: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        time_minute: Option<u8>,
         /// DSL ソース上の定義位置（双方向ジャンプ用）。
         #[serde(skip_serializing_if = "Option::is_none")]
         source_span: Option<SourceSpan>,
@@ -145,9 +169,17 @@ pub enum Item {
         #[serde(skip_serializing_if = "Option::is_none")]
         start_day: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        start_hour: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        start_minute: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         end_month: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         end_day: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        end_hour: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        end_minute: Option<u8>,
         /// DSL ソース上の定義位置（双方向ジャンプ用）。
         #[serde(skip_serializing_if = "Option::is_none")]
         source_span: Option<SourceSpan>,

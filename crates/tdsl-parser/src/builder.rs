@@ -718,8 +718,8 @@ fn parse_int(pair: &Pair<'_, Rule>) -> Result<i64> {
 
 /// `time_value` ノードを [`TimeValue`] に変換する。
 ///
-/// PEG ルールは `date_lit | year_month_lit | year_lit` の順に試行され、
-/// 月は 1〜12、日は 1〜31 の範囲を builder 側で検証する。
+/// PEG ルールは `date_time_lit | date_lit | year_month_lit | year_lit` の順に試行され、
+/// 月は 1〜12、日は 1〜31、時は 0〜23、分は 0〜59 の範囲を builder 側で検証する。
 /// カレンダー妥当性（2月30日など）は lowering 側の責務。
 pub(crate) fn parse_time_value(pair: Pair<'_, Rule>) -> Result<TimeValue> {
     let location = pair_location_str(&pair);
@@ -743,59 +743,97 @@ pub(crate) fn parse_time_value(pair: Pair<'_, Rule>) -> Result<TimeValue> {
         }
         Rule::year_month_lit => {
             let s = inner.as_str();
-            let (y, m) = s
-                .split_once('-')
-                .ok_or_else(|| ParseError::UnexpectedRule {
-                    rule: format!("year_month_lit malformed: {s}"),
-                    location: location.clone(),
-                })?;
-            let year = y.parse::<i64>().map_err(|_| ParseError::InvalidInt {
-                value: y.to_string(),
-                location: location.clone(),
-            })?;
-            let month: u32 = m.parse().map_err(|_| ParseError::InvalidInt {
-                value: m.to_string(),
-                location: location.clone(),
-            })?;
+            let (year, month, _) = parse_date_parts(s, &location)?;
             check_month(month, &location)?;
             Ok(TimeValue::YearMonth(year, month as u8))
         }
         Rule::date_lit => {
             let s = inner.as_str();
-            let mut parts = s.splitn(3, '-');
-            let y = parts.next().ok_or_else(|| ParseError::UnexpectedRule {
+            let (year, month, day) = parse_date_parts(s, &location)?;
+            let day = day.ok_or_else(|| ParseError::UnexpectedRule {
                 rule: format!("date_lit malformed: {s}"),
-                location: location.clone(),
-            })?;
-            let m = parts.next().ok_or_else(|| ParseError::UnexpectedRule {
-                rule: format!("date_lit malformed: {s}"),
-                location: location.clone(),
-            })?;
-            let d = parts.next().ok_or_else(|| ParseError::UnexpectedRule {
-                rule: format!("date_lit malformed: {s}"),
-                location: location.clone(),
-            })?;
-            let year = y.parse::<i64>().map_err(|_| ParseError::InvalidInt {
-                value: y.to_string(),
-                location: location.clone(),
-            })?;
-            let month: u32 = m.parse().map_err(|_| ParseError::InvalidInt {
-                value: m.to_string(),
-                location: location.clone(),
-            })?;
-            let day: u32 = d.parse().map_err(|_| ParseError::InvalidInt {
-                value: d.to_string(),
                 location: location.clone(),
             })?;
             check_month(month, &location)?;
             check_day(day, &location)?;
             Ok(TimeValue::Date(year, month as u8, day as u8))
         }
+        Rule::date_time_lit => {
+            let s = inner.as_str();
+            let (date, clock) = s
+                .split_once('T')
+                .ok_or_else(|| ParseError::UnexpectedRule {
+                    rule: format!("date_time_lit malformed: {s}"),
+                    location: location.clone(),
+                })?;
+            let (year, month, day) = parse_date_parts(date, &location)?;
+            let day = day.ok_or_else(|| ParseError::UnexpectedRule {
+                rule: format!("date_time_lit malformed: {s}"),
+                location: location.clone(),
+            })?;
+            let (hour, minute) =
+                clock
+                    .split_once(':')
+                    .ok_or_else(|| ParseError::UnexpectedRule {
+                        rule: format!("date_time_lit malformed: {s}"),
+                        location: location.clone(),
+                    })?;
+            let hour: u32 = hour.parse().map_err(|_| ParseError::InvalidInt {
+                value: hour.to_string(),
+                location: location.clone(),
+            })?;
+            let minute: u32 = minute.parse().map_err(|_| ParseError::InvalidInt {
+                value: minute.to_string(),
+                location: location.clone(),
+            })?;
+            check_month(month, &location)?;
+            check_day(day, &location)?;
+            check_hour(hour, &location)?;
+            check_minute(minute, &location)?;
+            Ok(TimeValue::DateTime(
+                year,
+                month as u8,
+                day as u8,
+                hour as u8,
+                minute as u8,
+            ))
+        }
         other => Err(ParseError::UnexpectedRule {
             rule: format!("time_value: {other:?}"),
             location,
         }),
     }
+}
+
+fn parse_date_parts(s: &str, location: &str) -> Result<(i64, u32, Option<u32>)> {
+    let rest = s.strip_prefix('-').unwrap_or(s);
+    let mut parts = rest.splitn(3, '-');
+    let y = parts.next().ok_or_else(|| ParseError::UnexpectedRule {
+        rule: format!("time literal malformed: {s}"),
+        location: location.to_string(),
+    })?;
+    let m = parts.next().ok_or_else(|| ParseError::UnexpectedRule {
+        rule: format!("time literal malformed: {s}"),
+        location: location.to_string(),
+    })?;
+    let d = parts.next();
+    let year = y.parse::<i64>().map_err(|_| ParseError::InvalidInt {
+        value: y.to_string(),
+        location: location.to_string(),
+    })?;
+    let month: u32 = m.parse().map_err(|_| ParseError::InvalidInt {
+        value: m.to_string(),
+        location: location.to_string(),
+    })?;
+    let day = d
+        .map(|d| {
+            d.parse().map_err(|_| ParseError::InvalidInt {
+                value: d.to_string(),
+                location: location.to_string(),
+            })
+        })
+        .transpose()?;
+    Ok((if s.starts_with('-') { -year } else { year }, month, day))
 }
 
 fn check_month(month: u32, location: &str) -> Result<()> {
@@ -815,6 +853,28 @@ fn check_day(day: u32, location: &str) -> Result<()> {
     } else {
         Err(ParseError::InvalidDay {
             value: day,
+            location: location.to_string(),
+        })
+    }
+}
+
+fn check_hour(hour: u32, location: &str) -> Result<()> {
+    if hour <= 23 {
+        Ok(())
+    } else {
+        Err(ParseError::InvalidInt {
+            value: hour.to_string(),
+            location: location.to_string(),
+        })
+    }
+}
+
+fn check_minute(minute: u32, location: &str) -> Result<()> {
+    if minute <= 59 {
+        Ok(())
+    } else {
+        Err(ParseError::InvalidInt {
+            value: minute.to_string(),
             location: location.to_string(),
         })
     }

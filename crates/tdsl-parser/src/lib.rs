@@ -1134,11 +1134,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_negative_year_with_month_rejected() {
-        // 紀元前は year 精度のみ。仕様書 §1.3 に従い year_month/date は符号なし。
-        let src = r#"event ancient -206-01 "鴻門の会" {};"#;
-        let result = parse(src);
-        assert!(result.is_err(), "expected error for negative YearMonth");
+    fn parse_negative_year_with_month_accepted() {
+        // #520: 紀元前も月精度を受け付ける。
+        let src = r#"timeline "T" { range -0206-01..-0206-02; } lane "A" as ancient {} event ancient -0206-01 "鴻門の会" {};"#;
+        let result = parse(src).unwrap();
+        match &result.statements[2].node {
+            ast::Statement::Event(e) => assert_eq!(e.time, ast::TimeValue::YearMonth(-206, 1)),
+            _ => panic!("expected event"),
+        }
     }
 
     #[test]
@@ -1212,6 +1215,24 @@ mod tests {
     }
 
     #[test]
+    fn parse_time_literal_datetime_and_bce_date() {
+        assert_eq!(
+            parse_time_literal("1969-07-20T20:17").unwrap(),
+            ast::TimeValue::DateTime(1969, 7, 20, 20, 17)
+        );
+        assert_eq!(
+            parse_time_literal("-0206-01-15").unwrap(),
+            ast::TimeValue::Date(-206, 1, 15)
+        );
+    }
+
+    #[test]
+    fn parse_time_literal_invalid_hour_minute_rejected() {
+        assert!(parse_time_literal("2020-01-01T24:00").is_err());
+        assert!(parse_time_literal("2020-01-01T23:60").is_err());
+    }
+
+    #[test]
     fn parse_time_literal_invalid_month_rejected() {
         assert!(parse_time_literal("2020-13").is_err());
         assert!(parse_time_literal("2020-00").is_err());
@@ -1250,9 +1271,11 @@ mod tests {
     }
 
     #[test]
-    fn parse_time_literal_negative_with_month_rejected() {
-        // 紀元前は year 精度のみ。仕様書 §1.3 と整合させる
-        assert!(parse_time_literal("-206-01").is_err());
+    fn parse_time_literal_negative_with_month_accepted() {
+        assert_eq!(
+            parse_time_literal("-0206-01").unwrap(),
+            ast::TimeValue::YearMonth(-206, 1)
+        );
     }
 
     // ─── 時間式オフセット (#148) ──────────────────────────────────

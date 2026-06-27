@@ -126,7 +126,7 @@ impl WikidataEntity {
     }
 }
 
-/// Parsed time value with optional month/day precision.
+/// Parsed time value with optional month/day/hour/minute precision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimePoint {
     pub year: i64,
@@ -134,6 +134,10 @@ pub struct TimePoint {
     pub month: Option<u8>,
     /// `Some` when precision >= 11 (day).
     pub day: Option<u8>,
+    /// `Some` when precision >= 12 (hour).
+    pub hour: Option<u8>,
+    /// `Some` when precision >= 13 (minute).
+    pub minute: Option<u8>,
     pub precision: u8,
 }
 
@@ -170,12 +174,33 @@ pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::Wikid
         None
     };
 
+    let time_part;
     let day = if tv.precision >= 11 {
-        parts
-            .next()
+        let raw_day = parts.next();
+        time_part = raw_day.and_then(|d| d.split_once('T').map(|(_, t)| t));
+        raw_day
             .and_then(|d| d.split('T').next())
             .and_then(|d| d.parse::<u8>().ok())
             .filter(|&d| (1..=31).contains(&d))
+    } else {
+        time_part = None;
+        None
+    };
+
+    let mut clock = time_part.unwrap_or("").trim_end_matches('Z').split(':');
+    let hour = if tv.precision >= 12 {
+        clock
+            .next()
+            .and_then(|h| h.parse::<u8>().ok())
+            .filter(|&h| h <= 23)
+    } else {
+        None
+    };
+    let minute = if tv.precision >= 13 {
+        clock
+            .next()
+            .and_then(|m| m.parse::<u8>().ok())
+            .filter(|&m| m <= 59)
     } else {
         None
     };
@@ -184,6 +209,8 @@ pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::Wikid
         year: sign * year,
         month,
         day,
+        hour,
+        minute,
         precision: tv.precision,
     })
 }
@@ -272,6 +299,28 @@ mod tests {
             calendarmodel: String::new(),
         };
         assert_eq!(time_value_to_year(&tv).unwrap(), 1868);
+    }
+
+    #[test]
+    fn parse_time_precision_minute_and_bce_date() {
+        let tv = TimeValue {
+            time: "+1969-07-20T20:17:00Z".to_string(),
+            precision: 13,
+            calendarmodel: String::new(),
+        };
+        let tp = time_value_to_timepoint(&tv).unwrap();
+        assert_eq!(tp.hour, Some(20));
+        assert_eq!(tp.minute, Some(17));
+
+        let bce = TimeValue {
+            time: "-0206-01-15T00:00:00Z".to_string(),
+            precision: 11,
+            calendarmodel: String::new(),
+        };
+        let tp = time_value_to_timepoint(&bce).unwrap();
+        assert_eq!(tp.year, -206);
+        assert_eq!(tp.month, Some(1));
+        assert_eq!(tp.day, Some(15));
     }
 
     #[test]

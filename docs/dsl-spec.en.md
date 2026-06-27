@@ -457,10 +457,11 @@ Both line comments and block comments are supported.
 | `YYYY` | `1969`, `-206` | Year |
 | `YYYY-MM` | `1969-07` | Month |
 | `YYYY-MM-DD` | `1969-07-20` | Day |
+| `YYYY-MM-DDTHH:MM` | `1969-07-20T20:17` | Minute |
 
-- Range: `start..end` (e.g., `-206..220`, `1939-09-01..1945-09-02`)
-- BCE years (negative) support **year precision only**. Month/day on BCE dates (e.g., `-206-07-20`) is invalid.
-- Wikidata time values can be accessed at any precision using `.year`, `.month`, or `.day`
+- Range: `start..end` (e.g., `-0206-01-15..-0206-02-20`, `1939-09-01..1945-09-02`, `1969-07-20T20:17..1969-07-20T21:00`)
+- BCE dates with month/day or time-of-day precision use a signed 4-digit year (e.g., `-0206-01-15`)
+- Wikidata time values can be accessed at any precision using `.year`, `.month`, `.day`, `.hour`, or `.minute`
 
 ## CLI
 

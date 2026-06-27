@@ -98,12 +98,15 @@ pub(crate) fn build_line_offsets(source: &str) -> Vec<usize> {
     offsets
 }
 
-/// 自動生成 ID 用に時刻を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` 形式に整形する。
+/// 自動生成 ID 用に時刻を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` 形式に整形する。
 pub(crate) fn format_id_time(t: &ast::TimeValue) -> String {
     match t {
         ast::TimeValue::Year(y) => format!("{y}"),
         ast::TimeValue::YearMonth(y, m) => format!("{y:04}-{m:02}"),
         ast::TimeValue::Date(y, m, d) => format!("{y:04}-{m:02}-{d:02}"),
+        ast::TimeValue::DateTime(y, m, d, h, min) => {
+            format!("{y:04}-{m:02}-{d:02}T{h:02}:{min:02}")
+        }
     }
 }
 

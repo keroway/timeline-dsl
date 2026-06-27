@@ -43,8 +43,12 @@ impl LoweringContext {
                         origin: s.props.origin.clone(),
                         start_month: s.start.month(),
                         start_day: s.start.day(),
+                        start_hour: s.start.hour(),
+                        start_minute: s.start.minute(),
                         end_month: s.end.month(),
                         end_day: s.end.day(),
+                        end_hour: s.end.hour(),
+                        end_minute: s.end.minute(),
                         source_span,
                     });
                 }
@@ -80,6 +84,8 @@ impl LoweringContext {
                         origin: e.props.origin.clone(),
                         time_month: e.time.month(),
                         time_day: e.time.day(),
+                        time_hour: e.time.hour(),
+                        time_minute: e.time.minute(),
                         source_span,
                     });
                 }
@@ -116,8 +122,12 @@ impl LoweringContext {
                         origin: er.props.origin.clone(),
                         start_month: er.start.month(),
                         start_day: er.start.day(),
+                        start_hour: er.start.hour(),
+                        start_minute: er.start.minute(),
                         end_month: er.end.month(),
                         end_day: er.end.day(),
+                        end_hour: er.end.hour(),
+                        end_minute: er.end.minute(),
                         source_span,
                     });
                 }

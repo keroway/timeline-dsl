@@ -124,9 +124,7 @@ Still intentionally NOT implemented:
 
 - `map source` — a `source:` property inside a `map` block (`MapProp` has no
   `Source` variant; only item-level `source wd:<QID>` exists)
-- Sub-year precision beyond month/day (e.g. time-of-day)
-- BCE (`year < 0`) month/day precision — imported BCE data is rounded to year
-  precision in `lower/mapping.rs` (`strip_bc`)
+- Sub-year precision beyond minute (e.g. seconds / time zones)
 
 If encountered:
 

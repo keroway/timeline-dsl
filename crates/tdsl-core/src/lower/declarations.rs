@@ -24,26 +24,39 @@ impl LoweringContext {
                         range_yy,
                         range_start_month,
                         range_start_day,
+                        range_start_hour,
+                        range_start_minute,
                         range_end_month,
                         range_end_day,
+                        range_end_hour,
+                        range_end_minute,
                     ) = match t.range.as_ref() {
                         Some(r) => (
                             (r.start.year(), r.end.year()),
                             r.start.month(),
                             r.start.day(),
+                            r.start.hour(),
+                            r.start.minute(),
                             r.end.month(),
                             r.end.day(),
+                            r.end.hour(),
+                            r.end.minute(),
                         ),
-                        None => ((0, 2000), None, None, None, None),
+                        None => ((0, 2000), None, None, None, None, None, None, None, None),
                     };
+
                     self.meta = Some(Meta {
                         title: t.title.clone().unwrap_or_else(|| t.name.clone()),
                         unit: t.unit.clone().unwrap_or_else(|| "year".to_string()),
                         range: range_yy,
                         range_start_month,
                         range_start_day,
+                        range_start_hour,
+                        range_start_minute,
                         range_end_month,
                         range_end_day,
+                        range_end_hour,
+                        range_end_minute,
                         calendar: t
                             .calendar
                             .clone()

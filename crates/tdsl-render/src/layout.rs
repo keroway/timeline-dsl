@@ -372,7 +372,7 @@ impl<'a> LayoutModel<'a> {
         let mut ticks = Vec::new();
         for year in self.year_min..=self.year_max {
             for month in 2u8..=12 {
-                let frac = to_year_frac(year, Some(month), None);
+                let frac = to_year_frac(year, Some(month), None, None, None);
                 if frac < self.year_max as f64 {
                     ticks.push((year, month));
                 }
@@ -383,13 +383,13 @@ impl<'a> LayoutModel<'a> {
 
     /// X coordinate for a (year, month) fractional position.
     pub fn frac_year_to_x(&self, year: i64, month: u8) -> f64 {
-        let frac = to_year_frac(year, Some(month), None);
+        let frac = to_year_frac(year, Some(month), None, None, None);
         frac_to_x(frac, self.year_min, self.opts.scale, self.opts.left_gutter)
     }
 
     /// X coordinate for a (year, month, day) fractional position.
     pub fn day_frac_to_x(&self, year: i64, month: u8, day: u8) -> f64 {
-        let frac = to_year_frac(year, Some(month), Some(day));
+        let frac = to_year_frac(year, Some(month), Some(day), None, None);
         frac_to_x(frac, self.year_min, self.opts.scale, self.opts.left_gutter)
     }
 
@@ -427,7 +427,7 @@ impl<'a> LayoutModel<'a> {
                 let mut day = 1u8;
                 while day <= last {
                     if day == 1 || ((day - 1) as usize).is_multiple_of(step) {
-                        let frac = to_year_frac(year, Some(month), Some(day));
+                        let frac = to_year_frac(year, Some(month), Some(day), None, None);
                         if frac < self.year_max as f64 {
                             ticks.push((year, month, day));
                         }
@@ -562,13 +562,18 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             end,
             start_month,
             start_day,
+            start_hour,
+            start_minute,
             end_month,
             end_day,
+            end_hour,
+            end_minute,
             ..
         } => {
             // 仕様 §1.4: start は year/月の頭、end は year/月の末日を採用（混在精度補完）
-            let sf = start_frac(*start, *start_month, *start_day);
-            let ef = end_frac(*end, *end_month, *end_day);
+            let sf =
+                start_frac_with_time(*start, *start_month, *start_day, *start_hour, *start_minute);
+            let ef = end_frac_with_time(*end, *end_month, *end_day, *end_hour, *end_minute);
             let (primary_start, primary_extent) =
                 primary_axis_segment(sf, ef, year_min, year_max, opts.scale, primary_anchor);
             let cross_start = lane_axis - span_half_h;
@@ -593,12 +598,17 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             end,
             start_month,
             start_day,
+            start_hour,
+            start_minute,
             end_month,
             end_day,
+            end_hour,
+            end_minute,
             ..
         } => {
-            let sf = start_frac(*start, *start_month, *start_day);
-            let ef = end_frac(*end, *end_month, *end_day);
+            let sf =
+                start_frac_with_time(*start, *start_month, *start_day, *start_hour, *start_minute);
+            let ef = end_frac_with_time(*end, *end_month, *end_day, *end_hour, *end_minute);
             let (primary_start, primary_extent) =
                 primary_axis_segment(sf, ef, year_min, year_max, opts.scale, primary_anchor);
             // Horizontal bands sit just below the lane center
@@ -634,12 +644,14 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             time,
             time_month,
             time_day,
+            time_hour,
+            time_minute,
             ..
         } => {
             if !year_in_range(*time, year_min, year_max) {
                 return;
             }
-            let frac = to_year_frac(*time, *time_month, *time_day);
+            let frac = to_year_frac(*time, *time_month, *time_day, *time_hour, *time_minute);
             let primary = primary_anchor + (frac - year_min as f64) * opts.scale;
             let (x, y_top, y_bottom, y_dot) = if is_vertical {
                 // x = lane axis; y_top/y_bottom/y_dot all live on the time axis.
@@ -737,12 +749,21 @@ pub(crate) fn month_abbr(m: u8) -> &'static str {
     }
 }
 
-/// Format a date for display, with optional month and day precision.
-pub(crate) fn format_date(year: i64, month: Option<u8>, day: Option<u8>) -> String {
+/// Format a date for display, with optional month/day/hour/minute precision.
+pub(crate) fn format_date(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+) -> String {
     let y = format_year(year);
-    match (month, day) {
-        (Some(m), Some(d)) => format!("{} {} {}", y, month_abbr(m), d),
-        (Some(m), None) => format!("{} {}", y, month_abbr(m)),
+    match (month, day, hour, minute) {
+        (Some(m), Some(d), Some(h), Some(min)) => {
+            format!("{} {} {} {:02}:{:02}", y, month_abbr(m), d, h, min)
+        }
+        (Some(m), Some(d), _, _) => format!("{} {} {}", y, month_abbr(m), d),
+        (Some(m), None, _, _) => format!("{} {}", y, month_abbr(m)),
         _ => y,
     }
 }
@@ -780,15 +801,19 @@ fn item_tooltip(item: &Item) -> String {
             id,
             start_month,
             start_day,
+            start_hour,
+            start_minute,
             end_month,
             end_day,
+            end_hour,
+            end_minute,
             ..
         } => {
             lines.push(label.to_string());
             lines.push(format!(
                 "{}〜{}",
-                format_date(*start, *start_month, *start_day),
-                format_date(*end, *end_month, *end_day),
+                format_date(*start, *start_month, *start_day, *start_hour, *start_minute),
+                format_date(*end, *end_month, *end_day, *end_hour, *end_minute),
             ));
             push_common(&mut lines, tags, source, origin, id);
         }
@@ -801,10 +826,18 @@ fn item_tooltip(item: &Item) -> String {
             id,
             time_month,
             time_day,
+            time_hour,
+            time_minute,
             ..
         } => {
             lines.push(label.to_string());
-            lines.push(format_date(*time, *time_month, *time_day));
+            lines.push(format_date(
+                *time,
+                *time_month,
+                *time_day,
+                *time_hour,
+                *time_minute,
+            ));
             push_common(&mut lines, tags, source, origin, id);
         }
         Item::EventRange {
@@ -817,15 +850,19 @@ fn item_tooltip(item: &Item) -> String {
             id,
             start_month,
             start_day,
+            start_hour,
+            start_minute,
             end_month,
             end_day,
+            end_hour,
+            end_minute,
             ..
         } => {
             lines.push(label.to_string());
             lines.push(format!(
                 "{}〜{}",
-                format_date(*start, *start_month, *start_day),
-                format_date(*end, *end_month, *end_day),
+                format_date(*start, *start_month, *start_day, *start_hour, *start_minute),
+                format_date(*end, *end_month, *end_day, *end_hour, *end_minute),
             ));
             push_common(&mut lines, tags, source, origin, id);
         }
@@ -838,15 +875,52 @@ fn year_to_x(year: i64, year_min: i64, scale: f64, left_gutter: f64) -> f64 {
 }
 
 /// Convert year + optional month + optional day to a fractional year value.
-fn to_year_frac(year: i64, month: Option<u8>, day: Option<u8>) -> f64 {
+fn to_year_frac(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+) -> f64 {
     let mut frac = year as f64;
     if let Some(m) = month {
         frac += (m.clamp(1, 12) - 1) as f64 / 12.0;
         if let Some(d) = day {
             frac += (d.clamp(1, 31) - 1) as f64 / 365.25;
+            if let Some(h) = hour {
+                frac += h.min(23) as f64 / 24.0 / 365.25;
+                if let Some(min) = minute {
+                    frac += min.min(59) as f64 / 1440.0 / 365.25;
+                }
+            }
         }
     }
     frac
+}
+
+fn start_frac_with_time(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+) -> f64 {
+    start_frac(year, month, day)
+        + hour.unwrap_or(0).min(23) as f64 / 24.0 / 365.25
+        + minute.unwrap_or(0).min(59) as f64 / 1440.0 / 365.25
+}
+
+fn end_frac_with_time(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+) -> f64 {
+    match hour {
+        Some(_) => start_frac_with_time(year, month, day, hour, minute),
+        None => end_frac(year, month, day),
+    }
 }
 
 fn frac_to_x(frac: f64, year_min: i64, scale: f64, left_gutter: f64) -> f64 {
@@ -1154,8 +1228,12 @@ mod tests {
                 origin: None,
                 start_month: None,
                 start_day: None,
+                start_hour: None,
+                start_minute: None,
                 end_month: None,
                 end_day: None,
+                end_hour: None,
+                end_minute: None,
                 source_span: None,
             }],
             imports: vec![],
@@ -1212,8 +1290,12 @@ mod tests {
                 origin: None,
                 start_month: None,
                 start_day: None,
+                start_hour: None,
+                start_minute: None,
                 end_month: None,
                 end_day: None,
+                end_hour: None,
+                end_minute: None,
                 source_span: None,
             }],
             imports: vec![],
@@ -1312,8 +1394,8 @@ mod tests {
     #[test]
     fn month_precision_shifts_x_position() {
         // February (month=2) should be 1/12 of a year to the right of January (no month).
-        let x_jan = frac_to_x(to_year_frac(100, None, None), 0, 2.0, 0.0);
-        let x_feb = frac_to_x(to_year_frac(100, Some(2), None), 0, 2.0, 0.0);
+        let x_jan = frac_to_x(to_year_frac(100, None, None, None, None), 0, 2.0, 0.0);
+        let x_feb = frac_to_x(to_year_frac(100, Some(2), None, None, None), 0, 2.0, 0.0);
         assert!((x_feb - x_jan - 2.0 / 12.0).abs() < 0.001);
     }
 
@@ -1322,22 +1404,22 @@ mod tests {
     #[test]
     fn to_year_frac_year_only() {
         // 年のみ指定: フラクショナル値 = 整数年
-        assert_eq!(to_year_frac(1939, None, None), 1939.0);
-        assert_eq!(to_year_frac(-206, None, None), -206.0);
-        assert_eq!(to_year_frac(0, None, None), 0.0);
+        assert_eq!(to_year_frac(1939, None, None, None, None), 1939.0);
+        assert_eq!(to_year_frac(-206, None, None, None, None), -206.0);
+        assert_eq!(to_year_frac(0, None, None, None, None), 0.0);
     }
 
     #[test]
     fn to_year_frac_with_month() {
         // month=1 は +0/12、month=7 は +6/12 ≈ +0.5
-        assert_eq!(to_year_frac(1939, Some(1), None), 1939.0);
-        let mid = to_year_frac(1939, Some(7), None);
+        assert_eq!(to_year_frac(1939, Some(1), None, None, None), 1939.0);
+        let mid = to_year_frac(1939, Some(7), None, None, None);
         assert!(
             (mid - 1939.5).abs() < 0.001,
             "month=7 should be ~0.5 offset, got {mid}"
         );
         // month=12 は +11/12 ≈ +0.917
-        let dec = to_year_frac(1939, Some(12), None);
+        let dec = to_year_frac(1939, Some(12), None, None, None);
         assert!(
             (dec - (1939.0 + 11.0 / 12.0)).abs() < 0.001,
             "month=12 offset wrong, got {dec}"
@@ -1347,15 +1429,15 @@ mod tests {
     #[test]
     fn to_year_frac_with_month_and_day() {
         // month=1, day=1: オフセットなし
-        assert_eq!(to_year_frac(1939, Some(1), Some(1)), 1939.0);
+        assert_eq!(to_year_frac(1939, Some(1), Some(1), None, None), 1939.0);
         // month=1, day=2: +1/365.25 オフセット
-        let d2 = to_year_frac(1939, Some(1), Some(2));
+        let d2 = to_year_frac(1939, Some(1), Some(2), None, None);
         assert!(
             (d2 - (1939.0 + 1.0 / 365.25)).abs() < 0.0001,
             "day=2 offset wrong, got {d2}"
         );
         // month=3, day=15: month offset + day offset
-        let m3d15 = to_year_frac(1939, Some(3), Some(15));
+        let m3d15 = to_year_frac(1939, Some(3), Some(15), None, None);
         let expected = 1939.0 + 2.0 / 12.0 + 14.0 / 365.25;
         assert!(
             (m3d15 - expected).abs() < 0.0001,
@@ -1452,6 +1534,8 @@ mod tests {
                 origin: None,
                 time_month: None,
                 time_day: None,
+                time_hour: None,
+                time_minute: None,
                 source_span: None,
             }],
             imports: vec![],
