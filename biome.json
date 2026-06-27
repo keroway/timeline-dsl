@@ -1,0 +1,18 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.1/schema.json",
+  "//": "This project uses no-semicolons / 2-space style for JS/MJS files. Biome formatting is disabled to prevent pi-lens (and other Biome-based tooling) from applying its own defaults (tabs / semicolons) to files such as editors/vscode/scripts/*.mjs. Linting is also disabled project-wide; run project-specific lint commands instead.",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": false
+  },
+  "assist": {
+    "enabled": false
+  }
+}
