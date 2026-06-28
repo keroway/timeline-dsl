@@ -7,8 +7,9 @@ Written against commit `9d6d02f`.
 | 001 | Fix minute/hour precision validation | DONE | None |
 | 002 | Synchronize stale documentation with implemented DSL/LSP/formatter behavior | DONE | None |
 | 003 | Add CI coverage for VS Code extension tests | DONE | None |
+| 004 | Harden VS Code publish dependency install | DONE | None |
 
-Recommended order: 001 first because it fixes a correctness bug; 002 can land independently; 003 can land after 002 or independently.
+Recommended order: 001 first because it fixes a correctness bug; 002 can land independently; 003 and 004 can land independently.
 
 ## Considered but not planned
 
