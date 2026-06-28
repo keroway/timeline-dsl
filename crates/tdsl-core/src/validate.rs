@@ -1,9 +1,39 @@
 use crate::ir::{SourceSpan, TimelineIr};
 use tdsl_parser::ast;
 
-/// `(year, month_or_0, day_or_0)` を返す。月日が `None` の場合はソート上は最小値扱い。
-fn sortable_tuple(year: i64, month: Option<u8>, day: Option<u8>) -> (i64, u8, u8) {
-    (year, month.unwrap_or(0), day.unwrap_or(0))
+/// `(year, month_or_0, day_or_0, hour_or_0, minute_or_0)` を返す。
+/// 精度が `None` の場合はソート上は最小値扱い。
+fn sortable_tuple(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+) -> (i64, u8, u8, u8, u8) {
+    (
+        year,
+        month.unwrap_or(0),
+        day.unwrap_or(0),
+        hour.unwrap_or(0),
+        minute.unwrap_or(0),
+    )
+}
+
+fn format_time(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+) -> String {
+    match (month, day, hour, minute) {
+        (Some(m), Some(d), Some(h), Some(min)) => {
+            format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}")
+        }
+        (Some(m), Some(d), _, _) => format!("{year:04}-{m:02}-{d:02}"),
+        (Some(m), _, _, _) => format!("{year:04}-{m:02}"),
+        _ => year.to_string(),
+    }
 }
 
 /// AST（lowering 前）レベルで検出できる参照エラー。`span` はソース内のバイト範囲。
@@ -146,16 +176,26 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                 end,
                 start_month,
                 start_day,
+                start_hour,
+                start_minute,
                 end_month,
                 end_day,
+                end_hour,
+                end_minute,
                 source_span,
                 ..
             } => {
-                let s = sortable_tuple(*start, *start_month, *start_day);
-                let e = sortable_tuple(*end, *end_month, *end_day);
+                let s =
+                    sortable_tuple(*start, *start_month, *start_day, *start_hour, *start_minute);
+                let e = sortable_tuple(*end, *end_month, *end_day, *end_hour, *end_minute);
                 if s > e {
+                    let start_text =
+                        format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
+                    let end_text = format_time(*end, *end_month, *end_day, *end_hour, *end_minute);
                     diags.push(ValidationDiagnostic {
-                        message: format!("Span \"{id}\" has start ({start}) > end ({end})"),
+                        message: format!(
+                            "Span \"{id}\" has start ({start_text}) > end ({end_text})"
+                        ),
                         span: source_span.clone(),
                     });
                 }
@@ -166,16 +206,26 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                 end,
                 start_month,
                 start_day,
+                start_hour,
+                start_minute,
                 end_month,
                 end_day,
+                end_hour,
+                end_minute,
                 source_span,
                 ..
             } => {
-                let s = sortable_tuple(*start, *start_month, *start_day);
-                let e = sortable_tuple(*end, *end_month, *end_day);
+                let s =
+                    sortable_tuple(*start, *start_month, *start_day, *start_hour, *start_minute);
+                let e = sortable_tuple(*end, *end_month, *end_day, *end_hour, *end_minute);
                 if s > e {
+                    let start_text =
+                        format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
+                    let end_text = format_time(*end, *end_month, *end_day, *end_hour, *end_minute);
                     diags.push(ValidationDiagnostic {
-                        message: format!("EventRange \"{id}\" has start ({start}) > end ({end})"),
+                        message: format!(
+                            "EventRange \"{id}\" has start ({start_text}) > end ({end_text})"
+                        ),
                         span: source_span.clone(),
                     });
                 }
@@ -190,11 +240,33 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
         range_start,
         ir.meta.range_start_month,
         ir.meta.range_start_day,
+        ir.meta.range_start_hour,
+        ir.meta.range_start_minute,
     );
-    let r_end = sortable_tuple(range_end, ir.meta.range_end_month, ir.meta.range_end_day);
+    let r_end = sortable_tuple(
+        range_end,
+        ir.meta.range_end_month,
+        ir.meta.range_end_day,
+        ir.meta.range_end_hour,
+        ir.meta.range_end_minute,
+    );
     if r_start >= r_end {
+        let range_start_text = format_time(
+            range_start,
+            ir.meta.range_start_month,
+            ir.meta.range_start_day,
+            ir.meta.range_start_hour,
+            ir.meta.range_start_minute,
+        );
+        let range_end_text = format_time(
+            range_end,
+            ir.meta.range_end_month,
+            ir.meta.range_end_day,
+            ir.meta.range_end_hour,
+            ir.meta.range_end_minute,
+        );
         diags.push(ValidationDiagnostic {
-            message: format!("Timeline range is invalid: {range_start}..{range_end}"),
+            message: format!("Timeline range is invalid: {range_start_text}..{range_end_text}"),
             span: None,
         });
     }

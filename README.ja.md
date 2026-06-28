@@ -407,7 +407,7 @@ stdio 経由で LSP サーバを起動します。エディタから接続する
 tdsl lsp
 ```
 
-**対応機能:** `textDocument/publishDiagnostics` — パースエラーと検証警告を実際の行/列位置付きで通知。`textDocument/completion` — DSL キーワード補完候補を返す（文脈非依存・全キーワード）。`textDocument/hover` — lane ID にカーソルを当てるとラベル・kind・order を、QID にカーソルを当てるとキャッシュ済みエンティティ情報を表示（offline、ネットワーク不要）。`textDocument/definition` — lane 参照から宣言位置へジャンプ。`textDocument/references` — lane ID の全参照位置を返す。`textDocument/rename` / `prepareRename` — lane 宣言とその全参照を一括リネーム（明示的に `as <alias>` で宣言された lane のみ。slug 自動生成の lane は拒否）。`textDocument/documentSymbol` — timeline / lane / アイテムのアウトライン。`textDocument/codeAction` — `lint --fix` 相当の quick fix。`textDocument/formatting` — ソースの正準フォーマット（コメントは保持されない。`tdsl fmt` と同じ）。
+**対応機能:** `textDocument/publishDiagnostics` — パースエラーと検証警告を実際の行/列位置付きで通知。`textDocument/completion` — DSL キーワード補完候補を返す（文脈非依存・全キーワード）。`textDocument/hover` — lane ID にカーソルを当てるとラベル・kind・order を、QID にカーソルを当てるとキャッシュ済みエンティティ情報を表示（offline、ネットワーク不要）。`textDocument/definition` — lane 参照から宣言位置へジャンプ。`textDocument/references` — lane ID の全参照位置を返す。`textDocument/rename` / `prepareRename` — lane 宣言とその全参照を一括リネーム（明示的に `as <alias>` で宣言された lane のみ。slug 自動生成の lane は拒否）。`textDocument/documentSymbol` — timeline / lane / アイテムのアウトライン。`textDocument/codeAction` — `lint --fix` 相当の quick fix。`textDocument/formatting` — ソースの正準フォーマット（コメントは `tdsl fmt` と同様に保持されます。ブロック内部コメントは正準位置へ移動される場合があります）。
 
 **VS Code 拡張:** [Timeline DSL VS Code 拡張](https://marketplace.visualstudio.com/items?itemName=keroway.timeline-dsl)をインストールすると、LSP クライアントが自動で `tdsl lsp` を起動し、診断・補完・hover・定義ジャンプ・リネーム・コードアクション・フォーマットが VS Code 上で利用できます。
 

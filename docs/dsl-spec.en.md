@@ -97,10 +97,11 @@ Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describin
 <property_id>  ::= "P" <digits>
 <identifier>   ::= /[A-Za-z_][A-Za-z0-9_-]*/
 <number>       ::= /"-"? [0-9]+/
-<time_value>   ::= <date> | <year_month> | <year>
+<time_value>   ::= <date_time> | <date> | <year_month> | <year>
 <year>         ::= /"-"? [0-9]+/
-<year_month>   ::= /[0-9]{1,4} "-" [0-9]{2}/
-<date>         ::= /[0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2}/
+<year_month>   ::= /"-"? [0-9]{1,4} "-" [0-9]{2}/
+<date>         ::= /"-"? [0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2}/
+<date_time>    ::= /"-"? [0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2} "T" [0-9]{2} ":" [0-9]{2}/
 ```
 
 ## Syntax Element Details

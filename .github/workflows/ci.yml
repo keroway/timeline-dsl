@@ -69,6 +69,32 @@ jobs:
             exit 1
           fi
 
+  test-vscode-extension:
+    name: Test VS Code extension
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: editors/vscode/package-lock.json
+
+      - name: Install dependencies
+        working-directory: editors/vscode
+        run: npm ci
+
+      - name: Test
+        working-directory: editors/vscode
+        run: npm test
+
+      - name: Compile
+        working-directory: editors/vscode
+        run: npm run compile
+
   bench-compile:
     name: Bench (compile only)
     runs-on: ubuntu-latest

@@ -4,9 +4,9 @@ Syntax highlighting and language intelligence for **Timeline DSL** (`.tdsl`) fil
 
 Timeline DSL is a domain-specific language for building historical timelines with [Wikidata](https://www.wikidata.org/) integration.
 
-- **Landing page**: https://timeline-dsl-lp.pages.dev/
-- **Try online (WebUI)**: https://keroway.github.io/timeline-dsl/
-- **GitHub**: https://github.com/keroway/timeline-dsl
+- **Landing page**: <https://timeline-dsl-lp.pages.dev/>
+- **Try online (WebUI)**: <https://keroway.github.io/timeline-dsl/>
+- **GitHub**: <https://github.com/keroway/timeline-dsl>
 
 ---
 
@@ -14,7 +14,7 @@ Timeline DSL is a domain-specific language for building historical timelines wit
 
 ### Syntax Highlighting
 
-- Keywords: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`
+- Keywords: `timeline`, `lane`, `group`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`, `color_map`
 - String literals, comments (`//` and `/* */`)
 - Wikidata entity IDs (`Q123`), property IDs (`P569`), and references (`wd:Q123`)
 - Wikidata expressions: `claim(P571).year`, `label@ja`
@@ -32,7 +32,7 @@ When the `tdsl` CLI is installed, this extension automatically starts the LSP se
 - **Rename** — rename a lane and all its references (only lanes declared with an explicit `as <alias>`; auto-slug lanes are not renameable)
 - **Code Actions** — quick fixes from `tdsl lint`
 - **Document Symbols** — outline view and breadcrumb navigation
-- **Formatting** — format the document (note: comments are not preserved, same as `tdsl fmt`)
+- **Formatting** — format the document (comments are preserved like `tdsl fmt`; comments inside blocks may be relocated to canonical positions)
 
 #### Installing the `tdsl` binary
 
@@ -73,11 +73,11 @@ span han -206..220  "Han Dynasty" { source wd:Q7209; };
 event qin -221 "Unification of China" {};
 
 // Import from Wikidata
-import {
-    wd:Q7209 as han_entity;
+import wikidata as wd {
+    entity Q7209 as han_entity;
 }
-map han_entity -> han {
-    target_type span;
+map wd.han_entity to span {
+    lane han;
     label label@en;
     start claim(P571).year;
     end   claim(P576).year;
