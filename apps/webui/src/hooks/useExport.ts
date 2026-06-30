@@ -1,7 +1,8 @@
-import { checkSource, compileToIr, renderHtml } from '../wasmLoader'
+import { checkSource, compileToIr, renderHtmlWithOptions } from '../wasmLoader'
 import { svgToPngBlob, triggerDownload } from '../lib/svgExport'
 import { buildShareUrl } from '../share'
 import type { ToastVariant } from '../components/Toast'
+import type { RenderOptions } from '../wasmLoader'
 
 export type ExportApi = {
   downloadTdsl: () => void
@@ -21,6 +22,7 @@ export function useExport(
   source: string,
   svgContent: string,
   pngWhiteBg: boolean,
+  renderOpts: RenderOptions,
   showToast: (message: string, variant?: ToastVariant) => void,
 ): ExportApi {
   function downloadTdsl() {
@@ -97,7 +99,7 @@ export function useExport(
   function downloadHtml() {
     if (!svgContent) return
     try {
-      const html = renderHtml(source)
+      const html = renderHtmlWithOptions(source, renderOpts)
       triggerDownload(new Blob([html], { type: 'text/html' }), 'timeline.html')
     } catch {
       // keep silent — errors are already shown in diagnostics
@@ -115,7 +117,7 @@ export function useExport(
     if (!svgContent) return
     let html: string
     try {
-      html = renderHtml(source)
+      html = renderHtmlWithOptions(source, renderOpts)
     } catch {
       showToast('PDF の生成に失敗しました', 'error')
       return

@@ -131,7 +131,7 @@ timeline "Chinese Dynasties" {
 | `calendar` | Optional | Calendar system (e.g., `proleptic_gregorian`) |
 | `color_map` | Optional | Tag-to-color mapping. Define multiple entries as `tag_name: "#hex_color_code";` |
 
-Colors defined in `color_map` are automatically applied during `tdsl render`. They can be overridden with the `--color-map "war=#cc0000"` CLI flag.
+Colors defined in `color_map` are automatically applied during `tdsl render`. `color_map` accepts hex colors (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`) and simple CSS named color keywords. More complex CSS values are intentionally ignored by the renderer; use CLI `--custom-css` for advanced styling. Values can be overridden with the `--color-map "war=#cc0000"` CLI flag.
 
 ### lane
 

@@ -218,6 +218,8 @@ timeline "Chinese Dynasties" {
 }
 ```
 
+`color_map` accepts hex colors (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`) and simple CSS named color keywords. More complex CSS values are intentionally ignored by the renderer; use CLI `--custom-css` for advanced styling.
+
 ### lane declaration
 
 Defines a vertical category on the timeline. Use `as` to specify the internal ID.

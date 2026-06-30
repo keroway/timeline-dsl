@@ -295,8 +295,14 @@ body,
 }
 
 .split-divider:hover,
-.split-divider:active {
+.split-divider:active,
+.split-divider:focus-visible {
   background: var(--text-title);
+}
+
+.split-divider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .editor-pane .cm-editor {
@@ -331,6 +337,11 @@ body,
 
 .preview-pane.grabbing {
   cursor: grabbing;
+}
+
+.svg-container [tabindex="0"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .svg-container {
@@ -571,6 +582,11 @@ body,
 }
 
 .detail-close:hover { color: #cdd6f4; }
+
+.detail-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 .detail-list {
   padding: 8px 12px;

@@ -58,8 +58,15 @@ function App() {
   )
   const { svgContent, diagnostics, diagnosticsRef, isStalePreview } = useCompiler(source, wasmReady, settings.scale, renderOpts)
   const svg = useSvgInteractions(svgContent, editorViewRef)
-  const { splitRatio, mainRef, handleDividerMouseDown } = useSplitPane()
-  const exportApi = useExport(source, svgContent, settings.pngWhiteBg, showToast)
+  const {
+    splitRatio,
+    splitRatioMin,
+    splitRatioMax,
+    mainRef,
+    handleDividerMouseDown,
+    handleDividerKeyDown,
+  } = useSplitPane()
+  const exportApi = useExport(source, svgContent, settings.pngWhiteBg, renderOpts, showToast)
   const history = useHistorySnapshots({
     source,
     historyEnabled: settings.historyEnabled,
@@ -250,8 +257,15 @@ function App() {
         />
         <div
           className="split-divider"
+          role="separator"
+          aria-orientation="vertical"
+          aria-valuemin={Math.round(splitRatioMin * 100)}
+          aria-valuemax={Math.round(splitRatioMax * 100)}
+          aria-valuenow={Math.round(splitRatio * 100)}
+          tabIndex={0}
           onMouseDown={handleDividerMouseDown}
-          title="ドラッグして分割幅を調整"
+          onKeyDown={handleDividerKeyDown}
+          title="ドラッグまたは矢印キーで分割幅を調整"
           style={previewFullscreen ? { display: 'none' } : undefined}
         />
         <PreviewPanel
@@ -283,6 +297,7 @@ function App() {
           onMouseLeave={svg.handlePreviewMouseLeave}
           onDoubleClick={svg.handlePreviewDblClick}
           onClick={svg.handlePreviewClick}
+          onKeyDown={svg.handlePreviewKeyDown}
         />
       </main>
 

@@ -218,6 +218,8 @@ timeline "中国王朝年表" {
 }
 ```
 
+`color_map` は hex 色（`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`）と単純な CSS 色キーワードを受け付けます。複雑な CSS 値は安全のため renderer が無視します。高度な装飾は CLI の `--custom-css` を使ってください。
+
 ### lane 宣言
 
 年表の縦軸カテゴリを定義する。`as` で内部IDを指定。

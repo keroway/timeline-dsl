@@ -1,4 +1,4 @@
-import { type ChangeEvent, type Dispatch, type MouseEvent, type RefObject, type SetStateAction } from 'react'
+import { type ChangeEvent, type Dispatch, type KeyboardEvent, type MouseEvent, type RefObject, type SetStateAction } from 'react'
 import type { FilterState, LegendItem, SelectedItem } from '../lib/svgDom'
 
 type PreviewPanelProps = {
@@ -30,6 +30,7 @@ type PreviewPanelProps = {
   onMouseLeave: () => void
   onDoubleClick: () => void
   onClick: (e: MouseEvent<HTMLDivElement>) => void
+  onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => void
 }
 
 export function PreviewPanel(props: PreviewPanelProps) {
@@ -62,6 +63,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     onMouseLeave,
     onDoubleClick,
     onClick,
+    onKeyDown,
   } = props
 
   return (
@@ -117,7 +119,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
       </div>
       {/* Legend panel */}
       {showLegend && legendItems.length > 0 && (
-        <div className="legend-panel">
+        <div className="legend-panel" aria-label="凡例">
           <div className="legend-header">凡例</div>
           {legendItems.map((item) => (
             <div key={item.lane} className="legend-item">
@@ -129,7 +131,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
       )}
       {/* Filter panel */}
       {showFilterPanel && legendItems.length > 0 && (
-        <div className="filter-panel">
+        <div className="filter-panel" aria-label="フィルタ">
           <div className="filter-header">フィルタ</div>
           <div className="filter-section">
             <div className="filter-section-title">レーン</div>
@@ -178,10 +180,10 @@ export function PreviewPanel(props: PreviewPanelProps) {
       )}
       {/* Selected item detail panel */}
       {selectedItem && (
-        <div className="detail-panel">
+        <div className="detail-panel" aria-label="選択中アイテムの詳細">
           <div className="detail-header">
             <span>詳細</span>
-            <button className="detail-close" onClick={() => setSelectedItem(null)}>✕</button>
+            <button className="detail-close" onClick={() => setSelectedItem(null)} aria-label="詳細を閉じる">✕</button>
           </div>
           <dl className="detail-list">
             <dt>名前</dt><dd>{selectedItem.label || '—'}</dd>
@@ -203,6 +205,8 @@ export function PreviewPanel(props: PreviewPanelProps) {
         onMouseLeave={onMouseLeave}
         onDoubleClick={onDoubleClick}
         onClick={onClick}
+        onKeyDown={onKeyDown}
+        aria-label="年表プレビュー"
       >
         {svgContent ? (
           <>

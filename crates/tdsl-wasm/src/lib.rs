@@ -63,14 +63,8 @@ pub fn render_svg_from_source(source: &str, scale: f64) -> Result<String, JsValu
         let span = (range.1 - range.0).unsigned_abs().max(1) as f64;
         auto_scale_for_span(span)
     };
-    let svg = render_svg_only(
-        &ir,
-        RenderOptions {
-            scale: computed_scale,
-            ..RenderOptions::default()
-        },
-    )
-    .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let render_opts = render_options_for_ir(&ir, &JsRenderOptions::new(), computed_scale);
+    let svg = render_svg_only(&ir, render_opts).map_err(|e| JsValue::from_str(&e.to_string()))?;
     Ok(svg)
 }
 
@@ -537,6 +531,48 @@ map wd.han to span {
         assert!(svg.starts_with("<svg"), "should produce SVG output");
     }
 
+    #[test]
+    fn render_options_for_ir_preserves_color_map_for_svg() {
+        let source = r##"timeline "T" {
+  unit year;
+  range 0..100;
+  color_map { dynasty: "#3366cc"; }
+}
+lane "A" as a { kind custom; }
+span a 10..20 "S" { id "s1"; tags ["dynasty"]; };
+"##;
+        let file = tdsl_parser::parse(source).unwrap();
+        let ir = lower_static_with_source(&file, Some(source)).unwrap();
+        let opts = render_options_for_ir(&ir, &JsRenderOptions::new(), 8.0);
+        let svg = render_svg_only(&ir, opts).unwrap();
+
+        assert!(
+            svg.contains("#3366cc"),
+            "expected color_map color in SVG:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn render_options_for_ir_preserves_color_map_for_html() {
+        let source = r##"timeline "T" {
+  unit year;
+  range 0..100;
+  color_map { dynasty: "#3366cc"; }
+}
+lane "A" as a { kind custom; }
+span a 10..20 "S" { id "s1"; tags ["dynasty"]; };
+"##;
+        let file = tdsl_parser::parse(source).unwrap();
+        let ir = lower_static_with_source(&file, Some(source)).unwrap();
+        let opts = render_options_for_ir(&ir, &JsRenderOptions::new(), 8.0);
+        let html = render_html(&ir, opts).unwrap();
+
+        assert!(
+            html.contains("#3366cc"),
+            "expected color_map color in HTML:\n{html}"
+        );
+    }
+
     // ─── lint_source / lint_fix_source テスト ─────────────────────────────────
 
     #[test]
@@ -678,7 +714,9 @@ pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
         let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
         JsValue::from_str(&msgs.join("\n"))
     })?;
-    render_html(&ir, RenderOptions::default()).map_err(|e| JsValue::from_str(&e.to_string()))
+    let render_opts =
+        render_options_for_ir(&ir, &JsRenderOptions::new(), RenderOptions::default().scale);
+    render_html(&ir, render_opts).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 /// Rendering options exposed to JavaScript.
@@ -764,6 +802,16 @@ impl JsRenderOptions {
     }
 }
 
+fn render_options_for_ir(
+    ir: &tdsl_core::ir::TimelineIr,
+    opts: &JsRenderOptions,
+    scale: f64,
+) -> RenderOptions {
+    let mut render_opts = js_opts_to_render_options(opts, scale);
+    render_opts.color_map = ir.meta.color_map.clone();
+    render_opts
+}
+
 fn js_opts_to_render_options(opts: &JsRenderOptions, scale: f64) -> RenderOptions {
     let orientation = match opts.orientation.as_str() {
         "vertical" => Orientation::Vertical,
@@ -823,7 +871,7 @@ pub fn render_svg_from_source_with_options(
         let span = (range.1 - range.0).unsigned_abs().max(1) as f64;
         auto_scale_for_span(span)
     };
-    let render_opts = js_opts_to_render_options(&opts, computed_scale);
+    let render_opts = render_options_for_ir(&ir, &opts, computed_scale);
     render_svg_only(&ir, render_opts).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
@@ -842,7 +890,7 @@ pub fn render_html_from_source_with_options(
     let range = ir.meta.range;
     let span = (range.1 - range.0).unsigned_abs().max(1) as f64;
     let scale = auto_scale_for_span(span);
-    let render_opts = js_opts_to_render_options(&opts, scale);
+    let render_opts = render_options_for_ir(&ir, &opts, scale);
     render_html(&ir, render_opts).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
