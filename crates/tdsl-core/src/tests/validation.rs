@@ -121,6 +121,57 @@ fn validate_warns_on_event_range_start_gt_end() {
 }
 
 #[test]
+fn validate_warns_on_span_same_day_start_time_gt_end_time() {
+    let src = r#"
+timeline "t" { title "t"; unit year; range 2020-01-01T00:00..2020-01-02T00:00; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+span l 2020-01-01T12:00..2020-01-01T11:59 "reversed time" {};
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("start") && w.contains("end")),
+        "expected same-day time reversal warning, got: {warnings:?}"
+    );
+}
+
+#[test]
+fn validate_warns_on_event_range_same_day_start_hour_gt_end_hour() {
+    let src = r#"
+timeline "t" { title "t"; unit year; range 2020-01-01T00:00..2020-01-02T00:00; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+event_range l 2020-01-01T23:00..2020-01-01T01:00 "reversed time" {};
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("start") && w.contains("end")),
+        "expected same-day time reversal warning, got: {warnings:?}"
+    );
+}
+
+#[test]
+fn validate_warns_on_timeline_range_same_day_start_minute_ge_end_minute() {
+    let src = r#"
+timeline "t" { title "t"; unit year; range 2020-01-01T12:00..2020-01-01T12:00; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings.iter().any(|w| w.contains("range")),
+        "expected timeline range warning, got: {warnings:?}"
+    );
+}
+
+#[test]
 fn validate_no_warning_on_valid_span() {
     let ir = ir::TimelineIr {
         meta: ir::Meta {

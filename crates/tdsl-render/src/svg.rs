@@ -1055,11 +1055,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn color_map_tag_overrides_lane_palette() {
+    fn render_sample_with_color_map(color: &str) -> String {
         let ir = sample_ir();
         let color_map: std::collections::HashMap<String, String> =
-            [("dynasty".to_string(), "#cc0000".to_string())]
+            [("dynasty".to_string(), color.to_string())]
                 .into_iter()
                 .collect();
         let opts = RenderOptions {
@@ -1067,11 +1066,53 @@ mod tests {
             ..RenderOptions::default()
         };
         let layout = LayoutModel::compute(&ir, opts);
-        let svg = render_svg(&layout).unwrap();
+        render_svg(&layout).unwrap()
+    }
+
+    #[test]
+    fn color_map_tag_overrides_lane_palette() {
+        let svg = render_sample_with_color_map("#cc0000");
         // The span item has tag "dynasty", so its fill must use the color_map color.
         assert!(
             svg.contains("fill:#cc0000;"),
             "expected fill:#cc0000; in SVG, got:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn color_map_accepts_named_color_keyword() {
+        let svg = render_sample_with_color_map("rebeccapurple");
+        assert!(
+            svg.contains("fill:rebeccapurple;"),
+            "expected fill:rebeccapurple; in SVG, got:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn color_map_invalid_declaration_falls_back_to_lane_palette() {
+        let invalid = "#cc0000;stroke:red";
+        let svg = render_sample_with_color_map(invalid);
+        assert!(
+            !svg.contains(invalid),
+            "invalid color must not appear in SVG:\n{svg}"
+        );
+        assert!(
+            svg.contains("fill:var(--tdsl-lane-0, #4682B4);"),
+            "expected lane palette fallback in SVG, got:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn color_map_invalid_function_falls_back_to_lane_palette() {
+        let invalid = "url('x')";
+        let svg = render_sample_with_color_map(invalid);
+        assert!(
+            !svg.contains(invalid),
+            "invalid color must not appear in SVG:\n{svg}"
+        );
+        assert!(
+            svg.contains("fill:var(--tdsl-lane-0, #4682B4);"),
+            "expected lane palette fallback in SVG, got:\n{svg}"
         );
     }
 

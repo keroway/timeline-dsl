@@ -678,7 +678,7 @@ tdsl lint examples/china_dynasties.tdsl --format json
 `.tdsl` ファイルを正準スタイル（2 スペースインデント・ブロック間空行 1 行）にフォーマットします。
 デフォルトでは整形結果を標準出力に出力します。`--write` でファイルを上書き、`--check` で CI 用の差分チェックができます。
 
-> **制約**: 現状フォーマットするとコメント（`//`・`/* */`）は失われます（grammar で COMMENT が silent のため）。根治は別 issue で対応予定。
+> **コメント**: `tdsl fmt` はコメント（`//`・`/* */`）を保持します。トップレベルの leading / trailing コメントは位置を保ち、ブロック内部コメントは内容を保持したまま正準位置へ移動される場合があります。
 
 ```
 tdsl fmt [OPTIONS] <FILE>
@@ -790,7 +790,7 @@ tdsl decompile out.json --output recovered.tdsl
 tdsl build examples/china_dynasties.tdsl --pretty | tdsl decompile --output recovered.tdsl
 ```
 
-> **制約（コメント非対応）**: `decompile` は JSON IR を起点とするため、元の `.tdsl` に書かれていたコメント（`//`・`/* */`）は復元できません。コメントは AST 段階で失われ IR には現れないため、これは IR を単一の真実とする設計上の恒久的な制約です。
+> **制約（コメント非対応）**: `decompile` は JSON IR を起点とするため、元の `.tdsl` に書かれていたコメント（`//`・`/* */`）は復元できません。コメントは parser の AST には保持されますが、lowering では参照されず IR には現れないため、これは IR を単一の真実とする設計上の恒久的な制約です。
 
 ---
 
@@ -876,15 +876,11 @@ tdsl lsp
 >
 > エンティティ解決に依存するブロック（参照は正しいが Wikidata 取得が必要なもの）は黙って無視せず、各ブロック位置に **Information レベルの診断**（「offline 診断では未解決」）を表示します。生成されるアイテムの完全な検証は `tdsl build` / `tdsl check` を使用してください。
 
-> **フォーマットとコメントについて**: `textDocument/formatting` は `tdsl_parser::format_source` を使って AST を再 emit するため、**コメント（`//` 行コメント・`/* */` ブロックコメント）は AST に残らず整形後に消去されます**。コメントが重要な場合は整形を適用しないでください。
-
-**今後の別 issue で実装予定の機能:**
-
-- VS Code 拡張クライアント（エディタ連携）
+> **フォーマットとコメントについて**: `textDocument/formatting` は `tdsl_parser::format_source` を使って全文置換 TextEdit を返します。コメント（`//` 行コメント・`/* */` ブロックコメント）は保持されますが、ブロック内部コメントは正準位置へ移動される場合があります。
 
 ### エディタ連携
 
-現バージョンでは LSP サーバ（バイナリ）のみ提供します。エディタクライアント（VS Code 拡張の LSP クライアント設定）は別 issue で実装予定です。
+VS Code では [Timeline DSL 拡張](https://marketplace.visualstudio.com/items?itemName=keroway.timeline-dsl) が `tdsl lsp` を自動起動します。`timelineDsl.serverPath` に `tdsl` バイナリの絶対パスを指定でき、未指定時は PATH から解決します。
 
 Neovim / Helix などの汎用 LSP クライアントでは以下のように手動設定が可能です（設定方法はエディタのドキュメントを参照）:
 

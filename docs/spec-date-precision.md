@@ -1,13 +1,13 @@
 # 月・日精度の時間表現 仕様
 
 > 関連 Issue: [#64](https://github.com/keroway/timeline-dsl/issues/64) / [#242](https://github.com/keroway/timeline-dsl/issues/242) / [#243](https://github.com/keroway/timeline-dsl/issues/243)
-> ステータス: **設計確定**（実装は #243 以降で進行）
+> ステータス: **実装済み**（year / month / day / minute 精度まで対応。day 単位の専用目盛りは別拡張）
 
 ## 背景
 
 Timeline DSL の時刻値は当初「整数の年」のみを受け付けていたが、近代史・スポーツイベント・プロジェクト管理などのユースケースで月・日精度が必要となる。
 
-調査の結果、IR / Wikidata クライアント / Renderer 層は既に月精度のサポートが組み込まれており、実装の主戦場は **DSL 構文 / AST / 静的 lowering** の3点に絞られる。本書はその設計を確定する。
+調査の結果、IR / Wikidata クライアント / Renderer 層は既に月精度のサポートが組み込まれており、実装の主戦場は **DSL 構文 / AST / 静的 lowering** の3点に絞られた。本書はその設計と実装済み仕様を記録する。
 
 ## 1. 文法（パーサ）
 
@@ -25,18 +25,19 @@ Timeline DSL の時刻値は当初「整数の年」のみを受け付けてい�
 ### 1.2 PEG ルール（実装ガイド）
 
 ```pest
+year_signed    = @{ "-"? ~ ASCII_DIGIT{1,4} }                  // 月日付きでは符号付き・最大4桁
 year_lit       = @{ "-"? ~ ASCII_DIGIT+ }                       // year 精度: 桁数制限なし
-year_pos       = @{ ASCII_DIGIT{1,4} }                          // 月日付きでは符号なし・最大4桁
-year_month_lit = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ !("-" ~ ASCII_DIGIT) }
-date_lit       = ${ year_pos ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} }
-time_value     = { date_lit | year_month_lit | year_lit }       // 長いものから優先
+year_month_lit = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ !("-" ~ ASCII_DIGIT) }
+date_lit       = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ !("T" ~ ASCII_DIGIT) }
+date_time_lit  = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ "T" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} }
+time_value     = { date_time_lit | date_lit | year_month_lit | year_lit } // 長いものから優先
 ```
 
 - `${ }`（atomic）でトークン間の空白を許可しないことで、`1969 - 07 - 20` のような誤マッチを防ぐ
 - 検証は builder 側で実施: 月は 1〜12、日は 1〜31。範囲外はパースエラー
 - カレンダー妥当性チェック（2月30日など）は lowering 側の責務（lint で警告／エラー）
-- `year_lit` は桁数制限を設けない: 既存 `range 0..10000;` のような4桁超リテラルを後方互換で許容するため。月日精度の `year_pos` のみ最大 4 桁に制限する（`10000-07-20` のような5桁年付き日付はサポート外）。
-- `year_month_lit` の末尾には `!("-" ~ ASCII_DIGIT)` を置き、`date_lit` との曖昧性を回避する
+- `year_lit` は桁数制限を設けない: 既存 `range 0..10000;` のような4桁超リテラルを後方互換で許容するため。月日・時分精度の `year_signed` のみ最大 4 桁に制限する（`10000-07-20` のような5桁年付き日付はサポート外）。
+- `year_month_lit` の末尾には `!("-" ~ ASCII_DIGIT)`、`date_lit` の末尾には `!("T" ~ ASCII_DIGIT)` を置き、より長い形式との曖昧性を回避する
 
 ### 1.3 紀元前（負の年）
 
@@ -82,8 +83,9 @@ timeline "近代史" {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TimeValue {
     Year(i64),
-    YearMonth(i64, u8),    // year, month (1-12)
-    Date(i64, u8, u8),     // year, month (1-12), day (1-31)
+    YearMonth(i64, u8),             // year, month (1-12)
+    Date(i64, u8, u8),              // year, month (1-12), day (1-31)
+    DateTime(i64, u8, u8, u8, u8),  // year, month, day, hour (0-23), minute (0-59)
 }
 ```
 
@@ -104,9 +106,9 @@ builder.rs では PEG の `time_value` ノードを `TimeValue` に変換し、�
 
 既存の Item variant に存在する以下フィールドをそのまま利用する:
 
-- `Span`: `start_month`, `start_day`, `end_month`, `end_day`
-- `Event`: `time_month`, `time_day`
-- `EventRange`: `start_month`, `start_day`, `end_month`, `end_day`
+- `Span`: `start_month`, `start_day`, `start_hour`, `start_minute`, `end_month`, `end_day`, `end_hour`, `end_minute`
+- `Event`: `time_month`, `time_day`, `time_hour`, `time_minute`
+- `EventRange`: `start_month`, `start_day`, `start_hour`, `start_minute`, `end_month`, `end_day`, `end_hour`, `end_minute`
 
 すべて `Option<u8>`、JSON 出力時は `None` のとき省略される（既存挙動）。
 
@@ -146,18 +148,15 @@ pub struct Meta {
 ### 3.4 後方互換
 
 - 既存の年精度のみの IR JSON は変化なし（新フィールドはすべて `None` で skip 出力）
-- WebUI / WASM / decompile は既に Item の `*_month` / `*_day` を受ける構造になっている。`Meta::range_*` の追加対応のみ必要
-- decompile（IR → `.tdsl` 逆変換）は `Some` の場合に `YYYY-MM` / `YYYY-MM-DD` 形式で出力するよう拡張する（Item / Meta::range の両方）
+- WebUI / WASM / decompile は Item と `Meta::range_*` の精度フィールドを扱う
+- decompile（IR → `.tdsl` 逆変換）は `Some` の場合に `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` 形式で出力する（Item / Meta::range の両方）
 
 ## 4. Wikidata 整合性
 
 既存実装で対応済み:
 
-- `crates/tdsl-wikidata/src/entity.rs` の `time_value_to_timepoint()` が precision 9/10/11 に応じて year/month/day を抽出
-- `crates/tdsl-core/src/lower.rs` の `eval_claim_expr()` が `claim(P569).month` / `.day` アクセサを評価し、対応する Item フィールドにセット
-
-追加対応:
-
+- `crates/tdsl-wikidata/src/entity.rs` の `time_value_to_timepoint()` が precision 9/10/11/12/13 に応じて year/month/day/hour/minute を抽出
+- `crates/tdsl-core/src/lower/mapping.rs` の `eval_claim_expr()` が `claim(P569).month` / `.day` / `.hour` / `.minute` アクセサを評価し、対応する Item フィールドにセット
 - 紀元前データ（`year < 0`）の場合も、Wikidata precision に応じて month/day/hour/minute を保持する
 
 ## 5. レンダリング
@@ -169,7 +168,7 @@ pub struct Meta {
 - `crates/tdsl-render/src/layout.rs:216` `month_ticks()` が `unit == "month"` のとき年内に月目盛り（2〜12月）を生成
 - `to_year_frac()` が year/month/day を分数年に変換
 
-`range` を `YYYY-MM` 受けに拡張すれば、追加コードなしで意味のある軸表示になる見込み。
+`range` は `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` を受け付け、対応する `Meta::range_*` 精度フィールドを保持する。
 
 ### 5.2 `unit day`
 
@@ -179,16 +178,17 @@ pub struct Meta {
 - 月またぎラベルの設計（年・月・日のレベル別ラベル）
 - スケール（pixel-per-day）の妥当な範囲設計
 
-## 6. 実装 Issue の分解
+## 6. 実装状況
 
-| Issue | 内容 | 依存 |
-|---|---|---|
-| **#243** (更新) | parser + AST: `time_value` PEG ルール、`TimeValue` enum、builder | なし |
-| **新規 A** | core lowering: 静的アイテムへの月日反映、混在範囲の補完規則、紀元前丸め、`range` の `time_value` 化、decompile 拡張 | #243 |
-| **新規 B** | render(day): `unit day` の day_ticks と日精度ラベル | 新規 A |
+| 項目 | 状況 |
+|---|---|
+| parser + AST: `time_value` PEG ルール、`TimeValue` enum、builder | 実装済み |
+| core lowering: 静的アイテムへの月日・時分反映、`range` の `time_value` 化、decompile 拡張 | 実装済み |
+| Wikidata precision 9〜13 の year/month/day/hour/minute 保持 | 実装済み |
+| render(day): `unit day` の day_ticks と日精度ラベル | 本仕様外・将来拡張 |
 
 ## 受け入れ条件（#242）
 
-- [x] 上記 5 項目の設計決定を本ドキュメント / Issue コメントとして記録
-- [ ] 設計を元に実装 Issue を分解して起票（`#243` 更新 + 新規2件）
+- [x] 上記仕様を本ドキュメント / Issue コメントとして記録
+- [x] parser / AST / lowering / decompile の実装
 - [x] `docs/spec-date-precision.md` として追加

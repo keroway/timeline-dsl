@@ -218,6 +218,8 @@ timeline "Chinese Dynasties" {
 }
 ```
 
+`color_map` accepts hex colors (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`) and simple CSS named color keywords. More complex CSS values are intentionally ignored by the renderer; use CLI `--custom-css` for advanced styling.
+
 ### lane declaration
 
 Defines a vertical category on the timeline. Use `as` to specify the internal ID.
@@ -409,7 +411,7 @@ Starts a Language Server Protocol server over stdio. Connect your editor to get 
 tdsl lsp
 ```
 
-**Supported features:** `textDocument/publishDiagnostics` — parse errors and validation warnings with accurate line/column numbers. `textDocument/completion` — keyword completion for all DSL keywords (context-independent). `textDocument/hover` — hover over a lane ID to see its label/kind/order; hover over a QID to see cached entity info (offline, no network required). `textDocument/definition` — jump from a lane reference to its declaration. `textDocument/references` — find all references to a lane ID. `textDocument/rename` / `prepareRename` — rename a lane declaration and all its references (lanes declared with an explicit `as <alias>` only; lanes with an auto-generated slug are rejected). `textDocument/documentSymbol` — outline of timeline / lanes / items. `textDocument/codeAction` — `lint --fix` quick fixes. `textDocument/formatting` — canonical source formatting (comments are not preserved, same as `tdsl fmt`).
+**Supported features:** `textDocument/publishDiagnostics` — parse errors and validation warnings with accurate line/column numbers. `textDocument/completion` — keyword completion for all DSL keywords (context-independent). `textDocument/hover` — hover over a lane ID to see its label/kind/order; hover over a QID to see cached entity info (offline, no network required). `textDocument/definition` — jump from a lane reference to its declaration. `textDocument/references` — find all references to a lane ID. `textDocument/rename` / `prepareRename` — rename a lane declaration and all its references (lanes declared with an explicit `as <alias>` only; lanes with an auto-generated slug are rejected). `textDocument/documentSymbol` — outline of timeline / lanes / items. `textDocument/codeAction` — `lint --fix` quick fixes. `textDocument/formatting` — canonical source formatting (comments are preserved like `tdsl fmt`; comments inside blocks may be relocated to canonical positions).
 
 **VS Code extension:** Install the [Timeline DSL VS Code extension](https://marketplace.visualstudio.com/items?itemName=keroway.timeline-dsl) for full editor integration — diagnostics, completion, hover, go-to-definition, rename, code actions, and formatting are provided via the built-in LSP client.
 

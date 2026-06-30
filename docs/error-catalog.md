@@ -252,7 +252,7 @@ map wd.emperors { ... }
 
 **メッセージ**: `Duplicate template alias: {id}`
 
-**原因**: 同じエイリアスの `template` 宣言が複数あります（将来機能、現在未実装）。
+**原因**: 同じエイリアスの `template` 宣言が複数あります。
 
 ---
 
@@ -260,7 +260,7 @@ map wd.emperors { ... }
 
 **メッセージ**: `Unknown template reference: {id}`
 
-**原因**: `apply` で参照しているテンプレートが定義されていません（将来機能、現在未実装）。
+**原因**: `apply` で参照しているテンプレートが定義されていません。
 
 ---
 

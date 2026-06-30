@@ -97,10 +97,11 @@ Timeline DSL (`.tdsl`) is a domain-specific language for declaratively describin
 <property_id>  ::= "P" <digits>
 <identifier>   ::= /[A-Za-z_][A-Za-z0-9_-]*/
 <number>       ::= /"-"? [0-9]+/
-<time_value>   ::= <date> | <year_month> | <year>
+<time_value>   ::= <date_time> | <date> | <year_month> | <year>
 <year>         ::= /"-"? [0-9]+/
-<year_month>   ::= /[0-9]{1,4} "-" [0-9]{2}/
-<date>         ::= /[0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2}/
+<year_month>   ::= /"-"? [0-9]{1,4} "-" [0-9]{2}/
+<date>         ::= /"-"? [0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2}/
+<date_time>    ::= /"-"? [0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2} "T" [0-9]{2} ":" [0-9]{2}/
 ```
 
 ## Syntax Element Details
@@ -130,7 +131,7 @@ timeline "Chinese Dynasties" {
 | `calendar` | Optional | Calendar system (e.g., `proleptic_gregorian`) |
 | `color_map` | Optional | Tag-to-color mapping. Define multiple entries as `tag_name: "#hex_color_code";` |
 
-Colors defined in `color_map` are automatically applied during `tdsl render`. They can be overridden with the `--color-map "war=#cc0000"` CLI flag.
+Colors defined in `color_map` are automatically applied during `tdsl render`. `color_map` accepts hex colors (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`) and simple CSS named color keywords. More complex CSS values are intentionally ignored by the renderer; use CLI `--custom-css` for advanced styling. Values can be overridden with the `--color-map "war=#cc0000"` CLI flag.
 
 ### lane
 

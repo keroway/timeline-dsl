@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 import {
   SPLIT_RATIO_KEY,
   SPLIT_RATIO_MAX,
@@ -8,8 +8,32 @@ import {
 
 export type SplitPaneApi = {
   splitRatio: number
+  splitRatioMin: number
+  splitRatioMax: number
   mainRef: RefObject<HTMLElement | null>
   handleDividerMouseDown: (e: MouseEvent<HTMLDivElement>) => void
+  handleDividerKeyDown: (e: KeyboardEvent<HTMLDivElement>) => void
+}
+
+const SPLIT_RATIO_KEYBOARD_STEP = 0.02
+
+function clampSplitRatio(value: number): number {
+  return Math.max(SPLIT_RATIO_MIN, Math.min(SPLIT_RATIO_MAX, value))
+}
+
+export function splitRatioForKey(current: number, key: string): number | null {
+  switch (key) {
+    case 'ArrowLeft':
+      return clampSplitRatio(current - SPLIT_RATIO_KEYBOARD_STEP)
+    case 'ArrowRight':
+      return clampSplitRatio(current + SPLIT_RATIO_KEYBOARD_STEP)
+    case 'Home':
+      return SPLIT_RATIO_MIN
+    case 'End':
+      return SPLIT_RATIO_MAX
+    default:
+      return null
+  }
 }
 
 // エディタ/プレビューの分割比をドラッグで調整し、localStorage に永続化する。
@@ -26,7 +50,7 @@ export function useSplitPane(): SplitPaneApi {
     function onMouseMove(e: globalThis.MouseEvent) {
       if (!splitDragRef.current) return
       const dx = e.clientX - splitDragRef.current.startX
-      const newRatio = Math.max(SPLIT_RATIO_MIN, Math.min(SPLIT_RATIO_MAX, splitDragRef.current.startRatio + dx / splitDragRef.current.containerWidth))
+      const newRatio = clampSplitRatio(splitDragRef.current.startRatio + dx / splitDragRef.current.containerWidth)
       splitRatioRef.current = newRatio
       setSplitRatio(newRatio)
     }
@@ -47,6 +71,14 @@ export function useSplitPane(): SplitPaneApi {
     }
   }, [])
 
+  function persistSplitRatio(value: number) {
+    splitRatioRef.current = value
+    setSplitRatio(value)
+    try {
+      localStorage.setItem(SPLIT_RATIO_KEY, String(value))
+    } catch {/* quota or private browsing — ignore */}
+  }
+
   function handleDividerMouseDown(e: MouseEvent<HTMLDivElement>) {
     e.preventDefault()
     const containerWidth = mainRef.current?.clientWidth ?? document.documentElement.clientWidth
@@ -55,5 +87,19 @@ export function useSplitPane(): SplitPaneApi {
     document.body.style.userSelect = 'none'
   }
 
-  return { splitRatio, mainRef, handleDividerMouseDown }
+  function handleDividerKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    const next = splitRatioForKey(splitRatioRef.current, e.key)
+    if (next === null) return
+    e.preventDefault()
+    persistSplitRatio(next)
+  }
+
+  return {
+    splitRatio,
+    splitRatioMin: SPLIT_RATIO_MIN,
+    splitRatioMax: SPLIT_RATIO_MAX,
+    mainRef,
+    handleDividerMouseDown,
+    handleDividerKeyDown,
+  }
 }

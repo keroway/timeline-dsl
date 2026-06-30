@@ -20,13 +20,15 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: "npm"
+          cache-dependency-path: editors/vscode/package-lock.json
 
       - name: Install vsce
         run: npm install -g @vscode/vsce
 
       - name: Install extension dependencies
         working-directory: editors/vscode
-        run: npm install
+        run: npm ci
 
       - name: Verify package.json version matches tag
         working-directory: editors/vscode
@@ -38,6 +40,10 @@ jobs:
             echo "::error::Bump editors/vscode/package.json before tagging the release."
             exit 1
           fi
+
+      - name: Test extension
+        working-directory: editors/vscode
+        run: npm test
 
       - name: Package extension
         working-directory: editors/vscode

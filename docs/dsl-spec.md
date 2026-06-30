@@ -97,10 +97,11 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <property_id>  ::= "P" <digits>
 <identifier>   ::= /[A-Za-z_][A-Za-z0-9_-]*/
 <number>       ::= /"-"? [0-9]+/
-<time_value>   ::= <date> | <year_month> | <year>
+<time_value>   ::= <date_time> | <date> | <year_month> | <year>
 <year>         ::= /"-"? [0-9]+/
-<year_month>   ::= /[0-9]{1,4} "-" [0-9]{2}/
-<date>         ::= /[0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2}/
+<year_month>   ::= /"-"? [0-9]{1,4} "-" [0-9]{2}/
+<date>         ::= /"-"? [0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2}/
+<date_time>    ::= /"-"? [0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2} "T" [0-9]{2} ":" [0-9]{2}/
 ```
 
 ## 構文要素の詳細
@@ -130,7 +131,7 @@ timeline "中国王朝年表" {
 | `calendar` | 任意 | 暦法。`proleptic_gregorian` 等 |
 | `color_map` | 任意 | タグ→色のマッピング。`タグ名: "#16進数カラーコード";` の形式で複数定義可能 |
 
-`color_map` で定義した色は `tdsl render` 時に自動適用される。`--color-map "war=#cc0000"` CLIフラグで上書きも可能。
+`color_map` で定義した色は `tdsl render` 時に自動適用される。`color_map` は hex 色（`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`）と単純な CSS 色キーワードを受け付ける。複雑な CSS 値は安全のため renderer が無視する。高度な装飾は CLI の `--custom-css` を使う。`--color-map "war=#cc0000"` CLIフラグで上書きも可能。
 
 ### lane
 
