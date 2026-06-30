@@ -25,6 +25,7 @@ import { Tooltip } from './components/Tooltip'
 import { SettingsModal } from './components/SettingsModal'
 import { GalleryModal } from './components/GalleryModal'
 import { HistoryModal } from './components/HistoryModal'
+import { createTranslator } from './lib/i18n'
 import './App.css'
 
 function App() {
@@ -52,6 +53,7 @@ function App() {
 
   const { wasmReady, wasmError } = useWasm()
   const { settings, updateSetting, systemScheme, colorScheme } = useSettings()
+  const t = useMemo(() => createTranslator(settings.locale), [settings.locale])
   const renderOpts = useMemo(
     () => ({ orientation: settings.svgOrientation, grid: settings.svgGrid, theme: settings.svgTheme }),
     [settings.svgOrientation, settings.svgGrid, settings.svgTheme]
@@ -104,11 +106,11 @@ function App() {
       formatted = formatSource(currentSource)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
-      showToast(`整形に失敗しました: ${msg}`, 'error')
+      showToast(t.fmt('appFormatFailed', { msg }), 'error')
       return
     }
     if (formatted === currentSource) {
-      showToast('既に整形済みです', 'info')
+      showToast(t('appAlreadyFormatted'), 'info')
       return
     }
     const hadComment = currentSource.includes('//') || currentSource.includes('/*')
@@ -116,9 +118,9 @@ function App() {
       changes: { from: 0, to: view.state.doc.length, insert: formatted },
     })
     if (hadComment) {
-      showToast('整形しました（コメントは保持されません）', 'info')
+      showToast(t('appFormattedCommentWarning'), 'info')
     } else {
-      showToast('整形しました', 'success')
+      showToast(t('appFormatted'), 'success')
     }
   }
 
@@ -132,22 +134,22 @@ function App() {
       fixed = lintFixSource(currentSource)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
-      showToast(`Lint fix に失敗しました: ${msg}`, 'error')
+      showToast(t.fmt('appLintFixFailed', { msg }), 'error')
       return
     }
     if (fixed === currentSource) {
-      showToast('自動修正可能な lint 問題はありません', 'info')
+      showToast(t('appLintFixNoIssues'), 'info')
       return
     }
     const hadComment = currentSource.includes('//') || currentSource.includes('/*')
     const warning = hadComment
-      ? 'lint --fix を適用します。コメントとフォーマットは保持されません。続行しますか？'
-      : 'lint --fix を適用します。フォーマットも再整形されます。続行しますか？'
+      ? t('appLintFixCommentConfirm')
+      : t('appLintFixConfirm')
     if (!window.confirm(warning)) return
     view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: fixed },
     })
-    showToast('lint --fix を適用しました', 'success')
+    showToast(t('appLintFixed'), 'success')
   }
 
   function openFile() {
@@ -236,9 +238,10 @@ function App() {
         onShowSettings={() => setShowSettings(true)}
         fileInputRef={fileInputRef}
         onFileChange={handleFileChange}
+        locale={settings.locale}
       />
 
-      <StatusBar wasmReady={wasmReady} wasmError={wasmError} errorCount={errorCount} warnCount={warnCount} />
+      <StatusBar wasmReady={wasmReady} wasmError={wasmError} errorCount={errorCount} warnCount={warnCount} locale={settings.locale} />
 
       <MobileTabBar mobileTab={mobileTab} setMobileTab={setMobileTab} />
 
@@ -265,7 +268,7 @@ function App() {
           tabIndex={0}
           onMouseDown={handleDividerMouseDown}
           onKeyDown={handleDividerKeyDown}
-          title="ドラッグまたは矢印キーで分割幅を調整"
+          title={t('splitDividerTitle')}
           style={previewFullscreen ? { display: 'none' } : undefined}
         />
         <PreviewPanel
@@ -298,6 +301,7 @@ function App() {
           onDoubleClick={svg.handlePreviewDblClick}
           onClick={svg.handlePreviewClick}
           onKeyDown={svg.handlePreviewKeyDown}
+          locale={settings.locale}
         />
       </main>
 
@@ -314,7 +318,7 @@ function App() {
         />
       )}
       {showGallery && (
-        <GalleryModal onClose={() => setShowGallery(false)} onSelect={handleGallerySelect} />
+        <GalleryModal onClose={() => setShowGallery(false)} onSelect={handleGallerySelect} locale={settings.locale} />
       )}
       {showHistory && (
         <HistoryModal
@@ -330,6 +334,7 @@ function App() {
           onRenameCancel={history.cancelRename}
           onDeleteManual={history.handleDeleteManual}
           onClearAll={history.handleClearAllHistory}
+          locale={settings.locale}
         />
       )}
     </div>

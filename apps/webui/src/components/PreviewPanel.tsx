@@ -1,5 +1,6 @@
-import { type ChangeEvent, type Dispatch, type KeyboardEvent, type MouseEvent, type RefObject, type SetStateAction } from 'react'
+import { useMemo, type ChangeEvent, type Dispatch, type KeyboardEvent, type MouseEvent, type RefObject, type SetStateAction } from 'react'
 import type { FilterState, LegendItem, SelectedItem } from '../lib/svgDom'
+import { createTranslator, type Locale } from '../lib/i18n'
 
 type PreviewPanelProps = {
   hidden: boolean
@@ -31,6 +32,7 @@ type PreviewPanelProps = {
   onDoubleClick: () => void
   onClick: (e: MouseEvent<HTMLDivElement>) => void
   onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => void
+  locale: Locale
 }
 
 export function PreviewPanel(props: PreviewPanelProps) {
@@ -64,7 +66,10 @@ export function PreviewPanel(props: PreviewPanelProps) {
     onDoubleClick,
     onClick,
     onKeyDown,
+    locale,
   } = props
+
+  const t = useMemo(() => createTranslator(locale), [locale])
 
   return (
     <div className={`preview-area${hidden ? ' mobile-hidden' : ''}`}>
@@ -74,7 +79,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
           className="scale-select"
           value={scale}
           onChange={(e) => onScaleChange(Number(e.target.value))}
-          title="プレビューのスケール（ピクセル/年）"
+          title={t('previewScaleTitle')}
         >
           <option value={0}>Auto</option>
           <option value={0.5}>0.5×</option>
@@ -88,39 +93,39 @@ export function PreviewPanel(props: PreviewPanelProps) {
             <button
               className="btn btn-preview-ctrl"
               onClick={resetPanZoom}
-              title="ビューをリセット（ダブルクリックでも可）"
+              title={t('previewResetTitle')}
             >
-              リセット
+              {t('previewReset')}
             </button>
             <button
               className="btn btn-preview-ctrl"
               onClick={() => setShowLegend((v) => !v)}
-              title="凡例を表示/非表示"
+              title={t('previewLegendTitle')}
             >
-              {showLegend ? '凡例 ✕' : '凡例'}
+              {showLegend ? t('previewLegendClose') : t('previewLegend')}
             </button>
             <button
               className={`btn btn-preview-ctrl${filterState.hiddenLanes.size > 0 || filterState.tagSearch ? ' btn-preview-ctrl-active' : ''}`}
               onClick={() => setShowFilterPanel((v) => !v)}
-              title="フィルタパネルを表示/非表示"
+              title={t('previewFilterTitle')}
             >
-              {showFilterPanel ? 'フィルタ ✕' : 'フィルタ'}
+              {showFilterPanel ? t('previewFilterClose') : t('previewFilter')}
             </button>
           </>
         )}
         <button
           className={`btn btn-preview-ctrl${previewFullscreen ? ' btn-preview-ctrl-active' : ''}`}
           onClick={() => setPreviewFullscreen((v) => !v)}
-          title={previewFullscreen ? '全画面モードを終了（Escape）' : '全画面モードでプレビュー'}
-          aria-label={previewFullscreen ? '全画面モードを終了' : '全画面モードでプレビュー'}
+          title={previewFullscreen ? t('previewFullscreenExitTitle') : t('previewFullscreenTitle')}
+          aria-label={previewFullscreen ? t('previewFullscreenExitTitle') : t('previewFullscreenTitle')}
         >
-          {previewFullscreen ? '✕ 全画面' : '⛶'}
+          {previewFullscreen ? t('previewFullscreenExit') : t('previewFullscreen')}
         </button>
       </div>
       {/* Legend panel */}
       {showLegend && legendItems.length > 0 && (
-        <div className="legend-panel" aria-label="凡例">
-          <div className="legend-header">凡例</div>
+        <div className="legend-panel" aria-label={t('previewLegend')}>
+          <div className="legend-header">{t('previewLegend')}</div>
           {legendItems.map((item) => (
             <div key={item.lane} className="legend-item">
               <span className="legend-swatch" style={{ background: item.color }} />
@@ -131,10 +136,10 @@ export function PreviewPanel(props: PreviewPanelProps) {
       )}
       {/* Filter panel */}
       {showFilterPanel && legendItems.length > 0 && (
-        <div className="filter-panel" aria-label="フィルタ">
-          <div className="filter-header">フィルタ</div>
+        <div className="filter-panel" aria-label={t('previewFilter')}>
+          <div className="filter-header">{t('previewFilter')}</div>
           <div className="filter-section">
-            <div className="filter-section-title">レーン</div>
+            <div className="filter-section-title">{t('previewFilterLaneSection')}</div>
             {legendItems.map((item) => (
               <label key={item.lane} className="filter-item">
                 <input
@@ -156,7 +161,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
           </div>
           {allTags.length > 0 && (
             <div className="filter-section">
-              <div className="filter-section-title">タグ検索</div>
+              <div className="filter-section-title">{t('previewFilterTagSection')}</div>
               <input
                 type="text"
                 className="filter-tag-input"
@@ -164,7 +169,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
                 onChange={(e: ChangeEvent<HTMLInputElement>) =>
                   setFilterState((prev) => ({ ...prev, tagSearch: e.target.value }))
                 }
-                placeholder="タグ名で絞り込み"
+                placeholder={t('previewFilterTagPlaceholder')}
               />
             </div>
           )}
@@ -173,7 +178,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
               className="filter-reset-btn"
               onClick={() => setFilterState({ hiddenLanes: new Set(), tagSearch: '' })}
             >
-              リセット
+              {t('previewReset')}
             </button>
           )}
         </div>

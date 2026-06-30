@@ -1,6 +1,7 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { useMemo, type Dispatch, type SetStateAction } from 'react'
 import type { Snapshot } from '../history'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { createTranslator, type Locale } from '../lib/i18n'
 
 type HistoryModalProps = {
   onClose: () => void
@@ -15,6 +16,7 @@ type HistoryModalProps = {
   onRenameCancel: () => void
   onDeleteManual: (id: string) => void
   onClearAll: () => void
+  locale: Locale
 }
 
 export function HistoryModal(props: HistoryModalProps) {
@@ -31,9 +33,11 @@ export function HistoryModal(props: HistoryModalProps) {
     onRenameCancel,
     onDeleteManual,
     onClearAll,
+    locale,
   } = props
 
   const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose })
+  const t = useMemo(() => createTranslator(locale), [locale])
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -47,13 +51,13 @@ export function HistoryModal(props: HistoryModalProps) {
         tabIndex={-1}
       >
         <div className="modal-header">
-          <span id="history-modal-title">履歴</span>
-          <button className="modal-close" onClick={onClose} aria-label="履歴を閉じる">✕</button>
+          <span id="history-modal-title">{t('historyTitle')}</span>
+          <button className="modal-close" onClick={onClose} aria-label={t('historyClose')}>✕</button>
         </div>
         <div className="history-body">
           {manualSnaps.length > 0 && (
             <section>
-              <div className="history-section-title">手動保存</div>
+              <div className="history-section-title">{t('historyManualSection')}</div>
               <ul className="history-list">
                 {manualSnaps.map((snap) => (
                   <li key={snap.id} className="history-item">
@@ -69,21 +73,21 @@ export function HistoryModal(props: HistoryModalProps) {
                             if (e.key === 'Escape') onRenameCancel()
                           }}
                         />
-                        <button className="btn btn-sm" onClick={onRenameCommit}>確定</button>
-                        <button className="btn btn-sm" onClick={onRenameCancel}>キャンセル</button>
+                        <button className="btn btn-sm" onClick={onRenameCommit}>{t('historyRenameCommit')}</button>
+                        <button className="btn btn-sm" onClick={onRenameCancel}>{t('historyRenameCancel')}</button>
                       </div>
                     ) : (
                       <div className="history-item-row">
                         <button
                           className="history-restore-btn"
                           onClick={() => onRestore(snap.source)}
-                          title="このスナップショットを復元"
+                          title={t('historyRestoreTitle')}
                         >
                           {snap.label}
                         </button>
                         <div className="history-item-actions">
-                          <button className="btn btn-sm" onClick={() => onRenameStart(snap)} title="名前を変更">✎</button>
-                          <button className="btn btn-sm btn-danger" onClick={() => onDeleteManual(snap.id)} title="削除">✕</button>
+                          <button className="btn btn-sm" onClick={() => onRenameStart(snap)} title={t('historyRenameTitle')}>✎</button>
+                          <button className="btn btn-sm btn-danger" onClick={() => onDeleteManual(snap.id)} title={t('historyDeleteTitle')}>✕</button>
                         </div>
                       </div>
                     )}
@@ -94,7 +98,7 @@ export function HistoryModal(props: HistoryModalProps) {
           )}
           {autoSnaps.length > 0 && (
             <section>
-              <div className="history-section-title">自動スナップショット（最大 {autoSnaps.length}/5 件）</div>
+              <div className="history-section-title">{t.fmt('historyAutoSection', { count: autoSnaps.length, max: 5 })}</div>
               <ul className="history-list">
                 {autoSnaps.map((snap) => (
                   <li key={snap.id} className="history-item">
@@ -102,7 +106,7 @@ export function HistoryModal(props: HistoryModalProps) {
                       <button
                         className="history-restore-btn"
                         onClick={() => onRestore(snap.source)}
-                        title="このスナップショットを復元"
+                        title={t('historyRestoreTitle')}
                       >
                         {snap.label}
                       </button>

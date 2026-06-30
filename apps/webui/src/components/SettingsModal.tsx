@@ -1,5 +1,6 @@
-import type { ChangeEvent } from 'react'
+import { useMemo, type ChangeEvent } from 'react'
 import type { ColorScheme, Settings } from '../lib/settings'
+import { createTranslator, SUPPORTED_LOCALES, type Locale } from '../lib/i18n'
 import { SHORTCUTS } from '../editor/shortcuts'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
@@ -13,6 +14,7 @@ type SettingsModalProps = {
 export function SettingsModal({ onClose, settings, updateSetting, systemScheme }: SettingsModalProps) {
   const { theme: themePref, fontSize, lineWrap, scale, pngWhiteBg } = settings
   const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose })
+  const t = useMemo(() => createTranslator(settings.locale), [settings.locale])
 
   function handleFontSizeChange(e: ChangeEvent<HTMLSelectElement>) {
     updateSetting('fontSize', parseInt(e.target.value, 10))
@@ -30,13 +32,13 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
         tabIndex={-1}
       >
         <div className="modal-header">
-          <span id="settings-modal-title">設定</span>
-          <button className="modal-close" onClick={onClose} aria-label="設定を閉じる">✕</button>
+          <span id="settings-modal-title">{t('settingsTitle')}</span>
+          <button className="modal-close" onClick={onClose} aria-label={t('settingsClose')}>✕</button>
         </div>
         <div className="settings-body">
           <div className="settings-section">
-            <div className="settings-label">テーマ</div>
-            <div className="settings-row" role="radiogroup" aria-label="テーマ">
+            <div className="settings-label">{t('settingsTheme')}</div>
+            <div className="settings-row" role="radiogroup" aria-label={t('settingsTheme')}>
               <button
                 type="button"
                 role="radio"
@@ -45,7 +47,7 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
                 onClick={() => updateSetting('theme', 'auto')}
                 title={`OS の設定に追従（現在: ${systemScheme === 'dark' ? 'ダーク' : 'ライト'}）`}
               >
-                OS 追従
+                {t('settingsThemeAuto')}
               </button>
               <button
                 type="button"
@@ -54,7 +56,7 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
                 className={`btn${themePref === 'light' ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('theme', 'light')}
               >
-                ライト
+                {t('settingsThemeLight')}
               </button>
               <button
                 type="button"
@@ -63,12 +65,12 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
                 className={`btn${themePref === 'dark' ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('theme', 'dark')}
               >
-                ダーク
+                {t('settingsThemeDark')}
               </button>
             </div>
           </div>
           <div className="settings-section">
-            <div className="settings-label">フォントサイズ</div>
+            <div className="settings-label">{t('settingsFontSize')}</div>
             <select
               className="toolbar-select"
               value={fontSize}
@@ -82,22 +84,22 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             </select>
           </div>
           <div className="settings-section">
-            <div className="settings-label">行折り返し</div>
+            <div className="settings-label">{t('settingsLineWrap')}</div>
             <button
               className={`btn${lineWrap ? ' btn-active' : ''}`}
               onClick={() => updateSetting('lineWrap', !lineWrap)}
             >
-              {lineWrap ? 'オン' : 'オフ'}
+              {lineWrap ? t('settingsLineWrapOn') : t('settingsLineWrapOff')}
             </button>
           </div>
           <div className="settings-section">
-            <div className="settings-label">スケール（ピクセル/年）</div>
+            <div className="settings-label">{t('settingsScale')}</div>
             <select
               className="toolbar-select"
               value={scale}
               onChange={(e) => updateSetting('scale', Number(e.target.value))}
             >
-              <option value={0}>Auto</option>
+              <option value={0}>{t('settingsScaleAuto')}</option>
               <option value={0.5}>0.5×</option>
               <option value={1}>1×</option>
               <option value={2}>2×</option>
@@ -106,19 +108,19 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             </select>
           </div>
           <div className="settings-section">
-            <div className="settings-label">PNG 背景色</div>
+            <div className="settings-label">{t('settingsPngBg')}</div>
             <div className="settings-row">
               <button
                 className={`btn${pngWhiteBg ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('pngWhiteBg', true)}
               >
-                白背景
+                {t('settingsPngBgWhite')}
               </button>
               <button
                 className={`btn${!pngWhiteBg ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('pngWhiteBg', false)}
               >
-                透過
+                {t('settingsPngBgTransparent')}
               </button>
             </div>
           </div>
@@ -127,51 +129,51 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             <div className="settings-label">SVG プレビュー設定</div>
           </div>
           <div className="settings-section">
-            <div className="settings-label">向き</div>
+            <div className="settings-label">{t('settingsOrientation')}</div>
             <select
               className="toolbar-select"
               value={settings.svgOrientation}
               onChange={(e) => updateSetting('svgOrientation', e.target.value as Settings['svgOrientation'])}
             >
-              <option value="horizontal">水平</option>
-              <option value="vertical">垂直</option>
+              <option value="horizontal">{t('settingsOrientationHorizontal')}</option>
+              <option value="vertical">{t('settingsOrientationVertical')}</option>
             </select>
           </div>
           <div className="settings-section">
-            <div className="settings-label">グリッド密度</div>
+            <div className="settings-label">{t('settingsGrid')}</div>
             <select
               className="toolbar-select"
               value={settings.svgGrid}
               onChange={(e) => updateSetting('svgGrid', e.target.value as Settings['svgGrid'])}
             >
-              <option value="none">なし</option>
-              <option value="decade">10年</option>
-              <option value="year">1年</option>
-              <option value="month">月</option>
+              <option value="none">{t('settingsGridNone')}</option>
+              <option value="decade">{t('settingsGridDecade')}</option>
+              <option value="year">{t('settingsGridYear')}</option>
+              <option value="month">{t('settingsGridMonth')}</option>
             </select>
           </div>
           <div className="settings-section">
-            <div className="settings-label">SVG テーマ</div>
+            <div className="settings-label">{t('settingsSvgTheme')}</div>
             <select
               className="toolbar-select"
               value={settings.svgTheme}
               onChange={(e) => updateSetting('svgTheme', e.target.value as Settings['svgTheme'])}
             >
-              <option value="default">デフォルト</option>
-              <option value="dark">ダーク</option>
-              <option value="print">印刷</option>
-              <option value="pastel">パステル</option>
+              <option value="default">{t('settingsSvgThemeDefault')}</option>
+              <option value="dark">{t('settingsSvgThemeDark')}</option>
+              <option value="print">{t('settingsSvgThemePrint')}</option>
+              <option value="pastel">{t('settingsSvgThemePastel')}</option>
             </select>
           </div>
           <div className="settings-section">
-            <div className="settings-label">自動保存</div>
+            <div className="settings-label">{t('settingsAutoSave')}</div>
             <div className="settings-row">
               <button
                 className={`btn${settings.autoSaveEnabled ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('autoSaveEnabled', !settings.autoSaveEnabled)}
                 title="編集内容をブラウザに自動保存します（リロード後も復元）"
               >
-                {settings.autoSaveEnabled ? 'オン' : 'オフ'}
+                {settings.autoSaveEnabled ? t('settingsAutoSaveOn') : t('settingsAutoSaveOff')}
               </button>
               <span className="settings-hint">
                 {settings.autoSaveEnabled ? 'リロード後に復元されます' : '保存しません（オフ時は既存の保存を削除）'}
@@ -179,31 +181,45 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             </div>
           </div>
           <div className="settings-section">
-            <div className="settings-label">履歴スナップショット</div>
+            <div className="settings-label">{t('settingsHistory')}</div>
             <div className="settings-row">
               <button
                 className={`btn${settings.historyEnabled ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('historyEnabled', !settings.historyEnabled)}
                 title="テンプレートロード・ファイルオープン・5分毎に自動スナップショットを保存"
               >
-                {settings.historyEnabled ? 'オン' : 'オフ'}
+                {settings.historyEnabled ? t('settingsHistoryOn') : t('settingsHistoryOff')}
               </button>
               <span className="settings-hint">
                 {settings.historyEnabled ? '自動スナップショット有効（最大5件）' : '無効（既存履歴は保持）'}
               </span>
             </div>
           </div>
+          <div className="settings-section">
+            <div className="settings-label">{t('settingsLanguage')}</div>
+            <select
+              className="toolbar-select"
+              value={settings.locale}
+              onChange={(e) => updateSetting('locale', e.target.value as Locale)}
+              aria-label={t('settingsLanguage')}
+            >
+              {SUPPORTED_LOCALES.map((loc) => (
+                <option key={loc} value={loc}>
+                  {loc === 'ja' ? '日本語' : 'English'}
+                </option>
+              ))}
+            </select>
+          </div>
           <hr className="settings-divider" />
           <div className="settings-section">
             <div className="settings-label">GitHub</div>
-            <a
+            <button
+              type="button"
               className="btn"
-              href="https://github.com/keroway/timeline-dsl"
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={() => window.open('https://github.com/keroway/timeline-dsl', '_blank', 'noopener,noreferrer')}
             >
               keroway/timeline-dsl ↗
-            </a>
+            </button>
           </div>
           <hr className="settings-divider" />
           <div className="settings-section">
