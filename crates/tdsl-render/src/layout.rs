@@ -690,6 +690,106 @@ const AXIS_LABEL_PX: f64 = 40.0;
 const EVENT_RANGE_Y_OFFSET: f64 = 14.0;
 const EVENT_RANGE_H: f64 = 10.0;
 const EVENT_STEM_H: f64 = 20.0;
+const LABEL_HORIZONTAL_PADDING: f64 = 8.0;
+const EVENT_LABEL_GAP: f64 = 6.0;
+
+/// Estimate rendered text width in CSS pixels for timeline labels.
+///
+/// This deliberately uses a small, deterministic approximation table instead of
+/// font-specific glyph metrics. `RenderOptions::font_family` is ignored: the
+/// result is intended for layout heuristics (overflow/collision detection), not
+/// exact typography.
+pub(crate) fn estimate_text_width_px(text: &str, font_size_px: f64) -> f64 {
+    text.chars()
+        .map(|ch| char_width_em(ch) * font_size_px)
+        .sum()
+}
+
+fn char_width_em(ch: char) -> f64 {
+    if ch.is_whitespace() {
+        0.33
+    } else if ch.is_ascii_digit() {
+        0.56
+    } else if ch.is_ascii_alphabetic() {
+        match ch {
+            'i' | 'j' | 'l' | 'I' => 0.32,
+            'm' | 'w' | 'M' | 'W' => 0.86,
+            _ => 0.62,
+        }
+    } else if ch.is_ascii_punctuation() {
+        0.38
+    } else if is_cjk_like(ch) {
+        1.0
+    } else {
+        0.75
+    }
+}
+
+fn is_cjk_like(ch: char) -> bool {
+    matches!(
+        ch as u32,
+        0x1100..=0x11ff // Hangul Jamo
+            | 0x2e80..=0x9fff // CJK radicals, kana, ideographs
+            | 0xac00..=0xd7af // Hangul syllables
+            | 0xf900..=0xfaff // CJK compatibility ideographs
+            | 0xff00..=0xffef // Fullwidth forms
+            | 0x20000..=0x2fa1f // CJK extensions
+    )
+}
+
+/// Whether a laid-out item's label exceeds the inline space available for it.
+///
+/// For bars (Span/EventRange), available space is the bar's primary-axis extent
+/// minus horizontal padding. Point events do not have a bar; their available
+/// inline space is the remaining primary-axis space after the label gap.
+pub(crate) fn label_overflows_item(
+    item: &LaidItem<'_>,
+    opts: &RenderOptions,
+    font_size_px: f64,
+    total_width: f64,
+    total_height: f64,
+) -> bool {
+    let text_width = estimate_text_width_px(laid_item_label(item), font_size_px);
+    text_width > label_available_width_px(item, opts, total_width, total_height)
+}
+
+pub(crate) fn label_available_width_px(
+    item: &LaidItem<'_>,
+    opts: &RenderOptions,
+    total_width: f64,
+    total_height: f64,
+) -> f64 {
+    let is_vertical = opts.orientation == Orientation::Vertical;
+    match item {
+        LaidItem::Span { width, height, .. } | LaidItem::EventRange { width, height, .. } => {
+            let primary_extent = if is_vertical { *height } else { *width };
+            (primary_extent - LABEL_HORIZONTAL_PADDING * 2.0).max(0.0)
+        }
+        LaidItem::Event { x, y_dot, .. } => {
+            if is_vertical {
+                (total_height - *y_dot - opts.bottom_margin - EVENT_LABEL_GAP).max(0.0)
+            } else {
+                (total_width - *x - opts.right_margin - EVENT_LABEL_GAP).max(0.0)
+            }
+        }
+    }
+}
+
+pub(crate) fn laid_item_label<'a>(item: &'a LaidItem<'_>) -> &'a str {
+    match item {
+        LaidItem::Span { item, .. }
+        | LaidItem::EventRange { item, .. }
+        | LaidItem::Event { item, .. } => item_label(item),
+    }
+}
+
+fn item_label(item: &Item) -> &str {
+    match item {
+        Item::Span { label, .. } | Item::Event { label, .. } | Item::EventRange { label, .. } => {
+            label
+        }
+    }
+}
 
 fn item_lane_id(item: &Item) -> &str {
     match item {
@@ -1282,6 +1382,123 @@ mod tests {
             "expected width > 13 (end-of-year extension), got {}",
             span.1
         );
+    }
+
+    #[test]
+    fn estimate_text_width_handles_ascii_and_cjk_mix() {
+        let ascii = estimate_text_width_px("ABC123", 10.0);
+        let cjk = estimate_text_width_px("漢字かな", 10.0);
+        let mixed = estimate_text_width_px("A漢1", 10.0);
+
+        assert!((ascii - 35.4).abs() < 0.001, "ascii={ascii}");
+        assert!((cjk - 40.0).abs() < 0.001, "cjk={cjk}");
+        assert!((mixed - 21.8).abs() < 0.001, "mixed={mixed}");
+    }
+
+    #[test]
+    fn label_overflow_detects_bar_label_exceeding_available_width() {
+        let ir = TimelineIr {
+            meta: mk_meta((0, 10)),
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "k".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::Span {
+                id: "s1".into(),
+                lane: "x".into(),
+                start: 0,
+                end: 1,
+                label: "Very long label 漢字".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                start_hour: None,
+                start_minute: None,
+                end_month: None,
+                end_day: None,
+                end_hour: None,
+                end_minute: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 20.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts.clone());
+        let item = layout.items.first().expect("span should be laid out");
+
+        assert!(
+            label_available_width_px(item, &opts, layout.total_width, layout.total_height) < 25.0
+        );
+        assert!(label_overflows_item(
+            item,
+            &opts,
+            12.0,
+            layout.total_width,
+            layout.total_height
+        ));
+    }
+
+    #[test]
+    fn label_overflow_allows_short_bar_label() {
+        let ir = TimelineIr {
+            meta: mk_meta((0, 10)),
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "k".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::EventRange {
+                id: "r1".into(),
+                lane: "x".into(),
+                start: 0,
+                end: 10,
+                label: "OK".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                start_hour: None,
+                start_minute: None,
+                end_month: None,
+                end_day: None,
+                end_hour: None,
+                end_minute: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 40.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts.clone());
+        let item = layout
+            .items
+            .first()
+            .expect("event range should be laid out");
+
+        assert!(!label_overflows_item(
+            item,
+            &opts,
+            12.0,
+            layout.total_width,
+            layout.total_height
+        ));
     }
 
     #[test]
