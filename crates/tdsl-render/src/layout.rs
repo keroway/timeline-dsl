@@ -482,7 +482,8 @@ impl<'a> LayoutModel<'a> {
                 .collect()
         };
 
-        let group_bands = compute_group_bands(&lanes_ordered, &lane_y, &opts, body_height, total_width);
+        let group_bands =
+            compute_group_bands(&lanes_ordered, &lane_y, &opts, body_height, total_width);
 
         let mut items = Vec::new();
         for item in &ir.items {
