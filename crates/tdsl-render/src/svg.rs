@@ -42,6 +42,7 @@ pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
         font_family = font_family,
     )?;
 
+    render_group_bands(&mut s, layout)?;
     render_lane_bands(&mut s, layout)?;
     render_group_headers(&mut s, layout)?;
     render_grid_lines(&mut s, layout)?;
@@ -140,6 +141,30 @@ fn render_table(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     }
 
     writeln!(s, "  </g>")?;
+    Ok(())
+}
+
+/// Render background bands (#543) spanning contiguous lane groups/eras.
+/// Purely decorative (`role="presentation"`); empty (no-op) unless
+/// `RenderOptions.layout_style == LayoutStyle::GroupBands`.
+fn render_group_bands(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
+    for band in &layout.group_bands {
+        let class = if band.even {
+            "tdsl-group-band-even"
+        } else {
+            "tdsl-group-band-odd"
+        };
+        writeln!(
+            s,
+            r#"  <rect class="{class}" role="presentation" aria-hidden="true" data-group="{label}" x="{x}" y="{y}" width="{w}" height="{h}"/>"#,
+            class = class,
+            label = escape_xml_attr(&band.label),
+            x = fmt_f(band.x),
+            y = fmt_f(band.y),
+            w = fmt_f(band.width),
+            h = fmt_f(band.height),
+        )?;
+    }
     Ok(())
 }
 

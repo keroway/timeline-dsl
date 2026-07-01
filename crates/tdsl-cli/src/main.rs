@@ -225,6 +225,10 @@ enum Commands {
         #[arg(long, value_enum, default_value_t = GridStyleArg::None)]
         grid: GridStyleArg,
 
+        /// High-level layout style: timeline (default) or group-bands (era/group background blocks)
+        #[arg(long, value_enum, default_value_t = LayoutStyleArg::Timeline)]
+        layout_style: LayoutStyleArg,
+
         /// Watch input file for changes and re-render automatically (html/svg only)
         #[arg(long, default_value_t = false)]
         watch: bool,
@@ -505,6 +509,24 @@ impl GridStyleArg {
     }
 }
 
+/// High-level visual layout style (#543), orthogonal to `--orientation`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+enum LayoutStyleArg {
+    #[default]
+    Timeline,
+    /// Draw background blocks spanning contiguous lane groups/eras.
+    GroupBands,
+}
+
+impl LayoutStyleArg {
+    fn into_layout_style(self) -> tdsl_render::layout::LayoutStyle {
+        match self {
+            LayoutStyleArg::Timeline => tdsl_render::layout::LayoutStyle::Timeline,
+            LayoutStyleArg::GroupBands => tdsl_render::layout::LayoutStyle::GroupBands,
+        }
+    }
+}
+
 #[derive(ValueEnum, Clone, Copy, Default, Debug)]
 enum RenderFormat {
     #[default]
@@ -645,6 +667,7 @@ fn main() {
             color_map,
             orientation,
             grid,
+            layout_style,
             watch,
             show_table,
             show_event_labels,
@@ -673,6 +696,7 @@ fn main() {
             color_map.as_deref(),
             orientation,
             grid,
+            layout_style,
             wikidata_timeout,
             watch,
             show_table,

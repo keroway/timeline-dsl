@@ -57,6 +57,16 @@ pub enum GridStyle {
     Month,
 }
 
+/// High-level visual layout style, orthogonal to [`Orientation`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum LayoutStyle {
+    /// Standard lane timeline layout (default).
+    #[default]
+    Timeline,
+    /// Draw background blocks spanning contiguous lane groups/eras.
+    GroupBands,
+}
+
 /// Rendering options. Pixel dimensions and styling parameters.
 #[derive(Debug, Clone)]
 pub struct RenderOptions {
@@ -86,6 +96,8 @@ pub struct RenderOptions {
     pub orientation: Orientation,
     /// Auxiliary grid line style. `None` (default) disables grid lines entirely.
     pub grid: GridStyle,
+    /// High-level visual layout style, orthogonal to `orientation`.
+    pub layout_style: LayoutStyle,
     /// When true, a table listing all items (time period, label, lane, tags) is appended
     /// below the timeline. HTML output uses a native `<table>` element (`html.rs`); SVG,
     /// PNG, and PDF output draw the same columns as SVG `<rect>`/`<text>` elements below
@@ -122,6 +134,7 @@ impl Default for RenderOptions {
             font_family: None,
             orientation: Orientation::Horizontal,
             grid: GridStyle::None,
+            layout_style: LayoutStyle::Timeline,
             show_table: false,
             show_event_labels: false,
             use_css_vars: true,
@@ -137,6 +150,17 @@ pub struct LaneBandModel {
     pub width: f64,
     pub height: f64,
     /// `true` for even-indexed lanes (0-based), `false` for odd.
+    pub even: bool,
+}
+
+/// Background block spanning a contiguous lane group/era.
+pub struct GroupBandModel {
+    pub label: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    /// `true` for even-indexed groups (0-based), `false` for odd.
     pub even: bool,
 }
 
@@ -324,6 +348,8 @@ pub struct LayoutModel<'a> {
     pub items: Vec<LaidItem<'a>>,
     /// Pre-computed lane background bands (index-ordered, same order as `lanes_ordered`).
     pub lane_bands: Vec<LaneBandModel>,
+    /// Pre-computed background bands spanning contiguous lane groups/eras.
+    pub group_bands: Vec<GroupBandModel>,
     /// Mapping from lane ID to resolved CSS color (palette-assigned).
     pub lane_colors: HashMap<String, String>,
     /// #536: pre-sorted table rows, populated only when `opts.show_table` is true.
@@ -456,6 +482,8 @@ impl<'a> LayoutModel<'a> {
                 .collect()
         };
 
+        let group_bands = compute_group_bands(&lanes_ordered, &lane_y, &opts, body_height, total_width);
+
         let mut items = Vec::new();
         for item in &ir.items {
             let lane_id = item_lane_id(item);
@@ -498,6 +526,7 @@ impl<'a> LayoutModel<'a> {
             tick_step,
             items,
             lane_bands,
+            group_bands,
             lane_colors,
             table_rows,
             table_top_y,
@@ -1170,6 +1199,65 @@ fn push_common(
 }
 
 /// Build the tooltip text for an item (XML-unescaped).
+/// Compute background bands (#543) spanning contiguous lanes that share the
+/// same `group` value. Lanes are already ordered by `(order, id)`; a "contiguous
+/// run" of lanes with the same `Some(group)` value becomes one band. Ungrouped
+/// lanes (`group == None`) never produce a band. Bands are index-ordered by
+/// first occurrence, alternating `even`/`odd` for styling (independent of the
+/// underlying lane band parity).
+fn compute_group_bands(
+    lanes_ordered: &[&Lane],
+    lane_y: &HashMap<String, f64>,
+    opts: &RenderOptions,
+    body_height: f64,
+    total_width: f64,
+) -> Vec<GroupBandModel> {
+    if opts.layout_style != LayoutStyle::GroupBands {
+        return Vec::new();
+    }
+    let is_vertical = opts.orientation == Orientation::Vertical;
+    let mut bands: Vec<GroupBandModel> = Vec::new();
+    let mut idx = 0usize;
+    let mut band_idx = 0usize;
+    while idx < lanes_ordered.len() {
+        let group = lanes_ordered[idx].group.as_deref();
+        let start_idx = idx;
+        let mut end_idx = idx;
+        while end_idx + 1 < lanes_ordered.len()
+            && lanes_ordered[end_idx + 1].group.as_deref() == group
+        {
+            end_idx += 1;
+        }
+        if let Some(group_label) = group {
+            let start_center = lane_y[&lanes_ordered[start_idx].id];
+            let end_center = lane_y[&lanes_ordered[end_idx].id];
+            let half = opts.lane_height / 2.0;
+            if is_vertical {
+                bands.push(GroupBandModel {
+                    label: group_label.to_string(),
+                    x: start_center - half,
+                    y: opts.top_margin,
+                    width: (end_center + half) - (start_center - half),
+                    height: body_height - opts.top_margin - opts.bottom_margin,
+                    even: band_idx.is_multiple_of(2),
+                });
+            } else {
+                bands.push(GroupBandModel {
+                    label: group_label.to_string(),
+                    x: opts.left_gutter,
+                    y: start_center - half,
+                    width: total_width - opts.left_gutter - opts.right_margin,
+                    height: (end_center + half) - (start_center - half),
+                    even: band_idx.is_multiple_of(2),
+                });
+            }
+            band_idx += 1;
+        }
+        idx = end_idx + 1;
+    }
+    bands
+}
+
 fn item_tooltip(item: &Item) -> String {
     let mut lines = Vec::new();
     match item {
