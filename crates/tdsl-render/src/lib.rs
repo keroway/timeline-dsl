@@ -1025,4 +1025,69 @@ mod tests {
         let svg = render_svg_only(&ir, opts).unwrap();
         insta::assert_snapshot!(svg);
     }
+
+    #[test]
+    fn snapshot_colliding_event_labels_svg() {
+        // #537: two events close together in time, in the same lane, with
+        // show_event_labels=true. Their always-on labels would overlap without
+        // collision avoidance; the snapshot lets us visually confirm the second
+        // label is stacked (offset) with a leader line connecting it to its dot.
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "collision snapshot".into(),
+                unit: "year".into(),
+                range: (0, 100),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "custom".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![
+                Item::Event {
+                    id: "e1".into(),
+                    lane: "x".into(),
+                    time: 50,
+                    label: "Alpha Event".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    time_month: None,
+                    time_day: None,
+                    time_hour: None,
+                    time_minute: None,
+                    source_span: None,
+                },
+                Item::Event {
+                    id: "e2".into(),
+                    lane: "x".into(),
+                    time: 51,
+                    label: "Beta Event".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    time_month: None,
+                    time_day: None,
+                    time_hour: None,
+                    time_minute: None,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            show_event_labels: true,
+            scale: 10.0,
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts).unwrap();
+        insta::assert_snapshot!(svg);
+    }
 }

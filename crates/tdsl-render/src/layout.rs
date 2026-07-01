@@ -178,6 +178,12 @@ pub enum LaidItem<'a> {
         color: String,
         /// Formatted tooltip text (XML-unescaped).
         tooltip: String,
+        /// #537: collision-avoidance stacking level for this event's always-on label
+        /// (0 = no offset, i.e. the item's normal position). Only meaningful when
+        /// `RenderOptions.show_event_labels` is true; computed by
+        /// [`assign_event_label_stack_levels`] as a post-processing pass over all
+        /// laid-out items in the same lane.
+        label_stack_level: u8,
     },
 }
 
@@ -472,6 +478,12 @@ impl<'a> LayoutModel<'a> {
                     tooltip,
                 },
             );
+        }
+
+        // #537: avoid horizontally overlapping always-on Event labels within the
+        // same lane by stacking colliding labels away from the timeline row.
+        if opts.show_event_labels {
+            assign_event_label_stack_levels(&mut items, is_vertical);
         }
 
         Self {
@@ -833,6 +845,7 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
                 y_dot,
                 color,
                 tooltip,
+                label_stack_level: 0,
             });
         }
     }
@@ -847,6 +860,101 @@ const EVENT_RANGE_H: f64 = 10.0;
 const EVENT_STEM_H: f64 = 20.0;
 const LABEL_HORIZONTAL_PADDING: f64 = 8.0;
 const EVENT_LABEL_GAP: f64 = 6.0;
+/// Font-size (px) used for always-on Event/EventRange labels (`.tdsl-event-label`
+/// CSS class in svg.rs), used to estimate label width for #537 collision detection.
+pub(crate) const EVENT_LABEL_FONT_PX: f64 = 10.0;
+/// Vertical spacing (px) between stacked label levels when colliding Event labels
+/// are pushed apart (#537).
+pub(crate) const EVENT_LABEL_STACK_STEP: f64 = 12.0;
+/// Minimum horizontal gap (px) required between two labels' estimated bounding
+/// boxes for them to be considered non-overlapping (#537).
+const EVENT_LABEL_MIN_GAP: f64 = 4.0;
+
+/// Post-processing pass (#537): detect Event labels that would visually overlap
+/// within the same lane (based on estimated text width) and assign each a
+/// `label_stack_level` so the renderer can offset colliding labels away from the
+/// timeline row, stacked in order of increasing level.
+///
+/// Only `LaidItem::Event` entries participate — Span/EventRange labels live
+/// inside their own bar and don't collide with neighbours the same way.
+fn assign_event_label_stack_levels(items: &mut [LaidItem<'_>], is_vertical: bool) {
+    let mut by_lane: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (idx, laid) in items.iter().enumerate() {
+        if let LaidItem::Event { item, .. } = laid {
+            by_lane.entry(item_lane_id(item)).or_default().push(idx);
+        }
+    }
+
+    for mut idxs in by_lane.into_values() {
+        // Sort by the primary (time) coordinate so the sweep below only ever
+        // needs to compare against the most recently placed interval per level.
+        idxs.sort_by(|&a, &b| {
+            event_primary_coord(&items[a], is_vertical)
+                .partial_cmp(&event_primary_coord(&items[b], is_vertical))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let mut level_end: Vec<f64> = Vec::new();
+        for idx in idxs {
+            let (start, end) = event_label_interval(&items[idx], is_vertical);
+            let mut level = 0usize;
+            loop {
+                match level_end.get(level) {
+                    None => {
+                        level_end.push(end + EVENT_LABEL_MIN_GAP);
+                        break;
+                    }
+                    Some(&occupied_end) if start >= occupied_end => {
+                        level_end[level] = end + EVENT_LABEL_MIN_GAP;
+                        break;
+                    }
+                    _ => level += 1,
+                }
+            }
+            if let LaidItem::Event {
+                label_stack_level, ..
+            } = &mut items[idx]
+            {
+                *label_stack_level = level.min(u8::MAX as usize) as u8;
+            }
+        }
+    }
+}
+
+/// The Event's primary (time-axis) coordinate, matching the field the SVG
+/// renderer treats as the time position for label placement: `x` in horizontal
+/// orientation, `y_dot` in vertical orientation (see `svg.rs::render_items`).
+fn event_primary_coord(laid: &LaidItem<'_>, is_vertical: bool) -> f64 {
+    match laid {
+        LaidItem::Event { x, y_dot, .. } => {
+            if is_vertical {
+                *y_dot
+            } else {
+                *x
+            }
+        }
+        _ => 0.0,
+    }
+}
+
+/// Estimated `[start, end]` interval (px, along the primary/time axis) that an
+/// Event's always-on label occupies at stack level 0, matching the exact
+/// placement `svg.rs::render_items` uses: horizontal labels are centered above
+/// the dot; vertical labels start just to the right of the dot.
+fn event_label_interval(laid: &LaidItem<'_>, is_vertical: bool) -> (f64, f64) {
+    let LaidItem::Event { x, y_dot, item, .. } = laid else {
+        return (0.0, 0.0);
+    };
+    let text = item_label(item);
+    let width = estimate_text_width_px(text, EVENT_LABEL_FONT_PX);
+    if is_vertical {
+        let start = *y_dot + 6.0;
+        (start, start + width)
+    } else {
+        let half = width / 2.0;
+        (*x - half, *x + half)
+    }
+}
 
 /// Estimate rendered text width in CSS pixels for timeline labels.
 ///
