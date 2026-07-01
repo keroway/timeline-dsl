@@ -31,6 +31,7 @@ pub(crate) fn cmd_render(
     wikidata_timeout: std::time::Duration,
     watch: bool,
     show_table: bool,
+    show_legend: bool,
     show_event_labels: bool,
     pdf_cli: PdfCliOptions,
 ) -> Result<(), String> {
@@ -69,6 +70,7 @@ pub(crate) fn cmd_render(
             layout_style,
             wikidata_timeout,
             show_table,
+            show_legend,
             show_event_labels,
         );
     }
@@ -94,6 +96,7 @@ pub(crate) fn cmd_render(
         layout_style,
         wikidata_timeout,
         show_table,
+        show_legend,
         show_event_labels,
         pdf_cli,
     )
@@ -121,6 +124,7 @@ fn do_render(
     layout_style: LayoutStyleArg,
     wikidata_timeout: std::time::Duration,
     show_table: bool,
+    show_legend: bool,
     show_event_labels: bool,
     pdf_cli: PdfCliOptions,
 ) -> Result<(), String> {
@@ -166,6 +170,7 @@ fn do_render(
         grid: grid.into_grid_style(),
         layout_style: layout_style.into_layout_style(),
         show_table: effective_show_table,
+        show_legend,
         show_event_labels,
         ..Default::default()
     };
@@ -258,6 +263,7 @@ fn cmd_render_watch(
     layout_style: LayoutStyleArg,
     wikidata_timeout: std::time::Duration,
     show_table: bool,
+    show_legend: bool,
     show_event_labels: bool,
 ) -> Result<(), String> {
     let render_once = |cache_opts: tdsl_wikidata::CacheOptions| {
@@ -284,6 +290,7 @@ fn cmd_render_watch(
             layout_style,
             wikidata_timeout,
             show_table,
+            show_legend,
             show_event_labels,
             PdfCliOptions {
                 size: tdsl_render::PdfPageSize::A4,

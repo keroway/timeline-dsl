@@ -819,6 +819,51 @@ mod tests {
         );
     }
 
+    // ─── show_legend tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn render_svg_show_legend_false_no_static_legend() {
+        let ir = sample_ir();
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        assert!(
+            !svg.contains("tdsl-static-legend"),
+            "show_legend=false must not include the static legend panel"
+        );
+    }
+
+    #[test]
+    fn render_svg_show_legend_true_includes_static_legend() {
+        let mut ir = sample_ir();
+        ir.meta.color_map.insert("dynasty".into(), "#3366cc".into());
+        let opts = RenderOptions {
+            color_map: ir.meta.color_map.clone(),
+            show_legend: true,
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts).unwrap();
+        assert!(
+            svg.contains("tdsl-static-legend"),
+            "show_legend=true must include the static legend panel"
+        );
+        assert!(svg.contains("レーン: 漢"));
+        assert!(svg.contains("タグ: dynasty"));
+    }
+
+    #[test]
+    fn render_html_static_show_legend_includes_svg_legend_without_interactive_shell() {
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            show_legend: true,
+            ..RenderOptions::default()
+        };
+        let html = render_html(&ir, opts).unwrap();
+        assert!(html.contains("tdsl-static-legend"));
+        assert!(
+            !html.contains("id=\"tdsl-legend\""),
+            "interactive side legend must stay interactive-only"
+        );
+    }
+
     // ─── CSS variable tests ──────────────────────────────────────────────────
 
     #[test]

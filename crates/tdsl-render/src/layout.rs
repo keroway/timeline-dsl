@@ -103,6 +103,10 @@ pub struct RenderOptions {
     /// PNG, and PDF output draw the same columns as SVG `<rect>`/`<text>` elements below
     /// the timeline body, with `total_height` expanded to fit (#536).
     pub show_table: bool,
+    /// When true, render a static legend panel listing lane palette colors and tag color
+    /// overrides. Interactive HTML keeps its existing side legend; SVG/PNG/PDF reserve
+    /// space below the timeline body for this panel (#544).
+    pub show_legend: bool,
     /// When true, labels (and optionally dates) are always rendered next to Event and EventRange
     /// dots/bars as SVG text elements.  Disabled by default to keep the chart uncluttered.
     pub show_event_labels: bool,
@@ -136,6 +140,7 @@ impl Default for RenderOptions {
             grid: GridStyle::None,
             layout_style: LayoutStyle::Timeline,
             show_table: false,
+            show_legend: false,
             show_event_labels: false,
             use_css_vars: true,
         }
@@ -331,7 +336,9 @@ pub(crate) fn collect_table_rows(
 
 /// Row height (px) for the SVG/PNG/PDF item table (#536), including the header row.
 pub(crate) const TABLE_ROW_HEIGHT: f64 = 22.0;
-/// Vertical gap (px) between the timeline body and the table.
+/// Row height (px) for the static SVG/PNG/PDF legend panel (#544).
+pub(crate) const LEGEND_ROW_HEIGHT: f64 = 22.0;
+/// Vertical gap (px) between stacked blocks below the timeline body.
 pub(crate) const TABLE_TOP_GAP: f64 = 20.0;
 
 /// Pre-computed layout: every coordinate needed by the renderer.
@@ -354,6 +361,11 @@ pub struct LayoutModel<'a> {
     pub lane_colors: HashMap<String, String>,
     /// #536: pre-sorted table rows, populated only when `opts.show_table` is true.
     pub(crate) table_rows: Vec<TableRow>,
+    /// Number of static legend rows (title + lanes + tag color overrides), populated
+    /// only when `opts.show_legend` is true.
+    pub(crate) legend_row_count: usize,
+    /// #544: Y coordinate where the static legend panel begins.
+    pub(crate) legend_top_y: f64,
     /// #536: Y coordinate (in the *final*, table-inclusive `total_height`) where the
     /// table's header row begins. Only meaningful when `opts.show_table` is true.
     pub(crate) table_top_y: f64,
@@ -423,12 +435,32 @@ impl<'a> LayoutModel<'a> {
         } else {
             Vec::new()
         };
-        let table_top_y = body_height + TABLE_TOP_GAP;
-        let total_height = if opts.show_table {
-            // header row + one row per item, plus the top gap already added above.
-            table_top_y + (table_rows.len() as f64 + 1.0) * TABLE_ROW_HEIGHT + opts.bottom_margin
+        let legend_row_count = if opts.show_legend {
+            // Title row + one row per lane + one row per tag color override.
+            1 + lanes_ordered.len() + opts.color_map.len()
+        } else {
+            0
+        };
+        let legend_top_y = body_height + TABLE_TOP_GAP;
+        let after_legend_y = if opts.show_legend {
+            legend_top_y + legend_row_count as f64 * LEGEND_ROW_HEIGHT
         } else {
             body_height
+        };
+        let table_top_y = after_legend_y + TABLE_TOP_GAP;
+        let total_height = match (opts.show_legend, opts.show_table) {
+            (true, true) => {
+                table_top_y
+                    + (table_rows.len() as f64 + 1.0) * TABLE_ROW_HEIGHT
+                    + opts.bottom_margin
+            }
+            (true, false) => after_legend_y + opts.bottom_margin,
+            (false, true) => {
+                table_top_y
+                    + (table_rows.len() as f64 + 1.0) * TABLE_ROW_HEIGHT
+                    + opts.bottom_margin
+            }
+            (false, false) => body_height,
         };
 
         let tick_step = pick_tick_step(year_max - year_min, opts.scale, AXIS_LABEL_PX);
@@ -530,6 +562,8 @@ impl<'a> LayoutModel<'a> {
             group_bands,
             lane_colors,
             table_rows,
+            legend_row_count,
+            legend_top_y,
             table_top_y,
         }
     }

@@ -3,9 +3,9 @@ use std::fmt::Write;
 use tdsl_core::ir::Item;
 
 use crate::layout::{
-    EVENT_LABEL_STACK_STEP, GridStyle, LANE_PALETTE, LaidItem, LayoutModel, TABLE_COL_LABEL,
-    TABLE_COL_LANE, TABLE_COL_TAGS, TABLE_COL_TIME, TABLE_ROW_HEIGHT, estimate_text_width_px,
-    format_year, label_available_width_px, laid_item_label, month_abbr,
+    EVENT_LABEL_STACK_STEP, GridStyle, LANE_PALETTE, LEGEND_ROW_HEIGHT, LaidItem, LayoutModel,
+    TABLE_COL_LABEL, TABLE_COL_LANE, TABLE_COL_TAGS, TABLE_COL_TIME, TABLE_ROW_HEIGHT,
+    estimate_text_width_px, format_year, label_available_width_px, laid_item_label, month_abbr,
 };
 
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
@@ -49,12 +49,91 @@ pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
     render_axis(&mut s, layout)?;
     render_lane_labels(&mut s, layout)?;
     render_items(&mut s, layout)?;
+    if layout.opts.show_legend {
+        render_static_legend(&mut s, layout)?;
+    }
     if layout.opts.show_table {
         render_table(&mut s, layout)?;
     }
 
     writeln!(s, "</svg>")?;
     Ok(s)
+}
+
+/// Render a static legend panel (#544) below the timeline body for SVG/PNG/PDF output.
+fn render_static_legend(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
+    let left = 8.0;
+    let content_width = (layout.total_width - left * 2.0).max(0.0);
+    let top = layout.legend_top_y;
+    let height = layout.legend_row_count as f64 * LEGEND_ROW_HEIGHT;
+
+    writeln!(
+        s,
+        r##"  <g class="tdsl-static-legend" role="group" aria-label="legend">"##,
+    )?;
+    writeln!(
+        s,
+        r##"    <rect class="tdsl-static-legend-bg" x="{x}" y="{y}" width="{w}" height="{h}" fill="#fff" stroke="#d0d7de"/>"##,
+        x = fmt_f(left),
+        y = fmt_f(top),
+        w = fmt_f(content_width),
+        h = fmt_f(height),
+    )?;
+    writeln!(
+        s,
+        r#"    <text class="tdsl-static-legend-title" x="{x}" y="{y}" dominant-baseline="middle" font-weight="bold" font-size="12">凡例</text>"#,
+        x = fmt_f(left + 8.0),
+        y = fmt_f(top + LEGEND_ROW_HEIGHT / 2.0),
+    )?;
+
+    let mut row = 1usize;
+    for lane in &layout.lanes_ordered {
+        let y = top + (row as f64 + 0.5) * LEGEND_ROW_HEIGHT;
+        let color = layout
+            .lane_colors
+            .get(&lane.id)
+            .map(String::as_str)
+            .unwrap_or("#4682B4");
+        writeln!(
+            s,
+            r#"    <rect class="tdsl-static-legend-swatch" x="{x}" y="{y}" width="12" height="12" rx="2" fill="{fill}"/>"#,
+            x = fmt_f(left + 8.0),
+            y = fmt_f(y - 6.0),
+            fill = escape_xml_attr(color),
+        )?;
+        writeln!(
+            s,
+            r#"    <text class="tdsl-static-legend-item" x="{x}" y="{y}" dominant-baseline="middle" font-size="11">レーン: {label}</text>"#,
+            x = fmt_f(left + 28.0),
+            y = fmt_f(y),
+            label = escape_xml(&lane.label),
+        )?;
+        row += 1;
+    }
+
+    let mut tag_colors: Vec<_> = layout.opts.color_map.iter().collect();
+    tag_colors.sort_by(|a, b| a.0.cmp(b.0));
+    for (tag, color) in tag_colors {
+        let y = top + (row as f64 + 0.5) * LEGEND_ROW_HEIGHT;
+        writeln!(
+            s,
+            r#"    <rect class="tdsl-static-legend-swatch" x="{x}" y="{y}" width="12" height="12" rx="2" fill="{fill}"/>"#,
+            x = fmt_f(left + 8.0),
+            y = fmt_f(y - 6.0),
+            fill = escape_xml_attr(color),
+        )?;
+        writeln!(
+            s,
+            r#"    <text class="tdsl-static-legend-item" x="{x}" y="{y}" dominant-baseline="middle" font-size="11">タグ: {label}</text>"#,
+            x = fmt_f(left + 28.0),
+            y = fmt_f(y),
+            label = escape_xml(tag),
+        )?;
+        row += 1;
+    }
+
+    writeln!(s, "  </g>")?;
+    Ok(())
 }
 
 /// Render the "all items" table (#536) as SVG `<rect>`/`<text>` elements below the

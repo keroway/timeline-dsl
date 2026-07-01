@@ -237,6 +237,10 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         show_table: bool,
 
+        /// Render a static legend panel showing lane and tag colors
+        #[arg(long, default_value_t = false)]
+        show_legend: bool,
+
         /// Always render labels next to event dots and event-range bars as SVG text
         #[arg(long, default_value_t = false)]
         show_event_labels: bool,
@@ -670,6 +674,7 @@ fn main() {
             layout_style,
             watch,
             show_table,
+            show_legend,
             show_event_labels,
             pdf_size,
             pdf_landscape,
@@ -700,6 +705,7 @@ fn main() {
             wikidata_timeout,
             watch,
             show_table,
+            show_legend,
             show_event_labels,
             commands::render::PdfCliOptions {
                 size: pdf_size.into_page_size(),
