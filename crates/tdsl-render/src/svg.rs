@@ -2,7 +2,10 @@ use std::fmt::Write;
 
 use tdsl_core::ir::Item;
 
-use crate::layout::{GridStyle, LANE_PALETTE, LaidItem, LayoutModel, format_year, month_abbr};
+use crate::layout::{
+    GridStyle, LANE_PALETTE, LaidItem, LayoutModel, estimate_text_width_px, format_year,
+    label_available_width_px, laid_item_label, month_abbr,
+};
 
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
 pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
@@ -367,7 +370,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 }
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-span" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect><text class="tdsl-item-label" x="{tx}" y="{ty}" dominant-baseline="middle">{label}</text></g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-span" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect>{label_fragment}</g>"#,
                     aria_label = aria_label,
                     tip = tip,
                     tip_attr = tip_attr,
@@ -377,9 +380,14 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     y = fmt_f(*y),
                     w = fmt_f(*width),
                     h = fmt_f(*height),
-                    tx = fmt_f(*x + 4.0),
-                    ty = fmt_f(*y + height / 2.0),
-                    label = escape_xml(item_label(item)),
+                    label_fragment = render_bar_label_fragment(
+                        laid,
+                        layout,
+                        *x + 4.0,
+                        *y + height / 2.0,
+                        false,
+                        "tdsl-item-label"
+                    ),
                 )?;
             }
             LaidItem::EventRange {
@@ -414,22 +422,23 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     data_attrs.push_str(&build_interactive_attrs(item));
                 }
                 if layout.opts.show_event_labels {
-                    // EventRange with always-on label: include text inside the <g>.
-                    // For horizontal layout: label at (x+4, y+height/2) — same pattern as Span.
-                    // For vertical layout: label below the bar (y+height+4, x center).
                     let label_fragment = if layout.is_vertical() {
-                        format!(
-                            r#"<text class="tdsl-event-label" x="{lx}" y="{ly}" text-anchor="middle">{label}</text>"#,
-                            lx = fmt_f(*x + *width / 2.0),
-                            ly = fmt_f(*y + *height + 12.0),
-                            label = escape_xml(item_label(item)),
+                        render_bar_label_fragment(
+                            laid,
+                            layout,
+                            *x + *width / 2.0,
+                            *y + *height + 12.0,
+                            true,
+                            "tdsl-event-label",
                         )
                     } else {
-                        format!(
-                            r#"<text class="tdsl-event-label" x="{lx}" y="{ly}" dominant-baseline="middle">{label}</text>"#,
-                            lx = fmt_f(*x + 4.0),
-                            ly = fmt_f(*y + *height / 2.0),
-                            label = escape_xml(item_label(item)),
+                        render_bar_label_fragment(
+                            laid,
+                            layout,
+                            *x + 4.0,
+                            *y + *height / 2.0,
+                            false,
+                            "tdsl-event-label",
                         )
                     };
                     writeln!(
@@ -520,13 +529,19 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     )?;
                     if layout.opts.show_event_labels {
                         // Vertical: label to the right of the dot (dot_x + 6, same Y as dot center).
-                        writeln!(
+                        write!(
                             s,
-                            r#"  <text class="tdsl-event-label" x="{lx}" y="{ly}" dominant-baseline="middle" text-anchor="start">{label}</text>"#,
-                            lx = fmt_f(*y_dot + 6.0),
-                            ly = fmt_f(*x),
-                            label = escape_xml(item_label(item)),
+                            "{}",
+                            render_bar_label_fragment(
+                                laid,
+                                layout,
+                                *y_dot + 6.0,
+                                *x,
+                                false,
+                                "tdsl-event-label",
+                            )
                         )?;
+                        writeln!(s)?;
                     }
                 } else {
                     let hit_x = *x - 8.0;
@@ -552,13 +567,19 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     )?;
                     if layout.opts.show_event_labels {
                         // Horizontal: label above the dot, centered horizontally.
-                        writeln!(
+                        write!(
                             s,
-                            r#"  <text class="tdsl-event-label" x="{lx}" y="{ly}" text-anchor="middle">{label}</text>"#,
-                            lx = fmt_f(*x),
-                            ly = fmt_f(*y_top - 4.0),
-                            label = escape_xml(item_label(item)),
+                            "{}",
+                            render_bar_label_fragment(
+                                laid,
+                                layout,
+                                *x,
+                                *y_top - 4.0,
+                                true,
+                                "tdsl-event-label",
+                            )
                         )?;
+                        writeln!(s)?;
                     }
                 }
             }
@@ -567,10 +588,154 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     Ok(())
 }
 
-fn item_lane_id(item: &Item) -> &str {
-    match item {
-        Item::Span { lane, .. } | Item::Event { lane, .. } | Item::EventRange { lane, .. } => lane,
+/// Font-size fractions tried in order before falling back to truncation/external placement (#535).
+const LABEL_SHRINK_STEPS: &[f64] = &[1.0, 0.85, 0.70];
+/// Minimum useful font size (px); below this, shrinking stops helping legibility.
+const LABEL_MIN_FONT_PX: f64 = 7.0;
+/// External-label leader-line length (px) when a bar is too narrow to hold any text.
+const LABEL_LEADER_LEN: f64 = 14.0;
+
+fn base_font_size_for_class(class: &str) -> f64 {
+    if class == "tdsl-item-label" {
+        11.0
+    } else {
+        10.0
     }
+}
+
+/// Truncate `text` to fit within `available_px` at `font_size_px`, appending an
+/// ellipsis ("…") when truncation occurs. Returns the original text unchanged
+/// if it already fits.
+fn truncate_with_ellipsis(text: &str, font_size_px: f64, available_px: f64) -> String {
+    if estimate_text_width_px(text, font_size_px) <= available_px {
+        return text.to_string();
+    }
+    let ellipsis_width = estimate_text_width_px("…", font_size_px);
+    let mut out = String::new();
+    for ch in text.chars() {
+        let candidate_width = estimate_text_width_px(&out, font_size_px)
+            + estimate_text_width_px(&ch.to_string(), font_size_px);
+        if candidate_width + ellipsis_width > available_px {
+            break;
+        }
+        out.push(ch);
+    }
+    if out.is_empty() {
+        "…".to_string()
+    } else {
+        format!("{out}…")
+    }
+}
+
+/// Render a `<text>` fragment for a bar/event label, applying the #535 overflow
+/// strategy: shrink font-size in steps, then truncate with an ellipsis, and
+/// finally (when even a truncated single char + ellipsis would not fit) move
+/// the label outside the bar and connect it with a thin leader line. The full,
+/// un-truncated text always remains available via the item's `<title>` tooltip
+/// (and, per #536, the data table).
+///
+/// `anchor_x`/`anchor_y` is the normal (non-overflowing) label position.
+/// `anchor_below` selects `text-anchor="middle"` with no `dominant-baseline` (label
+/// centered below/above a point, matching the pre-existing EventRange-vertical and
+/// Event-horizontal placements); when `false`, `text-anchor` is left at its default
+/// (`start`) with `dominant-baseline="middle"` (matching Span/EventRange-horizontal
+/// and Event-vertical placements).
+fn render_bar_label_fragment(
+    laid: &LaidItem<'_>,
+    layout: &LayoutModel,
+    anchor_x: f64,
+    anchor_y: f64,
+    anchor_below: bool,
+    class: &str,
+) -> String {
+    let text = laid_item_label(laid);
+    if text.is_empty() {
+        return String::new();
+    }
+    let base_font = base_font_size_for_class(class);
+    let available =
+        label_available_width_px(laid, &layout.opts, layout.total_width, layout.total_height);
+
+    let (x, y, text_anchor, baseline_attr) = if anchor_below {
+        (anchor_x, anchor_y, r#" text-anchor="middle""#, "")
+    } else {
+        (anchor_x, anchor_y, "", r#" dominant-baseline="middle""#)
+    };
+
+    // 1. Try shrinking the font-size in fixed steps.
+    for &fraction in LABEL_SHRINK_STEPS {
+        let size = base_font * fraction;
+        if size < LABEL_MIN_FONT_PX {
+            break;
+        }
+        if estimate_text_width_px(text, size) <= available {
+            let size_attr = if fraction < 1.0 {
+                format!(r#" style="font-size:{}px""#, fmt_f(size))
+            } else {
+                String::new()
+            };
+            return format!(
+                r#"<text class="{class}" x="{x}" y="{y}"{baseline_attr}{text_anchor}{size_attr}>{label}</text>"#,
+                class = class,
+                x = fmt_f(x),
+                y = fmt_f(y),
+                baseline_attr = baseline_attr,
+                text_anchor = text_anchor,
+                size_attr = size_attr,
+                label = escape_xml(text),
+            );
+        }
+    }
+
+    // 2. Truncate with an ellipsis at the smallest shrink step.
+    let min_size =
+        (base_font * LABEL_SHRINK_STEPS[LABEL_SHRINK_STEPS.len() - 1]).max(LABEL_MIN_FONT_PX);
+    let truncated = truncate_with_ellipsis(text, min_size, available);
+    if estimate_text_width_px(&truncated, min_size) <= available.max(0.0) || available >= min_size {
+        return format!(
+            r#"<text class="{class}" x="{x}" y="{y}"{baseline_attr}{text_anchor} style="font-size:{size}px">{label}</text>"#,
+            class = class,
+            x = fmt_f(x),
+            y = fmt_f(y),
+            baseline_attr = baseline_attr,
+            text_anchor = text_anchor,
+            size = fmt_f(min_size),
+            label = escape_xml(&truncated),
+        );
+    }
+
+    // 3. Bar is too narrow even for a truncated label: place the label outside
+    // the bar, offset by a fixed leader length, and connect it with a thin line.
+    let (leader_x2, leader_y2, label_x, label_y, label_anchor) = if anchor_below {
+        (
+            anchor_x,
+            anchor_y + LABEL_LEADER_LEN,
+            anchor_x,
+            anchor_y + LABEL_LEADER_LEN + min_size,
+            r#" text-anchor="middle""#,
+        )
+    } else {
+        (
+            anchor_x + LABEL_LEADER_LEN,
+            anchor_y,
+            anchor_x + LABEL_LEADER_LEN + 2.0,
+            anchor_y,
+            r#" dominant-baseline="middle""#,
+        )
+    };
+    format!(
+        r##"<line class="tdsl-label-leader" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#999" stroke-width="1" stroke-dasharray="2 2"></line><text class="{class} tdsl-item-label-external" x="{lx}" y="{ly}"{label_anchor} style="font-size:{size}px">{label}</text>"##,
+        x1 = fmt_f(anchor_x),
+        y1 = fmt_f(anchor_y),
+        x2 = fmt_f(leader_x2),
+        y2 = fmt_f(leader_y2),
+        class = class,
+        lx = fmt_f(label_x),
+        ly = fmt_f(label_y),
+        label_anchor = label_anchor,
+        size = fmt_f(min_size),
+        label = escape_xml(&truncated),
+    )
 }
 
 /// Build data-* attributes for interactive mode as a string fragment (leading space included).
@@ -632,11 +797,9 @@ fn build_interactive_attrs(item: &Item) -> String {
     attrs
 }
 
-fn item_label(item: &Item) -> &str {
+fn item_lane_id(item: &Item) -> &str {
     match item {
-        Item::Span { label, .. } | Item::Event { label, .. } | Item::EventRange { label, .. } => {
-            label
-        }
+        Item::Span { lane, .. } | Item::Event { lane, .. } | Item::EventRange { lane, .. } => lane,
     }
 }
 
@@ -1348,6 +1511,118 @@ mod tests {
             svg.contains("大乱ラベル"),
             "event_range label text must appear in SVG when show_event_labels=true"
         );
+    }
+
+    // ─── #535 ラベルはみ出し対策テスト ─────────────────────────────────────
+
+    fn overflow_ir(label: &str, start: i64, end: i64) -> TimelineIr {
+        TimelineIr {
+            meta: Meta {
+                title: "test".into(),
+                unit: "year".into(),
+                range: (0, 1000),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "custom".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::EventRange {
+                id: "r1".into(),
+                lane: "x".into(),
+                start,
+                end,
+                label: label.into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                start_hour: None,
+                start_minute: None,
+                end_month: None,
+                end_day: None,
+                end_hour: None,
+                end_minute: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        }
+    }
+
+    #[test]
+    fn short_label_rendering_is_unchanged_by_overflow_logic() {
+        // A short label that clearly fits must not get a font-size override or
+        // be truncated/relocated (no regression for the common case).
+        let ir = overflow_ir("OK", 0, 500);
+        let opts = RenderOptions {
+            show_event_labels: true,
+            scale: 2.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(svg.contains(">OK</text>"));
+        assert!(!svg.contains("tdsl-label-leader"));
+        assert!(!svg.contains("font-size:") || !svg.contains("…"));
+    }
+
+    #[test]
+    fn long_label_on_moderately_narrow_bar_shrinks_font_size() {
+        let ir = overflow_ir("Moderately Long Label", 0, 30);
+        let opts = RenderOptions {
+            show_event_labels: true,
+            scale: 3.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("font-size:"),
+            "a long label on a narrow bar should trigger a font-size shrink, got:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn long_label_on_very_narrow_bar_is_truncated_with_ellipsis() {
+        let ir = overflow_ir("This Label Is Far Too Long To Fit", 0, 3);
+        let opts = RenderOptions {
+            show_event_labels: true,
+            scale: 3.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains('…'),
+            "a label that doesn't fit even at the smallest font size must be truncated with an ellipsis, got:\n{svg}"
+        );
+        // Full text must still be recoverable via the tooltip.
+        assert!(svg.contains("This Label Is Far Too Long To Fit"));
+    }
+
+    #[test]
+    fn extremely_narrow_bar_places_label_externally_with_leader_line() {
+        let ir = overflow_ir("漢字だらけの非常に長いラベルテキスト", 0, 1);
+        let opts = RenderOptions {
+            show_event_labels: true,
+            scale: 1.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-label-leader"),
+            "an extremely narrow bar must relocate the label outside with a leader line, got:\n{svg}"
+        );
+        assert!(svg.contains("tdsl-item-label-external"));
     }
 
     #[test]
