@@ -767,6 +767,31 @@ mod tests {
     }
 
     #[test]
+    fn render_svg_group_bands_default_disabled() {
+        let ir = grouped_ir();
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        assert!(
+            !svg.contains("tdsl-group-band-even"),
+            "default layout_style=timeline must not render group background bands"
+        );
+    }
+
+    #[test]
+    fn render_svg_group_bands_layout_style_enabled() {
+        let ir = grouped_ir();
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::GroupBands,
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts).unwrap();
+        assert!(
+            svg.contains("tdsl-group-band-even"),
+            "layout_style=group-bands must render group background bands"
+        );
+        assert!(svg.contains("data-group=\"グループ1\""));
+    }
+
+    #[test]
     fn render_html_grouped_lanes_contains_group_label() {
         let ir = grouped_ir();
         let html = render_html(&ir, RenderOptions::default()).unwrap();

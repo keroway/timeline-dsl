@@ -530,6 +530,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `--show-legend` | レーン色とタグ色（`color_map`）の静的凡例パネルを表示 |
 | `--scale` | 1年あたりのピクセル幅（デフォルト 2） |
 | `--lane-height` | 各レーンの高さ（px、デフォルト 60）。縦密度を制御し、バーの太さも追従する |
+| `--layout-style` | 高レベルな視覚レイアウト。`timeline`（デフォルト）/ `group-bands`（連続する lane group の背景帯） |
 | `--dpi` | PNG 出力の DPI（デフォルト 96）。`--format png` のみ有効 |
 | `--offline` | Wikidata fetch を省略 |
 
@@ -545,6 +546,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
   - 横軸: 時間（`timeline.range` を使用）
   - 縦軸: lane を `order` 昇順に縦積み
   - 時間軸の目盛りは範囲に応じて自動選択（10年/20年/50年/100年/…）
+  - `--layout-style group-bands` を指定すると、連続する同一 `lane.group` を背景帯として描画する（#543）。`Orientation` とは直交するレンダリング専用オプションで、IR/DSL フィールドは追加しない。
 - **要素の描画**:
   - `span` → 角丸矩形（レーン帯中央）
   - `event_range` → 細めの矩形（レーン帯下段）

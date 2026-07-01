@@ -523,6 +523,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `--show-legend` | Show a static legend panel of lane colors and tag colors (`color_map`) |
 | `--scale` | Pixel width per year (default: 2) |
 | `--lane-height` | Height of each lane in px (default: 60). Controls vertical density; bar thickness follows it |
+| `--layout-style` | High-level visual layout: `timeline` (default) / `group-bands` (background bands for contiguous lane groups) |
 | `--dpi` | DPI for PNG output (default: 96). Only valid with `--format png` |
 | `--offline` | Skip Wikidata fetch |
 
@@ -539,6 +540,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
   - Horizontal axis: time (uses `timeline.range`)
   - Vertical axis: lanes stacked top-to-bottom in ascending `order`
   - Axis tick intervals are chosen automatically based on the range (10 / 20 / 50 / 100 years, etc.)
+  - `--layout-style group-bands` draws background bands for contiguous lanes sharing the same `lane.group` (#543). This is a render-only option orthogonal to `Orientation`; it does not add IR/DSL fields.
 - **Element rendering**:
   - `span` → rounded rectangle (centered in the lane band)
   - `event_range` → narrower rectangle (lower part of the lane band)
