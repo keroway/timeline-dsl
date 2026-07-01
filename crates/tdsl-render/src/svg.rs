@@ -3,9 +3,9 @@ use std::fmt::Write;
 use tdsl_core::ir::Item;
 
 use crate::layout::{
-    GridStyle, LANE_PALETTE, LaidItem, LayoutModel, TABLE_COL_LABEL, TABLE_COL_LANE,
-    TABLE_COL_TAGS, TABLE_COL_TIME, TABLE_ROW_HEIGHT, estimate_text_width_px, format_year,
-    label_available_width_px, laid_item_label, month_abbr,
+    EVENT_LABEL_STACK_STEP, GridStyle, LANE_PALETTE, LaidItem, LayoutModel, TABLE_COL_LABEL,
+    TABLE_COL_LANE, TABLE_COL_TAGS, TABLE_COL_TIME, TABLE_ROW_HEIGHT, estimate_text_width_px,
+    format_year, label_available_width_px, laid_item_label, month_abbr,
 };
 
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
@@ -570,7 +570,9 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 y_dot,
                 color,
                 tooltip,
+                label_stack_level,
             } => {
+                let label_stack_offset = *label_stack_level as f64 * EVENT_LABEL_STACK_STEP;
                 // An invisible wide hit-rect makes hovering the thin stem / small dot feasible.
                 let tip = escape_xml(tooltip);
                 let tip_attr = escape_xml_attr(tooltip);
@@ -619,15 +621,28 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                         dot_x = fmt_f(*y_dot),
                     )?;
                     if layout.opts.show_event_labels {
-                        // Vertical: label to the right of the dot (dot_x + 6, same Y as dot center).
+                        // Vertical: label to the right of the dot (dot_x + 6, same Y as dot
+                        // center, offset upward per #537 when it collides with a neighbour).
+                        let label_x = *y_dot + 6.0;
+                        let label_y = *x - label_stack_offset;
+                        if label_stack_offset > 0.0 {
+                            writeln!(
+                                s,
+                                r##"    <line class="tdsl-label-leader" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#999" stroke-width="1" stroke-dasharray="2 2"></line>"##,
+                                x1 = fmt_f(*y_dot),
+                                y1 = fmt_f(*x),
+                                x2 = fmt_f(*y_dot),
+                                y2 = fmt_f(label_y),
+                            )?;
+                        }
                         write!(
                             s,
                             "{}",
                             render_bar_label_fragment(
                                 laid,
                                 layout,
-                                *y_dot + 6.0,
-                                *x,
+                                label_x,
+                                label_y,
                                 false,
                                 "tdsl-event-label",
                             )
@@ -657,7 +672,19 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                         cy = fmt_f(*y_dot),
                     )?;
                     if layout.opts.show_event_labels {
-                        // Horizontal: label above the dot, centered horizontally.
+                        // Horizontal: label above the dot, centered horizontally, offset
+                        // further up per #537 when it collides with a neighbouring label.
+                        let label_y = *y_top - 4.0 - label_stack_offset;
+                        if label_stack_offset > 0.0 {
+                            writeln!(
+                                s,
+                                r##"    <line class="tdsl-label-leader" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#999" stroke-width="1" stroke-dasharray="2 2"></line>"##,
+                                x1 = fmt_f(*x),
+                                y1 = fmt_f(*y_top),
+                                x2 = fmt_f(*x),
+                                y2 = fmt_f(label_y),
+                            )?;
+                        }
                         write!(
                             s,
                             "{}",
@@ -665,7 +692,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                                 laid,
                                 layout,
                                 *x,
-                                *y_top - 4.0,
+                                label_y,
                                 true,
                                 "tdsl-event-label",
                             )
@@ -1736,6 +1763,131 @@ mod tests {
             svg.contains(r#"class="tdsl-event-label" x="#),
             "vertical event label must include x attribute"
         );
+    }
+
+    // ─── #537 イベントラベル袘噂回避（スタキング）テスト ────────────────────────────
+
+    fn two_close_events_ir(labels: [&str; 2], times: [i64; 2]) -> TimelineIr {
+        TimelineIr {
+            meta: Meta {
+                title: "test".into(),
+                unit: "year".into(),
+                range: (0, 100),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "custom".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: times
+                .iter()
+                .zip(labels.iter())
+                .enumerate()
+                .map(|(i, (&time, &label))| Item::Event {
+                    id: format!("e{i}"),
+                    lane: "x".into(),
+                    time,
+                    label: label.into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    time_month: None,
+                    time_day: None,
+                    time_hour: None,
+                    time_minute: None,
+                    source_span: None,
+                })
+                .collect(),
+            imports: vec![],
+            sources: vec![],
+        }
+    }
+
+    #[test]
+    fn colliding_horizontal_event_labels_are_stacked() {
+        // Two events very close together (year 50 vs 51) at a large scale will
+        // have overlapping estimated label widths; the second must be stacked
+        // (offset upward) rather than overlapping the first.
+        let ir = two_close_events_ir(["Alpha Event", "Beta Event"], [50, 51]);
+        let opts = RenderOptions {
+            show_event_labels: true,
+            scale: 10.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let levels: Vec<u8> = layout
+            .items
+            .iter()
+            .map(|i| match i {
+                LaidItem::Event {
+                    label_stack_level, ..
+                } => *label_stack_level,
+                _ => 0,
+            })
+            .collect();
+        assert!(
+            levels.iter().any(|&l| l > 0),
+            "colliding event labels must be assigned different stack levels, got {levels:?}"
+        );
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-label-leader"),
+            "a stacked label should be connected to its dot with a leader line, got:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn colliding_vertical_event_labels_are_stacked() {
+        let ir = two_close_events_ir(["Alpha Event", "Beta Event"], [50, 51]);
+        let opts = RenderOptions {
+            show_event_labels: true,
+            scale: 10.0,
+            orientation: Orientation::Vertical,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let levels: Vec<u8> = layout
+            .items
+            .iter()
+            .map(|i| match i {
+                LaidItem::Event {
+                    label_stack_level, ..
+                } => *label_stack_level,
+                _ => 0,
+            })
+            .collect();
+        assert!(
+            levels.iter().any(|&l| l > 0),
+            "colliding event labels must be assigned different stack levels (vertical), got {levels:?}"
+        );
+    }
+
+    #[test]
+    fn non_colliding_event_labels_are_unaffected_by_stacking() {
+        // Two events far apart never collide: both stay at stack level 0, and the
+        // rendered output must not gain any leader lines (no regression).
+        let ir = two_close_events_ir(["Alpha", "Beta"], [10, 90]);
+        let opts = RenderOptions {
+            show_event_labels: true,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        for i in &layout.items {
+            if let LaidItem::Event {
+                label_stack_level, ..
+            } = i
+            {
+                assert_eq!(*label_stack_level, 0);
+            }
+        }
+        let svg = render_svg(&layout).unwrap();
+        assert!(!svg.contains("tdsl-label-leader"));
     }
 
     #[cfg(any(feature = "png", feature = "pdf"))]
