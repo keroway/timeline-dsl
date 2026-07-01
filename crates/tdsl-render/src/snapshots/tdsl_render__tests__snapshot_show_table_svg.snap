@@ -1,0 +1,48 @@
+---
+source: crates/tdsl-render/src/lib.rs
+assertion_line: 1026
+expression: svg
+---
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 226" width="340" height="226" role="img" aria-label="timeline" class="tdsl-root">
+  <style>:root { --tdsl-lane-0: #4682B4; --tdsl-lane-1: #E67E22; --tdsl-lane-2: #27AE60; --tdsl-lane-3: #8E44AD; --tdsl-lane-4: #E74C3C; --tdsl-lane-5: #1ABC9C; --tdsl-lane-6: #F39C12; --tdsl-lane-7: #2980B9; } .tdsl-root text { font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; } .tdsl-axis-text { font-size: 11px; } .tdsl-axis-month-tick { stroke: #ccc; stroke-width: 1; } .tdsl-axis-day-tick { stroke: #ddd; stroke-width: 1; } .tdsl-axis-day-text { font-size: 9px; fill: #888; } .tdsl-event-label { font-size: 10px; fill: #333; pointer-events: none; }</style>
+  <rect class="tdsl-lane-band-even" role="presentation" aria-hidden="true" x="120" y="40" width="200" height="60"/>
+  <line class="tdsl-axis-baseline" role="presentation" x1="120" y1="36" x2="320" y2="36"/>
+  <line class="tdsl-axis-tick" role="presentation" x1="120" y1="40" x2="120" y2="206"/>
+  <text class="tdsl-axis-text" x="120" y="32" text-anchor="middle">0</text>
+  <line class="tdsl-axis-tick" role="presentation" x1="170" y1="40" x2="170" y2="206"/>
+  <text class="tdsl-axis-text" x="170" y="32" text-anchor="middle">25</text>
+  <line class="tdsl-axis-tick" role="presentation" x1="220" y1="40" x2="220" y2="206"/>
+  <text class="tdsl-axis-text" x="220" y="32" text-anchor="middle">50</text>
+  <line class="tdsl-axis-tick" role="presentation" x1="270" y1="40" x2="270" y2="206"/>
+  <text class="tdsl-axis-text" x="270" y="32" text-anchor="middle">75</text>
+  <line class="tdsl-axis-tick" role="presentation" x1="320" y1="40" x2="320" y2="206"/>
+  <text class="tdsl-axis-text" x="320" y="32" text-anchor="middle">100</text>
+  <text class="tdsl-lane-label" data-lane="x" x="112" y="70" text-anchor="end" dominant-baseline="middle">X</text>
+  <g class="tdsl-item tdsl-item-span" role="group" aria-label="スパン: Span A、0〜50、tags: tag1、id: s1、レーン: X" tabindex="0" data-tdsl-tooltip="Span A&#10;0〜50&#10;tags: tag1&#10;id: s1" data-lane="x" data-tags="tag1"><rect class="tdsl-span" style="fill:var(--tdsl-lane-0, #4682B4);" x="120" y="58" width="102.00" height="24" rx="3"><title>Span A
+0〜50
+tags: tag1
+id: s1</title></rect><text class="tdsl-item-label" x="124" y="70" dominant-baseline="middle">Span A</text></g>
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: Event B、75、id: e1、レーン: X" tabindex="0" data-tdsl-tooltip="Event B&#10;75&#10;id: e1" data-lane="x"><rect class="tdsl-event-hit" x="262" y="50" width="16" height="40"><title>Event B
+75
+id: e1</title></rect><line class="tdsl-event-stem" x1="270" y1="50" x2="270" y2="90"><title>Event B
+75
+id: e1</title></line><circle class="tdsl-event-dot" style="fill:var(--tdsl-lane-0, #4682B4);" cx="270" cy="70" r="4"><title>Event B
+75
+id: e1</title></circle></g>
+  <g class="tdsl-table" role="table" aria-label="item list">
+    <rect class="tdsl-table-header-bg" x="8" y="140" width="324" height="22" fill="#e8e8e8"></rect>
+    <text class="tdsl-table-header" x="12" y="151" dominant-baseline="middle" font-weight="bold" font-size="11">時期</text>
+    <text class="tdsl-table-header" x="76.80" y="151" dominant-baseline="middle" font-weight="bold" font-size="11">ラベル</text>
+    <text class="tdsl-table-header" x="206.40" y="151" dominant-baseline="middle" font-weight="bold" font-size="11">レーン</text>
+    <text class="tdsl-table-header" x="255.00" y="151" dominant-baseline="middle" font-weight="bold" font-size="11">タグ</text>
+    <text class="tdsl-table-cell" x="12" y="173" dominant-baseline="middle" font-size="11">0〜50</text>
+    <text class="tdsl-table-cell" x="76.80" y="173" dominant-baseline="middle" font-size="11">Span A</text>
+    <text class="tdsl-table-cell" x="206.40" y="173" dominant-baseline="middle" font-size="11">X</text>
+    <text class="tdsl-table-cell" x="255.00" y="173" dominant-baseline="middle" font-size="11">tag1</text>
+    <rect class="tdsl-table-row-alt" x="8" y="184" width="324" height="22" fill="#f5f5f5"></rect>
+    <text class="tdsl-table-cell" x="12" y="195" dominant-baseline="middle" font-size="11">75</text>
+    <text class="tdsl-table-cell" x="76.80" y="195" dominant-baseline="middle" font-size="11">Event B</text>
+    <text class="tdsl-table-cell" x="206.40" y="195" dominant-baseline="middle" font-size="11">X</text>
+    <text class="tdsl-table-cell" x="255.00" y="195" dominant-baseline="middle" font-size="11"></text>
+  </g>
+</svg>

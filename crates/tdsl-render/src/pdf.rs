@@ -351,6 +351,37 @@ mod tests {
     }
 
     #[test]
+    fn render_pdf_show_table_produces_valid_single_page_pdf() {
+        // #536: show_table must work for PDF output too, embedded in the same
+        // single-page vector document (no page-split logic exists yet; see
+        // docs/dsl-spec.md 「PDF出力のページ方針」 for the documented rationale).
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let bytes = render_pdf(&ir, opts, PdfOptions::default())
+            .expect("render_pdf succeeds with show_table");
+        assert!(bytes.starts_with(PDF_SIGNATURE));
+        // Exactly one /Type /Page object (excluding the /Type /Pages parent, which
+        // shares the "/Type/Page" prefix as a substring).
+        let text = String::from_utf8_lossy(&bytes);
+        let page_count = text
+            .matches("/Type/Page")
+            .filter(|_| true)
+            .collect::<Vec<_>>()
+            .len()
+            + text.matches("/Type /Page").collect::<Vec<_>>().len();
+        let pages_count =
+            text.matches("/Type/Pages").count() + text.matches("/Type /Pages").count();
+        assert_eq!(
+            page_count - pages_count,
+            1,
+            "show_table=true PDF output must remain a single page (no duplication)"
+        );
+    }
+
+    #[test]
     fn render_pdf_empty_ir_does_not_panic() {
         let ir = TimelineIr {
             meta: Meta {

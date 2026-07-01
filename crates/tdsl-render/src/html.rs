@@ -328,36 +328,21 @@ fn escape_html(s: &str) -> String {
     out
 }
 
-/// Column header names for the item table.
-const TABLE_COL_TIME: &str = "時期";
-const TABLE_COL_LABEL: &str = "ラベル";
-const TABLE_COL_LANE: &str = "レーン";
-const TABLE_COL_TAGS: &str = "タグ";
-
-/// Internal row representation for table generation.
-struct TableRow {
-    /// Sort key: start/time year for ordering.
-    sort_year: i64,
-    /// Sort secondary key: item type order (0=span, 1=event_range, 2=event).
-    sort_type: u8,
-    /// Formatted time period string (e.g. "206 BC〜220" or "1944 Jun 6").
-    time_str: String,
-    label: String,
-    lane_label: String,
-    tags: String,
-}
-
 /// Generate an HTML table listing all items from the IR in chronological order.
 ///
 /// Columns: 時期 (time period) / ラベル (label) / レーン (lane) / タグ (tags).
 /// Items are sorted by start/time year ascending, then by item type (span > event_range > event),
 /// then by label for ties.
+///
+/// Row-collection logic is shared with the SVG/PNG/PDF table emitter (#536)
+/// via [`crate::layout::collect_table_rows`].
 pub(crate) fn generate_table_html(
     ir: &tdsl_core::ir::TimelineIr,
     lanes: &[tdsl_core::ir::Lane],
 ) -> String {
-    use crate::layout::format_date;
-    use tdsl_core::ir::Item;
+    use crate::layout::{
+        TABLE_COL_LABEL, TABLE_COL_LANE, TABLE_COL_TAGS, TABLE_COL_TIME, collect_table_rows,
+    };
 
     let lane_label = |lane_id: &str| -> String {
         lanes
@@ -367,91 +352,7 @@ pub(crate) fn generate_table_html(
             .unwrap_or_else(|| lane_id.to_string())
     };
 
-    let mut rows: Vec<TableRow> = ir
-        .items
-        .iter()
-        .map(|item| match item {
-            Item::Span {
-                label,
-                lane,
-                start,
-                end,
-                tags,
-                start_month,
-                start_day,
-                start_hour,
-                start_minute,
-                end_month,
-                end_day,
-                end_hour,
-                end_minute,
-                ..
-            } => TableRow {
-                sort_year: *start,
-                sort_type: 0,
-                time_str: format!(
-                    "{}〜{}",
-                    format_date(*start, *start_month, *start_day, *start_hour, *start_minute),
-                    format_date(*end, *end_month, *end_day, *end_hour, *end_minute),
-                ),
-                label: label.clone(),
-                lane_label: lane_label(lane),
-                tags: tags.join(", "),
-            },
-            Item::EventRange {
-                label,
-                lane,
-                start,
-                end,
-                tags,
-                start_month,
-                start_day,
-                start_hour,
-                start_minute,
-                end_month,
-                end_day,
-                end_hour,
-                end_minute,
-                ..
-            } => TableRow {
-                sort_year: *start,
-                sort_type: 1,
-                time_str: format!(
-                    "{}〜{}",
-                    format_date(*start, *start_month, *start_day, *start_hour, *start_minute),
-                    format_date(*end, *end_month, *end_day, *end_hour, *end_minute),
-                ),
-                label: label.clone(),
-                lane_label: lane_label(lane),
-                tags: tags.join(", "),
-            },
-            Item::Event {
-                label,
-                lane,
-                time,
-                tags,
-                time_month,
-                time_day,
-                time_hour,
-                time_minute,
-                ..
-            } => TableRow {
-                sort_year: *time,
-                sort_type: 2,
-                time_str: format_date(*time, *time_month, *time_day, *time_hour, *time_minute),
-                label: label.clone(),
-                lane_label: lane_label(lane),
-                tags: tags.join(", "),
-            },
-        })
-        .collect();
-
-    rows.sort_by(|a, b| {
-        a.sort_year
-            .cmp(&b.sort_year)
-            .then(a.sort_type.cmp(&b.sort_type))
-            .then(a.label.cmp(&b.label))
-    });
+    let rows = collect_table_rows(ir, lane_label);
 
     let mut html = String::new();
     html.push_str("<table class=\"tdsl-table\">\n");

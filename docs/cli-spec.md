@@ -400,7 +400,7 @@ tdsl render [OPTIONS] <FILE>
 | `--orientation <ORIENTATION>` | 時間軸方向（`horizontal` / `vertical`） | `horizontal` |
 | `--grid <GRID>` | 補助グリッド線（`none` / `decade` / `year` / `month`）。`none` でグリッド無効（デフォルト）。`decade` = 10年ごと、`year` = 1年ごと、`month` = 月ごとの薄い補助線を描画 | `none` |
 | `--watch` | 入力ファイルの変更を監視し、変更検出のたびに自動再レンダリングする。`--output` が必須。`html` / `svg` のみ対応（`png` / `pdf` は非対応） | — |
-| `--show-table` | HTML 出力に内容一覧の表を追加する（時期・ラベル・レーン・タグ列、時系列順）。`--format html` のみ有効。SVG / PNG / PDF では無視される | — |
+| `--show-table` | 内容一覧の表を追加する（時期・ラベル・レーン・タグ列、時系列順）。`--format html` ではギデカ HTML `<table>` として追加され、`svg` / `png` / `pdf` ではタイムライン本体の下に SVG `<rect>`/`<text>` で同等の表が描画される（#536）。PDF は従来と同じ単一ページベクトル出力のままで、表を含む全体をページに収まるように拡大縮小する（ページ分割は未実装。ADR-0002 の単一ベキトルPDF方式を踏衢） | — |
 | `--show-event-labels` | イベント（`event` / `event_range`）のドット・バー近傍にラベルテキストを常時描画する。デフォルト無効（ホバー時のツールチップのみ） | — |
 | `--pdf-size <SIZE>` | PDF 用紙サイズ（`a4` / `a3` / `letter`）。`--format pdf` のみ有効 | `a4` |
 | `--pdf-landscape` | PDF を横向き（landscape）で出力する。`--format pdf` のみ有効 | — |

@@ -3,7 +3,8 @@ use std::fmt::Write;
 use tdsl_core::ir::Item;
 
 use crate::layout::{
-    GridStyle, LANE_PALETTE, LaidItem, LayoutModel, estimate_text_width_px, format_year,
+    GridStyle, LANE_PALETTE, LaidItem, LayoutModel, TABLE_COL_LABEL, TABLE_COL_LANE,
+    TABLE_COL_TAGS, TABLE_COL_TIME, TABLE_ROW_HEIGHT, estimate_text_width_px, format_year,
     label_available_width_px, laid_item_label, month_abbr,
 };
 
@@ -47,9 +48,99 @@ pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
     render_axis(&mut s, layout)?;
     render_lane_labels(&mut s, layout)?;
     render_items(&mut s, layout)?;
+    if layout.opts.show_table {
+        render_table(&mut s, layout)?;
+    }
 
     writeln!(s, "</svg>")?;
     Ok(s)
+}
+
+/// Render the "all items" table (#536) as SVG `<rect>`/`<text>` elements below the
+/// timeline body. Used for SVG/PNG/PDF output when `RenderOptions.show_table` is
+/// true (HTML output instead uses a native `<table>` element; see `html.rs`).
+///
+/// Columns: 時期 (time period) / ラベル (label) / レーン (lane) / タグ (tags), matching
+/// the HTML table exactly. `LayoutModel::compute` has already reserved enough
+/// vertical space (`total_height`) for the header row plus one row per item.
+fn render_table(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
+    let left = 8.0;
+    let content_width = (layout.total_width - left * 2.0).max(0.0);
+    // Proportional column widths: time / label / lane / tags.
+    let col_widths = [
+        content_width * 0.20,
+        content_width * 0.40,
+        content_width * 0.15,
+        content_width * 0.25,
+    ];
+    let col_x = [
+        left,
+        left + col_widths[0],
+        left + col_widths[0] + col_widths[1],
+        left + col_widths[0] + col_widths[1] + col_widths[2],
+    ];
+
+    writeln!(
+        s,
+        r#"  <g class="tdsl-table" role="table" aria-label="item list">"#,
+    )?;
+
+    // Header row background + labels.
+    let header_y = layout.table_top_y;
+    writeln!(
+        s,
+        r##"    <rect class="tdsl-table-header-bg" x="{x}" y="{y}" width="{w}" height="{h}" fill="#e8e8e8"></rect>"##,
+        x = fmt_f(left),
+        y = fmt_f(header_y),
+        w = fmt_f(content_width),
+        h = fmt_f(TABLE_ROW_HEIGHT),
+    )?;
+    for (i, col) in [
+        TABLE_COL_TIME,
+        TABLE_COL_LABEL,
+        TABLE_COL_LANE,
+        TABLE_COL_TAGS,
+    ]
+    .iter()
+    .enumerate()
+    {
+        writeln!(
+            s,
+            r#"    <text class="tdsl-table-header" x="{x}" y="{y}" dominant-baseline="middle" font-weight="bold" font-size="11">{label}</text>"#,
+            x = fmt_f(col_x[i] + 4.0),
+            y = fmt_f(header_y + TABLE_ROW_HEIGHT / 2.0),
+            label = escape_xml(col),
+        )?;
+    }
+
+    for (row_idx, row) in layout.table_rows.iter().enumerate() {
+        let row_y = header_y + (row_idx as f64 + 1.0) * TABLE_ROW_HEIGHT;
+        if row_idx % 2 == 1 {
+            writeln!(
+                s,
+                r##"    <rect class="tdsl-table-row-alt" x="{x}" y="{y}" width="{w}" height="{h}" fill="#f5f5f5"></rect>"##,
+                x = fmt_f(left),
+                y = fmt_f(row_y),
+                w = fmt_f(content_width),
+                h = fmt_f(TABLE_ROW_HEIGHT),
+            )?;
+        }
+        let cells = [&row.time_str, &row.label, &row.lane_label, &row.tags];
+        for (i, cell) in cells.iter().enumerate() {
+            let available = (col_widths[i] - 8.0).max(0.0);
+            let text = truncate_with_ellipsis(cell, 11.0, available);
+            writeln!(
+                s,
+                r#"    <text class="tdsl-table-cell" x="{x}" y="{y}" dominant-baseline="middle" font-size="11">{label}</text>"#,
+                x = fmt_f(col_x[i] + 4.0),
+                y = fmt_f(row_y + TABLE_ROW_HEIGHT / 2.0),
+                label = escape_xml(&text),
+            )?;
+        }
+    }
+
+    writeln!(s, "  </g>")?;
+    Ok(())
 }
 
 fn render_lane_bands(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
@@ -1679,5 +1770,75 @@ mod tests {
         let got = resolve_lane_vars_in_styles(input);
         assert!(got.contains(r#"style="fill:#4682B4;fill-opacity:0.75;""#));
         assert!(got.contains(r#"style="fill:#E67E22;""#));
+    }
+
+    // ─── #536 show_table (SVG/PNG/PDF) テスト ──────────────────────────────────────────────
+
+    #[test]
+    fn show_table_false_no_table_elements_in_svg() {
+        let ir = sample_ir();
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            !svg.contains(r#"class="tdsl-table""#),
+            "show_table=false (default) must not emit a table, got:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn show_table_true_emits_table_with_all_items() {
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(svg.contains(r#"class="tdsl-table""#));
+        assert!(svg.contains("tdsl-table-header"));
+        // Every item's label must appear somewhere in the table cells.
+        for item in &ir.items {
+            let label = match item {
+                Item::Span { label, .. }
+                | Item::Event { label, .. }
+                | Item::EventRange { label, .. } => label,
+            };
+            assert!(
+                svg.contains(label.as_str()),
+                "table must contain label {label:?}, got:\n{svg}"
+            );
+        }
+    }
+
+    #[test]
+    fn show_table_true_expands_total_height_to_fit_table() {
+        let ir = sample_ir();
+        let layout_without = LayoutModel::compute(&ir, RenderOptions::default());
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let layout_with = LayoutModel::compute(&ir, opts);
+        assert!(
+            layout_with.total_height > layout_without.total_height,
+            "show_table=true must reserve extra vertical space for the table"
+        );
+    }
+
+    #[test]
+    fn show_table_false_leaves_svg_output_otherwise_identical() {
+        // Regression guard: toggling show_table off must not affect the rest of
+        // the SVG output at all (identical bytes).
+        let ir = sample_ir();
+        let svg_default = render_svg(&LayoutModel::compute(&ir, RenderOptions::default())).unwrap();
+        let svg_explicit_false = render_svg(&LayoutModel::compute(
+            &ir,
+            RenderOptions {
+                show_table: false,
+                ..RenderOptions::default()
+            },
+        ))
+        .unwrap();
+        assert_eq!(svg_default, svg_explicit_false);
     }
 }

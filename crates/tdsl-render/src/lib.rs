@@ -958,4 +958,71 @@ mod tests {
         let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
         insta::assert_snapshot!(svg);
     }
+
+    #[test]
+    fn snapshot_show_table_svg() {
+        // #536: small fixture (not a full example file) to keep the snapshot
+        // reviewable while still exercising the SVG/PNG/PDF item table end-to-end.
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "table snapshot".into(),
+                unit: "year".into(),
+                range: (0, 100),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "custom".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![
+                Item::Span {
+                    id: "s1".into(),
+                    lane: "x".into(),
+                    start: 0,
+                    end: 50,
+                    label: "Span A".into(),
+                    tags: vec!["tag1".into()],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    source_span: None,
+                },
+                Item::Event {
+                    id: "e1".into(),
+                    lane: "x".into(),
+                    time: 75,
+                    label: "Event B".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    time_month: None,
+                    time_day: None,
+                    time_hour: None,
+                    time_minute: None,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts).unwrap();
+        insta::assert_snapshot!(svg);
+    }
 }
