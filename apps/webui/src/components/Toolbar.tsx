@@ -1,5 +1,7 @@
-import { type ChangeEvent, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useMemo, type ChangeEvent, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { ExportApi } from '../hooks/useExport'
+import type { Settings } from '../lib/settings'
+import { createTranslator } from '../lib/i18n'
 
 type ToolbarProps = {
   fileMenuRef: RefObject<HTMLDivElement | null>
@@ -22,6 +24,7 @@ type ToolbarProps = {
   onShowSettings: () => void
   fileInputRef: RefObject<HTMLInputElement | null>
   onFileChange: (e: ChangeEvent<HTMLInputElement>) => void
+  locale: Settings['locale']
 }
 
 export function Toolbar(props: ToolbarProps) {
@@ -46,7 +49,10 @@ export function Toolbar(props: ToolbarProps) {
     onShowSettings,
     fileInputRef,
     onFileChange,
+    locale,
   } = props
+
+  const t = useMemo(() => createTranslator(locale), [locale])
 
   return (
     <header className="toolbar">
@@ -58,14 +64,14 @@ export function Toolbar(props: ToolbarProps) {
           <button
             className="btn"
             onClick={() => setFileMenuOpen((v) => !v)}
-            title="ファイル操作"
+            title={t('toolbarFileMenu')}
           >
-            ファイル ▾
+            {t('toolbarFileMenu')} ▾
           </button>
           {fileMenuOpen && (
             <div className="export-menu export-menu-left">
               <button className="export-menu-item" onClick={() => { onOpenFile(); setFileMenuOpen(false) }}>
-                .tdsl を開く
+                {t('toolbarOpen')}
               </button>
             </div>
           )}
@@ -74,25 +80,25 @@ export function Toolbar(props: ToolbarProps) {
         <button
           className="btn"
           onClick={onShowGallery}
-          title="テンプレートギャラリーを開く"
+          title={t('toolbarGallery')}
         >
-          テンプレート
+          {t('toolbarGallery')}
         </button>
         {historyEnabled && (
           <>
             <button
               className="btn"
               onClick={onSaveToHistory}
-              title="現在の DSL を履歴に手動保存"
+              title={t('toolbarSaveHistory')}
             >
-              履歴に保存
+              {t('toolbarSaveHistory')}
             </button>
             <button
               className={`btn${historyCount > 0 ? ' btn-history-badge' : ''}`}
               onClick={onShowHistory}
-              title="履歴パネルを開く"
+              title={t('toolbarHistory')}
             >
-              履歴 {historyCount > 0 ? `(${historyCount})` : ''}
+              {t('toolbarHistory')} {historyCount > 0 ? `(${historyCount})` : ''}
             </button>
           </>
         )}
@@ -100,17 +106,17 @@ export function Toolbar(props: ToolbarProps) {
           className="btn"
           onClick={onFormat}
           disabled={!wasmReady}
-          title="エディタ内容を整形 (Ctrl/Cmd+Shift+F)"
+          title={t('toolbarFormat')}
         >
-          Format
+          {t('toolbarFormat')}
         </button>
         <button
           className="btn"
           onClick={onLintFix}
           disabled={!wasmReady}
-          title="lint の自動修正可能な問題を一括修正"
+          title={t('toolbarLintFix')}
         >
-          Lint Fix
+          {t('toolbarLintFix')}
         </button>
       </div>
       <div className="toolbar-right">
@@ -119,9 +125,9 @@ export function Toolbar(props: ToolbarProps) {
           <button
             className="btn"
             onClick={() => setExportMenuOpen((v) => !v)}
-            title="エクスポート"
+            title={t('toolbarExportMenu')}
           >
-            エクスポート ▾
+            {t('toolbarExportMenu')} ▾
           </button>
           {exportMenuOpen && (
             <div className="export-menu">
@@ -133,13 +139,13 @@ export function Toolbar(props: ToolbarProps) {
                 JSON IR 保存
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.downloadSvg(); setExportMenuOpen(false) }} disabled={!svgContent}>
-                SVG 保存
+                {t('toolbarExportSvg')}
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.downloadHtml(); setExportMenuOpen(false) }} disabled={!svgContent}>
-                HTML 保存
+                {t('toolbarExportHtml')}
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.exportPdf(); setExportMenuOpen(false) }} disabled={!svgContent}>
-                PDF 保存（印刷）
+                {t('toolbarExportPdf')}
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.downloadPng(true); setExportMenuOpen(false) }} disabled={!svgContent}>
                 PNG 保存（白背景）
@@ -167,20 +173,19 @@ export function Toolbar(props: ToolbarProps) {
         <button
           className="btn"
           onClick={onShowSettings}
-          title="設定 (?)"
+          title={t('toolbarSettings')}
         >
-          設定
+          {t('toolbarSettings')}
         </button>
         {/* About */}
-        <a
+        <button
+          type="button"
           className="btn"
-          href="https://timeline-dsl-lp.pages.dev/"
-          target="_blank"
-          rel="noopener noreferrer"
+          onClick={() => window.open('https://timeline-dsl-lp.pages.dev/', '_blank', 'noopener,noreferrer')}
           title="ランディングページ・ドキュメント"
         >
           About
-        </a>
+        </button>
         <input
           ref={fileInputRef}
           type="file"

@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type KeyboardEvent,
   type MouseEvent,
   type RefObject,
   type SetStateAction,
@@ -32,6 +33,7 @@ export type SvgInteractionsApi = {
   handlePreviewMouseLeave: () => void
   handlePreviewDblClick: () => void
   handlePreviewClick: (e: MouseEvent<HTMLDivElement>) => void
+  handlePreviewKeyDown: (e: KeyboardEvent<HTMLDivElement>) => void
   tooltip: { text: string; x: number; y: number } | null
   legendItems: LegendItem[]
   allTags: string[]
@@ -206,47 +208,63 @@ export function useSvgInteractions(
     resetPanZoom()
   }
 
+  function activatePreviewTarget(target: HTMLElement | null) {
+    if (!target) {
+      setSelectedItem(null)
+      return
+    }
+    setSelectedItem({
+      label: target.dataset.label || '',
+      type: target.dataset.type || '',
+      lane: target.dataset.lane || '',
+      source: target.dataset.source || '',
+      tooltip: target.dataset.tdslTooltip || '',
+    })
+
+    // プレビュー → エディタ方向ジャンプ
+    const lineStr = target.dataset.line
+    if (lineStr) {
+      const lineNum = parseInt(lineStr, 10)
+      const view = editorViewRef.current
+      if (view && lineNum > 0) {
+        try {
+          const lineInfo = view.state.doc.line(lineNum)
+          view.dispatch({
+            selection: { anchor: lineInfo.from },
+            scrollIntoView: true,
+            effects: [
+              EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+              setLineHighlight.of(lineNum),
+            ],
+          })
+          view.focus()
+          // 500ms 後にハイライトをフェードアウト
+          if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current)
+          highlightTimerRef.current = setTimeout(() => {
+            view.dispatch({ effects: setLineHighlight.of(null) })
+            highlightTimerRef.current = null
+          }, 500)
+        } catch {
+          // 行範囲外は無視
+        }
+      }
+    }
+  }
+
   function handlePreviewClick(e: MouseEvent<HTMLDivElement>) {
     if (didDragRef.current) { didDragRef.current = false; return }
     const target = (e.target as Element).closest<HTMLElement>('[data-label]')
-    if (target) {
-      setSelectedItem({
-        label: target.dataset.label || '',
-        type: target.dataset.type || '',
-        lane: target.dataset.lane || '',
-        source: target.dataset.source || '',
-        tooltip: target.dataset.tdslTooltip || '',
-      })
+    activatePreviewTarget(target)
+  }
 
-      // プレビュー → エディタ方向ジャンプ
-      const lineStr = target.dataset.line
-      if (lineStr) {
-        const lineNum = parseInt(lineStr, 10)
-        const view = editorViewRef.current
-        if (view && lineNum > 0) {
-          try {
-            const lineInfo = view.state.doc.line(lineNum)
-            view.dispatch({
-              selection: { anchor: lineInfo.from },
-              scrollIntoView: true,
-              effects: [
-                EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
-                setLineHighlight.of(lineNum),
-              ],
-            })
-            view.focus()
-            // 500ms 後にハイライトをフェードアウト
-            if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current)
-            highlightTimerRef.current = setTimeout(() => {
-              view.dispatch({ effects: setLineHighlight.of(null) })
-              highlightTimerRef.current = null
-            }, 500)
-          } catch {
-            // 行範囲外は無視
-          }
-        }
+  function handlePreviewKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const target = (e.target as Element).closest<HTMLElement>('[data-label]')
+      if (target) {
+        e.preventDefault()
+        activatePreviewTarget(target)
       }
-    } else {
+    } else if (e.key === 'Escape') {
       setSelectedItem(null)
     }
   }
@@ -286,6 +304,7 @@ export function useSvgInteractions(
     handlePreviewMouseLeave,
     handlePreviewDblClick,
     handlePreviewClick,
+    handlePreviewKeyDown,
     tooltip,
     legendItems,
     allTags,

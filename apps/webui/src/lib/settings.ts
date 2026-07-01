@@ -1,5 +1,8 @@
 // ─── Settings & LocalStorage persistence ─────────────────────────────────────
 
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from './i18n'
+
+export type { Locale }
 export type ColorScheme = 'dark' | 'light'
 export type ThemePreference = 'auto' | 'light' | 'dark'
 export type SvgOrientation = 'horizontal' | 'vertical'
@@ -17,6 +20,7 @@ export type Settings = {
   svgOrientation: SvgOrientation
   svgGrid: SvgGrid
   svgTheme: SvgTheme
+  locale: Locale
 }
 
 export const SETTINGS_KEY = 'tdsl:settings'
@@ -37,6 +41,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   svgOrientation: 'horizontal',
   svgGrid: 'none',
   svgTheme: 'default',
+  locale: DEFAULT_LOCALE,
 }
 
 export function readSplitRatio(): number {
@@ -68,6 +73,9 @@ export function readSettings(): Settings {
     }
     if (!['default', 'dark', 'print', 'pastel'].includes(merged.svgTheme)) {
       merged.svgTheme = SETTINGS_DEFAULTS.svgTheme
+    }
+    if (!SUPPORTED_LOCALES.includes(merged.locale as Locale)) {
+      merged.locale = SETTINGS_DEFAULTS.locale
     }
     return merged
   } catch {

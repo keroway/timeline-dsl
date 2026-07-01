@@ -1,13 +1,17 @@
+import { useMemo } from 'react'
 import { GALLERY_EXAMPLES } from '../gallery-meta'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { createTranslator, type Locale } from '../lib/i18n'
 
 type GalleryModalProps = {
   onClose: () => void
   onSelect: (source: string) => void
+  locale: Locale
 }
 
-export function GalleryModal({ onClose, onSelect }: GalleryModalProps) {
+export function GalleryModal({ onClose, onSelect, locale }: GalleryModalProps) {
   const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose })
+  const t = useMemo(() => createTranslator(locale), [locale])
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -20,11 +24,11 @@ export function GalleryModal({ onClose, onSelect }: GalleryModalProps) {
         tabIndex={-1}
       >
         <div className="modal-header">
-          <span id="gallery-modal-title">テンプレートギャラリー</span>
-          <button className="modal-close" onClick={onClose} aria-label="ギャラリーを閉じる">✕</button>
+          <span id="gallery-modal-title">{t('galleryTitle')}</span>
+          <button className="modal-close" onClick={onClose} aria-label={t('galleryClose')}>✕</button>
         </div>
         <p className="gallery-note">
-          ネットワーク必須テンプレートは CLI 専用・構文リファレンスです。WebUI では読み込めますが、import wikidata はオフライン診断エラーになります。
+          {t('galleryNetworkNote')}
         </p>
         <ul className="gallery-list">
           {GALLERY_EXAMPLES.map((ex) => (
@@ -36,12 +40,12 @@ export function GalleryModal({ onClose, onSelect }: GalleryModalProps) {
               >
                 <span className="gallery-item-header">
                   <span className="gallery-item-label">{ex.label}</span>
-                  {ex.requiresNetwork ? <span className="gallery-badge">CLI専用</span> : null}
+                  {ex.requiresNetwork ? <span className="gallery-badge">{t('galleryCliOnly')}</span> : null}
                 </span>
                 <span className="gallery-item-desc">{ex.description}</span>
                 {ex.requiresNetwork ? (
                   <span className="gallery-item-network-note" id={`${ex.filename}-network-note`}>
-                    Wikidata API が必要なため、WebUI ではプレビュー実行せず CLI で利用してください。
+                    {t('galleryCliNoteItem')}
                   </span>
                 ) : null}
               </button>

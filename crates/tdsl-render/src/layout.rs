@@ -703,6 +703,22 @@ fn get_item_tags(item: &Item) -> &[String] {
     }
 }
 
+fn is_safe_color_value(value: &str) -> bool {
+    let value = value.trim();
+    if value.is_empty() {
+        return false;
+    }
+    if let Some(hex) = value.strip_prefix('#') {
+        return matches!(hex.len(), 3 | 4 | 6 | 8) && hex.chars().all(|c| c.is_ascii_hexdigit());
+    }
+
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    first.is_ascii_alphabetic() && chars.all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
 /// Resolve item fill color: tag overrides take priority over lane palette.
 pub(crate) fn resolve_item_color(
     tags: &[String],
@@ -712,7 +728,10 @@ pub(crate) fn resolve_item_color(
 ) -> String {
     for tag in tags {
         if let Some(color) = color_map.get(tag.as_str()) {
-            return color.clone();
+            let color = color.trim();
+            if is_safe_color_value(color) {
+                return color.to_string();
+            }
         }
     }
     lane_colors
