@@ -86,8 +86,10 @@ pub struct RenderOptions {
     pub orientation: Orientation,
     /// Auxiliary grid line style. `None` (default) disables grid lines entirely.
     pub grid: GridStyle,
-    /// When true, an HTML table listing all items is appended after the SVG in HTML output.
-    /// Has no effect for SVG, PNG, or PDF output formats.
+    /// When true, a table listing all items (time period, label, lane, tags) is appended
+    /// below the timeline. HTML output uses a native `<table>` element (`html.rs`); SVG,
+    /// PNG, and PDF output draw the same columns as SVG `<rect>`/`<text>` elements below
+    /// the timeline body, with `total_height` expanded to fit (#536).
     pub show_table: bool,
     /// When true, labels (and optionally dates) are always rendered next to Event and EventRange
     /// dots/bars as SVG text elements.  Disabled by default to keep the chart uncluttered.
@@ -179,6 +181,129 @@ pub enum LaidItem<'a> {
     },
 }
 
+/// A single row of the "all items" table (#536), shared by the HTML `<table>`
+/// emitter and the SVG/PNG/PDF `<text>`/`<rect>` table emitter.
+pub(crate) struct TableRow {
+    /// Sort key: start/time year for ordering.
+    pub sort_year: i64,
+    /// Sort secondary key: item type order (0=span, 1=event_range, 2=event).
+    pub sort_type: u8,
+    /// Formatted time period string (e.g. "206 BC〜220" or "1944 Jun 6").
+    pub time_str: String,
+    pub label: String,
+    pub lane_label: String,
+    pub tags: String,
+}
+
+/// Column header names for the item table, shared by HTML and SVG/PNG/PDF output.
+pub(crate) const TABLE_COL_TIME: &str = "時期";
+pub(crate) const TABLE_COL_LABEL: &str = "ラベル";
+pub(crate) const TABLE_COL_LANE: &str = "レーン";
+pub(crate) const TABLE_COL_TAGS: &str = "タグ";
+
+/// Collect and sort all IR items into table rows.
+///
+/// Sorted by start/time year ascending, then by item type (span > event_range
+/// > event), then by label for ties. `lane_label` resolves a lane ID to its
+/// > display label (falls back to the lane ID itself when the caller has no
+/// > better mapping).
+pub(crate) fn collect_table_rows(
+    ir: &TimelineIr,
+    lane_label: impl Fn(&str) -> String,
+) -> Vec<TableRow> {
+    let mut rows: Vec<TableRow> = ir
+        .items
+        .iter()
+        .map(|item| match item {
+            Item::Span {
+                label,
+                lane,
+                start,
+                end,
+                tags,
+                start_month,
+                start_day,
+                start_hour,
+                start_minute,
+                end_month,
+                end_day,
+                end_hour,
+                end_minute,
+                ..
+            } => TableRow {
+                sort_year: *start,
+                sort_type: 0,
+                time_str: format!(
+                    "{}〜{}",
+                    format_date(*start, *start_month, *start_day, *start_hour, *start_minute),
+                    format_date(*end, *end_month, *end_day, *end_hour, *end_minute),
+                ),
+                label: label.clone(),
+                lane_label: lane_label(lane),
+                tags: tags.join(", "),
+            },
+            Item::EventRange {
+                label,
+                lane,
+                start,
+                end,
+                tags,
+                start_month,
+                start_day,
+                start_hour,
+                start_minute,
+                end_month,
+                end_day,
+                end_hour,
+                end_minute,
+                ..
+            } => TableRow {
+                sort_year: *start,
+                sort_type: 1,
+                time_str: format!(
+                    "{}〜{}",
+                    format_date(*start, *start_month, *start_day, *start_hour, *start_minute),
+                    format_date(*end, *end_month, *end_day, *end_hour, *end_minute),
+                ),
+                label: label.clone(),
+                lane_label: lane_label(lane),
+                tags: tags.join(", "),
+            },
+            Item::Event {
+                label,
+                lane,
+                time,
+                tags,
+                time_month,
+                time_day,
+                time_hour,
+                time_minute,
+                ..
+            } => TableRow {
+                sort_year: *time,
+                sort_type: 2,
+                time_str: format_date(*time, *time_month, *time_day, *time_hour, *time_minute),
+                label: label.clone(),
+                lane_label: lane_label(lane),
+                tags: tags.join(", "),
+            },
+        })
+        .collect();
+
+    rows.sort_by(|a, b| {
+        a.sort_year
+            .cmp(&b.sort_year)
+            .then(a.sort_type.cmp(&b.sort_type))
+            .then(a.label.cmp(&b.label))
+    });
+    rows
+}
+
+/// Row height (px) for the SVG/PNG/PDF item table (#536), including the header row.
+pub(crate) const TABLE_ROW_HEIGHT: f64 = 22.0;
+/// Vertical gap (px) between the timeline body and the table.
+pub(crate) const TABLE_TOP_GAP: f64 = 20.0;
+
 /// Pre-computed layout: every coordinate needed by the renderer.
 pub struct LayoutModel<'a> {
     pub ir: &'a TimelineIr,
@@ -195,6 +320,11 @@ pub struct LayoutModel<'a> {
     pub lane_bands: Vec<LaneBandModel>,
     /// Mapping from lane ID to resolved CSS color (palette-assigned).
     pub lane_colors: HashMap<String, String>,
+    /// #536: pre-sorted table rows, populated only when `opts.show_table` is true.
+    pub(crate) table_rows: Vec<TableRow>,
+    /// #536: Y coordinate (in the *final*, table-inclusive `total_height`) where the
+    /// table's header row begins. Only meaningful when `opts.show_table` is true.
+    pub(crate) table_top_y: f64,
 }
 
 impl<'a> LayoutModel<'a> {
@@ -234,7 +364,7 @@ impl<'a> LayoutModel<'a> {
             }
         }
 
-        let (total_width, total_height) = if is_vertical {
+        let (total_width, body_height) = if is_vertical {
             // vertical: time axis is Y, lanes are X columns.
             // lane_height is reused as the lane column width.
             let w = opts.left_gutter + n_lanes as f64 * opts.lane_height + opts.right_margin;
@@ -244,6 +374,29 @@ impl<'a> LayoutModel<'a> {
             let w = opts.left_gutter + time_span * opts.scale + opts.right_margin;
             let h = opts.top_margin + n_lanes as f64 * opts.lane_height + opts.bottom_margin;
             (w, h)
+        };
+
+        // #536: when show_table is enabled, reserve extra vertical space below the
+        // timeline body for the "all items" table (SVG/PNG/PDF output; HTML output
+        // uses its own separate <table> element and ignores this reservation).
+        let table_rows = if opts.show_table {
+            let lane_label_lookup = |lane_id: &str| -> String {
+                lanes_ordered
+                    .iter()
+                    .find(|l| l.id == lane_id)
+                    .map(|l| l.label.clone())
+                    .unwrap_or_else(|| lane_id.to_string())
+            };
+            collect_table_rows(ir, lane_label_lookup)
+        } else {
+            Vec::new()
+        };
+        let table_top_y = body_height + TABLE_TOP_GAP;
+        let total_height = if opts.show_table {
+            // header row + one row per item, plus the top gap already added above.
+            table_top_y + (table_rows.len() as f64 + 1.0) * TABLE_ROW_HEIGHT + opts.bottom_margin
+        } else {
+            body_height
         };
 
         let tick_step = pick_tick_step(year_max - year_min, opts.scale, AXIS_LABEL_PX);
@@ -270,7 +423,7 @@ impl<'a> LayoutModel<'a> {
 
         // lane_bands: background band geometry per lane.
         let lane_bands: Vec<LaneBandModel> = if is_vertical {
-            let content_height = total_height - opts.top_margin - opts.bottom_margin;
+            let content_height = body_height - opts.top_margin - opts.bottom_margin;
             lanes_ordered
                 .iter()
                 .enumerate()
@@ -334,6 +487,8 @@ impl<'a> LayoutModel<'a> {
             items,
             lane_bands,
             lane_colors,
+            table_rows,
+            table_top_y,
         }
     }
 

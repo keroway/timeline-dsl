@@ -178,6 +178,20 @@ mod tests {
     }
 
     #[test]
+    fn render_png_show_table_produces_valid_png_bytes() {
+        // #536: show_table must work for PNG output too (rendered SVG table is
+        // rasterized like the rest of the timeline; no separate handling needed).
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let bytes = render_png(&ir, opts, PngOptions::default())
+            .expect("render_png succeeds with show_table");
+        assert!(bytes.starts_with(PNG_SIGNATURE));
+    }
+
+    #[test]
     fn render_png_empty_ir_does_not_panic() {
         let ir = TimelineIr {
             meta: Meta {
