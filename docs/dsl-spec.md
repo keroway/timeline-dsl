@@ -527,6 +527,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `--output` | 出力パス。省略時は標準出力 |
 | `--format` | 出力形式。`html`（デフォルト）/ `svg` / `pdf` / `png` |
 | `--interactive` | ズーム・パン・検索・凡例・詳細パネル付きインタラクティブモード（JavaScript使用）。`--format html` のみ有効 |
+| `--show-legend` | レーン色とタグ色（`color_map`）の静的凡例パネルを表示 |
 | `--scale` | 1年あたりのピクセル幅（デフォルト 2） |
 | `--lane-height` | 各レーンの高さ（px、デフォルト 60）。縦密度を制御し、バーの太さも追従する |
 | `--dpi` | PNG 出力の DPI（デフォルト 96）。`--format png` のみ有効 |
@@ -555,6 +556,10 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
   - `svg` / `png` / `pdf`: 同じ列構成（時期/ラベル/レーン/タグ）を SVG `<rect>`/`<text>` で描画し、タイムライン本体の高さ（`viewBox`/`height`）に自動で含める。
   - `pdf` は従来と同じ単一ページベクトル方式のままであり、表を含めた全体をページに収まるように拡大縮小する。本体と表のページ分割は未実装（将来拡張）である。
   - `--show-table` のデフォルトは `false`（非表示）で、従来の出力には影響しない。
+- **静的凡例（`--show-legend`）**：有効にすると、レーンごとのパレット色と `timeline.color_map` のタグ色を凡例パネルとして表示する（#544）。
+  - `html`: インライン SVG 内の凡例パネルとして表示されるため、JavaScript 非依存の静的HTMLでも色対応を確認できる。
+  - `svg` / `png` / `pdf`: SVG `<rect>`/`<text>` で描画し、タイムライン本体の高さ（`viewBox`/`height`）に自動で含める。
+  - `--show-legend` のデフォルトは `false`（非表示）で、既存の `--interactive` 凡例とは独立した静的出力用オプションである。
 
 ## サンプルと WebUI ギャラリー
 

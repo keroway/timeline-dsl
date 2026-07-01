@@ -129,6 +129,10 @@ fn render_help_includes_watch_flag() {
         stdout.contains("--watch"),
         "--watch should appear in render --help output"
     );
+    assert!(
+        stdout.contains("--show-legend"),
+        "--show-legend should appear in render --help output"
+    );
 }
 
 /// `tdsl render --watch` without `--output` exits non-zero.

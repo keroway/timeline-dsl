@@ -92,6 +92,9 @@ tdsl render examples/china_dynasties.tdsl --interactive --output china.html
 # HTML with item listing table (time / label / lane / tags)
 tdsl render examples/china_dynasties.tdsl --show-table --output china.html
 
+# Static legend panel (lane colors / tag color overrides)
+tdsl render examples/china_dynasties.tdsl --show-legend --output china.html
+
 # Output as SVG
 tdsl render examples/china_dynasties.tdsl --format svg --output china.svg
 

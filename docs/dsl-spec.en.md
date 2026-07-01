@@ -520,6 +520,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `--output` | Output path; defaults to stdout if omitted |
 | `--format` | Output format: `html` (default) / `svg` / `pdf` / `png` |
 | `--interactive` | Interactive mode with zoom, pan, search, legend, and detail panel (uses JavaScript). Only valid with `--format html` |
+| `--show-legend` | Show a static legend panel of lane colors and tag colors (`color_map`) |
 | `--scale` | Pixel width per year (default: 2) |
 | `--lane-height` | Height of each lane in px (default: 60). Controls vertical density; bar thickness follows it |
 | `--dpi` | DPI for PNG output (default: 96). Only valid with `--format png` |
@@ -533,6 +534,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
   - `pdf`: PDF file (via `svg2pdf` / `usvg`, CJK fonts supported)
   - `png`: PNG raster image (resolution adjustable with `--dpi`)
 - **Interactive mode** (`--interactive`): Adds zoom, pan, full-text search, legend, and detail panel. Colors defined in `color_map` are automatically applied
+- **Static legend** (`--show-legend`, #544): Renders a legend panel listing each lane's palette color and any `color_map` tag color overrides, independent of `--interactive`. Defaults to `false` (no legend), leaving existing output unchanged.
 - **Layout**:
   - Horizontal axis: time (uses `timeline.range`)
   - Vertical axis: lanes stacked top-to-bottom in ascending `order`

@@ -731,6 +731,7 @@ pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
 /// | `grid` | `"none"`, `"decade"`, `"year"`, `"month"` | `"none"` |
 /// | `theme` | `"default"`, `"dark"`, `"print"`, `"pastel"` | `"default"` |
 /// | `show_table` | `true`, `false` | `false` |
+/// | `show_legend` | `true`, `false` | `false` |
 /// | `show_event_labels` | `true`, `false` | `false` |
 /// | `lane_height` | px per lane; `0` = renderer default (60) | `0` |
 ///
@@ -739,8 +740,10 @@ pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
 /// default) to keep the historical appearance.
 #[wasm_bindgen]
 pub struct JsRenderOptions {
-    /// `"horizontal"` (default) or `"vertical"`
+    /// When true, append an item listing table.
     pub show_table: bool,
+    /// When true, render a static legend panel showing lane and tag colors.
+    pub show_legend: bool,
     /// When true, labels are rendered next to Event/EventRange items.
     pub show_event_labels: bool,
     /// Height of each lane in pixels. `0` (default) uses the renderer default (60).
@@ -763,6 +766,7 @@ impl JsRenderOptions {
     pub fn new() -> JsRenderOptions {
         JsRenderOptions {
             show_table: false,
+            show_legend: false,
             show_event_labels: false,
             lane_height: 0.0,
             orientation: "horizontal".to_string(),
@@ -844,6 +848,7 @@ fn js_opts_to_render_options(opts: &JsRenderOptions, scale: f64) -> RenderOption
         grid,
         theme,
         show_table: opts.show_table,
+        show_legend: opts.show_legend,
         show_event_labels: opts.show_event_labels,
         ..defaults
     }
