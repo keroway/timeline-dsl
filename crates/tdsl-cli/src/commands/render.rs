@@ -1,4 +1,4 @@
-use crate::{GridStyleArg, OrientationArg, RenderFormat, ThemeArg};
+use crate::{GridStyleArg, LayoutStyleArg, OrientationArg, RenderFormat, ThemeArg};
 
 /// PDF-specific CLI options bundled together to reduce argument count.
 pub(crate) struct PdfCliOptions {
@@ -27,6 +27,7 @@ pub(crate) fn cmd_render(
     color_map_raw: Option<&str>,
     orientation: OrientationArg,
     grid: GridStyleArg,
+    layout_style: LayoutStyleArg,
     wikidata_timeout: std::time::Duration,
     watch: bool,
     show_table: bool,
@@ -65,6 +66,7 @@ pub(crate) fn cmd_render(
             color_map_raw,
             orientation,
             grid,
+            layout_style,
             wikidata_timeout,
             show_table,
             show_event_labels,
@@ -89,6 +91,7 @@ pub(crate) fn cmd_render(
         color_map_raw,
         orientation,
         grid,
+        layout_style,
         wikidata_timeout,
         show_table,
         show_event_labels,
@@ -115,6 +118,7 @@ fn do_render(
     color_map_raw: Option<&str>,
     orientation: OrientationArg,
     grid: GridStyleArg,
+    layout_style: LayoutStyleArg,
     wikidata_timeout: std::time::Duration,
     show_table: bool,
     show_event_labels: bool,
@@ -160,6 +164,7 @@ fn do_render(
         interactive,
         orientation: orientation.into_orientation(),
         grid: grid.into_grid_style(),
+        layout_style: layout_style.into_layout_style(),
         show_table: effective_show_table,
         show_event_labels,
         ..Default::default()
@@ -250,6 +255,7 @@ fn cmd_render_watch(
     color_map_raw: Option<&str>,
     orientation: OrientationArg,
     grid: GridStyleArg,
+    layout_style: LayoutStyleArg,
     wikidata_timeout: std::time::Duration,
     show_table: bool,
     show_event_labels: bool,
@@ -275,6 +281,7 @@ fn cmd_render_watch(
             color_map_raw,
             orientation,
             grid,
+            layout_style,
             wikidata_timeout,
             show_table,
             show_event_labels,
