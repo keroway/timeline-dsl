@@ -113,6 +113,9 @@ tdsl render examples/china_dynasties.tdsl --orientation vertical --output china_
 # Auxiliary grid lines (decade / year / month)
 tdsl render examples/china_dynasties.tdsl --grid decade --output china_grid.html
 
+# Era/group background bands for contiguous lane groups
+tdsl render examples/china_dynasties.tdsl --layout-style group-bands --output china_bands.html
+
 # Watch mode: re-render automatically on file changes (--output required; html / svg only)
 tdsl render examples/china_dynasties.tdsl --watch --output china.html
 
