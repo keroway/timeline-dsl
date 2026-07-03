@@ -203,7 +203,7 @@ tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 
 ### timeline ブロック
 
-タイトル・単位・表示範囲・暦法・カラーマッピングを宣言する。
+タイトル・単位・表示範囲・暦法・カラーマッピングを宣言する。`unit` の許容値は `year` / `month` / `day` で、未知の値は lowering エラーになります。
 
 ```
 timeline "中国王朝年表" {
@@ -222,7 +222,7 @@ timeline "中国王朝年表" {
 
 ### lane 宣言
 
-年表の縦軸カテゴリを定義する。`as` で内部IDを指定。
+年表の縦軸カテゴリを定義する。`as` で内部IDを指定。既知の `kind` は `custom` / `dynasty` / `person` / `country` / `event` で、未知の値は検証警告として報告されます。
 
 ```
 lane "漢" as han { kind dynasty; order 20; }

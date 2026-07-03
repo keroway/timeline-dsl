@@ -43,6 +43,24 @@ fn lower_static_basic() {
 }
 
 #[test]
+fn lower_rejects_unknown_timeline_unit() {
+    let src = r#"
+        timeline "Test" { unit dey; range 0..100; }
+        lane "A" as a { kind custom; }
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let result = lower::lower_static(&file);
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    assert!(errors.iter().any(|e| {
+        matches!(
+            e,
+            error::LoweringError::UnknownTimelineUnit { value, .. } if value == "dey"
+        )
+    }));
+}
+
+#[test]
 fn lower_detects_unknown_lane() {
     let src = r#"
         timeline "Test" { unit year; range 0..100; }

@@ -209,7 +209,7 @@ tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 
 ### timeline block
 
-Declares the title, unit, display range, calendar, and color mapping.
+Declares the title, unit, display range, calendar, and color mapping. Supported `unit` values are `year`, `month`, and `day`; unknown values fail during lowering instead of falling back silently.
 
 ```
 timeline "Chinese Dynasties" {
@@ -228,7 +228,7 @@ timeline "Chinese Dynasties" {
 
 ### lane declaration
 
-Defines a vertical category on the timeline. Use `as` to specify the internal ID.
+Defines a vertical category on the timeline. Use `as` to specify the internal ID. Known `kind` values are `custom`, `dynasty`, `person`, `country`, and `event`; unknown values are reported as validation warnings.
 
 ```
 lane "Han" as han { kind dynasty; order 20; }

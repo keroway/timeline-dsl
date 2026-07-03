@@ -1,7 +1,7 @@
 use tdsl_parser::ast;
 
 use crate::error::LoweringError;
-use crate::ir::Meta;
+use crate::ir::{Meta, TimelineUnit, supported_timeline_units};
 
 use super::context::LoweringContext;
 
@@ -45,9 +45,23 @@ impl LoweringContext {
                         None => ((0, 2000), None, None, None, None, None, None, None, None),
                     };
 
+                    let unit = match t.unit.as_deref() {
+                        Some(value) => match TimelineUnit::parse(value) {
+                            Some(unit) => unit,
+                            None => {
+                                self.errors.push(LoweringError::UnknownTimelineUnit {
+                                    value: value.to_string(),
+                                    expected: supported_timeline_units(),
+                                });
+                                continue;
+                            }
+                        },
+                        None => TimelineUnit::Year,
+                    };
+
                     self.meta = Some(Meta {
                         title: t.title.clone().unwrap_or_else(|| t.name.clone()),
-                        unit: t.unit.clone().unwrap_or_else(|| "year".to_string()),
+                        unit: unit.as_str().to_string(),
                         range: range_yy,
                         range_start_month,
                         range_start_day,

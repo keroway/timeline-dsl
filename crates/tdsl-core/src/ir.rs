@@ -1,6 +1,100 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// Supported timeline axis units.
+///
+/// IR JSON keeps serializing `Meta::unit` as a string for backward
+/// compatibility; this enum is the internal value set used by lowering and
+/// validation to reject typos instead of falling back silently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimelineUnit {
+    Year,
+    Month,
+    Day,
+}
+
+impl TimelineUnit {
+    pub const ALL: [Self; 3] = [Self::Year, Self::Month, Self::Day];
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "year" => Some(Self::Year),
+            "month" => Some(Self::Month),
+            "day" => Some(Self::Day),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Year => "year",
+            Self::Month => "month",
+            Self::Day => "day",
+        }
+    }
+}
+
+/// Known lane kinds used for diagnostics and completions.
+///
+/// `custom` remains the escape hatch for user-defined lane categories. Unknown
+/// explicit `kind` values are warnings rather than lowering errors so existing
+/// semantic classifications do not become hard failures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaneKind {
+    Custom,
+    Dynasty,
+    Person,
+    Country,
+    Event,
+}
+
+impl LaneKind {
+    pub const ALL: [Self; 5] = [
+        Self::Custom,
+        Self::Dynasty,
+        Self::Person,
+        Self::Country,
+        Self::Event,
+    ];
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "custom" => Some(Self::Custom),
+            "dynasty" => Some(Self::Dynasty),
+            "person" => Some(Self::Person),
+            "country" => Some(Self::Country),
+            "event" => Some(Self::Event),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Custom => "custom",
+            Self::Dynasty => "dynasty",
+            Self::Person => "person",
+            Self::Country => "country",
+            Self::Event => "event",
+        }
+    }
+}
+
+pub fn supported_timeline_units() -> String {
+    TimelineUnit::ALL
+        .iter()
+        .map(|u| u.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+pub fn known_lane_kinds() -> String {
+    LaneKind::ALL
+        .iter()
+        .map(|k| k.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// DSL ソース内のアイテム定義位置（1-based 行番号・列番号）。
 /// `source_span` が付いていない場合はスキップして JSON に出力しない。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

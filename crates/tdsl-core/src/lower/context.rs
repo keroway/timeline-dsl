@@ -219,7 +219,10 @@ impl LoweringContext {
         let lane = Lane {
             id: id.clone(),
             label: l.label.clone(),
-            kind: l.kind.clone().unwrap_or_else(|| "custom".to_string()),
+            kind: l
+                .kind
+                .clone()
+                .unwrap_or_else(|| LaneKind::Custom.as_str().to_string()),
             order: l.order.unwrap_or(0),
             group: group.map(|s| s.to_string()),
             source_span,
