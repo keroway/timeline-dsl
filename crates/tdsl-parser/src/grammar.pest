@@ -49,7 +49,7 @@ group_decl = {
 
 // ─── Span Declaration ───────────────────────────────────────
 span_decl = {
-    "span" ~ ident ~ time_value ~ ".." ~ time_value ~ string_literal ~ block_options ~ ";"
+    "span" ~ ident ~ time_value ~ ".." ~ open_ended_time_value ~ string_literal ~ block_options ~ ";"
 }
 
 // ─── Event Declaration ──────────────────────────────────────
@@ -59,7 +59,7 @@ event_decl = {
 
 // ─── Event Range Declaration ────────────────────────────────
 event_range_decl = {
-    "event_range" ~ ident ~ time_value ~ ".." ~ time_value ~ string_literal ~ block_options ~ ";"
+    "event_range" ~ ident ~ time_value ~ ".." ~ open_ended_time_value ~ string_literal ~ block_options ~ ";"
 }
 
 // ─── Block Options (shared by span/event/event_range) ───────
@@ -173,6 +173,10 @@ year_month_lit = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ !("-" ~ ASCII_DIGIT) }
 date_lit       = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ !("T" ~ ASCII_DIGIT) }
 date_time_lit  = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ "T" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} }
 time_value     = { date_time_lit | date_lit | year_month_lit | year_lit }
+// `now` は span / event_range の end 位置専用（#550）。`now_kw` を先に試すことで
+// `ident` としての誤マッチを避ける（`time_value` の数値リテラルとは非交差なので順序は影響しない）。
+now_kw               = @{ "now" ~ !(ASCII_ALPHANUMERIC | "_" | "-") }
+open_ended_time_value = { now_kw | time_value }
 // 単独の時刻リテラルを行全体に対してパースするためのエントリポイント。
 // `tdsl-parser::parse_time_literal` から CSV 経路 (#260) などで再利用される。
 time_literal_only = { SOI ~ time_value ~ EOI }

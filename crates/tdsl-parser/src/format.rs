@@ -20,7 +20,8 @@ use crate::ast::{
     ApplyBlock, ClaimExpr, Comment, CompareOp, EventDecl, EventRangeDecl, FieldPriorityConfig,
     FieldStrategy, File, FilterExpr, FilterOperand, GroupDecl, ImportBlock, ImportItem, ItemProps,
     LabelExpr, LaneDecl, MapBlock, MapExpr, MapFallback, MapProp, MapTargetType, ReimportPolicy,
-    SourceRef, SpanDecl, Spanned, Statement, StringMatchOp, TemplateBlock, TimelineBlock,
+    SourceRef, SpanDecl, Spanned, Statement, StringMatchOp, TemplateBlock, TimeValue,
+    TimelineBlock,
 };
 use crate::error::ParseError;
 
@@ -219,12 +220,21 @@ fn write_span(out: &mut String, b: &SpanDecl) {
         r#"span {} {}..{} "{}" "#,
         b.lane_ref,
         b.start,
-        b.end,
+        format_open_ended_end(b.end, b.end_open),
         escape_string(&b.label)
     )
     .unwrap();
     write_item_props(out, &b.props);
     writeln!(out, ";").unwrap();
+}
+
+/// #550: render `now` instead of the resolved end year when `end_open` is set.
+fn format_open_ended_end(end: TimeValue, end_open: bool) -> String {
+    if end_open {
+        "now".to_string()
+    } else {
+        end.to_string()
+    }
 }
 
 fn write_event(out: &mut String, b: &EventDecl) {
@@ -246,7 +256,7 @@ fn write_event_range(out: &mut String, b: &EventRangeDecl) {
         r#"event_range {} {}..{} "{}" "#,
         b.lane_ref,
         b.start,
-        b.end,
+        format_open_ended_end(b.end, b.end_open),
         escape_string(&b.label)
     )
     .unwrap();
@@ -709,6 +719,16 @@ mod tests {
         assert!(out.contains("  color_map {\n"));
         assert!(out.contains("    dynasty: \"#3366cc\";\n"));
         assert!(out.contains("    war: \"#cc0000\";\n"));
+    }
+
+    #[test]
+    fn format_span_open_ended_now_roundtrips() {
+        // #550: `now` end must survive formatting and re-formatting unchanged.
+        let src = r#"span reiwa 2019..now "令和" {};"#;
+        let out = fmt(src);
+        assert!(out.contains("2019..now"), "formatted: {out}");
+        let out2 = fmt(&out);
+        assert_eq!(out, out2, "formatting must be idempotent");
     }
 
     #[test]

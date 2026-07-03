@@ -132,6 +132,7 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             end_day,
             end_hour,
             end_minute,
+            end_open,
             source_span,
             ..
         } => Item::Span {
@@ -151,6 +152,7 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             end_day,
             end_hour,
             end_minute,
+            end_open,
             source_span,
         },
         Item::Event {
@@ -196,6 +198,7 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             end_day,
             end_hour,
             end_minute,
+            end_open,
             source_span,
             ..
         } => Item::EventRange {
@@ -215,6 +218,7 @@ fn set_item_id(item: Item, new_id: String) -> Item {
             end_day,
             end_hour,
             end_minute,
+            end_open,
             source_span,
         },
     }
@@ -273,6 +277,7 @@ mod tests {
             end_day: None,
             end_hour: None,
             end_minute: None,
+            end_open: false,
             source_span: None,
         }
     }

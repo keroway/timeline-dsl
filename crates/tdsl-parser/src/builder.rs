@@ -191,7 +191,7 @@ fn build_span(pair: Pair<'_, Rule>) -> Result<SpanDecl> {
     let mut inner = pair.into_inner();
     let lane_ref = inner.next().unwrap().as_str().to_string();
     let start = parse_time_value(inner.next().unwrap())?;
-    let end = parse_time_value(inner.next().unwrap())?;
+    let (end, end_open) = parse_open_ended_time_value(inner.next().unwrap())?;
     let label = extract_string_literal(&inner.next().unwrap());
     let props = build_block_options(inner.next().unwrap())?;
 
@@ -199,6 +199,7 @@ fn build_span(pair: Pair<'_, Rule>) -> Result<SpanDecl> {
         lane_ref,
         start,
         end,
+        end_open,
         label,
         props,
     })
@@ -227,7 +228,7 @@ fn build_event_range(pair: Pair<'_, Rule>) -> Result<EventRangeDecl> {
     let mut inner = pair.into_inner();
     let lane_ref = inner.next().unwrap().as_str().to_string();
     let start = parse_time_value(inner.next().unwrap())?;
-    let end = parse_time_value(inner.next().unwrap())?;
+    let (end, end_open) = parse_open_ended_time_value(inner.next().unwrap())?;
     let label = extract_string_literal(&inner.next().unwrap());
     let props = build_block_options(inner.next().unwrap())?;
 
@@ -235,6 +236,7 @@ fn build_event_range(pair: Pair<'_, Rule>) -> Result<EventRangeDecl> {
         lane_ref,
         start,
         end,
+        end_open,
         label,
         props,
     })
@@ -735,6 +737,17 @@ fn parse_int(pair: &Pair<'_, Rule>) -> Result<i64> {
 /// PEG ルールは `date_time_lit | date_lit | year_month_lit | year_lit` の順に試行され、
 /// 月は 1〜12、日は 1〜31、時は 0〜23、分は 0〜59 の範囲を builder 側で検証する。
 /// カレンダー妥当性（2月30日など）は lowering 側の責務。
+/// `open_ended_time_value = { now_kw | time_value }` を解析する（#550）。
+/// `now` の場合はビルド時点の現在年（UTC）で補完し、`end_open = true` を返す。
+fn parse_open_ended_time_value(pair: Pair<'_, Rule>) -> Result<(TimeValue, bool)> {
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::now_kw => Ok((TimeValue::Year(crate::now::current_year_utc()), true)),
+        Rule::time_value => Ok((parse_time_value(inner)?, false)),
+        _ => unreachable!("open_ended_time_value must be now_kw or time_value"),
+    }
+}
+
 pub(crate) fn parse_time_value(pair: Pair<'_, Rule>) -> Result<TimeValue> {
     let location = pair_location_str(&pair);
     let inner = pair

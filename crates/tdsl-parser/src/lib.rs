@@ -3,6 +3,7 @@ pub mod builder;
 pub mod comments;
 pub mod error;
 pub mod format;
+pub mod now;
 
 pub use error::{ParseDiagnostic, byte_offset_to_line_col};
 pub use format::{format_file, format_source};
@@ -121,6 +122,52 @@ mod tests {
                 assert_eq!(s.props.id.as_deref(), Some("span:han"));
             }
             _ => panic!("expected Span"),
+        }
+    }
+
+    #[test]
+    fn parse_span_open_ended_with_now() {
+        // #550: `now` in the end position marks an ongoing (open-ended) period.
+        let src = r#"span reiwa 2019..now "令和" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Span(s) => {
+                assert_eq!(s.start, ast::TimeValue::Year(2019));
+                assert!(s.end_open, "end_open must be true when `now` is used");
+                match s.end {
+                    ast::TimeValue::Year(y) => {
+                        assert!((2020..=2200).contains(&y), "unexpected resolved year: {y}");
+                    }
+                    other => panic!("expected Year, got {other:?}"),
+                }
+            }
+            _ => panic!("expected Span"),
+        }
+    }
+
+    #[test]
+    fn parse_span_without_now_has_end_open_false() {
+        let src = r#"span reiwa 2019..2025 "令和" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Span(s) => {
+                assert!(!s.end_open);
+                assert_eq!(s.end, ast::TimeValue::Year(2025));
+            }
+            _ => panic!("expected Span"),
+        }
+    }
+
+    #[test]
+    fn parse_event_range_open_ended_with_now() {
+        // #550: event_range also accepts `now` as its end.
+        let src = r#"event_range x 2020..now "ongoing" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::EventRange(er) => {
+                assert!(er.end_open);
+            }
+            _ => panic!("expected EventRange"),
         }
     }
 

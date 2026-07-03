@@ -37,12 +37,13 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 
 <group>        ::= "group" <string> "{" <lane> { <lane> } "}"
 
-<span>         ::= "span" <identifier> <time_value> ".." <time_value> <string>
+<span>         ::= "span" <identifier> <time_value> ".." <open_ended_time_value> <string>
                    <block_options> ";"
 <event>        ::= "event" <identifier> <time_value> <string>
                    <block_options> ";"
-<event_range>  ::= "event_range" <identifier> <time_value> ".." <time_value> <string>
+<event_range>  ::= "event_range" <identifier> <time_value> ".." <open_ended_time_value> <string>
                    <block_options> ";"
+<open_ended_time_value> ::= "now" | <time_value>
 
 <block_options> ::= "{" { <option> } "}"
 <option>       ::= "tags" "[" <string_list> "]" ";"
@@ -98,6 +99,7 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <property_id>  ::= "P" <digits>
 <identifier>   ::= /[A-Za-z_][A-Za-z0-9_-]*/
 <number>       ::= /"-"? [0-9]+/
+// `now` は span / event_range の `end` 位置専用（#550。ビルド時点の現在年に解決され、アイテムは継続中としてマークされる）
 <time_value>   ::= <date_time> | <date> | <year_month> | <year>
 <year>         ::= /"-"? [0-9]+/
 <year_month>   ::= /"-"? [0-9]{1,4} "-" [0-9]{2}/
@@ -181,11 +183,27 @@ span han -206..220 "漢" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };
 
 // 月・日精度の例
 span ww2 1939-09-01..1945-09-02 "第二次世界大戦" { tags ["war"]; };
+
+// 継続中（オープンエンド）の例（#550）
+span reiwa 2019..now "令和" { tags ["era"]; };
 ```
 
 - 第1引数: レーンID
-- 第2引数: `開始..終了`（時刻値の範囲。`1939-09-01..1945-09-02` のように月・日精度も指定可）
+- 第2引数: `開始..終了`（時刻値の範囲。`1939-09-01..1945-09-02` のように月・日精度も指定可）。`終了` に `now` を指定すると「現在も継続中」の意味になる（下記参照）
 - 第3引数: ラベル（文字列）
+
+#### 継続中（open-ended）の表現（#550）
+
+`span` / `event_range` の `end` に `now` キーワードを指定すると、その期間が現在も継続中であることを表す。
+
+```
+span reiwa 2019..now "令和" {};
+```
+
+- `now` はビルド時点の現在年（UTC）に解決され、IR の `end` にはその具体値が入る（既存ツールとの後方互換のため）。同時に IR の `end_open: true` フラグで「継続中」の意味情報を保持する
+- Renderer は `end_open` のアイテムに `tdsl-item-open-ended` CSS クラスを付与（デフォルトで破線の囲みを適用、`--custom-css` で上書き可能）し、ツールチップには終了日の代わりに「進行中」と表示する
+- `tdsl decompile` は `end_open == true` の場合に `now` を再出力する（往復安定）
+- **スコープ外**: `map` ブロック（Wikidata インポート）からの `now` フォールバック（例: `end claim(P582).year ?? now;`）は本対応のスコープ外。`now` は `span` / `event_range` の直接定義の `end` 位置のみで使える
 
 ### event
 
@@ -205,10 +223,13 @@ event han -209 "陳勝・呉広の乱" {};
 
 ```
 event_range han 184..204 "黄巾の乱" { tags ["war"]; };
+
+// 継続中（オープンエンド）の例（#550）
+event_range ongoing_conflict 2020..now "進行中の紛争" {};
 ```
 
 - 第1引数: レーンID
-- 第2引数: `開始..終了`（時刻値の範囲）
+- 第2引数: `開始..終了`（時刻値の範囲。`end` に `now` を指定すると継続中を表す（span と同様。上記参照）
 - 第3引数: ラベル（文字列）
 
 ### block_options（共通オプション）

@@ -19,6 +19,24 @@ fn is_valid_ident(s: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
+/// #550: render `now` instead of the resolved end year/precision when
+/// `end_open` is set.
+#[allow(clippy::too_many_arguments)]
+fn format_open_ended_end(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+    end_open: bool,
+) -> String {
+    if end_open {
+        "now".to_string()
+    } else {
+        format_time(year, month, day, hour, minute)
+    }
+}
+
 fn format_color_map_key(k: &str) -> String {
     if is_valid_ident(k) {
         k.to_string()
@@ -121,6 +139,7 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 end_day,
                 end_hour,
                 end_minute,
+                end_open,
                 label,
                 tags,
                 source,
@@ -131,7 +150,14 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 let props = render_props(id, tags, source, origin);
                 let start_s =
                     format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
-                let end_s = format_time(*end, *end_month, *end_day, *end_hour, *end_minute);
+                let end_s = format_open_ended_end(
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_open,
+                );
                 writeln!(
                     out,
                     r#"span {lane} {start_s}..{end_s} "{}" {props};"#,
@@ -169,6 +195,7 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 end_day,
                 end_hour,
                 end_minute,
+                end_open,
                 label,
                 tags,
                 source,
@@ -179,7 +206,14 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 let props = render_props(id, tags, source, origin);
                 let start_s =
                     format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
-                let end_s = format_time(*end, *end_month, *end_day, *end_hour, *end_minute);
+                let end_s = format_open_ended_end(
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_open,
+                );
                 writeln!(
                     out,
                     r#"event_range {lane} {start_s}..{end_s} "{}" {props};"#,
@@ -262,6 +296,7 @@ mod tests {
                     end_day: None,
                     end_hour: None,
                     end_minute: None,
+                    end_open: false,
                     source_span: None,
                 },
                 Item::Event {
@@ -295,6 +330,7 @@ mod tests {
                     end_day: None,
                     end_hour: None,
                     end_minute: None,
+                    end_open: false,
                     source_span: None,
                 },
             ],
@@ -424,6 +460,66 @@ mod tests {
         let tdsl = decompile(&ir);
         assert!(tdsl.contains(r#"timeline "Title with \"quotes\"""#));
         tdsl_parser::parse(&tdsl).expect("escaped output must parse");
+    }
+
+    #[test]
+    fn decompile_roundtrip_preserves_open_ended_span() {
+        // #550: `end_open` round-trips through decompile -> parse -> lower as `now`.
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "T".to_string(),
+                unit: "year".to_string(),
+                range: (2000, 2200),
+                calendar: "proleptic_gregorian".to_string(),
+                color_map: HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "a".to_string(),
+                label: "A".to_string(),
+                kind: "custom".to_string(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::Span {
+                id: "span:a:2019".to_string(),
+                lane: "a".to_string(),
+                start: 2019,
+                end: 2099,
+                label: "令和".to_string(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                start_month: None,
+                start_day: None,
+                start_hour: None,
+                start_minute: None,
+                end_month: None,
+                end_day: None,
+                end_hour: None,
+                end_minute: None,
+                end_open: true,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let tdsl = decompile(&ir);
+        assert!(tdsl.contains("2019..now"), "decompiled: {tdsl}");
+
+        let file = tdsl_parser::parse(&tdsl).expect("decompiled output must parse");
+        let ir2 = crate::lower::lower_static(&file).expect("must lower without errors");
+        match &ir2.items[0] {
+            Item::Span {
+                start, end_open, ..
+            } => {
+                assert_eq!(*start, 2019);
+                assert!(*end_open);
+            }
+            _ => panic!("expected span"),
+        }
     }
 
     #[test]

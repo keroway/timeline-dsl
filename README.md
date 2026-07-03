@@ -267,7 +267,12 @@ event han -209 "Dazexiang Uprising" {};
 
 // Range event (wars, disasters, etc.)
 event_range han 184..204 "Yellow Turban Rebellion" { tags ["war"]; };
+
+// Open-ended (still ongoing) period: use `now` as the end
+span reiwa 2019..now "Reiwa era" { tags ["era"]; };
 ```
+
+`now` resolves to the current UTC year at build/parse time and marks the item as open-ended (`end_open: true` in the IR). Rendered output gets a `tdsl-item-open-ended` CSS hook (dashed border by default) and the tooltip shows the ongoing marker instead of a placeholder end year. `tdsl decompile` re-emits `now` for such items. Out of scope: `now` as a fallback inside `map` blocks (e.g. `end claim(P582).year ?? now;`) — `now` is only valid in the `end` position of a directly-defined `span`/`event_range`.
 
 ### import block
 

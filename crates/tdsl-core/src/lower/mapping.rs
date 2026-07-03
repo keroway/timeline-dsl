@@ -268,6 +268,7 @@ impl LoweringContext {
                         end_day: e_day,
                         end_hour: e_hour,
                         end_minute: e_minute,
+                        end_open: false,
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
@@ -324,6 +325,7 @@ impl LoweringContext {
                         end_day: e_day,
                         end_hour: e_hour,
                         end_minute: e_minute,
+                        end_open: false,
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
@@ -594,6 +596,7 @@ pub(crate) fn merge_items_by_field_priority(
                 end_day: ex_ed,
                 end_hour: ex_eh,
                 end_minute: ex_emin,
+                end_open: ex_end_open,
                 source_span,
             },
             Item::Span {
@@ -628,6 +631,11 @@ pub(crate) fn merge_items_by_field_priority(
             end_day: in_ed.or(ex_ed),
             end_hour: in_eh.or(ex_eh),
             end_minute: in_emin.or(ex_emin),
+            // Field-priority merges only ever combine an existing (possibly
+            // manual, possibly open-ended) item with an imported (Wikidata)
+            // one; imported items never carry `now` semantics (#550 is
+            // DSL-only), so the existing item's flag is preserved as-is.
+            end_open: ex_end_open,
             source_span,
         },
         (
@@ -687,6 +695,7 @@ pub(crate) fn merge_items_by_field_priority(
                 end_day: ex_ed,
                 end_hour: ex_eh,
                 end_minute: ex_emin,
+                end_open: ex_end_open,
                 source_span,
             },
             Item::EventRange {
@@ -721,6 +730,7 @@ pub(crate) fn merge_items_by_field_priority(
             end_day: in_ed.or(ex_ed),
             end_hour: in_eh.or(ex_eh),
             end_minute: in_emin.or(ex_emin),
+            end_open: ex_end_open,
             source_span,
         },
         (_, incoming) => incoming,

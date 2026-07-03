@@ -261,7 +261,12 @@ event han -209 "陳勝・呉広の乱" {};
 
 // 期間イベント（戦争・災害など）
 event_range han 184..204 "黄巾の乱" { tags ["war"]; };
+
+// 継続中（オープンエンド）の期間：終了に `now` を使う
+span reiwa 2019..now "令和" { tags ["era"]; };
 ```
+
+`now` はビルド/パース時点の現在年（UTC）に解決され、IR 上では `end_open: true` として継続中であることが保持されます。出力された HTML/SVG は `tdsl-item-open-ended` クラス（デフォルトで破線囲み）を持ち、ツールチップには終了日の代わりに進行中マーカーが表示されます。`tdsl decompile` は当該アイテムを `now` で再出力します。スコープ外: `map` ブロック内での `now` フォールバック（例: `end claim(P582).year ?? now;`）は未対応。`now` は `span` / `event_range` の直接定義の `end` 位置のみで使えます。
 
 ### import ブロック
 
