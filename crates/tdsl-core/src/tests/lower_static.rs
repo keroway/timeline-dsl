@@ -43,6 +43,93 @@ fn lower_static_basic() {
 }
 
 #[test]
+fn lower_static_span_with_now_end_is_open() {
+    // #550: `now` marks an open-ended span; IR carries end_open = true and a
+    // resolved (current-year) `end` for renderer/back-compat consumers.
+    let src = r#"
+        timeline "T" { title "T"; unit year; range 2000..2200; }
+        lane "A" as a { kind custom; order 1; }
+        span a 2019..now "令和" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    match &ir.items[0] {
+        ir::Item::Span {
+            start,
+            end,
+            end_open,
+            ..
+        } => {
+            assert_eq!(*start, 2019);
+            assert!(*end_open);
+            assert!((2020..=2200).contains(end), "unexpected end year: {end}");
+        }
+        _ => panic!("expected span"),
+    }
+}
+
+#[test]
+fn lower_static_event_range_with_now_end_is_open() {
+    let src = r#"
+        timeline "T" { title "T"; unit year; range 2000..2200; }
+        lane "A" as a { kind custom; order 1; }
+        event_range a 2020..now "ongoing" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    match &ir.items[0] {
+        ir::Item::EventRange { end_open, .. } => {
+            assert!(*end_open);
+        }
+        _ => panic!("expected event_range"),
+    }
+}
+
+#[test]
+fn lower_static_span_without_now_has_end_open_false() {
+    let src = r#"
+        timeline "T" { title "T"; unit year; range 0..2000; }
+        lane "A" as a { kind custom; order 1; }
+        span a 100..200 "S" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    match &ir.items[0] {
+        ir::Item::Span { end_open, .. } => {
+            assert!(!*end_open);
+        }
+        _ => panic!("expected span"),
+    }
+}
+
+#[test]
+fn ir_json_omits_end_open_when_false() {
+    // Backward compat: end_open must not appear in JSON when false (#550).
+    let src = r#"
+        timeline "T" { title "T"; unit year; range 0..2000; }
+        lane "A" as a { kind custom; order 1; }
+        span a 100..200 "S" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let json = serde_json::to_string(&ir).unwrap();
+    assert!(!json.contains("end_open"));
+}
+
+#[test]
+fn ir_json_includes_end_open_when_true() {
+    let src = r#"
+        timeline "T" { title "T"; unit year; range 2000..2200; }
+        lane "A" as a { kind custom; order 1; }
+        span a 2019..now "令和" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let json = serde_json::to_string(&ir).unwrap();
+    assert!(json.contains(r#""end_open":true"#));
+}
+
+#[test]
 fn lower_rejects_unknown_timeline_unit() {
     let src = r#"
         timeline "Test" { unit dey; range 0..100; }

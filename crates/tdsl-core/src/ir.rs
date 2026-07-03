@@ -217,6 +217,11 @@ pub enum Item {
         end_hour: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         end_minute: Option<u8>,
+        /// `end` が `now`（継続中）で補完されたかどうか（#550）。`end` 自体は常に具体値（lowering 時の
+        /// 現在年）を保持するが、`end_open == true` の場合 renderer / decompile はそれを
+        /// 「継続中」として扱う。既存 IR との後方互換のため `false` の場合はシリアライズしない。
+        #[serde(default, skip_serializing_if = "is_false")]
+        end_open: bool,
         /// DSL ソース上の定義位置（双方向ジャンプ用）。
         #[serde(skip_serializing_if = "Option::is_none")]
         source_span: Option<SourceSpan>,
@@ -274,10 +279,17 @@ pub enum Item {
         end_hour: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         end_minute: Option<u8>,
+        /// `end` が `now`（継続中）で補完されたかどうか（#550）。Span のドキュメントと同様。
+        #[serde(default, skip_serializing_if = "is_false")]
+        end_open: bool,
         /// DSL ソース上の定義位置（双方向ジャンプ用）。
         #[serde(skip_serializing_if = "Option::is_none")]
         source_span: Option<SourceSpan>,
     },
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// Wikidata インポートの記録。どのエンティティがどのアイテムにマップされたかを保持する。

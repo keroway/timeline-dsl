@@ -180,11 +180,15 @@ pub struct GroupDecl {
 // ─── Items ──────────────────────────────────────────────────
 
 /// `span <lane> <start>..<end> "ラベル" { ... }` 宣言のAST表現。
+///
+/// `end` に `now` を書いた場合は `end_open = true` となり、`end` には
+/// ビルド時点の現在年（UTC）が補完される（#550）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpanDecl {
     pub lane_ref: String,
     pub start: TimeValue,
     pub end: TimeValue,
+    pub end_open: bool,
     pub label: String,
     pub props: ItemProps,
 }
@@ -199,11 +203,14 @@ pub struct EventDecl {
 }
 
 /// `event_range <lane> <start>..<end> "ラベル" { ... }` 宣言のAST表現。
+///
+/// `end` に `now` を書いた場合は `end_open = true`（#550）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventRangeDecl {
     pub lane_ref: String,
     pub start: TimeValue,
     pub end: TimeValue,
+    pub end_open: bool,
     pub label: String,
     pub props: ItemProps,
 }

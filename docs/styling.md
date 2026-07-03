@@ -112,6 +112,21 @@ horizontal / vertical の両 orientation で同様に動作します。重なり
 | `.tdsl-event-stem` | ドットから軸への縦線 | `stroke`（デフォルト: #aaa）, `stroke-width`, `stroke-dasharray`（デフォルト: `2 2`）|
 | `.tdsl-event-hit` | ホバー用の透明なhit area | `fill: transparent`（変更不要）|
 
+### 継続中（open-ended）アイテム（#550）
+
+| クラス | 対象 | 主なプロパティ |
+|---|---|---|
+| `.tdsl-item-open-ended` | `end` に `now` を指定した span/event_range の `<g>` に付与されるフッククラス | デフォルトでは内側の `.tdsl-span` / `.tdsl-event-range` の `stroke-dasharray` を `4 2`（破線）に上書き |
+
+```css
+/* 継続中アイテムのデフォルトの破線囲みを矢印風に変える例 */
+.tdsl-item-open-ended .tdsl-span,
+.tdsl-item-open-ended .tdsl-event-range {
+  stroke-dasharray: none;
+  opacity: 0.85;
+}
+```
+
 ### ツールチップ
 
 | クラス | 対象 | 主なプロパティ |

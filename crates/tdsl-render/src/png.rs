@@ -150,6 +150,7 @@ mod tests {
                 end_day: None,
                 end_hour: None,
                 end_minute: None,
+                end_open: false,
                 source_span: None,
             }],
             imports: vec![],

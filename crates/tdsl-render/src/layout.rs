@@ -1313,13 +1313,21 @@ fn item_tooltip(item: &Item) -> String {
             end_day,
             end_hour,
             end_minute,
+            end_open,
             ..
         } => {
             lines.push(label.to_string());
             lines.push(format!(
                 "{}〜{}",
                 format_date(*start, *start_month, *start_day, *start_hour, *start_minute),
-                format_date(*end, *end_month, *end_day, *end_hour, *end_minute),
+                open_ended_end_label(
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_open
+                ),
             ));
             push_common(&mut lines, tags, source, origin, id);
         }
@@ -1362,18 +1370,44 @@ fn item_tooltip(item: &Item) -> String {
             end_day,
             end_hour,
             end_minute,
+            end_open,
             ..
         } => {
             lines.push(label.to_string());
             lines.push(format!(
                 "{}〜{}",
                 format_date(*start, *start_month, *start_day, *start_hour, *start_minute),
-                format_date(*end, *end_month, *end_day, *end_hour, *end_minute),
+                open_ended_end_label(
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_open
+                ),
             ));
             push_common(&mut lines, tags, source, origin, id);
         }
     }
     lines.join("\n")
+}
+
+/// #550: render `end` as "進行中" (ongoing) in the tooltip when the item is
+/// open-ended (`end_open`), instead of the resolved placeholder year.
+#[allow(clippy::too_many_arguments)]
+fn open_ended_end_label(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+    end_open: bool,
+) -> String {
+    if end_open {
+        "進行中".to_string()
+    } else {
+        format_date(year, month, day, hour, minute)
+    }
 }
 
 fn year_to_x(year: i64, year_min: i64, scale: f64, left_gutter: f64) -> f64 {
@@ -1740,6 +1774,7 @@ mod tests {
                 end_day: None,
                 end_hour: None,
                 end_minute: None,
+                end_open: false,
                 source_span: None,
             }],
             imports: vec![],
@@ -1811,6 +1846,7 @@ mod tests {
                 end_day: None,
                 end_hour: None,
                 end_minute: None,
+                end_open: false,
                 source_span: None,
             }],
             imports: vec![],
@@ -1864,6 +1900,7 @@ mod tests {
                 end_day: None,
                 end_hour: None,
                 end_minute: None,
+                end_open: false,
                 source_span: None,
             }],
             imports: vec![],
@@ -1919,6 +1956,7 @@ mod tests {
                 end_day: None,
                 end_hour: None,
                 end_minute: None,
+                end_open: false,
                 source_span: None,
             }],
             imports: vec![],

@@ -24,6 +24,7 @@ fn make_ir(n: usize) -> TimelineIr {
             end_day: None,
             end_hour: None,
             end_minute: None,
+            end_open: false,
             source_span: None,
         });
     }

@@ -563,14 +563,22 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 if layout.opts.interactive {
                     data_attrs.push_str(&build_interactive_attrs(item));
                 }
+                // #550: hook class for ongoing (open-ended) spans so custom CSS
+                // can style them (e.g. dashed border).
+                let open_class = if item_end_open(item) {
+                    " tdsl-item-open-ended"
+                } else {
+                    ""
+                };
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-span" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect>{label_fragment}</g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-span{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect>{label_fragment}</g>"#,
                     aria_label = aria_label,
                     tip = tip,
                     tip_attr = tip_attr,
                     fill_style = fill_style,
                     data_attrs = data_attrs,
+                    open_class = open_class,
                     x = fmt_f(*x),
                     y = fmt_f(*y),
                     w = fmt_f(*width),
@@ -616,6 +624,12 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 if layout.opts.interactive {
                     data_attrs.push_str(&build_interactive_attrs(item));
                 }
+                // #550: hook class for ongoing (open-ended) event_range items.
+                let open_class = if item_end_open(item) {
+                    " tdsl-item-open-ended"
+                } else {
+                    ""
+                };
                 if layout.opts.show_event_labels {
                     let label_fragment = if layout.is_vertical() {
                         render_bar_label_fragment(
@@ -638,12 +652,13 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     };
                     writeln!(
                         s,
-                        r#"  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect>{label_fragment}</g>"#,
+                        r#"  <g class="tdsl-item tdsl-item-event-range{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect>{label_fragment}</g>"#,
                         aria_label = aria_label,
                         tip = tip,
                         tip_attr = tip_attr,
                         fill_style = fill_style,
                         data_attrs = data_attrs,
+                        open_class = open_class,
                         x = fmt_f(*x),
                         y = fmt_f(*y),
                         w = fmt_f(*width),
@@ -653,12 +668,13 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 } else {
                     writeln!(
                         s,
-                        r#"  <g class="tdsl-item tdsl-item-event-range" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
+                        r#"  <g class="tdsl-item tdsl-item-event-range{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
                         aria_label = aria_label,
                         tip = tip,
                         tip_attr = tip_attr,
                         fill_style = fill_style,
                         data_attrs = data_attrs,
+                        open_class = open_class,
                         x = fmt_f(*x),
                         y = fmt_f(*y),
                         w = fmt_f(*width),
@@ -1033,6 +1049,16 @@ fn item_tags(item: &Item) -> &[String] {
     }
 }
 
+/// #550: whether the item is open-ended (`end` was `now`). `Event` has no
+/// end, so it is always `false`. Used to add a `tdsl-item-open-ended` CSS
+/// hook class so users can style ongoing periods (e.g. dashed border).
+fn item_end_open(item: &Item) -> bool {
+    match item {
+        Item::Span { end_open, .. } | Item::EventRange { end_open, .. } => *end_open,
+        Item::Event { .. } => false,
+    }
+}
+
 /// Build the ARIA label string for a timeline item.
 ///
 /// Format: `"<type>: <tooltip_on_one_line>、レーン: <lane_label>"`
@@ -1193,6 +1219,7 @@ mod tests {
                     end_day: None,
                     end_hour: None,
                     end_minute: None,
+                    end_open: false,
                     source_span: None,
                 },
                 Item::Event {
@@ -1226,6 +1253,34 @@ mod tests {
         assert!(svg.contains("<circle"));
         assert!(svg.contains("tdsl-span"));
         assert!(svg.contains("tdsl-event-dot"));
+    }
+
+    #[test]
+    fn svg_marks_open_ended_span_with_hook_class() {
+        // #550: an open-ended span gets the `tdsl-item-open-ended` CSS hook
+        // class; a closed span does not.
+        let mut ir = sample_ir();
+        if let Item::Span { end_open, .. } = &mut ir.items[0] {
+            *end_open = true;
+        }
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains(r#"class="tdsl-item tdsl-item-span tdsl-item-open-ended""#),
+            "open-ended span must carry the tdsl-item-open-ended hook class: {svg}"
+        );
+        assert!(
+            svg.contains("進行中"),
+            "open-ended span tooltip must say 進行中 instead of a placeholder end year"
+        );
+    }
+
+    #[test]
+    fn svg_closed_span_has_no_open_ended_class() {
+        let ir = sample_ir();
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let svg = render_svg(&layout).unwrap();
+        assert!(!svg.contains("tdsl-item-open-ended"));
     }
 
     #[test]
@@ -1354,6 +1409,7 @@ mod tests {
                 end_day: None,
                 end_hour: None,
                 end_minute: None,
+                end_open: false,
                 source_span: None,
             }],
             imports: vec![],
@@ -1714,6 +1770,7 @@ mod tests {
                 end_day: None,
                 end_hour: None,
                 end_minute: None,
+                end_open: false,
                 source_span: None,
             }],
             imports: vec![],
@@ -1772,6 +1829,7 @@ mod tests {
                 end_day: None,
                 end_hour: None,
                 end_minute: None,
+                end_open: false,
                 source_span: None,
             }],
             imports: vec![],

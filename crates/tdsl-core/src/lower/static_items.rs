@@ -49,6 +49,7 @@ impl LoweringContext {
                         end_day: s.end.day(),
                         end_hour: s.end.hour(),
                         end_minute: s.end.minute(),
+                        end_open: s.end_open,
                         source_span,
                     });
                 }
@@ -128,6 +129,7 @@ impl LoweringContext {
                         end_day: er.end.day(),
                         end_hour: er.end.hour(),
                         end_minute: er.end.minute(),
+                        end_open: er.end_open,
                         source_span,
                     });
                 }

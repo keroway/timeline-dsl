@@ -117,6 +117,12 @@ h1 {
 .tdsl-event-stem     { stroke: #aaa; stroke-width: 1; stroke-dasharray: 2 2; }
 /* Invisible but hoverable hit-area so the thin stem + tiny dot are easy to hover for tooltips. */
 .tdsl-event-hit      { fill: transparent; cursor: pointer; }
+/* #550: open-ended (`now`-terminated) span/event_range bars get a dashed
+   right edge to visually signal "still ongoing". Override via --custom-css. */
+.tdsl-item-open-ended .tdsl-span,
+.tdsl-item-open-ended .tdsl-event-range {
+  stroke-dasharray: 4 2;
+}
 .tdsl-item-label {
   font-size: 11px;
   fill: #fff;
@@ -943,6 +949,7 @@ mod tests {
                     end_day: None,
                     end_hour: None,
                     end_minute: None,
+                    end_open: false,
                     source_span: None,
                 },
                 Item::Event {
@@ -1088,6 +1095,7 @@ mod tests {
                     end_day: None,
                     end_hour: None,
                     end_minute: None,
+                    end_open: false,
                     source_span: None,
                 },
                 Item::EventRange {
@@ -1107,6 +1115,7 @@ mod tests {
                     end_day: None,
                     end_hour: None,
                     end_minute: None,
+                    end_open: false,
                     source_span: None,
                 },
             ],
