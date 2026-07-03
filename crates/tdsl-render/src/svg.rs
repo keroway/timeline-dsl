@@ -409,6 +409,54 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) -> std::fmt::Res
             )?;
         }
     }
+
+    // Hour minor ticks (unit=hour only, #556).
+    let pixels_per_hour = layout.opts.scale / (365.25 * 24.0);
+    let single_day = crate::layout::is_single_day_range(&layout.ir.meta);
+    for (year, month, day, hour) in layout.hour_ticks() {
+        let x = layout.hour_frac_to_x(year, month, day, hour);
+        writeln!(
+            s,
+            r#"  <line class="tdsl-axis-hour-tick" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
+            x = fmt_f(x),
+            y1 = fmt_f(baseline_y - 2.0),
+            y2 = fmt_f(baseline_y),
+        )?;
+        if pixels_per_hour >= 4.0 {
+            let label = crate::layout::format_hour_tick_label(month, day, hour, single_day);
+            writeln!(
+                s,
+                r#"  <text class="tdsl-axis-text tdsl-axis-hour-text" x="{x}" y="{y}" text-anchor="middle">{label}</text>"#,
+                x = fmt_f(x),
+                y = fmt_f(baseline_y - 5.0),
+                label = escape_xml(&label),
+            )?;
+        }
+    }
+
+    // Minute minor ticks (unit=minute only, #556).
+    let pixels_per_minute = layout.opts.scale / (365.25 * 24.0 * 60.0);
+    for (year, month, day, hour, minute) in layout.minute_ticks() {
+        let x = layout.minute_frac_to_x(year, month, day, hour, minute);
+        writeln!(
+            s,
+            r#"  <line class="tdsl-axis-minute-tick" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
+            x = fmt_f(x),
+            y1 = fmt_f(baseline_y - 2.0),
+            y2 = fmt_f(baseline_y),
+        )?;
+        if pixels_per_minute >= 4.0 {
+            let label =
+                crate::layout::format_minute_tick_label(month, day, hour, minute, single_day);
+            writeln!(
+                s,
+                r#"  <text class="tdsl-axis-text tdsl-axis-minute-text" x="{x}" y="{y}" text-anchor="middle">{label}</text>"#,
+                x = fmt_f(x),
+                y = fmt_f(baseline_y - 5.0),
+                label = escape_xml(&label),
+            )?;
+        }
+    }
     Ok(())
 }
 
@@ -1253,6 +1301,67 @@ mod tests {
         assert!(svg.contains("<circle"));
         assert!(svg.contains("tdsl-span"));
         assert!(svg.contains("tdsl-event-dot"));
+    }
+
+    #[test]
+    fn svg_renders_hour_ticks_for_unit_hour_timeline() {
+        // #556: unit hour produces hour-level axis ticks/labels within a
+        // single-day range.
+        let ir = TimelineIr {
+            meta: tdsl_core::ir::Meta {
+                title: "Apollo 11".into(),
+                unit: "hour".into(),
+                range: (1969, 1969),
+                range_start_month: Some(7),
+                range_start_day: Some(20),
+                range_start_hour: Some(0),
+                range_start_minute: Some(0),
+                range_end_month: Some(7),
+                range_end_day: Some(20),
+                range_end_hour: Some(23),
+                range_end_minute: Some(59),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+            },
+            lanes: vec![Lane {
+                id: "mission".into(),
+                label: "Mission".into(),
+                kind: "event".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::Event {
+                id: "landing".into(),
+                lane: "mission".into(),
+                time: 1969,
+                label: "Landing".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                time_month: Some(7),
+                time_day: Some(20),
+                time_hour: Some(20),
+                time_minute: Some(17),
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 365.25 * 24.0 * 6.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-axis-hour-tick"),
+            "expected hour tick lines in SVG: {svg}"
+        );
+        assert!(
+            svg.contains(">14:00<") || svg.contains(">00:00<"),
+            "expected single-day HH:00 hour label: {svg}"
+        );
     }
 
     #[test]

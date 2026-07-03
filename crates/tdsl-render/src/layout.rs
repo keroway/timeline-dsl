@@ -673,6 +673,121 @@ impl<'a> LayoutModel<'a> {
         ticks
     }
 
+    /// X coordinate for a (year, month, day, hour) fractional position.
+    pub fn hour_frac_to_x(&self, year: i64, month: u8, day: u8, hour: u8) -> f64 {
+        let frac = to_year_frac(year, Some(month), Some(day), Some(hour), None);
+        frac_to_x(frac, self.year_min, self.opts.scale, self.opts.left_gutter)
+    }
+
+    /// X coordinate for a (year, month, day, hour, minute) fractional position.
+    pub fn minute_frac_to_x(&self, year: i64, month: u8, day: u8, hour: u8, minute: u8) -> f64 {
+        let frac = to_year_frac(year, Some(month), Some(day), Some(hour), Some(minute));
+        frac_to_x(frac, self.year_min, self.opts.scale, self.opts.left_gutter)
+    }
+
+    /// Hour-level minor-tick positions for `unit=hour` timelines (#556).
+    ///
+    /// Returns `(year, month, day, hour)` quadruples covering the visible range.
+    /// Density-controlled thinning (1h → 3h → 6h → 12h) mirrors `day_ticks()`'s
+    /// pattern. Empty when `unit != "hour"` or the scale is too small to show
+    /// even 12h ticks.
+    pub fn hour_ticks(&self) -> Vec<(i64, u8, u8, u8)> {
+        if self.ir.meta.unit != "hour" {
+            return Vec::new();
+        }
+
+        let pixels_per_hour = self.opts.scale / (365.25 * 24.0);
+        // Require at least ~6px per tick at the coarsest step (12h); below that,
+        // don't render (falls back to whatever coarser ticks are visible).
+        if pixels_per_hour * 12.0 < 6.0 {
+            return Vec::new();
+        }
+
+        let step: u8 = if pixels_per_hour >= 6.0 {
+            1
+        } else if pixels_per_hour >= 2.0 {
+            3
+        } else if pixels_per_hour >= 1.0 {
+            6
+        } else {
+            12
+        };
+
+        let Some((mut current, end)) = self.subday_range_bounds() else {
+            return Vec::new();
+        };
+
+        let mut ticks = Vec::new();
+        while current <= end {
+            let (year, month, day, hour, _) = current;
+            ticks.push((year, month, day, hour));
+            current = advance_time_minutes(current, i64::from(step) * 60);
+        }
+        ticks
+    }
+
+    /// Minute-level minor-tick positions for `unit=minute` timelines (#556).
+    ///
+    /// Returns `(year, month, day, hour, minute)` quintuples. Density-controlled
+    /// thinning (1min → 5min → 15min → 30min) mirrors `hour_ticks()`. Empty when
+    /// `unit != "minute"` or the scale is too small to show even 30min ticks.
+    pub fn minute_ticks(&self) -> Vec<(i64, u8, u8, u8, u8)> {
+        if self.ir.meta.unit != "minute" {
+            return Vec::new();
+        }
+
+        let pixels_per_minute = self.opts.scale / (365.25 * 24.0 * 60.0);
+        if pixels_per_minute * 30.0 < 6.0 {
+            return Vec::new();
+        }
+
+        let step: u8 = if pixels_per_minute >= 6.0 {
+            1
+        } else if pixels_per_minute >= 1.2 {
+            5
+        } else if pixels_per_minute >= 0.4 {
+            15
+        } else {
+            30
+        };
+
+        let Some((mut current, end)) = self.subday_range_bounds() else {
+            return Vec::new();
+        };
+
+        let mut ticks = Vec::new();
+        while current <= end {
+            let (year, month, day, hour, minute) = current;
+            ticks.push((year, month, day, hour, minute));
+            current = advance_time_minutes(current, i64::from(step));
+        }
+        ticks
+    }
+
+    /// Declared date/time bounds for sub-day axes. Requires at least month/day
+    /// precision on both range endpoints; otherwise `unit hour/minute` has no
+    /// meaningful bounded tick domain and returns no sub-day ticks instead of
+    /// exploding to an entire padded year.
+    fn subday_range_bounds(&self) -> Option<(TimeTuple, TimeTuple)> {
+        let meta = &self.ir.meta;
+        Some((
+            (
+                meta.range.0,
+                meta.range_start_month?,
+                meta.range_start_day?,
+                meta.range_start_hour.unwrap_or(0),
+                meta.range_start_minute.unwrap_or(0),
+            ),
+            (
+                meta.range.1,
+                meta.range_end_month?,
+                meta.range_end_day?,
+                meta.range_end_hour.unwrap_or(23),
+                meta.range_end_minute.unwrap_or(59),
+            ),
+        ))
+    }
+
     /// Tick positions (year values) within [year_min, year_max], inclusive of year_min if aligned.
     pub fn ticks(&self) -> Vec<i64> {
         let step = self.tick_step.max(1);
@@ -728,6 +843,38 @@ impl<'a> LayoutModel<'a> {
             }
         }
     }
+}
+
+type TimeTuple = (i64, u8, u8, u8, u8);
+
+fn advance_time_minutes(
+    (mut year, mut month, mut day, mut hour, mut minute): TimeTuple,
+    delta_minutes: i64,
+) -> TimeTuple {
+    let mut remaining = delta_minutes.max(0);
+    while remaining > 0 {
+        let step = remaining.min(1);
+        minute += step as u8;
+        if minute >= 60 {
+            minute = 0;
+            hour += 1;
+            if hour >= 24 {
+                hour = 0;
+                day += 1;
+                let last = tdsl_core::ir::days_in_month(year, month);
+                if day > last {
+                    day = 1;
+                    month += 1;
+                    if month > 12 {
+                        month = 1;
+                        year += 1;
+                    }
+                }
+            }
+        }
+        remaining -= step;
+    }
+    (year, month, day, hour, minute)
 }
 
 // --- item layout helpers ---
@@ -1212,6 +1359,44 @@ pub(crate) fn format_date(
         (Some(m), Some(d), _, _) => format!("{} {} {}", y, month_abbr(m), d),
         (Some(m), None, _, _) => format!("{} {}", y, month_abbr(m)),
         _ => y,
+    }
+}
+
+/// #556: whether `timeline.range` start and end fall on the same calendar day.
+/// Used to pick a context-dependent axis label format for hour/minute ticks:
+/// `HH:MM` when the whole timeline is a single day, `MM-DD HH:00` otherwise.
+pub(crate) fn is_single_day_range(meta: &tdsl_core::ir::Meta) -> bool {
+    let (y0, y1) = meta.range;
+    y0 == y1
+        && meta.range_start_month == meta.range_end_month
+        && meta.range_start_day == meta.range_end_day
+        && meta.range_start_month.is_some()
+        && meta.range_start_day.is_some()
+}
+
+/// Format an hour-tick axis label (#556): `HH:00` for a single-day timeline,
+/// `MM-DD HH:00` when the timeline spans multiple days.
+pub(crate) fn format_hour_tick_label(month: u8, day: u8, hour: u8, single_day: bool) -> String {
+    if single_day {
+        format!("{hour:02}:00")
+    } else {
+        format!("{month:02}-{day:02} {hour:02}:00")
+    }
+}
+
+/// Format a minute-tick axis label (#556): `HH:MM` for a single-day timeline,
+/// `MM-DD HH:MM` when the timeline spans multiple days.
+pub(crate) fn format_minute_tick_label(
+    month: u8,
+    day: u8,
+    hour: u8,
+    minute: u8,
+    single_day: bool,
+) -> String {
+    if single_day {
+        format!("{hour:02}:{minute:02}")
+    } else {
+        format!("{month:02}-{day:02} {hour:02}:{minute:02}")
     }
 }
 
@@ -1742,6 +1927,199 @@ mod tests {
         };
         let layout = LayoutModel::compute(&ir, opts);
         assert!(layout.day_ticks().is_empty());
+    }
+
+    // ─── unit hour / minute レンダリング (#556) ─────────────────────────────
+
+    fn mk_subday_meta(unit: &str) -> tdsl_core::ir::Meta {
+        tdsl_core::ir::Meta {
+            title: "t".into(),
+            unit: unit.into(),
+            range: (1969, 1969),
+            range_start_month: Some(1),
+            range_start_day: Some(1),
+            range_start_hour: Some(0),
+            range_start_minute: Some(0),
+            range_end_month: Some(1),
+            range_end_day: Some(1),
+            range_end_hour: Some(23),
+            range_end_minute: Some(59),
+            calendar: "proleptic_gregorian".into(),
+            color_map: std::collections::HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn hour_ticks_empty_when_unit_not_hour() {
+        let ir = TimelineIr {
+            meta: mk_subday_meta("day"),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        assert!(layout.hour_ticks().is_empty());
+    }
+
+    #[test]
+    fn hour_ticks_produced_for_unit_hour_high_density() {
+        // pixels_per_hour = scale / (365.25*24) >= 6 → step=1h
+        let ir = TimelineIr {
+            meta: mk_subday_meta("hour"),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 365.25 * 24.0 * 6.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let ticks = layout.hour_ticks();
+        assert!(!ticks.is_empty(), "expected hour ticks but got none");
+        assert!(ticks.contains(&(1969, 1, 1, 0)));
+        assert!(ticks.contains(&(1969, 1, 1, 1)));
+    }
+
+    #[test]
+    fn hour_ticks_thin_to_3h_for_medium_density() {
+        // pixels_per_hour = 2 → step=3h
+        let ir = TimelineIr {
+            meta: mk_subday_meta("hour"),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 365.25 * 24.0 * 2.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let ticks = layout.hour_ticks();
+        assert!(ticks.contains(&(1969, 1, 1, 0)));
+        assert!(ticks.contains(&(1969, 1, 1, 3)));
+        assert!(!ticks.contains(&(1969, 1, 1, 1)));
+        assert!(!ticks.contains(&(1969, 1, 1, 2)));
+    }
+
+    #[test]
+    fn hour_ticks_empty_when_scale_too_small() {
+        let ir = TimelineIr {
+            meta: mk_subday_meta("hour"),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 2.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        assert!(layout.hour_ticks().is_empty());
+    }
+
+    #[test]
+    fn minute_ticks_empty_when_unit_not_minute() {
+        let ir = TimelineIr {
+            meta: mk_subday_meta("hour"),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        assert!(layout.minute_ticks().is_empty());
+    }
+
+    #[test]
+    fn minute_ticks_produced_for_unit_minute_high_density() {
+        // pixels_per_minute = scale / (365.25*24*60) >= 6 → step=1min
+        let ir = TimelineIr {
+            meta: mk_subday_meta("minute"),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 365.25 * 24.0 * 60.0 * 6.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let ticks = layout.minute_ticks();
+        assert!(!ticks.is_empty(), "expected minute ticks but got none");
+        assert!(ticks.contains(&(1969, 1, 1, 0, 0)));
+        assert!(ticks.contains(&(1969, 1, 1, 0, 1)));
+    }
+
+    #[test]
+    fn minute_ticks_empty_when_scale_too_small() {
+        let ir = TimelineIr {
+            meta: mk_subday_meta("minute"),
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 2.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        assert!(layout.minute_ticks().is_empty());
+    }
+
+    #[test]
+    fn is_single_day_range_detects_same_day() {
+        let meta = tdsl_core::ir::Meta {
+            title: "t".into(),
+            unit: "hour".into(),
+            range: (1969, 1969),
+            range_start_month: Some(7),
+            range_start_day: Some(20),
+            range_end_month: Some(7),
+            range_end_day: Some(20),
+            calendar: "proleptic_gregorian".into(),
+            color_map: std::collections::HashMap::new(),
+            ..Default::default()
+        };
+        assert!(is_single_day_range(&meta));
+    }
+
+    #[test]
+    fn is_single_day_range_false_for_multi_day() {
+        let meta = tdsl_core::ir::Meta {
+            title: "t".into(),
+            unit: "hour".into(),
+            range: (1969, 1969),
+            range_start_month: Some(7),
+            range_start_day: Some(20),
+            range_end_month: Some(7),
+            range_end_day: Some(21),
+            calendar: "proleptic_gregorian".into(),
+            color_map: std::collections::HashMap::new(),
+            ..Default::default()
+        };
+        assert!(!is_single_day_range(&meta));
+    }
+
+    #[test]
+    fn format_hour_tick_label_single_vs_multi_day() {
+        assert_eq!(format_hour_tick_label(7, 20, 14, true), "14:00");
+        assert_eq!(format_hour_tick_label(7, 20, 14, false), "07-20 14:00");
+    }
+
+    #[test]
+    fn format_minute_tick_label_single_vs_multi_day() {
+        assert_eq!(format_minute_tick_label(7, 20, 20, 17, true), "20:17");
+        assert_eq!(
+            format_minute_tick_label(7, 20, 20, 17, false),
+            "07-20 20:17"
+        );
     }
 
     #[test]

@@ -170,13 +170,15 @@ pub struct Meta {
 
 `range` は `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` を受け付け、対応する `Meta::range_*` 精度フィールドを保持する。
 
-### 5.2 `unit day`
+### 5.2 `unit day` / `unit hour` / `unit minute`
 
-**本仕様外（別 Issue で対応）**。実装時に必要となる項目:
+実装済み:
 
-- `day_ticks()` の追加（月内日目盛り）
-- 月またぎラベルの設計（年・月・日のレベル別ラベル）
-- スケール（pixel-per-day）の妥当な範囲設計
+- `day_ticks()` が `unit == "day"` のとき月内日目盛りを生成（pixel-per-day に応じて 1/2/7/30 日間隔に間引き）
+- `hour_ticks()` が `unit == "hour"` のとき時刻目盛りを生成（#556。pixel-per-hour に応じて 1h / 3h / 6h / 12h に間引き）
+- `minute_ticks()` が `unit == "minute"` のとき分目盛りを生成（#556。pixel-per-minute に応じて 1min / 5min / 15min / 30min に間引き）
+- hour/minute 軸ラベルは、単日範囲なら `HH:MM`、複数日範囲なら `MM-DD HH:MM` の文脈依存表記を使う
+- `unit hour` / `unit minute` は `timeline.range` に少なくとも月日精度がある場合のみ sub-day 目盛りを生成する（年だけの range では過密生成を避けるため空）
 
 ## 6. 実装状況
 
@@ -185,7 +187,7 @@ pub struct Meta {
 | parser + AST: `time_value` PEG ルール、`TimeValue` enum、builder | 実装済み |
 | core lowering: 静的アイテムへの月日・時分反映、`range` の `time_value` 化、decompile 拡張 | 実装済み |
 | Wikidata precision 9〜13 の year/month/day/hour/minute 保持 | 実装済み |
-| render(day): `unit day` の day_ticks と日精度ラベル | 本仕様外・将来拡張 |
+| render(day/hour/minute): `unit day` / `unit hour` / `unit minute` の sub-year/sub-day 目盛りと密度制御 | 実装済み |
 
 ## 受け入れ条件（#242）
 

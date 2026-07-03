@@ -36,6 +36,8 @@
     "year",
     "month",
     "day",
+    "hour",
+    "minute",
     "now",
     "dynasty",
     "person",

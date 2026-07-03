@@ -1,0 +1,26 @@
+// 時精度の例（#556）: アポロ11号 月面着陸当日（1969-07-20, UTC）を時間軸で表示。
+// unit hour により、日単位より細かい時刻目盛り（HH:00）が軸に表示される。
+timeline "アポロ11号 月面着陸日" {
+  title "Apollo 11 — Landing Day (UTC)";
+  unit hour;
+  range 1969-07-20T00:00..1969-07-21T06:00;
+}
+
+lane "ミッション" as mission {
+  kind custom;
+  order 1;
+}
+
+event mission 1969-07-20T17:44 "月着陸船分離" {
+  id "event:mission:sep";
+};
+
+event mission 1969-07-20T20:17 "月面着陸" {
+  tags ["highlight"];
+  id "event:mission:landing";
+};
+
+event_range mission 1969-07-21T02:39..1969-07-21T03:11 "船外活動 (EVA)" {
+  tags ["highlight"];
+  id "event_range:mission:eva";
+};

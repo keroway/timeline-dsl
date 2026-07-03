@@ -11,16 +11,23 @@ pub enum TimelineUnit {
     Year,
     Month,
     Day,
+    /// Sub-day axis unit (#556): hour ticks, for timelines spanning hours to
+    /// a few days (mission logs, incident timelines, event schedules).
+    Hour,
+    /// Sub-day axis unit (#556): minute ticks, for very short timelines.
+    Minute,
 }
 
 impl TimelineUnit {
-    pub const ALL: [Self; 3] = [Self::Year, Self::Month, Self::Day];
+    pub const ALL: [Self; 5] = [Self::Year, Self::Month, Self::Day, Self::Hour, Self::Minute];
 
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "year" => Some(Self::Year),
             "month" => Some(Self::Month),
             "day" => Some(Self::Day),
+            "hour" => Some(Self::Hour),
+            "minute" => Some(Self::Minute),
             _ => None,
         }
     }
@@ -30,6 +37,8 @@ impl TimelineUnit {
             Self::Year => "year",
             Self::Month => "month",
             Self::Day => "day",
+            Self::Hour => "hour",
+            Self::Minute => "minute",
         }
     }
 }

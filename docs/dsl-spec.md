@@ -129,10 +129,12 @@ timeline "中国王朝年表" {
 | プロパティ | 必須 | 説明 |
 |---|---|---|
 | `title` | 任意 | 年表の表示タイトル |
-| `unit` | 任意 | 時間単位（`year`, `month`, `day`）。未知の値は lowering エラー |
+| `unit` | 任意 | 時間単位（`year`, `month`, `day`, `hour`, `minute`）。未知の値は lowering エラー |
 | `range` | 任意 | 表示範囲。`開始..終了` の形式。負の値は紀元前 |
 | `calendar` | 任意 | 暦法。`proleptic_gregorian` 等 |
 | `color_map` | 任意 | タグ→色のマッピング。`タグ名: "#16進数カラーコード";` の形式で複数定義可能 |
+
+`unit hour` / `unit minute`（#556）は `YYYY-MM-DDTHH:MM` のような時分精度のタイムライン向け。Renderer は `timeline.range` の月日・時分精度に基づき、過密にならないよう 1h→3h→6h→12h、または 1min→5min→15min→30min のように目盛りを間引く。単日範囲では `HH:MM`、複数日範囲では `MM-DD HH:MM` 形式の軸ラベルを使う。
 
 `color_map` で定義した色は `tdsl render` 時に自動適用される。`color_map` は hex 色（`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`）と単純な CSS 色キーワードを受け付ける。複雑な CSS 値は安全のため renderer が無視する。高度な装飾は CLI の `--custom-css` を使う。`--color-map "war=#cc0000"` CLIフラグで上書きも可能。
 
@@ -604,6 +606,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `group { ... }` | `examples/grouped_dynasties.tdsl` |
 | `color_map { ... }` | `examples/fictional_empire.tdsl` |
 | 月・日精度の日付 | `examples/world_wars.tdsl`, `examples/apollo_11.tdsl` |
+| 時刻精度・sub-day 軸 | `examples/apollo_11_hourly.tdsl` |
 | `policy field_priority { ... }` | `examples/template_apply_example.tdsl` |
 | `claim(P39).qualifier(P580/P582)` | `examples/officeholder_wikidata.tdsl` |
 | CSV 取り込み導線 | `examples/fictional_empire.tdsl`, `examples/fictional_empire_items.csv` |
