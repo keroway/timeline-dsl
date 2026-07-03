@@ -63,6 +63,8 @@ tdsl render my_timeline.tdsl --theme pastel --custom-css my_style.css --output o
 
 ### アイテム共通
 
+アイテムの塗り色は `item.color`（DSL の `color "...";`） > `color_map` の tag 色 > lane パレット色の順で決定します。`color` は hex 色（`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`）または単純な CSS 色キーワードのみを受け付けます。
+
 | クラス | 対象 | 主なプロパティ |
 |---|---|---|
 | `.tdsl-item` | 各アイテムのグループ要素（`<g>`） | フォーカス時のスタイル用（`:focus-visible` 疑似クラスと組み合わせ） |

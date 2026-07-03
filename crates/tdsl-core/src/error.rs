@@ -41,4 +41,10 @@ pub enum LoweringError {
 
     #[error("Unknown template reference: {0}")]
     UnknownTemplate(String),
+
+    #[error("Invalid item link URL: {0} (expected http:// or https:// URL)")]
+    InvalidItemLink(String),
+
+    #[error("Invalid item color value: {0}")]
+    InvalidItemColor(String),
 }

@@ -254,7 +254,7 @@ group "古代中国" {
 
 ```
 // 存続期間
-span han -206..220 "漢" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };
+span han -206..220 "漢" { tags ["dynasty"]; source wd:Q7209; id "span:han"; note "説明"; link "https://www.wikidata.org/wiki/Q7209"; color "#3366cc"; };
 
 // 点イベント
 event han -209 "陳勝・呉広の乱" {};
@@ -267,6 +267,8 @@ span reiwa 2019..now "令和" { tags ["era"]; };
 ```
 
 `now` はビルド/パース時点の現在年（UTC）に解決され、IR 上では `end_open: true` として継続中であることが保持されます。出力された HTML/SVG は `tdsl-item-open-ended` クラス（デフォルトで破線囲み）を持ち、ツールチップには終了日の代わりに進行中マーカーが表示されます。`tdsl decompile` は当該アイテムを `now` で再出力します。スコープ外: `map` ブロック内での `now` フォールバック（例: `end claim(P582).year ?? now;`）は未対応。`now` は `span` / `event_range` の直接定義の `end` 位置のみで使えます。
+
+アイテム共通オプションとして `note "...";`、`link "https://...";`（`http://` / `https://` のみ許可）、`color "...";` も指定できます。個別 `color` は `color_map` のタグ色や lane パレット色より優先されます。
 
 ### import ブロック
 

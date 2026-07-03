@@ -144,10 +144,13 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 tags,
                 source,
                 origin,
+                note,
+                link,
+                color,
                 id,
                 ..
             } => {
-                let props = render_props(id, tags, source, origin);
+                let props = render_props(id, tags, source, origin, note, link, color);
                 let start_s =
                     format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
                 let end_s = format_open_ended_end(
@@ -176,10 +179,13 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 tags,
                 source,
                 origin,
+                note,
+                link,
+                color,
                 id,
                 ..
             } => {
-                let props = render_props(id, tags, source, origin);
+                let props = render_props(id, tags, source, origin, note, link, color);
                 let time_s = format_time(*time, *time_month, *time_day, *time_hour, *time_minute);
                 writeln!(out, r#"event {lane} {time_s} "{}" {props};"#, escape(label)).unwrap();
             }
@@ -200,10 +206,13 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 tags,
                 source,
                 origin,
+                note,
+                link,
+                color,
                 id,
                 ..
             } => {
-                let props = render_props(id, tags, source, origin);
+                let props = render_props(id, tags, source, origin, note, link, color);
                 let start_s =
                     format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
                 let end_s = format_open_ended_end(
@@ -232,6 +241,9 @@ fn render_props(
     tags: &[String],
     source: &Option<String>,
     origin: &Option<String>,
+    note: &Option<String>,
+    link: &Option<String>,
+    color: &Option<String>,
 ) -> String {
     let mut parts = Vec::new();
 
@@ -249,6 +261,15 @@ fn render_props(
     parts.push(format!(r#"id "{}";"#, escape(id)));
     if let Some(orig) = origin {
         parts.push(format!("origin {orig};"));
+    }
+    if let Some(note) = note {
+        parts.push(format!(r#"note "{}";"#, escape(note)));
+    }
+    if let Some(link) = link {
+        parts.push(format!(r#"link "{}";"#, escape(link)));
+    }
+    if let Some(color) = color {
+        parts.push(format!(r#"color "{}";"#, escape(color)));
     }
 
     format!("{{ {} }}", parts.join(" "))
@@ -288,6 +309,9 @@ mod tests {
                     tags: vec!["tag1".to_string()],
                     source: None,
                     origin: None,
+                    note: None,
+                    link: None,
+                    color: None,
                     start_month: None,
                     start_day: None,
                     start_hour: None,
@@ -307,6 +331,9 @@ mod tests {
                     tags: vec![],
                     source: Some("wd:Q1".to_string()),
                     origin: Some("imported".to_string()),
+                    note: None,
+                    link: None,
+                    color: None,
                     time_month: None,
                     time_day: None,
                     time_hour: None,
@@ -322,6 +349,9 @@ mod tests {
                     tags: vec!["war".to_string(), "conflict".to_string()],
                     source: None,
                     origin: None,
+                    note: None,
+                    link: None,
+                    color: None,
                     start_month: None,
                     start_day: None,
                     start_hour: None,
@@ -491,6 +521,9 @@ mod tests {
                 tags: vec![],
                 source: None,
                 origin: None,
+                note: None,
+                link: None,
+                color: None,
                 start_month: None,
                 start_day: None,
                 start_hour: None,
@@ -517,6 +550,35 @@ mod tests {
             } => {
                 assert_eq!(*start, 2019);
                 assert!(*end_open);
+            }
+            _ => panic!("expected span"),
+        }
+    }
+
+    #[test]
+    fn decompile_roundtrip_preserves_item_note_link_color() {
+        let mut ir = make_ir();
+        if let Item::Span {
+            note, link, color, ..
+        } = &mut ir.items[0]
+        {
+            *note = Some("説明".to_string());
+            *link = Some("https://example.com/ref".to_string());
+            *color = Some("#123abc".to_string());
+        }
+        let tdsl = decompile(&ir);
+        assert!(tdsl.contains("note \"説明\";"));
+        assert!(tdsl.contains("link \"https://example.com/ref\";"));
+        assert!(tdsl.contains("color \"#123abc\";"));
+        let file = tdsl_parser::parse(&tdsl).expect("decompiled output must parse");
+        let ir2 = crate::lower::lower_static(&file).expect("must lower without errors");
+        match &ir2.items[0] {
+            Item::Span {
+                note, link, color, ..
+            } => {
+                assert_eq!(note.as_deref(), Some("説明"));
+                assert_eq!(link.as_deref(), Some("https://example.com/ref"));
+                assert_eq!(color.as_deref(), Some("#123abc"));
             }
             _ => panic!("expected span"),
         }

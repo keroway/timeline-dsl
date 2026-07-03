@@ -265,7 +265,13 @@ fn write_event_range(out: &mut String, b: &EventRangeDecl) {
 }
 
 fn item_has_body(p: &ItemProps) -> bool {
-    !p.tags.is_empty() || p.source.is_some() || p.id.is_some() || p.origin.is_some()
+    !p.tags.is_empty()
+        || p.source.is_some()
+        || p.id.is_some()
+        || p.origin.is_some()
+        || p.note.is_some()
+        || p.link.is_some()
+        || p.color.is_some()
 }
 
 fn write_item_props(out: &mut String, p: &ItemProps) {
@@ -291,6 +297,15 @@ fn write_item_props(out: &mut String, p: &ItemProps) {
     }
     if let Some(origin) = &p.origin {
         writeln!(out, "{INDENT}origin {origin};").unwrap();
+    }
+    if let Some(note) = &p.note {
+        writeln!(out, r#"{INDENT}note "{}";"#, escape_string(note)).unwrap();
+    }
+    if let Some(link) = &p.link {
+        writeln!(out, r#"{INDENT}link "{}";"#, escape_string(link)).unwrap();
+    }
+    if let Some(color) = &p.color {
+        writeln!(out, r#"{INDENT}color "{}";"#, escape_string(color)).unwrap();
     }
     write!(out, "}}").unwrap();
 }

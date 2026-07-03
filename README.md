@@ -260,7 +260,7 @@ Time elements on the timeline, attached to a lane.
 
 ```
 // Duration
-span han -206..220 "Han" { tags ["dynasty"]; source wd:Q7209; id "span:han"; };
+span han -206..220 "Han" { tags ["dynasty"]; source wd:Q7209; id "span:han"; note "Imperial dynasty"; link "https://www.wikidata.org/wiki/Q7209"; color "#3366cc"; };
 
 // Point event
 event han -209 "Dazexiang Uprising" {};
@@ -273,6 +273,8 @@ span reiwa 2019..now "Reiwa era" { tags ["era"]; };
 ```
 
 `now` resolves to the current UTC year at build/parse time and marks the item as open-ended (`end_open: true` in the IR). Rendered output gets a `tdsl-item-open-ended` CSS hook (dashed border by default) and the tooltip shows the ongoing marker instead of a placeholder end year. `tdsl decompile` re-emits `now` for such items. Out of scope: `now` as a fallback inside `map` blocks (e.g. `end claim(P582).year ?? now;`) — `now` is only valid in the `end` position of a directly-defined `span`/`event_range`.
+
+Item options also support `note "...";`, `link "https://...";` (only `http://` / `https://` URLs are accepted), and `color "...";`. Item `color` takes precedence over `color_map` tag colors and lane palette colors.
 
 ### import block
 

@@ -66,12 +66,15 @@ event_range_decl = {
 block_options = { "{" ~ item_option* ~ "}" }
 
 item_option = _{
-    tags_option | source_option | id_option | origin_option
+    tags_option | source_option | id_option | origin_option | note_option | link_option | color_option
 }
 tags_option   = { "tags" ~ "[" ~ string_list ~ "]" ~ ";" }
 source_option = { "source" ~ source_ref ~ ";" }
 id_option     = { "id" ~ string_literal ~ ";" }
 origin_option = { "origin" ~ ident ~ ";" }
+note_option   = { "note" ~ string_literal ~ ";" }
+link_option   = { "link" ~ string_literal ~ ";" }
+color_option  = { "color" ~ string_literal ~ ";" }
 
 // ─── Import Block ───────────────────────────────────────────
 import_block = {

@@ -215,13 +215,16 @@ pub struct EventRangeDecl {
     pub props: ItemProps,
 }
 
-/// アイテム共通の省略可能プロパティ（`tags`, `source`, `id`, `origin`）。
+/// アイテム共通の省略可能プロパティ（`tags`, `source`, `id`, `origin`, `note`, `link`, `color`）。
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ItemProps {
     pub tags: Vec<String>,
     pub source: Option<SourceRef>,
     pub id: Option<String>,
     pub origin: Option<String>,
+    pub note: Option<String>,
+    pub link: Option<String>,
+    pub color: Option<String>,
 }
 
 /// `source <prefix>:<qid>` 形式の出典参照（例: `source wd:Q7209`）。

@@ -65,6 +65,9 @@ pub const MISC_KEYWORDS: &[&str] = &[
     "title",
     "field_priority",
     "origin",
+    "note",
+    "link",
+    "color",
     "expand",
     "qualifier",
 ];
