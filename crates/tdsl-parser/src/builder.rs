@@ -129,7 +129,8 @@ fn build_timeline(pair: Pair<'_, Rule>) -> Result<TimelineBlock> {
             Rule::color_map_block => {
                 for entry in prop.into_inner() {
                     let mut ei = entry.into_inner();
-                    let tag = ei.next().unwrap().as_str().to_string();
+                    let key_pair = ei.next().unwrap();
+                    let tag = extract_color_map_key(&key_pair);
                     let color = extract_string_literal(&ei.next().unwrap());
                     block.color_map.push((tag, color));
                 }
@@ -668,6 +669,19 @@ fn parse_target_type(pair: Pair<'_, Rule>) -> Result<MapTargetType> {
 }
 
 // ─── Helpers ────────────────────────────────────────────────
+
+/// `color_map_key = { string_literal | ident }` の内容を文字列として取り出す。
+/// `"戦争"` のような 非 ASCII タグを color_map のキーに使えるようにする（#551）。
+fn extract_color_map_key(pair: &Pair<'_, Rule>) -> String {
+    match pair.as_rule() {
+        Rule::color_map_key => {
+            let inner = pair.clone().into_inner().next().unwrap();
+            extract_color_map_key(&inner)
+        }
+        Rule::string_literal => extract_string_literal(pair),
+        _ => pair.as_str().to_string(),
+    }
+}
 
 fn extract_string_literal(pair: &Pair<'_, Rule>) -> String {
     let inner = pair.clone().into_inner().next().unwrap();

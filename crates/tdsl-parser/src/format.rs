@@ -108,6 +108,27 @@ fn escape_string(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+/// Whether `s` is a valid bare `ident` per the grammar (ASCII_ALPHA|"_" start,
+/// ASCII_ALPHANUMERIC|"_"|"-" rest). Used to decide whether a `color_map` key
+/// (#551) can be emitted unquoted or must be quoted as a string literal.
+fn is_valid_ident(s: &str) -> bool {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+/// Render a color_map key, quoting it only when it is not a valid bare ident.
+fn format_color_map_key(k: &str) -> String {
+    if is_valid_ident(k) {
+        k.to_string()
+    } else {
+        format!(r#""{}""#, escape_string(k))
+    }
+}
+
 fn write_statement(out: &mut String, stmt: &Statement) {
     match stmt {
         Statement::Timeline(b) => write_timeline(out, b),
@@ -155,7 +176,13 @@ fn write_timeline(out: &mut String, b: &TimelineBlock) {
     if !b.color_map.is_empty() {
         writeln!(out, "{INDENT}color_map {{").unwrap();
         for (k, v) in &b.color_map {
-            writeln!(out, r#"{INDENT}{INDENT}{k}: "{}";"#, escape_string(v)).unwrap();
+            writeln!(
+                out,
+                r#"{INDENT}{INDENT}{}: "{}";"#,
+                format_color_map_key(k),
+                escape_string(v)
+            )
+            .unwrap();
         }
         writeln!(out, "{INDENT}}}").unwrap();
     }
@@ -682,6 +709,19 @@ mod tests {
         assert!(out.contains("  color_map {\n"));
         assert!(out.contains("    dynasty: \"#3366cc\";\n"));
         assert!(out.contains("    war: \"#cc0000\";\n"));
+    }
+
+    #[test]
+    fn format_color_map_block_quotes_non_ident_key() {
+        // #551: string-literal keys (e.g. Japanese tags) round-trip as quoted
+        // keys; bare-ident keys stay unquoted.
+        let src = r##"timeline "T" { unit year; range 0..2000; color_map { "戦争": "#c00"; dynasty: "#3366cc"; } }"##;
+        let out = fmt(src);
+        assert!(out.contains("    \"戦争\": \"#c00\";\n"));
+        assert!(out.contains("    dynasty: \"#3366cc\";\n"));
+        // Idempotent: re-formatting the formatted output is a no-op.
+        let out2 = fmt(&out);
+        assert_eq!(out, out2);
     }
 
     #[test]

@@ -220,6 +220,15 @@ timeline "中国王朝年表" {
 
 `color_map` は hex 色（`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`）と単純な CSS 色キーワードを受け付けます。複雑な CSS 値は安全のため renderer が無視します。高度な装飾は CLI の `--custom-css` を使ってください。
 
+`color_map` のキーはバレアイド `ident`（ASCII）と引用符付き文字列リテラル（任意 Unicode）のどちらも使えます。`"戦争"` のような日本語タグにも DSL 上で直接色を割り当てられます（#551）:
+
+```
+color_map {
+    war: "#cc0000";     // バレアイド(ident)キー
+    "戦争": "#cc0000";   // 文字列リテラルキー（非 ASCII）
+}
+```
+
 ### lane 宣言
 
 年表の縦軸カテゴリを定義する。`as` で内部IDを指定。既知の `kind` は `custom` / `dynasty` / `person` / `country` / `event` で、未知の値は検証警告として報告されます。
