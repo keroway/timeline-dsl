@@ -16,6 +16,7 @@ import { useSourcePersistence } from './hooks/useSourcePersistence'
 import { useFileHandle } from './hooks/useFileHandle'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useOutsideClick } from './hooks/useOutsideClick'
+import { usePwaLifecycle } from './hooks/usePwaLifecycle'
 import { Toolbar } from './components/Toolbar'
 import { StatusBar } from './components/StatusBar'
 import { MobileTabBar, type MobileTab } from './components/MobileTabBar'
@@ -55,6 +56,7 @@ function App() {
   const { wasmReady, wasmError } = useWasm()
   const { settings, updateSetting, systemScheme, colorScheme } = useSettings()
   const t = useMemo(() => createTranslator(settings.locale), [settings.locale])
+  const pwaUpdate = usePwaLifecycle(showToast, t)
   const renderOpts = useMemo(
     () => ({ orientation: settings.svgOrientation, grid: settings.svgGrid, theme: settings.svgTheme }),
     [settings.svgOrientation, settings.svgGrid, settings.svgTheme]
@@ -124,6 +126,11 @@ function App() {
     } else {
       showToast(t('appFormatted'), 'success')
     }
+  }
+
+  function handlePwaReload() {
+    if (!pwaUpdate.updateServiceWorker) return
+    void pwaUpdate.updateServiceWorker(true)
   }
 
   function handleLintFix() {
@@ -234,6 +241,13 @@ function App() {
 
   return (
     <div className="app" data-theme={colorScheme} style={appStyle}>
+      {pwaUpdate.needRefresh && (
+        <div className="pwa-update-banner" role="status" aria-live="polite">
+          <span>{t('pwaUpdateMessage')}</span>
+          <button type="button" onClick={handlePwaReload}>{t('pwaReload')}</button>
+        </div>
+      )}
+
       <Toolbar
         fileMenuRef={fileMenuRef}
         fileMenuOpen={fileMenuOpen}

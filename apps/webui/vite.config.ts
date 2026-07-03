@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import wasm from 'vite-plugin-wasm'
+import { VitePWA } from 'vite-plugin-pwa'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
@@ -9,7 +10,43 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 // Note: Vite 8 has native top-level await support, so vite-plugin-top-level-await
 // is not needed.
 export default defineConfig({
-  plugins: [react(), wasm()],
+  plugins: [
+    react(),
+    wasm(),
+    VitePWA({
+      registerType: 'prompt',
+      injectRegister: false,
+      manifestFilename: 'manifest.webmanifest',
+      workbox: {
+        globPatterns: ['**/*.{css,html,js,json,png,svg,wasm}'],
+        navigateFallback: 'index.html',
+      },
+      manifest: {
+        name: 'Timeline DSL WebUI',
+        short_name: 'TDSL WebUI',
+        description: 'Offline-capable editor and previewer for Timeline DSL files.',
+        theme_color: '#13131f',
+        background_color: '#13131f',
+        display: 'standalone',
+        start_url: '.',
+        scope: '.',
+        icons: [
+          {
+            src: 'pwa-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+          {
+            src: 'pwa-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+        ],
+      },
+    }),
+  ],
   base: './',
   build: {
     rollupOptions: {
