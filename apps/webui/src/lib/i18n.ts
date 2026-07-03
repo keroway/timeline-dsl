@@ -20,6 +20,11 @@ export type Dictionary = {
   appLintFixConfirm: string
   appLintFixed: string
   appLintFixedCommentWarning: string
+  fileAccessUnsupported: string
+  fileAccessDownloadFallback: string
+  fileAccessSaved: string
+  fileAccessSavedAs: string
+  fileAccessSaveFailed: string
 
   // Split divider
   splitDividerTitle: string
@@ -28,6 +33,9 @@ export type Dictionary = {
   toolbarFileMenu: string
   toolbarNew: string
   toolbarOpen: string
+  toolbarFileUnsupported: string
+  toolbarCurrentFile: string
+  toolbarNoWritableFile: string
   toolbarGallery: string
   toolbarSaveHistory: string
   toolbarHistory: string
@@ -138,6 +146,11 @@ const ja: Dictionary = {
   appLintFixConfirm: 'lint --fix を適用します。フォーマットも再整形されます。続行しますか？',
   appLintFixed: 'lint --fix を適用しました',
   appLintFixedCommentWarning: 'lint --fix を適用しました（コメントは保持されません）',
+  fileAccessUnsupported: 'このブラウザは直接オープン/上書き保存に非対応です。従来のファイル選択とダウンロード保存を使用します。',
+  fileAccessDownloadFallback: '直接保存に非対応のため .tdsl をダウンロードしました',
+  fileAccessSaved: '{name} に保存しました',
+  fileAccessSavedAs: '{name} として保存しました',
+  fileAccessSaveFailed: '保存に失敗しました: {msg}',
 
   // Split divider
   splitDividerTitle: 'ドラッグまたは矢印キーで分割幅を調整',
@@ -146,6 +159,9 @@ const ja: Dictionary = {
   toolbarFileMenu: 'ファイル',
   toolbarNew: '新規',
   toolbarOpen: '開く',
+  toolbarFileUnsupported: '直接オープン/上書き保存はこのブラウザでは非対応です',
+  toolbarCurrentFile: '現在のファイル: {name}',
+  toolbarNoWritableFile: '上書き先ファイルは未選択です',
   toolbarGallery: 'ギャラリー',
   toolbarSaveHistory: '履歴に保存',
   toolbarHistory: '履歴',
@@ -258,6 +274,11 @@ const en: Dictionary = {
   appLintFixConfirm: 'Apply lint --fix? Formatting will also be re-applied. Continue?',
   appLintFixed: 'Lint --fix applied',
   appLintFixedCommentWarning: 'Lint --fix applied (comments are not preserved)',
+  fileAccessUnsupported: 'This browser does not support direct open/overwrite save. Falling back to file input and downloads.',
+  fileAccessDownloadFallback: 'Direct save is unsupported, so the .tdsl file was downloaded.',
+  fileAccessSaved: 'Saved to {name}',
+  fileAccessSavedAs: 'Saved as {name}',
+  fileAccessSaveFailed: 'Save failed: {msg}',
 
   // Split divider
   splitDividerTitle: 'Drag or use arrow keys to adjust split width',
@@ -266,6 +287,9 @@ const en: Dictionary = {
   toolbarFileMenu: 'File',
   toolbarNew: 'New',
   toolbarOpen: 'Open',
+  toolbarFileUnsupported: 'Direct open/overwrite save is not supported by this browser',
+  toolbarCurrentFile: 'Current file: {name}',
+  toolbarNoWritableFile: 'No writable file is selected',
   toolbarGallery: 'Gallery',
   toolbarSaveHistory: 'Save to History',
   toolbarHistory: 'History',

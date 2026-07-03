@@ -3,9 +3,10 @@ import { svgToPngBlob, triggerDownload } from '../lib/svgExport'
 import { buildShareUrl } from '../share'
 import type { ToastVariant } from '../components/Toast'
 import type { RenderOptions } from '../wasmLoader'
+import type { FileHandleApi } from './useFileHandle'
 
 export type ExportApi = {
-  downloadTdsl: () => void
+  downloadTdsl: () => Promise<void>
   downloadJsonIr: () => void
   downloadSvg: () => void
   downloadHtml: () => void
@@ -24,9 +25,10 @@ export function useExport(
   pngWhiteBg: boolean,
   renderOpts: RenderOptions,
   showToast: (message: string, variant?: ToastVariant) => void,
+  fileHandle: FileHandleApi,
 ): ExportApi {
-  function downloadTdsl() {
-    triggerDownload(new Blob([source], { type: 'text/plain' }), 'timeline.tdsl')
+  async function downloadTdsl() {
+    await fileHandle.saveSource(source)
   }
 
   function downloadJsonIr() {
