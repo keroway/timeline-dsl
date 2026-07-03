@@ -1069,6 +1069,7 @@ fn is_cjk_like(ch: char) -> bool {
 /// For bars (Span/EventRange), available space is the bar's primary-axis extent
 /// minus horizontal padding. Point events do not have a bar; their available
 /// inline space is the remaining primary-axis space after the label gap.
+#[cfg(test)]
 pub(crate) fn label_overflows_item(
     item: &LaidItem<'_>,
     opts: &RenderOptions,

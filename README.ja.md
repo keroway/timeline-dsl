@@ -82,7 +82,7 @@ tdsl build examples/china_dynasties.tdsl --pretty
 # 構文・意味チェック
 tdsl check examples/china_dynasties.tdsl
 
-# スタンドアロンHTMLにレンダリング（ブラウザで開くだけ）
+# スタンドアロンHTMLにレンダリング（ブラウザで開くだけ。外部フォント/CDN依存なし）
 tdsl render examples/china_dynasties.tdsl --output china.html
 open china.html
 

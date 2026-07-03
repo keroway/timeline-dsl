@@ -19,6 +19,8 @@ tdsl render my_timeline.tdsl --theme pastel --custom-css my_style.css --output o
 `--custom-css` に指定したファイルの内容は、テーマCSSの直後に `<style>` タグとして注入されます。
 そのため、テーマの任意のルールを上書きすることができます。
 
+出力HTMLはデフォルトで外部フォント/CDNに依存しません。本文のフォントは OS のシステムフォントスタック（例: Hiragino Sans / Yu Gothic / Meiryo / Segoe UI / Roboto）を使用します。Web フォントを使いたい場合は、必要な `@font-face` や `<link>` 相当のCSSを `--custom-css` で明示的に追加してください。
+
 ---
 
 ## 組み込みテーマ
