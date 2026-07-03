@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **同一レーン内で重なる `span` / `event_range` のバー本体をサブ行スタッキングで回避**: 在位期間・戦争・製品ライフサイクルなど、同一レーンに重複期間を持つアイテムが完全に重なって描画されて読めなくなる問題を修正。区間スケジューリング（greedy interval coloring）でサブ行を自動割り当てし、サブ行数に応じて lane の実効高さ/幅を自動拡張。重なりがないレーンは従来通りの座標で回帰なし。`--layout-style group-bands` と互換 (#549)
+
 ## [1.23.0] - 2026-07-03
 
 ### Added

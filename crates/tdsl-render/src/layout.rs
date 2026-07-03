@@ -388,35 +388,51 @@ impl<'a> LayoutModel<'a> {
         lanes_ordered.sort_by_key(|l| (l.order, l.id.clone()));
 
         let is_vertical = opts.orientation == Orientation::Vertical;
-        let n_lanes = lanes_ordered.len();
         let time_span = (year_max - year_min) as f64;
+        let bar_stack = assign_bar_stack_levels(ir);
+        let lane_effective_heights =
+            compute_lane_effective_heights(&lanes_ordered, &bar_stack, &opts);
 
         // lane_y stores:
         //   horizontal → lane center Y coordinate
         //   vertical   → lane center X coordinate (reusing the same field for "lane primary axis")
+        //
+        // #549: lanes with overlapping Span/EventRange bars reserve additional
+        // cross-axis space. The original lane center stays one base half-height
+        // from the lane's top/left edge so level 0 preserves the historical
+        // coordinates; extra stack rows extend the lane downward/rightward.
         let mut lane_y = HashMap::new();
-        if is_vertical {
-            for (idx, lane) in lanes_ordered.iter().enumerate() {
-                // left_gutter is reserved for the time-axis labels on the left; lanes go rightward.
-                let center = opts.left_gutter + (idx as f64 + 0.5) * opts.lane_height;
-                lane_y.insert(lane.id.clone(), center);
-            }
+        let mut lane_start = HashMap::new();
+        let mut cursor = if is_vertical {
+            opts.left_gutter
         } else {
-            for (idx, lane) in lanes_ordered.iter().enumerate() {
-                let center = opts.top_margin + (idx as f64 + 0.5) * opts.lane_height;
-                lane_y.insert(lane.id.clone(), center);
-            }
+            opts.top_margin
+        };
+        for lane in &lanes_ordered {
+            lane_start.insert(lane.id.clone(), cursor);
+            lane_y.insert(lane.id.clone(), cursor + opts.lane_height / 2.0);
+            cursor += lane_effective_heights
+                .get(lane.id.as_str())
+                .copied()
+                .unwrap_or(opts.lane_height);
         }
+        let lanes_extent = cursor
+            - if is_vertical {
+                opts.left_gutter
+            } else {
+                opts.top_margin
+            };
 
         let (total_width, body_height) = if is_vertical {
             // vertical: time axis is Y, lanes are X columns.
-            // lane_height is reused as the lane column width.
-            let w = opts.left_gutter + n_lanes as f64 * opts.lane_height + opts.right_margin;
+            // lane_height is reused as the base lane column width; overlap stacks
+            // expand the effective column width (#549).
+            let w = opts.left_gutter + lanes_extent + opts.right_margin;
             let h = opts.top_margin + time_span * opts.scale + opts.bottom_margin;
             (w, h)
         } else {
             let w = opts.left_gutter + time_span * opts.scale + opts.right_margin;
-            let h = opts.top_margin + n_lanes as f64 * opts.lane_height + opts.bottom_margin;
+            let h = opts.top_margin + lanes_extent + opts.bottom_margin;
             (w, h)
         };
 
@@ -491,10 +507,13 @@ impl<'a> LayoutModel<'a> {
             lanes_ordered
                 .iter()
                 .enumerate()
-                .map(|(idx, _lane)| LaneBandModel {
-                    x: opts.left_gutter + idx as f64 * opts.lane_height,
+                .map(|(idx, lane)| LaneBandModel {
+                    x: lane_start[&lane.id],
                     y: opts.top_margin,
-                    width: opts.lane_height,
+                    width: lane_effective_heights
+                        .get(lane.id.as_str())
+                        .copied()
+                        .unwrap_or(opts.lane_height),
                     height: content_height,
                     even: idx % 2 == 0,
                 })
@@ -504,21 +523,30 @@ impl<'a> LayoutModel<'a> {
             lanes_ordered
                 .iter()
                 .enumerate()
-                .map(|(idx, _lane)| LaneBandModel {
+                .map(|(idx, lane)| LaneBandModel {
                     x: opts.left_gutter,
-                    y: opts.top_margin + idx as f64 * opts.lane_height,
+                    y: lane_start[&lane.id],
                     width: content_width,
-                    height: opts.lane_height,
+                    height: lane_effective_heights
+                        .get(lane.id.as_str())
+                        .copied()
+                        .unwrap_or(opts.lane_height),
                     even: idx % 2 == 0,
                 })
                 .collect()
         };
 
-        let group_bands =
-            compute_group_bands(&lanes_ordered, &lane_y, &opts, body_height, total_width);
+        let group_bands = compute_group_bands(
+            &lanes_ordered,
+            &lane_start,
+            &lane_effective_heights,
+            &opts,
+            body_height,
+            total_width,
+        );
 
         let mut items = Vec::new();
-        for item in &ir.items {
+        for (item_idx, item) in ir.items.iter().enumerate() {
             let lane_id = item_lane_id(item);
             let Some(&lane_axis) = lane_y.get(lane_id) else {
                 continue;
@@ -531,6 +559,7 @@ impl<'a> LayoutModel<'a> {
                 &mut items,
                 ItemLayoutArgs {
                     lane_axis,
+                    bar_stack_level: bar_stack.item_levels[item_idx],
                     year_min,
                     year_max,
                     opts: &opts,
@@ -888,12 +917,138 @@ struct ItemLayoutArgs<'a> {
     /// Lane axis position. For horizontal layouts this is the lane center Y
     /// coordinate; for vertical layouts it is the lane center X coordinate.
     lane_axis: f64,
+    /// Greedy interval-coloring level for Span/EventRange bars within the lane (#549).
+    bar_stack_level: usize,
     year_min: i64,
     year_max: i64,
     opts: &'a RenderOptions,
     orientation: Orientation,
     color: String,
     tooltip: String,
+}
+
+#[derive(Debug, Clone)]
+struct BarStackAssignment {
+    item_levels: Vec<usize>,
+    lane_max_levels: HashMap<String, usize>,
+}
+
+fn assign_bar_stack_levels(ir: &TimelineIr) -> BarStackAssignment {
+    let mut item_levels = vec![0; ir.items.len()];
+    let mut by_lane: HashMap<&str, Vec<(usize, f64, f64)>> = HashMap::new();
+    for (idx, item) in ir.items.iter().enumerate() {
+        if let Some((start, end)) = bar_interval(item) {
+            by_lane
+                .entry(item_lane_id(item))
+                .or_default()
+                .push((idx, start, end));
+        }
+    }
+
+    let mut lane_max_levels = HashMap::new();
+    for (lane_id, mut intervals) in by_lane {
+        intervals.sort_by(|a, b| {
+            a.1.partial_cmp(&b.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| a.0.cmp(&b.0))
+        });
+
+        let mut level_end: Vec<f64> = Vec::new();
+        let mut max_level = 0usize;
+        for (idx, start, end) in intervals {
+            let mut level = 0usize;
+            loop {
+                match level_end.get(level) {
+                    None => {
+                        level_end.push(end);
+                        break;
+                    }
+                    Some(&occupied_end) if start >= occupied_end => {
+                        level_end[level] = end;
+                        break;
+                    }
+                    _ => level += 1,
+                }
+            }
+            item_levels[idx] = level;
+            max_level = max_level.max(level);
+        }
+        if max_level > 0 {
+            lane_max_levels.insert(lane_id.to_string(), max_level);
+        }
+    }
+
+    BarStackAssignment {
+        item_levels,
+        lane_max_levels,
+    }
+}
+
+fn compute_lane_effective_heights(
+    lanes_ordered: &[&Lane],
+    assignment: &BarStackAssignment,
+    opts: &RenderOptions,
+) -> HashMap<String, f64> {
+    let step = bar_stack_step(opts);
+    lanes_ordered
+        .iter()
+        .map(|lane| {
+            let max_level = assignment
+                .lane_max_levels
+                .get(lane.id.as_str())
+                .copied()
+                .unwrap_or(0);
+            (lane.id.clone(), opts.lane_height + max_level as f64 * step)
+        })
+        .collect()
+}
+
+fn bar_interval(item: &Item) -> Option<(f64, f64)> {
+    match item {
+        Item::Span {
+            start,
+            end,
+            start_month,
+            start_day,
+            start_hour,
+            start_minute,
+            end_month,
+            end_day,
+            end_hour,
+            end_minute,
+            ..
+        }
+        | Item::EventRange {
+            start,
+            end,
+            start_month,
+            start_day,
+            start_hour,
+            start_minute,
+            end_month,
+            end_day,
+            end_hour,
+            end_minute,
+            ..
+        } => {
+            let start =
+                start_frac_with_time(*start, *start_month, *start_day, *start_hour, *start_minute);
+            let end = end_frac_with_time(*end, *end_month, *end_day, *end_hour, *end_minute);
+            Some((start, end.max(start)))
+        }
+        Item::Event { .. } => None,
+    }
+}
+
+/// Cross-axis distance between stacked bar rows (#549).
+///
+/// The horizontal legacy layout places EventRange bars below the lane center,
+/// while Span bars straddle it. A 40px baseline keeps a stacked Span clear of a
+/// level-0 EventRange while preserving every level-0 coordinate.
+fn bar_stack_step(opts: &RenderOptions) -> f64 {
+    let density = (opts.lane_height / DEFAULT_LANE_HEIGHT).max(0.1);
+    40.0 * density
 }
 
 /// Compute the laid-out coordinates for a single item.
@@ -911,6 +1066,7 @@ struct ItemLayoutArgs<'a> {
 fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLayoutArgs<'_>) {
     let ItemLayoutArgs {
         lane_axis,
+        bar_stack_level,
         year_min,
         year_max,
         opts,
@@ -933,6 +1089,7 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
     let event_range_h = EVENT_RANGE_H * density;
     let event_range_y_offset = EVENT_RANGE_Y_OFFSET * density;
     let event_stem_h = EVENT_STEM_H * density;
+    let bar_stack_offset = bar_stack_level as f64 * bar_stack_step(opts);
 
     match item {
         Item::Span {
@@ -954,7 +1111,7 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             let ef = end_frac_with_time(*end, *end_month, *end_day, *end_hour, *end_minute);
             let (primary_start, primary_extent) =
                 primary_axis_segment(sf, ef, year_min, year_max, opts.scale, primary_anchor);
-            let cross_start = lane_axis - span_half_h;
+            let cross_start = lane_axis - span_half_h + bar_stack_offset;
             let cross_extent = span_half_h * 2.0;
             let (x, y, width, height) = if is_vertical {
                 (cross_start, primary_start, cross_extent, primary_extent)
@@ -995,7 +1152,7 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             // split implementation.
             let (x, y, width, height) = if is_vertical {
                 (
-                    lane_axis - event_range_h / 2.0,
+                    lane_axis - event_range_h / 2.0 + bar_stack_offset,
                     primary_start,
                     event_range_h,
                     primary_extent,
@@ -1003,7 +1160,7 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             } else {
                 (
                     primary_start,
-                    lane_axis + event_range_y_offset,
+                    lane_axis + event_range_y_offset + bar_stack_offset,
                     primary_extent,
                     event_range_h,
                 )
@@ -1428,7 +1585,8 @@ fn push_common(
 /// underlying lane band parity).
 fn compute_group_bands(
     lanes_ordered: &[&Lane],
-    lane_y: &HashMap<String, f64>,
+    lane_start: &HashMap<String, f64>,
+    lane_effective_heights: &HashMap<String, f64>,
     opts: &RenderOptions,
     body_height: f64,
     total_width: f64,
@@ -1450,15 +1608,20 @@ fn compute_group_bands(
             end_idx += 1;
         }
         if let Some(group_label) = group {
-            let start_center = lane_y[&lanes_ordered[start_idx].id];
-            let end_center = lane_y[&lanes_ordered[end_idx].id];
-            let half = opts.lane_height / 2.0;
+            let start_lane_id = &lanes_ordered[start_idx].id;
+            let end_lane_id = &lanes_ordered[end_idx].id;
+            let start = lane_start[start_lane_id];
+            let end = lane_start[end_lane_id]
+                + lane_effective_heights
+                    .get(end_lane_id.as_str())
+                    .copied()
+                    .unwrap_or(opts.lane_height);
             if is_vertical {
                 bands.push(GroupBandModel {
                     label: group_label.to_string(),
-                    x: start_center - half,
+                    x: start,
                     y: opts.top_margin,
-                    width: (end_center + half) - (start_center - half),
+                    width: end - start,
                     height: body_height - opts.top_margin - opts.bottom_margin,
                     even: band_idx.is_multiple_of(2),
                 });
@@ -1466,9 +1629,9 @@ fn compute_group_bands(
                 bands.push(GroupBandModel {
                     label: group_label.to_string(),
                     x: opts.left_gutter,
-                    y: start_center - half,
+                    y: start,
                     width: total_width - opts.left_gutter - opts.right_margin,
-                    height: (end_center + half) - (start_center - half),
+                    height: end - start,
                     even: band_idx.is_multiple_of(2),
                 });
             }
@@ -2360,6 +2523,294 @@ mod tests {
         assert!((span_height(120.0) - 48.0).abs() < 0.001);
         // Halving lane_height halves it.
         assert!((span_height(30.0) - 12.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn overlapping_spans_stack_and_expand_lane_height() {
+        let ir = TimelineIr {
+            meta: mk_meta((0, 100)),
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "k".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![
+                Item::Span {
+                    id: "s1".into(),
+                    lane: "x".into(),
+                    start: 10,
+                    end: 50,
+                    label: "S1".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_open: false,
+                    source_span: None,
+                },
+                Item::Span {
+                    id: "s2".into(),
+                    lane: "x".into(),
+                    start: 20,
+                    end: 60,
+                    label: "S2".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_open: false,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let ys: Vec<f64> = layout
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                LaidItem::Span { y, .. } => Some(*y),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(ys.len(), 2);
+        assert!((ys[1] - ys[0] - 40.0).abs() < 0.001);
+        assert!((layout.lane_bands[0].height - 100.0).abs() < 0.001);
+        assert!((layout.total_height - 160.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn touching_spans_share_base_row_without_expansion() {
+        let ir = TimelineIr {
+            meta: mk_meta((0, 100)),
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "k".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![
+                Item::Span {
+                    id: "s1".into(),
+                    lane: "x".into(),
+                    start: 10,
+                    end: 20,
+                    label: "S1".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    end_month: Some(1),
+                    end_day: Some(1),
+                    end_hour: Some(0),
+                    end_minute: Some(0),
+                    end_open: false,
+                    source_span: None,
+                },
+                Item::Span {
+                    id: "s2".into(),
+                    lane: "x".into(),
+                    start: 20,
+                    end: 30,
+                    label: "S2".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: Some(1),
+                    start_day: Some(1),
+                    start_hour: Some(0),
+                    start_minute: Some(0),
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_open: false,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let ys: Vec<f64> = layout
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                LaidItem::Span { y, .. } => Some(*y),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(ys, vec![58.0, 58.0]);
+        assert!((layout.lane_bands[0].height - 60.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn vertical_overlap_stacking_expands_lane_width() {
+        let ir = TimelineIr {
+            meta: mk_meta((0, 100)),
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "k".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![
+                Item::EventRange {
+                    id: "r1".into(),
+                    lane: "x".into(),
+                    start: 10,
+                    end: 50,
+                    label: "R1".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_open: false,
+                    source_span: None,
+                },
+                Item::EventRange {
+                    id: "r2".into(),
+                    lane: "x".into(),
+                    start: 20,
+                    end: 60,
+                    label: "R2".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_open: false,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            orientation: Orientation::Vertical,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let xs: Vec<f64> = layout
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                LaidItem::EventRange { x, .. } => Some(*x),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(xs.len(), 2);
+        assert!((xs[1] - xs[0] - 40.0).abs() < 0.001);
+        assert!((layout.lane_bands[0].width - 100.0).abs() < 0.001);
+        assert!((layout.total_width - 240.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn group_bands_cover_expanded_lane_heights() {
+        let ir = TimelineIr {
+            meta: mk_meta((0, 100)),
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "k".into(),
+                order: 1,
+                group: Some("G".into()),
+                source_span: None,
+            }],
+            items: vec![
+                Item::Span {
+                    id: "s1".into(),
+                    lane: "x".into(),
+                    start: 10,
+                    end: 50,
+                    label: "S1".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_open: false,
+                    source_span: None,
+                },
+                Item::Span {
+                    id: "s2".into(),
+                    lane: "x".into(),
+                    start: 20,
+                    end: 60,
+                    label: "S2".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_open: false,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::GroupBands,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+
+        assert_eq!(layout.group_bands.len(), 1);
+        assert!((layout.group_bands[0].height - 100.0).abs() < 0.001);
     }
 
     #[test]

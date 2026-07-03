@@ -90,6 +90,17 @@ tdsl render my_timeline.tdsl --theme pastel --custom-css my_style.css --output o
 
 horizontal / vertical の両 orientation で同様に動作します。重なりがない（少数・疢でない）場合はすべてのラベルがレベル0（オフセットなし）で、回帰はありません。
 
+#### 同一レーン内で重なる Span/EventRange のサブ行スタッキング（#549）
+
+同一レーン内で期間が重複する `span` / `event_range` は、バー本体が完全に重ならないよう自動的にサブ行へ振り分けられます。
+
+1. レーンごとに、`span` / `event_range` を開始時刻順に走査し、区間スケジューリング（greedy interval coloring）でサブ行（レベル）を割り当てる。重ならないアイテムは同じレベル（レベル0）を共有できる。
+2. レベル > 0 のアイテムは、クロス軸方向（horizontal ではY、vertical ではX）にレベル数 × 40px（`lane_height` に応じて #507 のdensityスケーリングと同率で拡大/縮小）だけオフセットされる。
+3. サブ行が必要になったレーンは、実効高さ（horizontal）/実効幅（vertical）が必要なレベル数だけ自動拡張される。重なりがないレーンは `lane_height` のまま変化せず、回帰はない。
+4. `--layout-style group-bands` の背景帯・レーン背景帯（`.tdsl-lane-band-*`）は拡張後の実効サイズに追従する。
+
+イベントラベルの衝突回避（#537、上記）とは独立した仕組みで、バー本体（`.tdsl-span` / `.tdsl-event-range`）の重なりを防ぎます。
+
 ### Span（存続期間バー）
 
 | クラス | 対象 | 主なプロパティ |
