@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-07-03
+
+### Added
+
+- **`unit hour` / `unit minute` の日中軸目盛りに対応**: 時・分単位のタイムラインで `hour_ticks()` / `minute_ticks()` による密度間引き（1h/3h/6h/12h、1min/5min/15min/30min）と `HH:MM` / `MM-DD HH:MM` ラベルを追加。`examples/apollo_11_hourly.tdsl` を追加 (#562)
+- **`span` / `event_range` の `end` に `now` キーワードを追加**: 令和のような「継続中」の期間を、架空の終了年をでっち上げずに表現できるようにした。IR に `end_open` フラグを追加（既存 JSON 消費者は非破壊）。`tdsl fmt` / `tdsl decompile` は `now` をラウンドトリップする (#561)
+- **`color_map` のキーに非 ASCII タグ向け文字列リテラルを許可**: 既存の bare-ident 形式との後方互換を保ちつつ `color_map_key = string_literal | ident` に拡張。`tdsl fmt` / `decompile` はラウンドトリップ安全 (#560)
+- **`--show-legend` で静的凡例パネルを追加** (#544)
+- **`--layout-style group-bands` で era/group の背景帯を追加**: `--orientation` と直交する新しい CLI フラグ。全 HTML/SVG テーマに対応 (#546)
+- **常時表示 Event ラベルの重なりをスタッキングで回避** (#542)
+- **`show_table` が SVG/PNG/PDF 出力でもレンダリングされるように対応** (#541)
+- **バーからはみ出るラベルを縮小/省略/再配置** (#540)
+- **ラベル幅推定を追加** (#539)
+- **WebUI: 型付き i18n 基盤を追加** (#531)
+- **`color_map` の伝播、レンダーオプション、キーボードアクセシビリティ（plans 005-008）** (#530)
+- **日付精度モデルを拡張** (#529)
+- **`export-csv` コマンドを追加**: IR を CSV として書き出す。`import-csv` と対称な列構成で往復可能 (#527)
+
+### Fixed
+
+- **`timeline.range` 外のアイテムに警告を追加**: 従来は無診断で描画側がドロップ/クリップしていたが、`validate_with_spans` 経由で `tdsl check`/`tdsl build`/LSP に警告として表示するようにした（W204/W205/W206/W207 を error-catalog.md に追記）（AGENTS.md §4.1「No silent fallback」）(#559)
+- **`timeline.unit` / `lane.kind` の silent fallback を解消**: 未知の `unit` はローダエラー（`LoweringError::UnknownTimelineUnit`）に、未知の `kind` は検証警告にした（AGENTS.md §4.1「No silent fallback」）(#558)
+- **デフォルトフォントの CDN 依存を削除** (#557)
+- **分単位精度の検証修正とドキュメント同期、VS Code publish のロックファイルインストール化** (#533)
+
+### Tests
+
+- **`--layout-style group-bands` の group-bands カバレッジを追加しドキュメントを同期** (#543)
+
+### Chore
+
+- **`indicatif` を 0.18.4 → 0.18.5 に更新** (#532)
+- **pi-lens の自動フォーマットを無効化するルート `biome.json` を追加** (#528)
+- **キーワードを JSON 単一ソース化し、decompile の `unwrap` を文書化** (#526)
+
 ## [1.22.0] - 2026-06-26
 
 ### Changed
