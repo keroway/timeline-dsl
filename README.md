@@ -209,7 +209,7 @@ tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 
 ### timeline block
 
-Declares the title, unit, display range, calendar, and color mapping. Supported `unit` values are `year`, `month`, and `day`; unknown values fail during lowering instead of falling back silently.
+Declares the title, unit, display range, calendar, and color mapping. Supported `unit` values are `year`, `month`, `day`, `hour`, and `minute`; unknown values fail during lowering instead of falling back silently.
 
 ```
 timeline "Chinese Dynasties" {
@@ -343,6 +343,7 @@ apply dynasty_span to wd {
 | `examples/world_wars.tdsl` | Modern wars timeline, centered on `event_range`; includes month/day precision dates |
 | `examples/sci_tech_timeline.tdsl` | Science and technology timeline, centered on event |
 | `examples/apollo_11.tdsl` | Apollo 11 mission timeline with month/day precision dates |
+| `examples/apollo_11_hourly.tdsl` | Apollo 11 landing-day timeline showcasing `unit hour` sub-day axis ticks |
 | `examples/internet_history.tdsl` | Internet/Web history with mixed `span` and `event` items |
 
 ## GitHub Actions Integration

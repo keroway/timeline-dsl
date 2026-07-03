@@ -203,7 +203,7 @@ tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 
 ### timeline ブロック
 
-タイトル・単位・表示範囲・暦法・カラーマッピングを宣言する。`unit` の許容値は `year` / `month` / `day` で、未知の値は lowering エラーになります。
+タイトル・単位・表示範囲・暦法・カラーマッピングを宣言する。`unit` の許容値は `year` / `month` / `day` / `hour` / `minute` で、未知の値は lowering エラーになります。
 
 ```
 timeline "中国王朝年表" {
@@ -336,6 +336,8 @@ apply dynasty_span to wd {
 | `examples/samurai_wikidata.tdsl` | 戦国武将の生没年。Wikidata連携（P569/P570）サンプル |
 | `examples/world_wars.tdsl` | 近代戦争年表。event_range 中心の年表 |
 | `examples/sci_tech_timeline.tdsl` | 科学技術の発明・発見年表。event 中心の年表 |
+| `examples/apollo_11.tdsl` | アポロ11号ミッション。月日精度の例 |
+| `examples/apollo_11_hourly.tdsl` | アポロ11号の月面着陸日。`unit hour` による sub-day 軸目盛りの例 |
 
 ## GitHub Actions 連携
 
