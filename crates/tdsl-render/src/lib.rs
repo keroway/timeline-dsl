@@ -13,7 +13,9 @@ pub mod pdf;
 pub mod png;
 pub mod svg;
 
-pub use layout::{GridStyle, LayoutModel, LayoutStyle, Orientation, RenderOptions, Theme};
+pub use layout::{
+    GridStyle, LayoutModel, LayoutStyle, Orientation, RenderOptions, Theme, ZIGZAG_MAX_LANES,
+};
 #[cfg(feature = "pdf")]
 pub use pdf::{PdfDate, PdfError, PdfOptions, PdfPageSize, render_pdf, svg_to_pdf};
 #[cfg(feature = "png")]
@@ -868,6 +870,62 @@ mod tests {
         }
     }
 
+    // ─── #565 Zigzag layout style tests ──────────────────────────────────────
+
+    fn zigzag_ir(lane_count: usize) -> TimelineIr {
+        let lanes: Vec<Lane> = (0..lane_count)
+            .map(|i| Lane {
+                id: format!("lane{i}"),
+                label: format!("Lane {i}"),
+                kind: "custom".into(),
+                order: i as i64,
+                group: None,
+                source_span: None,
+            })
+            .collect();
+        let items: Vec<Item> = lanes
+            .iter()
+            .flat_map(|lane| {
+                [
+                    (format!("{}-a", lane.id), 2001),
+                    (format!("{}-b", lane.id), 2003),
+                ]
+                .into_iter()
+                .map(|(id, time)| Item::Event {
+                    id,
+                    lane: lane.id.clone(),
+                    time,
+                    label: "E".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    note: None,
+                    link: None,
+                    color: None,
+                    time_month: None,
+                    time_day: None,
+                    time_hour: None,
+                    time_minute: None,
+                    source_span: None,
+                })
+            })
+            .collect();
+        TimelineIr {
+            meta: Meta {
+                title: "Zigzag test".into(),
+                unit: "year".into(),
+                range: (2000, 2010),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes,
+            items,
+            imports: vec![],
+            sources: vec![],
+        }
+    }
+
     #[test]
     fn render_svg_gantt_default_grid_disabled() {
         // Sanity check: default layout_style=timeline + grid=none must not
@@ -894,6 +952,21 @@ mod tests {
         assert!(
             !svg.contains("tdsl-grid-line\""),
             "Gantt layout must not also draw the standard tdsl-grid-line class"
+        );
+    }
+
+    #[test]
+    fn render_svg_zigzag_single_lane_changes_event_cross_axis_positions() {
+        let ir = zigzag_ir(1);
+        let default_svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        let zigzag_opts = RenderOptions {
+            layout_style: LayoutStyle::Zigzag,
+            ..RenderOptions::default()
+        };
+        let zigzag_svg = render_svg_only(&ir, zigzag_opts).unwrap();
+        assert_ne!(
+            default_svg, zigzag_svg,
+            "Zigzag layout must change the rendered SVG for a single-lane timeline"
         );
     }
 
@@ -1012,6 +1085,24 @@ mod tests {
         // GroupBands can never both be active simultaneously.
         assert_ne!(LayoutStyle::Gantt, LayoutStyle::GroupBands);
         assert_ne!(LayoutStyle::Gantt, LayoutStyle::Timeline);
+    }
+
+    #[test]
+    fn render_svg_zigzag_exceeding_lane_threshold_matches_timeline_output() {
+        // #565: beyond ZIGZAG_MAX_LANES, Zigzag falls back to Timeline layout,
+        // so the rendered SVG must be identical to layout_style=timeline (the
+        // fallback is a real layout decision, not merely a warning-only no-op).
+        let ir = zigzag_ir(ZIGZAG_MAX_LANES + 1);
+        let default_svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        let zigzag_opts = RenderOptions {
+            layout_style: LayoutStyle::Zigzag,
+            ..RenderOptions::default()
+        };
+        let zigzag_svg = render_svg_only(&ir, zigzag_opts).unwrap();
+        assert_eq!(
+            default_svg, zigzag_svg,
+            "Zigzag must fall back to identical Timeline-layout SVG output beyond ZIGZAG_MAX_LANES"
+        );
     }
 
     #[test]

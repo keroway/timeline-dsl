@@ -735,7 +735,7 @@ pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
 /// |-------|----------------|---------|
 /// | `orientation` | `"horizontal"`, `"vertical"` | `"horizontal"` |
 /// | `grid` | `"none"`, `"decade"`, `"year"`, `"month"` | `"none"` |
-/// | `layout_style` | `"timeline"`, `"group-bands"`, `"gantt"` | `"timeline"` |
+/// | `layout_style` | `"timeline"`, `"group-bands"`, `"gantt"`, `"zigzag"` | `"timeline"` |
 /// | `theme` | `"default"`, `"dark"`, `"print"`, `"pastel"` | `"default"` |
 /// | `show_table` | `true`, `false` | `false` |
 /// | `show_legend` | `true`, `false` | `false` |
@@ -804,8 +804,14 @@ impl JsRenderOptions {
         self.grid = val;
     }
 
-    /// High-level visual layout style (#543/#564): `"timeline"` (default),
-    /// `"group-bands"`, or `"gantt"`. Orthogonal to `orientation`.
+    /// High-level visual layout style (#543/#564/#565): `"timeline"` (default),
+    /// `"group-bands"`, `"gantt"`, or `"zigzag"`. Orthogonal to `orientation`.
+    /// `"zigzag"` only takes effect when the timeline has at most
+    /// `ZIGZAG_MAX_LANES` lanes; beyond that it falls back to `"timeline"`
+    /// positioning at the `tdsl-render` layer — callers that need a
+    /// user-facing warning (mirroring the CLI's `--layout-style zigzag`
+    /// notice) should check the timeline's lane count themselves before
+    /// rendering.
     #[wasm_bindgen(getter)]
     pub fn layout_style(&self) -> String {
         self.layout_style.clone()
@@ -851,6 +857,7 @@ fn js_opts_to_render_options(opts: &JsRenderOptions, scale: f64) -> RenderOption
     let layout_style = match opts.layout_style.as_str() {
         "group-bands" => LayoutStyle::GroupBands,
         "gantt" => LayoutStyle::Gantt,
+        "zigzag" => LayoutStyle::Zigzag,
         _ => LayoutStyle::Timeline,
     };
     let theme = match opts.theme.as_str() {
