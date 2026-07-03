@@ -264,6 +264,26 @@ map wd.emperors { ... }
 
 ---
 
+### E111: 不正なアイテム link URL
+
+**メッセージ**: `Invalid item link URL: {url} (expected http:// or https:// URL)`
+
+**原因**: `link` オプションに `http://` / `https://` 以外の URL（例: `javascript:`、`data:`、相対 URL）が指定されています。
+
+**修正方法**: 参照URLは絶対 URL で、スキームを `http://` または `https://` にしてください。
+
+---
+
+### E112: 不正なアイテム color 値
+
+**メッセージ**: `Invalid item color value: {value}`
+
+**原因**: `color` オプションに安全な色値として扱えない文字列が指定されています。
+
+**修正方法**: hex 色（`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`）または単純な CSS 色キーワードを指定してください。
+
+---
+
 ## バリデーション警告（tdsl-core: validate）
 
 IR生成後の整合性チェックで発生する警告です。ビルドは続行されますが、出力が意図と異なる可能性があります。

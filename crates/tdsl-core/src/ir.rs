@@ -209,6 +209,12 @@ pub enum Item {
         source: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         origin: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        color: Option<String>,
         // Precision fields (month/day/hour/minute)
         #[serde(skip_serializing_if = "Option::is_none")]
         start_month: Option<u8>,
@@ -246,6 +252,12 @@ pub enum Item {
         source: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         origin: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        color: Option<String>,
         // Precision fields
         #[serde(skip_serializing_if = "Option::is_none")]
         time_month: Option<u8>,
@@ -271,6 +283,12 @@ pub enum Item {
         source: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         origin: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        color: Option<String>,
         // Precision fields
         #[serde(skip_serializing_if = "Option::is_none")]
         start_month: Option<u8>,

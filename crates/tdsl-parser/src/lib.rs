@@ -1970,6 +1970,30 @@ timeline "t" {
     }
 
     #[test]
+    fn parse_item_note_link_color_options() {
+        let src = r##"span han 100..200 "漢" { note "説明"; link "https://example.com/ref"; color "#123abc"; };"##;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Span(s) => {
+                assert_eq!(s.props.note.as_deref(), Some("説明"));
+                assert_eq!(s.props.link.as_deref(), Some("https://example.com/ref"));
+                assert_eq!(s.props.color.as_deref(), Some("#123abc"));
+            }
+            _ => panic!("expected Span"),
+        }
+    }
+
+    #[test]
+    fn format_item_note_link_color_roundtrip() {
+        let src = r##"event han 100 "E" { note "n"; link "https://example.com"; color "red"; };"##;
+        let formatted = format::format_source(src).unwrap();
+        assert!(formatted.contains("note \"n\";"));
+        assert!(formatted.contains("link \"https://example.com\";"));
+        assert!(formatted.contains("color \"red\";"));
+        format::format_source(&formatted).unwrap();
+    }
+
+    #[test]
     fn format_claim_qualifier_roundtrip() {
         // qualifier アクセスを含む DSL が format → reparse で同一 AST を返す
         let src = r#"map wd.person to span {

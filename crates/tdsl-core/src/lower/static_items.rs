@@ -1,9 +1,55 @@
 use tdsl_parser::ast;
 
+use crate::error::LoweringError;
 use crate::ir::{Item, SourceSpan};
 
 use super::context::LoweringContext;
 use super::{format_id_time, offset_to_line_col, source_str};
+
+fn validate_link(link: &Option<String>) -> Result<Option<String>, LoweringError> {
+    match link {
+        Some(value) => {
+            let trimmed = value.trim();
+            let lower = trimmed.to_ascii_lowercase();
+            if lower.starts_with("https://") || lower.starts_with("http://") {
+                Ok(Some(trimmed.to_string()))
+            } else {
+                Err(LoweringError::InvalidItemLink(value.clone()))
+            }
+        }
+        None => Ok(None),
+    }
+}
+
+fn is_safe_color_value(value: &str) -> bool {
+    let value = value.trim();
+    if value.is_empty() {
+        return false;
+    }
+    if let Some(hex) = value.strip_prefix('#') {
+        return matches!(hex.len(), 3 | 4 | 6 | 8) && hex.chars().all(|c| c.is_ascii_hexdigit());
+    }
+
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    first.is_ascii_alphabetic() && chars.all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+fn validate_color(color: &Option<String>) -> Result<Option<String>, LoweringError> {
+    match color {
+        Some(value) => {
+            let trimmed = value.trim();
+            if is_safe_color_value(trimmed) {
+                Ok(Some(trimmed.to_string()))
+            } else {
+                Err(LoweringError::InvalidItemColor(value.clone()))
+            }
+        }
+        None => Ok(None),
+    }
+}
 
 impl LoweringContext {
     /// Pass 2: Lower static items (span, event, event_range).
@@ -22,6 +68,20 @@ impl LoweringContext {
                     if !self.register_static_id(&id) {
                         continue;
                     }
+                    let link = match validate_link(&s.props.link) {
+                        Ok(link) => link,
+                        Err(err) => {
+                            self.errors.push(err);
+                            continue;
+                        }
+                    };
+                    let color = match validate_color(&s.props.color) {
+                        Ok(color) => color,
+                        Err(err) => {
+                            self.errors.push(err);
+                            continue;
+                        }
+                    };
                     self.add_source_from_ref(&s.props.source);
                     let source_span = line_offsets.map(|lo| {
                         let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
@@ -41,6 +101,9 @@ impl LoweringContext {
                         tags: s.props.tags.clone(),
                         source: source_str(&s.props.source),
                         origin: s.props.origin.clone(),
+                        note: s.props.note.clone(),
+                        link,
+                        color,
                         start_month: s.start.month(),
                         start_day: s.start.day(),
                         start_hour: s.start.hour(),
@@ -65,6 +128,20 @@ impl LoweringContext {
                     if !self.register_static_id(&id) {
                         continue;
                     }
+                    let link = match validate_link(&e.props.link) {
+                        Ok(link) => link,
+                        Err(err) => {
+                            self.errors.push(err);
+                            continue;
+                        }
+                    };
+                    let color = match validate_color(&e.props.color) {
+                        Ok(color) => color,
+                        Err(err) => {
+                            self.errors.push(err);
+                            continue;
+                        }
+                    };
                     self.add_source_from_ref(&e.props.source);
                     let source_span = line_offsets.map(|lo| {
                         let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
@@ -83,6 +160,9 @@ impl LoweringContext {
                         tags: e.props.tags.clone(),
                         source: source_str(&e.props.source),
                         origin: e.props.origin.clone(),
+                        note: e.props.note.clone(),
+                        link,
+                        color,
                         time_month: e.time.month(),
                         time_day: e.time.day(),
                         time_hour: e.time.hour(),
@@ -102,6 +182,20 @@ impl LoweringContext {
                     if !self.register_static_id(&id) {
                         continue;
                     }
+                    let link = match validate_link(&er.props.link) {
+                        Ok(link) => link,
+                        Err(err) => {
+                            self.errors.push(err);
+                            continue;
+                        }
+                    };
+                    let color = match validate_color(&er.props.color) {
+                        Ok(color) => color,
+                        Err(err) => {
+                            self.errors.push(err);
+                            continue;
+                        }
+                    };
                     self.add_source_from_ref(&er.props.source);
                     let source_span = line_offsets.map(|lo| {
                         let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
@@ -121,6 +215,9 @@ impl LoweringContext {
                         tags: er.props.tags.clone(),
                         source: source_str(&er.props.source),
                         origin: er.props.origin.clone(),
+                        note: er.props.note.clone(),
+                        link,
+                        color,
                         start_month: er.start.month(),
                         start_day: er.start.day(),
                         start_hour: er.start.hour(),

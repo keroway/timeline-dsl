@@ -1018,3 +1018,48 @@ fn lower_group_duplicate_lane_id_is_error() {
         "duplicate lane id across group and standalone must fail"
     );
 }
+
+#[test]
+fn lower_item_note_link_color_options() {
+    let src = r##"
+        timeline "T" { unit year; range 0..200; }
+        lane "A" as a {}
+        span a 10..20 "S" { note "説明"; link "https://example.com/ref"; color "#123abc"; };
+    "##;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    match &ir.items[0] {
+        ir::Item::Span {
+            note, link, color, ..
+        } => {
+            assert_eq!(note.as_deref(), Some("説明"));
+            assert_eq!(link.as_deref(), Some("https://example.com/ref"));
+            assert_eq!(color.as_deref(), Some("#123abc"));
+        }
+        _ => panic!("expected span"),
+    }
+}
+
+#[test]
+fn lower_item_link_rejects_unsafe_scheme() {
+    let src = r#"
+        timeline "T" { unit year; range 0..200; }
+        lane "A" as a {}
+        event a 10 "E" { link "javascript:alert(1)"; };
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
+    assert!(err.contains("InvalidItemLink"), "got: {err}");
+}
+
+#[test]
+fn lower_item_color_rejects_unsafe_value() {
+    let src = r#"
+        timeline "T" { unit year; range 0..200; }
+        lane "A" as a {}
+        event a 10 "E" { color "url(javascript:alert(1))"; };
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
+    assert!(err.contains("InvalidItemColor"), "got: {err}");
+}

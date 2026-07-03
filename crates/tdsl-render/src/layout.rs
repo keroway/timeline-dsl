@@ -552,7 +552,13 @@ impl<'a> LayoutModel<'a> {
                 continue;
             };
             let item_tags = get_item_tags(item);
-            let color = resolve_item_color(item_tags, &opts.color_map, lane_id, &lane_colors);
+            let color = resolve_item_color(
+                item_color(item),
+                item_tags,
+                &opts.color_map,
+                lane_id,
+                &lane_colors,
+            );
             let tooltip = item_tooltip(item);
             compute_item(
                 item,
@@ -1435,6 +1441,14 @@ fn get_item_tags(item: &Item) -> &[String] {
     }
 }
 
+fn item_color(item: &Item) -> &Option<String> {
+    match item {
+        Item::Span { color, .. } | Item::Event { color, .. } | Item::EventRange { color, .. } => {
+            color
+        }
+    }
+}
+
 fn is_safe_color_value(value: &str) -> bool {
     let value = value.trim();
     if value.is_empty() {
@@ -1451,13 +1465,20 @@ fn is_safe_color_value(value: &str) -> bool {
     first.is_ascii_alphabetic() && chars.all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
-/// Resolve item fill color: tag overrides take priority over lane palette.
+/// Resolve item fill color: item color overrides tag color_map, which overrides lane palette.
 pub(crate) fn resolve_item_color(
+    item_color: &Option<String>,
     tags: &[String],
     color_map: &HashMap<String, String>,
     lane_id: &str,
     lane_colors: &HashMap<String, String>,
 ) -> String {
+    if let Some(color) = item_color {
+        let color = color.trim();
+        if is_safe_color_value(color) {
+            return color.to_string();
+        }
+    }
     for tag in tags {
         if let Some(color) = color_map.get(tag.as_str()) {
             let color = color.trim();
@@ -1557,23 +1578,36 @@ pub(crate) fn format_minute_tick_label(
     }
 }
 
-fn push_common(
-    lines: &mut Vec<String>,
-    tags: &[String],
-    source: &Option<String>,
-    origin: &Option<String>,
-    id: &str,
-) {
-    if !tags.is_empty() {
-        lines.push(format!("tags: {}", tags.join(", ")));
+struct ItemCommon<'a> {
+    tags: &'a [String],
+    source: &'a Option<String>,
+    origin: &'a Option<String>,
+    note: &'a Option<String>,
+    link: &'a Option<String>,
+    color: &'a Option<String>,
+    id: &'a str,
+}
+
+fn push_common(lines: &mut Vec<String>, common: ItemCommon<'_>) {
+    if !common.tags.is_empty() {
+        lines.push(format!("tags: {}", common.tags.join(", ")));
     }
-    if let Some(src) = source {
+    if let Some(src) = common.source {
         lines.push(format!("source: {src}"));
     }
-    if let Some(org) = origin {
+    if let Some(org) = common.origin {
         lines.push(format!("origin: {org}"));
     }
-    lines.push(format!("id: {id}"));
+    if let Some(note) = common.note {
+        lines.push(format!("note: {note}"));
+    }
+    if let Some(link) = common.link {
+        lines.push(format!("link: {link}"));
+    }
+    if let Some(color) = common.color {
+        lines.push(format!("color: {color}"));
+    }
+    lines.push(format!("id: {}", common.id));
 }
 
 /// Build the tooltip text for an item (XML-unescaped).
@@ -1652,6 +1686,9 @@ fn item_tooltip(item: &Item) -> String {
             tags,
             source,
             origin,
+            note,
+            link,
+            color,
             id,
             start_month,
             start_day,
@@ -1677,7 +1714,18 @@ fn item_tooltip(item: &Item) -> String {
                     *end_open
                 ),
             ));
-            push_common(&mut lines, tags, source, origin, id);
+            push_common(
+                &mut lines,
+                ItemCommon {
+                    tags,
+                    source,
+                    origin,
+                    note,
+                    link,
+                    color,
+                    id,
+                },
+            );
         }
         Item::Event {
             label,
@@ -1685,6 +1733,9 @@ fn item_tooltip(item: &Item) -> String {
             tags,
             source,
             origin,
+            note,
+            link,
+            color,
             id,
             time_month,
             time_day,
@@ -1700,7 +1751,18 @@ fn item_tooltip(item: &Item) -> String {
                 *time_hour,
                 *time_minute,
             ));
-            push_common(&mut lines, tags, source, origin, id);
+            push_common(
+                &mut lines,
+                ItemCommon {
+                    tags,
+                    source,
+                    origin,
+                    note,
+                    link,
+                    color,
+                    id,
+                },
+            );
         }
         Item::EventRange {
             label,
@@ -1709,6 +1771,9 @@ fn item_tooltip(item: &Item) -> String {
             tags,
             source,
             origin,
+            note,
+            link,
+            color,
             id,
             start_month,
             start_day,
@@ -1734,7 +1799,18 @@ fn item_tooltip(item: &Item) -> String {
                     *end_open
                 ),
             ));
-            push_common(&mut lines, tags, source, origin, id);
+            push_common(
+                &mut lines,
+                ItemCommon {
+                    tags,
+                    source,
+                    origin,
+                    note,
+                    link,
+                    color,
+                    id,
+                },
+            );
         }
     }
     lines.join("\n")
@@ -2307,6 +2383,9 @@ mod tests {
                 tags: vec![],
                 source: None,
                 origin: None,
+                note: None,
+                link: None,
+                color: None,
                 start_month: None,
                 start_day: None,
                 start_hour: None,
@@ -2379,6 +2458,9 @@ mod tests {
                 tags: vec![],
                 source: None,
                 origin: None,
+                note: None,
+                link: None,
+                color: None,
                 start_month: None,
                 start_day: None,
                 start_hour: None,
@@ -2433,6 +2515,9 @@ mod tests {
                 tags: vec![],
                 source: None,
                 origin: None,
+                note: None,
+                link: None,
+                color: None,
                 start_month: None,
                 start_day: None,
                 start_hour: None,
@@ -2489,6 +2574,9 @@ mod tests {
                 tags: vec![],
                 source: None,
                 origin: None,
+                note: None,
+                link: None,
+                color: None,
                 start_month: None,
                 start_day: None,
                 start_hour: None,
@@ -3022,6 +3110,9 @@ mod tests {
                 tags: vec![],
                 source: None,
                 origin: None,
+                note: None,
+                link: None,
+                color: None,
                 time_month: None,
                 time_day: None,
                 time_hour: None,

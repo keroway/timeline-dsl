@@ -260,6 +260,15 @@ fn build_block_options(pair: Pair<'_, Rule>) -> Result<ItemProps> {
             Rule::origin_option => {
                 props.origin = Some(item.into_inner().next().unwrap().as_str().to_string());
             }
+            Rule::note_option => {
+                props.note = Some(extract_string_literal(&item.into_inner().next().unwrap()));
+            }
+            Rule::link_option => {
+                props.link = Some(extract_string_literal(&item.into_inner().next().unwrap()));
+            }
+            Rule::color_option => {
+                props.color = Some(extract_string_literal(&item.into_inner().next().unwrap()));
+            }
             _ => {}
         }
     }

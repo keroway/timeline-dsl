@@ -50,6 +50,9 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
                  | "source" <source_ref> ";"
                  | "origin" <identifier> ";"
                  | "id" <string> ";"
+                 | "note" <string> ";"
+                 | "link" <string> ";"
+                 | "color" <string> ";"
 
 <import_block> ::= "import" <source_name> ["as" <identifier>]
                    "{" { <import_stmt> } "}"
@@ -244,6 +247,9 @@ span / event / event_range に付与できるオプション。
 | `source` | データソース（Wikidata等） | `source wd:Q7209;` |
 | `id` | 要素の安定識別子 | `id "span:han";` |
 | `origin` | 由来の識別子 | `origin imported;` |
+| `note` | アイテム説明文。ツールチップ等に表示 | `note "出典メモ";` |
+| `link` | 参照URL。lowering時に `http://` / `https://` のみ許可 | `link "https://example.com";` |
+| `color` | アイテム個別色。`color_map` や lane 色より優先 | `color "#3366cc";` |
 
 ### import
 
