@@ -171,6 +171,53 @@ jobs:
           console.log('All expected exports found');
           "
 
+      - name: Build WASM for apps/webui (drift check)
+        run: wasm-pack build crates/tdsl-wasm --target web --out-dir /tmp/webui-wasm-check --no-opt
+
+      - name: Check apps/webui/src/wasm artifacts are up to date
+        run: |
+          # Compare the JS-visible API surface byte-for-byte. tdsl_wasm_bg.wasm
+          # itself is intentionally excluded from the byte diff: --no-opt builds
+          # embed absolute toolchain/registry/checkout paths (debug info), so a
+          # developer's local rebuild will never byte-match a CI rebuild even
+          # when semantically identical. README.md/.gitignore are excluded too
+          # since apps/webui/src/wasm/.gitignore untracks them.
+          status=0
+          for f in package.json tdsl_wasm.js tdsl_wasm.d.ts tdsl_wasm_bg.wasm.d.ts; do
+            if ! diff -u "apps/webui/src/wasm/$f" "/tmp/webui-wasm-check/$f"; then
+              status=1
+            fi
+          done
+
+          # For the .wasm binary, compare only the exported symbol set (immune to
+          # embedded build-path differences) so real API drift is still caught.
+          node -e "
+          const fs = require('fs');
+          async function exportNames(path) {
+            const mod = await WebAssembly.compile(fs.readFileSync(path));
+            return WebAssembly.Module.exports(mod).map((e) => e.name).sort();
+          }
+          (async () => {
+            const committed = await exportNames('apps/webui/src/wasm/tdsl_wasm_bg.wasm');
+            const fresh = await exportNames('/tmp/webui-wasm-check/tdsl_wasm_bg.wasm');
+            const committedSet = new Set(committed);
+            const freshSet = new Set(fresh);
+            const missing = fresh.filter((n) => !committedSet.has(n));
+            const extra = committed.filter((n) => !freshSet.has(n));
+            if (missing.length || extra.length) {
+              if (missing.length) console.error('Missing from committed tdsl_wasm_bg.wasm: ' + missing.join(', '));
+              if (extra.length) console.error('Unexpected (stale) export in committed tdsl_wasm_bg.wasm: ' + extra.join(', '));
+              process.exit(1);
+            }
+            console.log('tdsl_wasm_bg.wasm exports match (' + committed.length + ' exports).');
+          })();
+          " || status=1
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error::apps/webui/src/wasm/ is out of sync with crates/tdsl-wasm. Rebuild with: wasm-pack build crates/tdsl-wasm --target web --out-dir apps/webui/src/wasm --no-opt (then commit the regenerated files)."
+            exit 1
+          fi
+
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest

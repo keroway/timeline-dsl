@@ -11,8 +11,10 @@
  * |-------|----------------|---------|
  * | `orientation` | `"horizontal"`, `"vertical"` | `"horizontal"` |
  * | `grid` | `"none"`, `"decade"`, `"year"`, `"month"` | `"none"` |
+ * | `layout_style` | `"timeline"`, `"group-bands"`, `"gantt"`, `"zigzag"` | `"timeline"` |
  * | `theme` | `"default"`, `"dark"`, `"print"`, `"pastel"` | `"default"` |
  * | `show_table` | `true`, `false` | `false` |
+ * | `show_legend` | `true`, `false` | `false` |
  * | `show_event_labels` | `true`, `false` | `false` |
  * | `lane_height` | px per lane; `0` = renderer default (60) | `0` |
  *
@@ -49,7 +51,15 @@ export class JsRenderOptions {
         return ret !== 0;
     }
     /**
-     * `"horizontal"` (default) or `"vertical"`
+     * When true, render a static legend panel showing lane and tag colors.
+     * @returns {boolean}
+     */
+    get show_legend() {
+        const ret = wasm.__wbg_get_jsrenderoptions_show_legend(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * When true, append an item listing table.
      * @returns {boolean}
      */
     get show_table() {
@@ -65,6 +75,33 @@ export class JsRenderOptions {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             wasm.jsrenderoptions_grid(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * High-level visual layout style (#543/#564/#565): `"timeline"` (default),
+     * `"group-bands"`, `"gantt"`, or `"zigzag"`. Orthogonal to `orientation`.
+     * `"zigzag"` only takes effect when the timeline has at most
+     * `ZIGZAG_MAX_LANES` lanes; beyond that it falls back to `"timeline"`
+     * positioning at the `tdsl-render` layer — callers that need a
+     * user-facing warning (mirroring the CLI's `--layout-style zigzag`
+     * notice) should check the timeline's lane count themselves before
+     * rendering.
+     * @returns {string}
+     */
+    get layout_style() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.jsrenderoptions_layout_style(retptr, this.__wbg_ptr);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             deferred1_0 = r0;
@@ -107,6 +144,14 @@ export class JsRenderOptions {
         const ptr0 = passStringToWasm0(val, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
         const len0 = WASM_VECTOR_LEN;
         wasm.jsrenderoptions_set_grid(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} val
+     */
+    set layout_style(val) {
+        const ptr0 = passStringToWasm0(val, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.jsrenderoptions_set_layout_style(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @param {string} val
@@ -159,7 +204,14 @@ export class JsRenderOptions {
         wasm.__wbg_set_jsrenderoptions_show_event_labels(this.__wbg_ptr, arg0);
     }
     /**
-     * `"horizontal"` (default) or `"vertical"`
+     * When true, render a static legend panel showing lane and tag colors.
+     * @param {boolean} arg0
+     */
+    set show_legend(arg0) {
+        wasm.__wbg_set_jsrenderoptions_show_legend(this.__wbg_ptr, arg0);
+    }
+    /**
+     * When true, append an item listing table.
      * @param {boolean} arg0
      */
     set show_table(arg0) {
