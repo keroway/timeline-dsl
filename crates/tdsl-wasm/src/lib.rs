@@ -1,7 +1,9 @@
 use wasm_bindgen::prelude::*;
 
 use tdsl_core::lower::lower_static_with_source;
-use tdsl_render::{GridStyle, Orientation, RenderOptions, Theme, render_html, render_svg_only};
+use tdsl_render::{
+    GridStyle, LayoutStyle, Orientation, RenderOptions, Theme, render_html, render_svg_only,
+};
 
 /// Initialize the panic hook for better error messages in the browser console.
 #[wasm_bindgen(start)]
@@ -733,6 +735,7 @@ pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
 /// |-------|----------------|---------|
 /// | `orientation` | `"horizontal"`, `"vertical"` | `"horizontal"` |
 /// | `grid` | `"none"`, `"decade"`, `"year"`, `"month"` | `"none"` |
+/// | `layout_style` | `"timeline"`, `"group-bands"`, `"gantt"` | `"timeline"` |
 /// | `theme` | `"default"`, `"dark"`, `"print"`, `"pastel"` | `"default"` |
 /// | `show_table` | `true`, `false` | `false` |
 /// | `show_legend` | `true`, `false` | `false` |
@@ -755,6 +758,7 @@ pub struct JsRenderOptions {
     pub lane_height: f64,
     orientation: String,
     grid: String,
+    layout_style: String,
     theme: String,
 }
 
@@ -775,6 +779,7 @@ impl JsRenderOptions {
             lane_height: 0.0,
             orientation: "horizontal".to_string(),
             grid: "none".to_string(),
+            layout_style: "timeline".to_string(),
             theme: "default".to_string(),
         }
     }
@@ -797,6 +802,18 @@ impl JsRenderOptions {
     #[wasm_bindgen(setter)]
     pub fn set_grid(&mut self, val: String) {
         self.grid = val;
+    }
+
+    /// High-level visual layout style (#543/#564): `"timeline"` (default),
+    /// `"group-bands"`, or `"gantt"`. Orthogonal to `orientation`.
+    #[wasm_bindgen(getter)]
+    pub fn layout_style(&self) -> String {
+        self.layout_style.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_layout_style(&mut self, val: String) {
+        self.layout_style = val;
     }
 
     #[wasm_bindgen(getter)]
@@ -831,6 +848,11 @@ fn js_opts_to_render_options(opts: &JsRenderOptions, scale: f64) -> RenderOption
         "month" => GridStyle::Month,
         _ => GridStyle::None,
     };
+    let layout_style = match opts.layout_style.as_str() {
+        "group-bands" => LayoutStyle::GroupBands,
+        "gantt" => LayoutStyle::Gantt,
+        _ => LayoutStyle::Timeline,
+    };
     let theme = match opts.theme.as_str() {
         "dark" => Theme::Dark,
         "print" => Theme::Print,
@@ -850,6 +872,7 @@ fn js_opts_to_render_options(opts: &JsRenderOptions, scale: f64) -> RenderOption
         lane_height,
         orientation,
         grid,
+        layout_style,
         theme,
         show_table: opts.show_table,
         show_legend: opts.show_legend,

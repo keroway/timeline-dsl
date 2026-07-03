@@ -225,7 +225,8 @@ enum Commands {
         #[arg(long, value_enum, default_value_t = GridStyleArg::None)]
         grid: GridStyleArg,
 
-        /// High-level layout style: timeline (default) or group-bands (era/group background blocks)
+        /// High-level layout style: timeline (default), group-bands (era/group background
+        /// blocks), or gantt (emphasized month grid + always-on period labels)
         #[arg(long, value_enum, default_value_t = LayoutStyleArg::Timeline)]
         layout_style: LayoutStyleArg,
 
@@ -520,6 +521,9 @@ enum LayoutStyleArg {
     Timeline,
     /// Draw background blocks spanning contiguous lane groups/eras.
     GroupBands,
+    /// Project-management-style layout (#564): emphasized month grid +
+    /// always-on Span/EventRange period labels.
+    Gantt,
 }
 
 impl LayoutStyleArg {
@@ -527,6 +531,7 @@ impl LayoutStyleArg {
         match self {
             LayoutStyleArg::Timeline => tdsl_render::layout::LayoutStyle::Timeline,
             LayoutStyleArg::GroupBands => tdsl_render::layout::LayoutStyle::GroupBands,
+            LayoutStyleArg::Gantt => tdsl_render::layout::LayoutStyle::Gantt,
         }
     }
 }

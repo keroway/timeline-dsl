@@ -820,6 +820,200 @@ mod tests {
         assert!(svg.contains("data-group=\"グループ1\""));
     }
 
+    // ─── #564 Gantt layout style tests ─────────────────────────────────────
+
+    fn gantt_ir() -> TimelineIr {
+        TimelineIr {
+            meta: Meta {
+                title: "Gantt test".into(),
+                unit: "year".into(),
+                range: (2020, 2025),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "proj".into(),
+                label: "Project".into(),
+                kind: "custom".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::Span {
+                id: "phase1".into(),
+                lane: "proj".into(),
+                start: 2020,
+                end: 2022,
+                label: "Phase 1".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                note: None,
+                link: None,
+                color: None,
+                start_month: None,
+                start_day: None,
+                start_hour: None,
+                start_minute: None,
+                end_month: None,
+                end_day: None,
+                end_hour: None,
+                end_minute: None,
+                end_open: false,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        }
+    }
+
+    #[test]
+    fn render_svg_gantt_default_grid_disabled() {
+        // Sanity check: default layout_style=timeline + grid=none must not
+        // draw any grid lines (unaffected by the #564 Gantt changes).
+        let ir = gantt_ir();
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        assert!(!svg.contains("tdsl-grid-line"));
+        assert!(!svg.contains("tdsl-grid-gantt"));
+    }
+
+    #[test]
+    fn render_svg_gantt_forces_month_grid_horizontal() {
+        let ir = gantt_ir();
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::Gantt,
+            orientation: Orientation::Horizontal,
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts).unwrap();
+        assert!(
+            svg.contains("tdsl-grid-gantt"),
+            "Gantt layout must draw the emphasized tdsl-grid-gantt grid: {svg}"
+        );
+        assert!(
+            !svg.contains("tdsl-grid-line\""),
+            "Gantt layout must not also draw the standard tdsl-grid-line class"
+        );
+    }
+
+    #[test]
+    fn render_svg_gantt_forces_month_grid_vertical() {
+        // #564: --layout-style gantt is orthogonal to --orientation.
+        let ir = gantt_ir();
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::Gantt,
+            orientation: Orientation::Vertical,
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts).unwrap();
+        assert!(
+            svg.contains("tdsl-grid-gantt"),
+            "Gantt layout (vertical) must draw the emphasized grid: {svg}"
+        );
+    }
+
+    #[test]
+    fn render_svg_gantt_explicit_grid_choice_still_gets_gantt_class() {
+        // An explicit --grid choice (e.g. decade) is honored for interval
+        // spacing, but Gantt styling (heavier stroke class) still applies.
+        let ir = gantt_ir();
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::Gantt,
+            grid: GridStyle::Decade,
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts).unwrap();
+        assert!(svg.contains("tdsl-grid-gantt"));
+    }
+
+    #[test]
+    fn render_svg_gantt_shows_always_on_period_label() {
+        let ir = gantt_ir();
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::Gantt,
+            ..RenderOptions::default()
+        };
+        let svg = render_svg_only(&ir, opts).unwrap();
+        assert!(
+            svg.contains("tdsl-gantt-period-label"),
+            "Gantt layout must render an always-on period label: {svg}"
+        );
+        assert!(
+            svg.contains("2020") && svg.contains("2022"),
+            "Gantt period label must show start〜end years: {svg}"
+        );
+    }
+
+    #[test]
+    fn render_svg_non_gantt_layout_has_no_period_label() {
+        let ir = gantt_ir();
+        let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        assert!(
+            !svg.contains("tdsl-gantt-period-label"),
+            "non-Gantt layout must not render the always-on period label"
+        );
+    }
+
+    #[test]
+    fn render_svg_gantt_period_labels_avoid_collision_in_same_lane() {
+        // Two Span items in the same lane whose bars don't overlap in time but
+        // sit close enough together that their "start〜end" period-label text
+        // would visually collide must be stacked to different label levels via
+        // `tdsl-label-leader`, mirroring the #537 Event-label collision pattern.
+        let mut ir = gantt_ir();
+        ir.meta.range = (2020, 2021);
+        if let Item::Span { end, .. } = &mut ir.items[0] {
+            *end = 2020;
+        }
+        ir.items.push(Item::Span {
+            id: "phase2".into(),
+            lane: "proj".into(),
+            start: 2020,
+            end: 2021,
+            label: "Phase 2".into(),
+            tags: vec![],
+            source: None,
+            origin: None,
+            note: None,
+            link: None,
+            color: None,
+            start_month: None,
+            start_day: None,
+            start_hour: None,
+            start_minute: None,
+            end_month: None,
+            end_day: None,
+            end_hour: None,
+            end_minute: None,
+            end_open: false,
+            source_span: None,
+        });
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::Gantt,
+            // Small scale forces the two adjacent bars' period-label text to
+            // overlap horizontally even though the bars themselves are adjacent,
+            // not overlapping.
+            scale: 20.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = svg::render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-label-leader"),
+            "colliding Gantt period labels must be pushed apart with a leader line: {svg}"
+        );
+    }
+
+    #[test]
+    fn render_svg_gantt_and_group_bands_are_mutually_exclusive_enum_values() {
+        // #564: LayoutStyle is a plain (non-bitflag) enum, so `--layout-style`
+        // can only ever select exactly one variant at a time; Gantt and
+        // GroupBands can never both be active simultaneously.
+        assert_ne!(LayoutStyle::Gantt, LayoutStyle::GroupBands);
+        assert_ne!(LayoutStyle::Gantt, LayoutStyle::Timeline);
+    }
+
     #[test]
     fn render_html_grouped_lanes_contains_group_label() {
         let ir = grouped_ir();
