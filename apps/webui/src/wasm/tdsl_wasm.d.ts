@@ -12,8 +12,10 @@
  * |-------|----------------|---------|
  * | `orientation` | `"horizontal"`, `"vertical"` | `"horizontal"` |
  * | `grid` | `"none"`, `"decade"`, `"year"`, `"month"` | `"none"` |
+ * | `layout_style` | `"timeline"`, `"group-bands"`, `"gantt"`, `"zigzag"` | `"timeline"` |
  * | `theme` | `"default"`, `"dark"`, `"print"`, `"pastel"` | `"default"` |
  * | `show_table` | `true`, `false` | `false` |
+ * | `show_legend` | `true`, `false` | `false` |
  * | `show_event_labels` | `true`, `false` | `false` |
  * | `lane_height` | px per lane; `0` = renderer default (60) | `0` |
  *
@@ -35,10 +37,25 @@ export class JsRenderOptions {
      */
     show_event_labels: boolean;
     /**
-     * `"horizontal"` (default) or `"vertical"`
+     * When true, render a static legend panel showing lane and tag colors.
+     */
+    show_legend: boolean;
+    /**
+     * When true, append an item listing table.
      */
     show_table: boolean;
     grid: string;
+    /**
+     * High-level visual layout style (#543/#564/#565): `"timeline"` (default),
+     * `"group-bands"`, `"gantt"`, or `"zigzag"`. Orthogonal to `orientation`.
+     * `"zigzag"` only takes effect when the timeline has at most
+     * `ZIGZAG_MAX_LANES` lanes; beyond that it falls back to `"timeline"`
+     * positioning at the `tdsl-render` layer — callers that need a
+     * user-facing warning (mirroring the CLI's `--layout-style zigzag`
+     * notice) should check the timeline's lane count themselves before
+     * rendering.
+     */
+    layout_style: string;
     orientation: string;
     theme: string;
 }
@@ -145,18 +162,22 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_get_jsrenderoptions_lane_height: (a: number) => number;
     readonly __wbg_get_jsrenderoptions_show_event_labels: (a: number) => number;
+    readonly __wbg_get_jsrenderoptions_show_legend: (a: number) => number;
     readonly __wbg_get_jsrenderoptions_show_table: (a: number) => number;
     readonly __wbg_jsrenderoptions_free: (a: number, b: number) => void;
     readonly __wbg_set_jsrenderoptions_lane_height: (a: number, b: number) => void;
     readonly __wbg_set_jsrenderoptions_show_event_labels: (a: number, b: number) => void;
+    readonly __wbg_set_jsrenderoptions_show_legend: (a: number, b: number) => void;
     readonly __wbg_set_jsrenderoptions_show_table: (a: number, b: number) => void;
     readonly check_source: (a: number, b: number, c: number) => void;
     readonly compile_to_ir: (a: number, b: number, c: number) => void;
     readonly format_source: (a: number, b: number, c: number) => void;
     readonly jsrenderoptions_grid: (a: number, b: number) => void;
+    readonly jsrenderoptions_layout_style: (a: number, b: number) => void;
     readonly jsrenderoptions_new: () => number;
     readonly jsrenderoptions_orientation: (a: number, b: number) => void;
     readonly jsrenderoptions_set_grid: (a: number, b: number, c: number) => void;
+    readonly jsrenderoptions_set_layout_style: (a: number, b: number, c: number) => void;
     readonly jsrenderoptions_set_orientation: (a: number, b: number, c: number) => void;
     readonly jsrenderoptions_set_theme: (a: number, b: number, c: number) => void;
     readonly jsrenderoptions_theme: (a: number, b: number) => void;
