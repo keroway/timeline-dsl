@@ -103,6 +103,33 @@ body,
   font-size: 14px;
 }
 
+/* PWA update banner */
+.pwa-update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--diag-info-bg);
+  border-bottom: 1px solid var(--diag-info-border);
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.pwa-update-banner button {
+  border: 1px solid var(--border-btn);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.pwa-update-banner button:hover {
+  border-color: var(--border-btn-hover);
+  background: var(--bg-hover);
+}
+
 /* Toolbar */
 .toolbar {
   display: flex;

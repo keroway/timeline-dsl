@@ -25,6 +25,13 @@ export type Dictionary = {
   fileAccessSaved: string
   fileAccessSavedAs: string
   fileAccessSaveFailed: string
+  pwaOfflineReady: string
+  pwaUpdateAvailable: string
+  pwaUpdateMessage: string
+  pwaReload: string
+  pwaRegistrationFailed: string
+  pwaNetworkOffline: string
+  pwaNetworkOnline: string
 
   // Split divider
   splitDividerTitle: string
@@ -151,6 +158,14 @@ const ja: Dictionary = {
   fileAccessSaved: '{name} に保存しました',
   fileAccessSavedAs: '{name} として保存しました',
   fileAccessSaveFailed: '保存に失敗しました: {msg}',
+  pwaOfflineReady: 'オフライン起動の準備が完了しました',
+  pwaUpdateAvailable: '新しいバージョンを利用できます',
+  pwaUpdateMessage: '新しいバージョンを利用できます。再読み込みして更新してください。',
+  pwaReload: '再読み込み',
+  pwaRegistrationFailed: 'Service Worker の登録に失敗しました: {msg}',
+  pwaNetworkOffline:
+    'オフラインです。静的 DSL の編集・プレビューは継続できますが、Wikidata インポートは利用できません。',
+  pwaNetworkOnline: 'オンラインに復帰しました',
 
   // Split divider
   splitDividerTitle: 'ドラッグまたは矢印キーで分割幅を調整',
@@ -279,6 +294,14 @@ const en: Dictionary = {
   fileAccessSaved: 'Saved to {name}',
   fileAccessSavedAs: 'Saved as {name}',
   fileAccessSaveFailed: 'Save failed: {msg}',
+  pwaOfflineReady: 'Ready for offline launch',
+  pwaUpdateAvailable: 'A new version is available',
+  pwaUpdateMessage: 'A new version is available. Reload to update.',
+  pwaReload: 'Reload',
+  pwaRegistrationFailed: 'Service Worker registration failed: {msg}',
+  pwaNetworkOffline:
+    'You are offline. Static DSL editing and preview continue to work, but Wikidata imports are unavailable.',
+  pwaNetworkOnline: 'Back online',
 
   // Split divider
   splitDividerTitle: 'Drag or use arrow keys to adjust split width',

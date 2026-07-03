@@ -11,6 +11,7 @@ Timeline DSL の Web エディタ。ブラウザ上で `.tdsl` ファイルを�
 - File System Access API 対応ブラウザ（Chrome/Edge 等）ではローカル `.tdsl` ファイルを直接開き、上書き保存できる（`hooks/useFileHandle.ts`）。非対応ブラウザ（Safari/Firefox）では従来の `<input type="file">` 選択 + ダウンロード方式にフォールバックし、UI 上で非対応を明示する
 - SVG のダウンロード
 - サンプル切り替え
+- PWA としてインストール可能（初回ロード後は静的 DSL 編集・プレビューをオフライン起動可能）
 
 ## 開発
 
@@ -43,6 +44,14 @@ npm run dev
 ```bash
 npm run build
 ```
+
+ビルド成果物には `manifest.webmanifest` と Service Worker が含まれます。Service Worker は JS/CSS/WASM などのアプリシェルを事前キャッシュし、初回ロード後のオフライン起動に対応します。新バージョンが利用可能になった場合は画面上部の更新通知から再読み込みできます。Wikidata インポートはブラウザでは実行されないため、オフライン時も UI 通知と診断で明示し、CLI での利用を案内します。
+
+### PWA 手動チェックリスト
+
+- Chrome DevTools / Lighthouse の PWA 監査で installable であることを確認する
+- 初回ロード後に DevTools の Network を Offline にしてリロードし、エディタとプレビューが起動することを確認する
+- 新しいビルドをデプロイした際に更新通知が表示され、再読み込みで更新されることを確認する
 
 ## アーキテクチャ
 

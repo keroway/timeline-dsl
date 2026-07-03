@@ -37,6 +37,13 @@ describe('i18n key parity', () => {
       'fileAccessSaved',
       'fileAccessSavedAs',
       'fileAccessSaveFailed',
+      'pwaOfflineReady',
+      'pwaUpdateAvailable',
+      'pwaUpdateMessage',
+      'pwaReload',
+      'pwaRegistrationFailed',
+      'pwaNetworkOffline',
+      'pwaNetworkOnline',
       'splitDividerTitle',
       'toolbarFileMenu',
       'toolbarNew',
@@ -152,6 +159,9 @@ describe('i18n interpolation', () => {
     const t = createTranslator('ja')
     expect(t.fmt('appFormatFailed', { msg: 'parse error' })).toBe(
       '整形に失敗しました: parse error',
+    )
+    expect(t.fmt('pwaRegistrationFailed', { msg: 'denied' })).toBe(
+      'Service Worker の登録に失敗しました: denied',
     )
   })
 
