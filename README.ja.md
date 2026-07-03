@@ -110,6 +110,12 @@ tdsl render examples/china_dynasties.tdsl --orientation vertical --output china_
 # 補助グリッド線（decade / year / month）
 tdsl render examples/china_dynasties.tdsl --grid decade --output china_grid.html
 
+# レーンの group が連続する区間に背景帯を描画
+tdsl render examples/china_dynasties.tdsl --layout-style group-bands --output china_bands.html
+
+# Gantt スタイル（月グリッド強調 + 期間ラベル常時表示、プロジェクト管理向け）
+tdsl render examples/china_dynasties.tdsl --layout-style gantt --output china_gantt.html
+
 # ウォッチモード：ファイル変更を検知して自動再レンダリング（--output 必須、html / svg のみ対応）
 tdsl render examples/china_dynasties.tdsl --watch --output china.html
 

@@ -65,6 +65,10 @@ pub enum LayoutStyle {
     Timeline,
     /// Draw background blocks spanning contiguous lane groups/eras.
     GroupBands,
+    /// Project-management-style layout (#564): forces an emphasized month grid
+    /// (`tdsl-grid-gantt` CSS class) and always-on start〜end period labels on
+    /// Span/EventRange bars.
+    Gantt,
 }
 
 /// Rendering options. Pixel dimensions and styling parameters.
@@ -185,6 +189,13 @@ pub enum LaidItem<'a> {
         color: String,
         /// Formatted tooltip text (XML-unescaped).
         tooltip: String,
+        /// #564: collision-avoidance stacking level for this bar's always-on Gantt
+        /// period label (0 = no offset). Only meaningful when
+        /// `RenderOptions.layout_style == LayoutStyle::Gantt`; computed by
+        /// [`assign_period_label_stack_levels`] as a post-processing pass, grouped
+        /// by lane *and* the #549 bar sub-row (`bar_stack_level`) so the label
+        /// offset is relative to the bar's own sub-row placement.
+        period_label_stack_level: u8,
     },
     EventRange {
         item: &'a Item,
@@ -196,6 +207,8 @@ pub enum LaidItem<'a> {
         color: String,
         /// Formatted tooltip text (XML-unescaped).
         tooltip: String,
+        /// #564: see `LaidItem::Span::period_label_stack_level`.
+        period_label_stack_level: u8,
     },
     Event {
         item: &'a Item,
@@ -582,6 +595,12 @@ impl<'a> LayoutModel<'a> {
             assign_event_label_stack_levels(&mut items, is_vertical);
         }
 
+        // #564: Gantt layout always shows Span/EventRange period labels; avoid
+        // horizontally overlapping labels within the same lane sub-row.
+        if opts.layout_style == LayoutStyle::Gantt {
+            assign_period_label_stack_levels(&mut items, is_vertical);
+        }
+
         Self {
             ir,
             opts,
@@ -838,6 +857,21 @@ impl<'a> LayoutModel<'a> {
         ticks
     }
 
+    /// The `GridStyle` actually used for grid-line rendering (#564).
+    ///
+    /// `LayoutStyle::Gantt` forces at least a `GridStyle::Month`-equivalent grid
+    /// so the project-management-style emphasized grid is always visible; an
+    /// explicit `--grid` choice finer than month (there is none coarser is
+    /// possible, e.g. `Year`/`Decade`) is still honored as-is. Any other layout
+    /// style leaves `opts.grid` untouched.
+    pub fn effective_grid_style(&self) -> GridStyle {
+        if self.opts.layout_style == LayoutStyle::Gantt && self.opts.grid == GridStyle::None {
+            GridStyle::Month
+        } else {
+            self.opts.grid.clone()
+        }
+    }
+
     /// Grid line positions for the current `GridStyle`.
     ///
     /// Returns fractional year values (f64) covering [year_min, year_max].
@@ -848,8 +882,11 @@ impl<'a> LayoutModel<'a> {
     ///
     /// Positions that coincide with existing axis ticks are included; the SVG
     /// renderer draws grid lines behind tick marks so duplicates are invisible.
+    ///
+    /// #564: when `layout_style == Gantt` and `grid == GridStyle::None`, this
+    /// returns `GridStyle::Month`-equivalent positions (see `effective_grid_style`).
     pub fn grid_positions(&self) -> Vec<f64> {
-        match self.opts.grid {
+        match self.effective_grid_style() {
             GridStyle::None => Vec::new(),
             GridStyle::Decade => {
                 let first = div_floor(self.year_min, 10) * 10;
@@ -1132,6 +1169,7 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
                 height,
                 color,
                 tooltip,
+                period_label_stack_level: 0,
             });
         }
         Item::EventRange {
@@ -1179,6 +1217,7 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
                 height,
                 color,
                 tooltip,
+                period_label_stack_level: 0,
             });
         }
         Item::Event {
@@ -1328,6 +1367,184 @@ fn event_label_interval(laid: &LaidItem<'_>, is_vertical: bool) -> (f64, f64) {
         let half = width / 2.0;
         (*x - half, *x + half)
     }
+}
+
+/// Format the always-on Gantt period label text for a Span/EventRange item
+/// (#564): `"<start>\u301c<end>"` using the same date formatting as tooltips and
+/// the item table, with month/day/hour/minute precision preserved when present.
+pub(crate) fn gantt_period_label(item: &Item) -> String {
+    match item {
+        Item::Span {
+            start,
+            end,
+            start_month,
+            start_day,
+            start_hour,
+            start_minute,
+            end_month,
+            end_day,
+            end_hour,
+            end_minute,
+            end_open,
+            ..
+        }
+        | Item::EventRange {
+            start,
+            end,
+            start_month,
+            start_day,
+            start_hour,
+            start_minute,
+            end_month,
+            end_day,
+            end_hour,
+            end_minute,
+            end_open,
+            ..
+        } => {
+            let start_str =
+                format_date(*start, *start_month, *start_day, *start_hour, *start_minute);
+            let end_str = if *end_open {
+                "進行中".to_string()
+            } else {
+                format_date(*end, *end_month, *end_day, *end_hour, *end_minute)
+            };
+            format!("{start_str}〜{end_str}")
+        }
+        Item::Event { .. } => String::new(),
+    }
+}
+
+/// The primary-axis (time-axis) start/extent of a laid-out Span/EventRange bar,
+/// in the same coordinate space `svg.rs` uses to draw the `<rect>`: `(x, width)`
+/// in horizontal orientation, `(y, height)` in vertical orientation. Returns
+/// `None` for `LaidItem::Event`, which has no bar.
+fn bar_primary_axis(laid: &LaidItem<'_>, is_vertical: bool) -> Option<(f64, f64)> {
+    match laid {
+        LaidItem::Span {
+            x,
+            y,
+            width,
+            height,
+            ..
+        }
+        | LaidItem::EventRange {
+            x,
+            y,
+            width,
+            height,
+            ..
+        } => Some(if is_vertical {
+            (*y, *height)
+        } else {
+            (*x, *width)
+        }),
+        LaidItem::Event { .. } => None,
+    }
+}
+
+/// Estimated `[start, end]` interval (px, along the primary/time axis) that a
+/// Span/EventRange's always-on Gantt period label occupies at stack level 0,
+/// matching the placement `svg.rs::render_items` uses for Gantt period labels:
+/// left-aligned starting just after the bar's own primary-axis start.
+fn period_label_interval(laid: &LaidItem<'_>, is_vertical: bool) -> (f64, f64) {
+    let Some((bar_start, _bar_extent)) = bar_primary_axis(laid, is_vertical) else {
+        return (0.0, 0.0);
+    };
+    let text = match laid {
+        LaidItem::Span { item, .. } | LaidItem::EventRange { item, .. } => gantt_period_label(item),
+        LaidItem::Event { .. } => return (0.0, 0.0),
+    };
+    let width = estimate_text_width_px(&text, EVENT_LABEL_FONT_PX);
+    (bar_start, bar_start + width)
+}
+
+/// Post-processing pass (#564): detect Gantt period labels (Span/EventRange
+/// start〜end text) that would visually overlap within the same lane *and*
+/// the same #549 bar sub-row (bars whose time ranges don't overlap can still
+/// have colliding period-label text if they sit close together), and assign
+/// each a `period_label_stack_level` so the renderer can offset colliding
+/// labels away from the bar, stacked in order of increasing level.
+///
+/// Grouping by `(lane, bar_stack_level)` keeps this independent of the #549
+/// sub-row Y placement: each sub-row gets its own independent label-collision
+/// sweep, so a label offset never crosses into a neighbouring sub-row's space.
+/// Only called when `RenderOptions.layout_style == LayoutStyle::Gantt`.
+fn assign_period_label_stack_levels(items: &mut [LaidItem<'_>], is_vertical: bool) {
+    // Group by (lane, cross-axis bucket): bars placed in the same #549 sub-row
+    // share the exact same cross-axis pixel offset (computed once during
+    // `compute_item`), so bucketing on that value groups bars per sub-row
+    // without needing to re-derive `bar_stack_level` here.
+    let mut by_lane_and_row: HashMap<(&str, u64), Vec<usize>> = HashMap::new();
+    for (idx, laid) in items.iter().enumerate() {
+        let lane = match laid {
+            LaidItem::Span { item, .. } | LaidItem::EventRange { item, .. } => item_lane_id(item),
+            LaidItem::Event { .. } => continue,
+        };
+        let cross = bar_cross_axis_bucket(laid, is_vertical);
+        by_lane_and_row.entry((lane, cross)).or_default().push(idx);
+    }
+
+    for mut idxs in by_lane_and_row.into_values() {
+        idxs.sort_by(|&a, &b| {
+            let (a_start, _) = period_label_interval(&items[a], is_vertical);
+            let (b_start, _) = period_label_interval(&items[b], is_vertical);
+            a_start
+                .partial_cmp(&b_start)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let mut level_end: Vec<f64> = Vec::new();
+        for idx in idxs {
+            let (start, end) = period_label_interval(&items[idx], is_vertical);
+            let mut level = 0usize;
+            loop {
+                match level_end.get(level) {
+                    None => {
+                        level_end.push(end + EVENT_LABEL_MIN_GAP);
+                        break;
+                    }
+                    Some(&occupied_end) if start >= occupied_end => {
+                        level_end[level] = end + EVENT_LABEL_MIN_GAP;
+                        break;
+                    }
+                    _ => level += 1,
+                }
+            }
+            match &mut items[idx] {
+                LaidItem::Span {
+                    period_label_stack_level,
+                    ..
+                }
+                | LaidItem::EventRange {
+                    period_label_stack_level,
+                    ..
+                } => {
+                    *period_label_stack_level = level.min(u8::MAX as usize) as u8;
+                }
+                LaidItem::Event { .. } => {}
+            }
+        }
+    }
+}
+
+/// Bucket a bar's cross-axis (lane-perpendicular) coordinate to an integer key
+/// so bars placed in the same #549 sub-row (identical cross-axis pixel offset)
+/// group together for period-label collision detection, while bars in
+/// different sub-rows (different `bar_stack_level`) never interfere with each
+/// other's label placement.
+fn bar_cross_axis_bucket(laid: &LaidItem<'_>, is_vertical: bool) -> u64 {
+    let cross = match laid {
+        LaidItem::Span { x, y, .. } | LaidItem::EventRange { x, y, .. } => {
+            if is_vertical {
+                *x
+            } else {
+                *y
+            }
+        }
+        LaidItem::Event { .. } => 0.0,
+    };
+    cross.round() as u64
 }
 
 /// Estimate rendered text width in CSS pixels for timeline labels.

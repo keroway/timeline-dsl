@@ -4,7 +4,7 @@ use tdsl_core::ir::Item;
 
 use crate::layout::{
     EVENT_LABEL_STACK_STEP, GridStyle, LANE_PALETTE, LEGEND_ROW_HEIGHT, LaidItem, LayoutModel,
-    TABLE_COL_LABEL, TABLE_COL_LANE, TABLE_COL_TAGS, TABLE_COL_TIME, TABLE_ROW_HEIGHT,
+    LayoutStyle, TABLE_COL_LABEL, TABLE_COL_LANE, TABLE_COL_TAGS, TABLE_COL_TIME, TABLE_ROW_HEIGHT,
     estimate_text_width_px, format_year, label_available_width_px, laid_item_label, month_abbr,
 };
 
@@ -269,10 +269,16 @@ fn render_lane_bands(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
 /// Render auxiliary grid lines behind the chart content.
 ///
 /// Grid lines are purely decorative (`role="presentation"`) and are drawn at
-/// the intervals dictated by `layout.opts.grid`. When `GridStyle::None` this
-/// function writes nothing, guaranteeing that existing SVG output is unchanged.
+/// the intervals dictated by `layout.effective_grid_style()`. When that
+/// resolves to `GridStyle::None` this function writes nothing, guaranteeing
+/// that existing SVG output is unchanged.
+///
+/// #564: `LayoutStyle::Gantt` uses a heavier `tdsl-grid-gantt` CSS class
+/// (darker/thicker stroke than the standard `tdsl-grid-line`) instead of the
+/// default styling, whether the effective grid came from an explicit `--grid`
+/// choice or the Gantt-forced month grid.
 fn render_grid_lines(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
-    if layout.opts.grid == GridStyle::None {
+    if layout.effective_grid_style() == GridStyle::None {
         return Ok(());
     }
 
@@ -280,6 +286,13 @@ fn render_grid_lines(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     if positions.is_empty() {
         return Ok(());
     }
+
+    let is_gantt = layout.opts.layout_style == LayoutStyle::Gantt;
+    let (class, stroke, stroke_width, stroke_opacity) = if is_gantt {
+        ("tdsl-grid-gantt", "#888", "1.5", "0.6")
+    } else {
+        ("tdsl-grid-line", "#ccc", "1", "0.4")
+    };
 
     if layout.is_vertical() {
         // Vertical layout: time axis is Y; grid lines are horizontal.
@@ -289,7 +302,7 @@ fn render_grid_lines(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
             let y = layout.opts.top_margin + (frac - layout.year_min as f64) * layout.opts.scale;
             writeln!(
                 s,
-                r##"  <line class="tdsl-grid-line" role="presentation" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" stroke="#ccc" stroke-width="1" stroke-opacity="0.4"/>"##,
+                r##"  <line class="{class}" role="presentation" x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" stroke="{stroke}" stroke-width="{stroke_width}" stroke-opacity="{stroke_opacity}"/>"##,
                 x1 = fmt_f(x1),
                 y = fmt_f(y),
                 x2 = fmt_f(x2),
@@ -303,7 +316,7 @@ fn render_grid_lines(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
             let x = layout.opts.left_gutter + (frac - layout.year_min as f64) * layout.opts.scale;
             writeln!(
                 s,
-                r##"  <line class="tdsl-grid-line" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="#ccc" stroke-width="1" stroke-opacity="0.4"/>"##,
+                r##"  <line class="{class}" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="{stroke}" stroke-width="{stroke_width}" stroke-opacity="{stroke_opacity}"/>"##,
                 x = fmt_f(x),
                 y1 = fmt_f(y1),
                 y2 = fmt_f(y2),
@@ -588,6 +601,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 height,
                 color,
                 tooltip,
+                period_label_stack_level,
             } => {
                 let tip = escape_xml(tooltip);
                 let tip_attr = escape_xml_attr(tooltip);
@@ -618,9 +632,22 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 } else {
                     ""
                 };
+                let period_label_fragment = if layout.opts.layout_style == LayoutStyle::Gantt {
+                    render_gantt_period_label_fragment(
+                        item,
+                        layout,
+                        *x,
+                        *y,
+                        *width,
+                        *height,
+                        *period_label_stack_level,
+                    )
+                } else {
+                    String::new()
+                };
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-span{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect>{label_fragment}</g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-span{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect>{label_fragment}{period_label_fragment}</g>"#,
                     aria_label = aria_label,
                     tip = tip,
                     tip_attr = tip_attr,
@@ -639,6 +666,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                         false,
                         "tdsl-item-label"
                     ),
+                    period_label_fragment = period_label_fragment,
                 )?;
             }
             LaidItem::EventRange {
@@ -649,6 +677,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 height,
                 color,
                 tooltip,
+                period_label_stack_level,
             } => {
                 let tip = escape_xml(tooltip);
                 let tip_attr = escape_xml_attr(tooltip);
@@ -678,6 +707,20 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 } else {
                     ""
                 };
+                let is_gantt = layout.opts.layout_style == LayoutStyle::Gantt;
+                let period_label_fragment = if is_gantt {
+                    render_gantt_period_label_fragment(
+                        item,
+                        layout,
+                        *x,
+                        *y,
+                        *width,
+                        *height,
+                        *period_label_stack_level,
+                    )
+                } else {
+                    String::new()
+                };
                 if layout.opts.show_event_labels {
                     let label_fragment = if layout.is_vertical() {
                         render_bar_label_fragment(
@@ -700,7 +743,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     };
                     writeln!(
                         s,
-                        r#"  <g class="tdsl-item tdsl-item-event-range{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect>{label_fragment}</g>"#,
+                        r#"  <g class="tdsl-item tdsl-item-event-range{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect>{label_fragment}{period_label_fragment}</g>"#,
                         aria_label = aria_label,
                         tip = tip,
                         tip_attr = tip_attr,
@@ -712,11 +755,12 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                         w = fmt_f(*width),
                         h = fmt_f(*height),
                         label_fragment = label_fragment,
+                        period_label_fragment = period_label_fragment,
                     )?;
                 } else {
                     writeln!(
                         s,
-                        r#"  <g class="tdsl-item tdsl-item-event-range{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect></g>"#,
+                        r#"  <g class="tdsl-item tdsl-item-event-range{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect>{period_label_fragment}</g>"#,
                         aria_label = aria_label,
                         tip = tip,
                         tip_attr = tip_attr,
@@ -727,6 +771,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                         y = fmt_f(*y),
                         w = fmt_f(*width),
                         h = fmt_f(*height),
+                        period_label_fragment = period_label_fragment,
                     )?;
                 }
             }
@@ -1022,6 +1067,81 @@ fn render_bar_label_fragment(
         size = fmt_f(min_size),
         label = escape_xml(&truncated),
     )
+}
+
+/// Render the always-on Gantt period label (#564: "<start>〜<end>") for a
+/// Span/EventRange bar, placed just above the bar in horizontal orientation or
+/// just to the right of the bar in vertical orientation. `period_label_stack_level`
+/// (from `assign_period_label_stack_levels`) offsets colliding labels within the
+/// same lane sub-row further away from the bar, each with a thin leader line
+/// connecting it back, matching the #537 Event-label collision pattern.
+fn render_gantt_period_label_fragment(
+    item: &Item,
+    layout: &LayoutModel,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    period_label_stack_level: u8,
+) -> String {
+    let text = crate::layout::gantt_period_label(item);
+    if text.is_empty() {
+        return String::new();
+    }
+    let stack_offset = period_label_stack_level as f64 * EVENT_LABEL_STACK_STEP;
+    let class = "tdsl-gantt-period-label";
+    if layout.is_vertical() {
+        // Vertical: label to the right of the bar, vertically centered, pushed
+        // further right per stack level.
+        let label_x = x + width + 6.0 + stack_offset;
+        let label_y = y + height / 2.0;
+        if stack_offset > 0.0 {
+            format!(
+                r##"<line class="tdsl-label-leader" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#999" stroke-width="1" stroke-dasharray="2 2"></line><text class="{class}" x="{lx}" y="{ly}" dominant-baseline="middle">{label}</text>"##,
+                x1 = fmt_f(x + width),
+                y1 = fmt_f(label_y),
+                x2 = fmt_f(label_x),
+                y2 = fmt_f(label_y),
+                class = class,
+                lx = fmt_f(label_x),
+                ly = fmt_f(label_y),
+                label = escape_xml(&text),
+            )
+        } else {
+            format!(
+                r#"<text class="{class}" x="{lx}" y="{ly}" dominant-baseline="middle">{label}</text>"#,
+                class = class,
+                lx = fmt_f(label_x),
+                ly = fmt_f(label_y),
+                label = escape_xml(&text),
+            )
+        }
+    } else {
+        // Horizontal: label centered above the bar, pushed further up per stack level.
+        let label_x = x + width / 2.0;
+        let label_y = y - 4.0 - stack_offset;
+        if stack_offset > 0.0 {
+            format!(
+                r##"<line class="tdsl-label-leader" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#999" stroke-width="1" stroke-dasharray="2 2"></line><text class="{class}" x="{lx}" y="{ly}" text-anchor="middle">{label}</text>"##,
+                x1 = fmt_f(label_x),
+                y1 = fmt_f(y),
+                x2 = fmt_f(label_x),
+                y2 = fmt_f(label_y),
+                class = class,
+                lx = fmt_f(label_x),
+                ly = fmt_f(label_y),
+                label = escape_xml(&text),
+            )
+        } else {
+            format!(
+                r#"<text class="{class}" x="{lx}" y="{ly}" text-anchor="middle">{label}</text>"#,
+                class = class,
+                lx = fmt_f(label_x),
+                ly = fmt_f(label_y),
+                label = escape_xml(&text),
+            )
+        }
+    }
 }
 
 /// Build data-* attributes for interactive mode as a string fragment (leading space included).
