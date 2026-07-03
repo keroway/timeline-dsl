@@ -1,4 +1,4 @@
-use crate::ir::{SourceSpan, TimelineIr};
+use crate::ir::{LaneKind, SourceSpan, TimelineIr, known_lane_kinds};
 use tdsl_parser::ast;
 
 /// `(year, month_or_0, day_or_0, hour_or_0, minute_or_0)` を返す。
@@ -142,6 +142,22 @@ pub struct ValidationDiagnostic {
 /// 渡した場合のみ付与される（lowering 時点でソースなしなら常に `None`）。
 pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
     let mut diags = Vec::new();
+
+    // Check lane kinds. Unknown explicit categories are warnings rather than
+    // lowering errors; `custom` is the documented escape hatch.
+    for lane in &ir.lanes {
+        if LaneKind::parse(&lane.kind).is_none() {
+            diags.push(ValidationDiagnostic {
+                message: format!(
+                    "Lane \"{}\" uses unknown kind: {} (known kinds: {}; use custom for user-defined categories)",
+                    lane.id,
+                    lane.kind,
+                    known_lane_kinds()
+                ),
+                span: lane.source_span.clone(),
+            });
+        }
+    }
 
     // Check that all item lanes exist
     let lane_ids: std::collections::HashSet<&str> =

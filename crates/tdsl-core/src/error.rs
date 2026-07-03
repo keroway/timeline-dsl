@@ -20,6 +20,9 @@ pub enum LoweringError {
     #[error("Multiple timeline blocks found")]
     MultipleTimelines,
 
+    #[error("Unknown timeline unit: {value} (expected one of: {expected})")]
+    UnknownTimelineUnit { value: String, expected: String },
+
     #[cfg(feature = "wikidata")]
     #[error("Wikidata error: {0}")]
     Wikidata(#[from] tdsl_wikidata::WikidataError),

@@ -126,7 +126,7 @@ timeline "中国王朝年表" {
 | プロパティ | 必須 | 説明 |
 |---|---|---|
 | `title` | 任意 | 年表の表示タイトル |
-| `unit` | 任意 | 時間単位（`year`） |
+| `unit` | 任意 | 時間単位（`year`, `month`, `day`）。未知の値は lowering エラー |
 | `range` | 任意 | 表示範囲。`開始..終了` の形式。負の値は紀元前 |
 | `calendar` | 任意 | 暦法。`proleptic_gregorian` 等 |
 | `color_map` | 任意 | タグ→色のマッピング。`タグ名: "#16進数カラーコード";` の形式で複数定義可能 |
@@ -144,7 +144,7 @@ lane "漢" as han { kind dynasty; order 20; }
 | プロパティ | 必須 | 説明 |
 |---|---|---|
 | `as <id>` | 任意 | 内部識別子。省略時はラベルからスラッグを自動生成 |
-| `kind` | 任意 | 分類（`dynasty`, `person`, `nation` 等） |
+| `kind` | 任意 | 分類（既知値: `custom`, `dynasty`, `person`, `country`, `event`）。未知の値は検証警告（独自分類は `custom` 推奨） |
 | `order` | 任意 | 初期表示順（整数） |
 
 ### group

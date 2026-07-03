@@ -1,6 +1,23 @@
 use crate::{ir, lower, validate};
 
 #[test]
+fn validate_warns_on_unknown_lane_kind() {
+    let src = r#"
+timeline "t" { unit year; range 0..100; }
+lane "l" as l { kind dynsty; order 10; }
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("unknown kind") && w.contains("dynsty")),
+        "expected unknown kind warning, got: {warnings:?}"
+    );
+}
+
+#[test]
 fn validate_warns_on_bad_range() {
     let ir = ir::TimelineIr {
         meta: ir::Meta {
