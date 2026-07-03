@@ -285,6 +285,100 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
             message: format!("Timeline range is invalid: {range_start_text}..{range_end_text}"),
             span: None,
         });
+    } else {
+        // #553: items entirely or partially outside `timeline.range` are
+        // silently dropped (Event) or rendered off-canvas (Span/EventRange)
+        // by the renderer. Warn here so authors can trace "written but not
+        // shown" issues instead of hitting a silent fallback.
+        for item in &ir.items {
+            match item {
+                crate::ir::Item::Event {
+                    id,
+                    time,
+                    time_month,
+                    time_day,
+                    time_hour,
+                    time_minute,
+                    source_span,
+                    ..
+                } => {
+                    let t = sortable_tuple(*time, *time_month, *time_day, *time_hour, *time_minute);
+                    if t < r_start || t > r_end {
+                        let time_text =
+                            format_time(*time, *time_month, *time_day, *time_hour, *time_minute);
+                        diags.push(ValidationDiagnostic {
+                            message: format!(
+                                "Event \"{id}\" at {time_text} is outside timeline.range and will not be rendered"
+                            ),
+                            span: source_span.clone(),
+                        });
+                    }
+                }
+                crate::ir::Item::Span {
+                    id,
+                    start,
+                    end,
+                    start_month,
+                    start_day,
+                    start_hour,
+                    start_minute,
+                    end_month,
+                    end_day,
+                    end_hour,
+                    end_minute,
+                    source_span,
+                    ..
+                }
+                | crate::ir::Item::EventRange {
+                    id,
+                    start,
+                    end,
+                    start_month,
+                    start_day,
+                    start_hour,
+                    start_minute,
+                    end_month,
+                    end_day,
+                    end_hour,
+                    end_minute,
+                    source_span,
+                    ..
+                } => {
+                    let kind = if matches!(item, crate::ir::Item::Span { .. }) {
+                        "Span"
+                    } else {
+                        "EventRange"
+                    };
+                    let s = sortable_tuple(
+                        *start,
+                        *start_month,
+                        *start_day,
+                        *start_hour,
+                        *start_minute,
+                    );
+                    let e = sortable_tuple(*end, *end_month, *end_day, *end_hour, *end_minute);
+                    if s > e {
+                        // Already reported by the start > end check above.
+                        continue;
+                    }
+                    if e < r_start || s > r_end {
+                        diags.push(ValidationDiagnostic {
+                            message: format!(
+                                "{kind} \"{id}\" is entirely outside timeline.range and will not be rendered"
+                            ),
+                            span: source_span.clone(),
+                        });
+                    } else if s < r_start || e > r_end {
+                        diags.push(ValidationDiagnostic {
+                            message: format!(
+                                "{kind} \"{id}\" is partially outside timeline.range and will be clipped"
+                            ),
+                            span: source_span.clone(),
+                        });
+                    }
+                }
+            }
+        }
     }
 
     diags

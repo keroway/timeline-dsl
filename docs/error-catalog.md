@@ -304,6 +304,46 @@ span dynasty -206..9 "秦"
 
 ---
 
+### W204: laneのkindが未知の値
+
+**メッセージ**: `Lane "{id}" uses unknown kind: {kind} (known kinds: {known}; use custom for user-defined categories)`
+
+**原因**: `lane` の `kind` が既知値（`custom` / `dynasty` / `person` / `country` / `event`）のいずれにも一致しません。`kind` は自由分類の意図を持つためエラーにはしません。
+
+**修正方法**: タイプミスでなければ無視して構いません。独自分類であることを明示したい場合は `kind custom;` を使ってください。
+
+---
+
+### W205: Eventが timeline.range 外
+
+**メッセージ**: `Event "{id}" at {time} is outside timeline.range and will not be rendered`
+
+**原因**: `event` の時刻が `timeline.range` の外にあります。Renderer は範囲外の Event を描画しません（以前は警告なしで無言 drop されていました）。
+
+**修正方法**: `timeline.range` を拡大するか、意図的に表示範囲を絞っている場合は警告を無視して構いません。
+
+---
+
+### W206: Span / EventRange が timeline.range に完全に含まれない
+
+**メッセージ**: `{Span|EventRange} "{id}" is entirely outside timeline.range and will not be rendered`
+
+**原因**: `span` / `event_range` の期間が `timeline.range` と一切重なっていません。
+
+**修正方法**: `timeline.range` を拡大するか、アイテムの日付を見直してください。
+
+---
+
+### W207: Span / EventRange が timeline.range を一部はみ出し（clipped）
+
+**メッセージ**: `{Span|EventRange} "{id}" is partially outside timeline.range and will be clipped`
+
+**原因**: `span` / `event_range` の一部のみが `timeline.range` 外にはみ出しています。意図的な表示範囲の絞り込みであれば無視して構いません。
+
+**修正方法**: 意図した上であれば対応不要。タイプミスであれば `timeline.range` またはアイテムの日付を修正してください。
+
+---
+
 ## Lowering 警告（tdsl-core: map / apply）
 
 `map` / `apply` で宣言した Wikidata エンティティが、必須フィールドを解決できず

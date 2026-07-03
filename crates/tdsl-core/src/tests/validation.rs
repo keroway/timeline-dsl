@@ -236,6 +236,77 @@ fn validate_no_warning_on_valid_span() {
     );
 }
 
+#[test]
+fn validate_warns_on_event_outside_range() {
+    let src = r#"
+timeline "t" { title "t"; unit year; range 0..100; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+event l 500 "out of range" {};
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("outside timeline.range") && w.contains("not be rendered")),
+        "expected outside-range warning, got: {warnings:?}"
+    );
+}
+
+#[test]
+fn validate_warns_on_span_entirely_outside_range() {
+    let src = r#"
+timeline "t" { title "t"; unit year; range 0..100; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+span l 500..600 "out of range" {};
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("entirely outside timeline.range")),
+        "expected entirely-outside-range warning, got: {warnings:?}"
+    );
+}
+
+#[test]
+fn validate_warns_on_span_partially_outside_range() {
+    let src = r#"
+timeline "t" { title "t"; unit year; range 0..100; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+span l 50..150 "half out" {};
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("partially outside timeline.range") && w.contains("clipped")),
+        "expected partially-outside-range warning, got: {warnings:?}"
+    );
+}
+
+#[test]
+fn validate_no_range_warning_when_item_inside_range() {
+    let src = r#"
+timeline "t" { title "t"; unit year; range 0..1000; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+span l 100..200 "inside" {};
+event l 150 "inside" {};
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings.is_empty(),
+        "expected no warnings for in-range items, got: {warnings:?}"
+    );
+}
+
 // ─── validate_with_spans テスト ──────────────────────────────────────
 
 /// start > end の span → warning 診断が返り、span.message に span ID を含む。
