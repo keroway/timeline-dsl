@@ -28,7 +28,8 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
                  | "unit" <identifier> ";"
                  | "range" <time_value> ".." <time_value> ";"
                  | "calendar" <identifier> ";"
-                 | "color_map" "{" { <identifier> ":" <string> ";" } "}"
+                 | "color_map" "{" { <color_map_key> ":" <string> ";" } "}"
+<color_map_key> ::= <string> | <identifier>
 
 <lane>         ::= "lane" <string> ["as" <identifier>] "{" { <lane_prop> } "}"
 <lane_prop>    ::= "kind" <identifier> ";"
@@ -132,6 +133,15 @@ timeline "中国王朝年表" {
 | `color_map` | 任意 | タグ→色のマッピング。`タグ名: "#16進数カラーコード";` の形式で複数定義可能 |
 
 `color_map` で定義した色は `tdsl render` 時に自動適用される。`color_map` は hex 色（`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`）と単純な CSS 色キーワードを受け付ける。複雑な CSS 値は安全のため renderer が無視する。高度な装飾は CLI の `--custom-css` を使う。`--color-map "war=#cc0000"` CLIフラグで上書きも可能。
+
+`color_map` のキーは `ident`（ASCII）または文字列リテラル（任意 Unicode）で指定できる。`tags ["戦争"]` のような非 ASCII タグに色を割り当てる場合は引用符で囲む（#551）。
+
+```
+color_map {
+    war: "#cc0000";       // バレアイド(ident)キー
+    "戦争": "#cc0000";     // 文字列リテラルキー（非 ASCII 可）
+}
+```
 
 ### lane
 

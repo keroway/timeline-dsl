@@ -226,6 +226,15 @@ timeline "Chinese Dynasties" {
 
 `color_map` accepts hex colors (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`) and simple CSS named color keywords. More complex CSS values are intentionally ignored by the renderer; use CLI `--custom-css` for advanced styling.
 
+`color_map` keys accept either a bare `ident` (ASCII) or a quoted string literal (any Unicode), so non-ASCII tags such as `"戦争"` can have a color assigned directly in the DSL:
+
+```
+color_map {
+    war: "#cc0000";     // bare ident key
+    "戦争": "#cc0000";   // string literal key (non-ASCII)
+}
+```
+
 ### lane declaration
 
 Defines a vertical category on the timeline. Use `as` to specify the internal ID. Known `kind` values are `custom`, `dynasty`, `person`, `country`, and `event`; unknown values are reported as validation warnings.

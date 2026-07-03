@@ -6,6 +6,27 @@ fn escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+/// Whether `s` is a valid bare `ident` per the grammar. Mirrors
+/// `tdsl_parser::format::is_valid_ident` (kept local since it is a private
+/// helper there); used to decide whether a `color_map` key (#551) can be
+/// emitted unquoted or must be quoted as a string literal.
+fn is_valid_ident(s: &str) -> bool {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+fn format_color_map_key(k: &str) -> String {
+    if is_valid_ident(k) {
+        k.to_string()
+    } else {
+        format!(r#""{}""#, escape(k))
+    }
+}
+
 /// IR の年 + 月日・時分精度を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` 形式の文字列に整形する。
 fn format_time(
     year: i64,
@@ -61,7 +82,13 @@ pub fn decompile(ir: &TimelineIr) -> String {
         entries.sort_by_key(|(k, _)| k.as_str());
         writeln!(out, "    color_map {{").unwrap();
         for (k, v) in &entries {
-            writeln!(out, r#"        {k}: "{v}";"#).unwrap();
+            writeln!(
+                out,
+                r#"        {}: "{}";"#,
+                format_color_map_key(k),
+                escape(v)
+            )
+            .unwrap();
         }
         writeln!(out, "    }}").unwrap();
     }
@@ -397,5 +424,44 @@ mod tests {
         let tdsl = decompile(&ir);
         assert!(tdsl.contains(r#"timeline "Title with \"quotes\"""#));
         tdsl_parser::parse(&tdsl).expect("escaped output must parse");
+    }
+
+    #[test]
+    fn decompile_roundtrip_preserves_non_ascii_color_map_key() {
+        // #551: color_map keys are not restricted to bare idents; a
+        // non-ASCII (e.g. Japanese) tag key must round-trip through
+        // decompile -> parse -> lower unchanged.
+        let mut color_map = HashMap::new();
+        color_map.insert("戦争".to_string(), "#c00".to_string());
+        color_map.insert("dynasty".to_string(), "#3366cc".to_string());
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "T".to_string(),
+                unit: "year".to_string(),
+                range: (0, 100),
+                calendar: "proleptic_gregorian".to_string(),
+                color_map,
+                ..Default::default()
+            },
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let tdsl = decompile(&ir);
+        assert!(tdsl.contains("\"戦争\": \"#c00\";"));
+        assert!(tdsl.contains("dynasty: \"#3366cc\";"));
+
+        let file = tdsl_parser::parse(&tdsl).expect("decompiled output must parse");
+        let ir2 = crate::lower::lower_static(&file).expect("must lower without errors");
+        assert_eq!(
+            ir2.meta.color_map.get("戦争").map(String::as_str),
+            Some("#c00")
+        );
+        assert_eq!(
+            ir2.meta.color_map.get("dynasty").map(String::as_str),
+            Some("#3366cc")
+        );
     }
 }

@@ -931,6 +931,34 @@ mod tests {
     }
 
     #[test]
+    fn parse_color_map_block_string_key() {
+        // #551: non-ASCII tags (e.g. Japanese) can be used as color_map keys
+        // via a quoted string literal, alongside the pre-existing bare ident form.
+        let src = r##"
+            timeline "テスト" {
+                range 0..2000;
+                color_map {
+                    "戦争": "#c00";
+                    dynasty: "#3366cc";
+                }
+            }
+        "##;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Timeline(t) => {
+                assert_eq!(t.color_map.len(), 2);
+                assert!(t.color_map.iter().any(|(k, v)| k == "戦争" && v == "#c00"));
+                assert!(
+                    t.color_map
+                        .iter()
+                        .any(|(k, v)| k == "dynasty" && v == "#3366cc")
+                );
+            }
+            _ => panic!("expected Timeline"),
+        }
+    }
+
+    #[test]
     fn parse_color_map_block_empty() {
         let src = r#"timeline "T" { color_map {} }"#;
         let file = parse(src).unwrap();

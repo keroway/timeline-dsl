@@ -28,7 +28,8 @@ unit_prop       = { "unit" ~ ident ~ ";" }
 range_prop      = { "range" ~ time_value ~ ".." ~ time_value ~ ";" }
 calendar_prop   = { "calendar" ~ ident ~ ";" }
 color_map_block = { "color_map" ~ "{" ~ color_map_entry* ~ "}" }
-color_map_entry = { ident ~ ":" ~ string_literal ~ ";" }
+color_map_entry = { color_map_key ~ ":" ~ string_literal ~ ";" }
+color_map_key   = { string_literal | ident }
 
 // ─── Lane Declaration ───────────────────────────────────────
 lane_decl = {
