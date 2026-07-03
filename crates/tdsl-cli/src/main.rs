@@ -226,7 +226,9 @@ enum Commands {
         grid: GridStyleArg,
 
         /// High-level layout style: timeline (default), group-bands (era/group background
-        /// blocks), or gantt (emphasized month grid + always-on period labels)
+        /// blocks), gantt (emphasized month grid + always-on period labels), or zigzag
+        /// (alternating up/down placement; only for <=2 lanes, otherwise falls back to
+        /// timeline with a warning)
         #[arg(long, value_enum, default_value_t = LayoutStyleArg::Timeline)]
         layout_style: LayoutStyleArg,
 
@@ -524,6 +526,10 @@ enum LayoutStyleArg {
     /// Project-management-style layout (#564): emphasized month grid +
     /// always-on Span/EventRange period labels.
     Gantt,
+    /// Alternating up/down (zigzag) placement of items within a single lane
+    /// (#565), sorted by start time. Only applied when the timeline has at
+    /// most 2 lanes; otherwise falls back to Timeline layout with a warning.
+    Zigzag,
 }
 
 impl LayoutStyleArg {
@@ -532,6 +538,7 @@ impl LayoutStyleArg {
             LayoutStyleArg::Timeline => tdsl_render::layout::LayoutStyle::Timeline,
             LayoutStyleArg::GroupBands => tdsl_render::layout::LayoutStyle::GroupBands,
             LayoutStyleArg::Gantt => tdsl_render::layout::LayoutStyle::Gantt,
+            LayoutStyleArg::Zigzag => tdsl_render::layout::LayoutStyle::Zigzag,
         }
     }
 }

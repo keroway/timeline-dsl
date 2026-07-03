@@ -116,6 +116,9 @@ tdsl render examples/china_dynasties.tdsl --layout-style group-bands --output ch
 # Gantt スタイル（月グリッド強調 + 期間ラベル常時表示、プロジェクト管理向け）
 tdsl render examples/china_dynasties.tdsl --layout-style gantt --output china_gantt.html
 
+# Zigzag スタイル（レーン内アイテムを開始時刻順に上下交互に配置。単一/少数レーン向け。レーン数が 2 を超えると警告付きで通常レイアウトにフォールバック）
+tdsl render examples/apollo_11.tdsl --layout-style zigzag --output apollo_zigzag.html
+
 # ウォッチモード：ファイル変更を検知して自動再レンダリング（--output 必須、html / svg のみ対応）
 tdsl render examples/china_dynasties.tdsl --watch --output china.html
 

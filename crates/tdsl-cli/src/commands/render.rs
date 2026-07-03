@@ -157,6 +157,20 @@ fn do_render(
         }
     };
 
+    // #565: --layout-style zigzag only applies when the timeline has at most
+    // ZIGZAG_MAX_LANES lanes; LayoutModel silently degrades to Timeline layout
+    // beyond that, so the CLI must surface a non-silent warning here per
+    // AGENTS.md §4.1 ("no silent fallback").
+    if matches!(layout_style, LayoutStyleArg::Zigzag)
+        && ir.lanes.len() > tdsl_render::ZIGZAG_MAX_LANES
+    {
+        eprintln!(
+            "Warning: --layout-style zigzag only supports up to {} lane(s); this timeline has {}. Falling back to the standard timeline layout.",
+            tdsl_render::ZIGZAG_MAX_LANES,
+            ir.lanes.len()
+        );
+    }
+
     let opts = tdsl_render::RenderOptions {
         scale,
         lane_height,

@@ -69,6 +69,15 @@ pub enum LayoutStyle {
     /// (`tdsl-grid-gantt` CSS class) and always-on start〜end period labels on
     /// Span/EventRange bars.
     Gantt,
+    /// Alternating up/down (zigzag) placement of items within a single lane
+    /// (#565), sorted by start time: even-indexed items sit above the lane
+    /// axis, odd-indexed items below. Only applied when the timeline has at
+    /// most [`ZIGZAG_MAX_LANES`] lanes; otherwise falls back to `Timeline`
+    /// layout with a warning (never silently, per AGENTS.md §4.1). Mutually
+    /// exclusive with the #549 bar sub-row stacking: Zigzag is an alternative
+    /// overlap-avoidance strategy, so its cross-axis offset replaces (rather
+    /// than combines with) the bar_stack_level offset.
+    Zigzag,
 }
 
 /// Rendering options. Pixel dimensions and styling parameters.
@@ -382,6 +391,13 @@ pub struct LayoutModel<'a> {
     /// #536: Y coordinate (in the *final*, table-inclusive `total_height`) where the
     /// table's header row begins. Only meaningful when `opts.show_table` is true.
     pub(crate) table_top_y: f64,
+    /// #565: `true` when `opts.layout_style == LayoutStyle::Zigzag` was requested
+    /// but the timeline has more than [`ZIGZAG_MAX_LANES`] lanes, so Zigzag was
+    /// **not** applied and the layout silently degraded to `Timeline` positioning
+    /// instead — "silently" here means *this layout pass* does not error, but per
+    /// AGENTS.md §4.1 (no silent fallback) every caller (CLI/wasm/webui) MUST
+    /// check this flag and surface a warning to the user; it is never swallowed.
+    pub zigzag_fallback: bool,
 }
 
 impl<'a> LayoutModel<'a> {
@@ -402,9 +418,39 @@ impl<'a> LayoutModel<'a> {
 
         let is_vertical = opts.orientation == Orientation::Vertical;
         let time_span = (year_max - year_min) as f64;
+
+        // #565: Zigzag is mutually exclusive with the #549 bar sub-row stacking
+        // (an alternative overlap-avoidance strategy), and only applies when the
+        // timeline has at most ZIGZAG_MAX_LANES lanes — otherwise it falls back to
+        // Timeline positioning (bar_stack_level-based), surfaced via
+        // `zigzag_fallback` so callers can warn instead of silently ignoring it.
+        let zigzag_requested = opts.layout_style == LayoutStyle::Zigzag;
+        let zigzag_active = zigzag_requested && lanes_ordered.len() <= ZIGZAG_MAX_LANES;
+        let zigzag_fallback = zigzag_requested && !zigzag_active;
+        let zigzag_parity = if zigzag_active {
+            assign_zigzag_parity(ir)
+        } else {
+            Vec::new()
+        };
+
         let bar_stack = assign_bar_stack_levels(ir);
-        let lane_effective_heights =
-            compute_lane_effective_heights(&lanes_ordered, &bar_stack, &opts);
+        let lane_effective_heights = if zigzag_active {
+            // Zigzag reserves symmetric extra cross-axis space on both sides of
+            // the lane center instead of the one-directional #549 stacking
+            // extension, so every lane gets the same effective height regardless
+            // of per-item stack levels.
+            lanes_ordered
+                .iter()
+                .map(|lane| {
+                    (
+                        lane.id.clone(),
+                        opts.lane_height + zigzag_cross_offset(&opts) * 2.0,
+                    )
+                })
+                .collect()
+        } else {
+            compute_lane_effective_heights(&lanes_ordered, &bar_stack, &opts)
+        };
 
         // lane_y stores:
         //   horizontal → lane center Y coordinate
@@ -573,12 +619,19 @@ impl<'a> LayoutModel<'a> {
                 &lane_colors,
             );
             let tooltip = item_tooltip(item);
+            let zigzag_offset = if zigzag_active {
+                let sign = if zigzag_parity[item_idx] { 1.0 } else { -1.0 };
+                Some(sign * zigzag_cross_offset(&opts))
+            } else {
+                None
+            };
             compute_item(
                 item,
                 &mut items,
                 ItemLayoutArgs {
                     lane_axis,
                     bar_stack_level: bar_stack.item_levels[item_idx],
+                    zigzag_offset,
                     year_min,
                     year_max,
                     opts: &opts,
@@ -619,6 +672,7 @@ impl<'a> LayoutModel<'a> {
             legend_row_count,
             legend_top_y,
             table_top_y,
+            zigzag_fallback,
         }
     }
 
@@ -961,7 +1015,15 @@ struct ItemLayoutArgs<'a> {
     /// coordinate; for vertical layouts it is the lane center X coordinate.
     lane_axis: f64,
     /// Greedy interval-coloring level for Span/EventRange bars within the lane (#549).
+    /// Ignored when `zigzag_offset` is `Some` (#565: the two strategies are
+    /// mutually exclusive; Zigzag's signed offset replaces this level-based one).
     bar_stack_level: usize,
+    /// #565: signed cross-axis offset (px) from `LayoutStyle::Zigzag`, applied
+    /// instead of `bar_stack_level` when present. Positive/negative alternates
+    /// by the item's position (even/odd) among same-lane items sorted by start
+    /// time; `None` when Zigzag is inactive (not requested, or the lane-count
+    /// fallback applied) or Zigzag is active but this item's lane isn't found.
+    zigzag_offset: Option<f64>,
     year_min: i64,
     year_max: i64,
     opts: &'a RenderOptions,
@@ -1047,6 +1109,75 @@ fn compute_lane_effective_heights(
         .collect()
 }
 
+/// Maximum lane count for which `LayoutStyle::Zigzag` is applied (#565). Beyond
+/// this, alternating cross-axis offsets from adjacent lanes would visually
+/// collide, so the layout falls back to `Timeline` positioning instead — never
+/// silently (AGENTS.md §4.1): callers must check `LayoutModel::zigzag_fallback`
+/// and surface a warning.
+pub const ZIGZAG_MAX_LANES: usize = 2;
+
+/// The item's primary (time-axis) start coordinate, in fractional-year units,
+/// used to sort items within a lane for `LayoutStyle::Zigzag` (#565) ordering.
+/// Unlike [`bar_interval`] (Span/EventRange only), this covers `Item::Event` too
+/// since Zigzag alternates *all* item kinds within a lane by start time.
+fn item_start_frac(item: &Item) -> f64 {
+    match item {
+        Item::Span {
+            start,
+            start_month,
+            start_day,
+            start_hour,
+            start_minute,
+            ..
+        }
+        | Item::EventRange {
+            start,
+            start_month,
+            start_day,
+            start_hour,
+            start_minute,
+            ..
+        } => start_frac_with_time(*start, *start_month, *start_day, *start_hour, *start_minute),
+        Item::Event {
+            time,
+            time_month,
+            time_day,
+            time_hour,
+            time_minute,
+            ..
+        } => to_year_frac(*time, *time_month, *time_day, *time_hour, *time_minute),
+    }
+}
+
+/// Per-item Zigzag parity assignment (#565): for each lane, sort items by
+/// start time and assign `true` (offset one way) to even indices, `false`
+/// (offset the other way) to odd indices. Ties (identical start time) break on
+/// item index for determinism.
+///
+/// Returns one bool per item in `ir.items` order (same convention as
+/// [`BarStackAssignment::item_levels`]). Always computed (cheap), but only
+/// consulted by `compute_item` when `opts.layout_style == LayoutStyle::Zigzag`
+/// and the fallback lane-count gate passes.
+fn assign_zigzag_parity(ir: &TimelineIr) -> Vec<bool> {
+    let mut parity = vec![false; ir.items.len()];
+    let mut by_lane: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (idx, item) in ir.items.iter().enumerate() {
+        by_lane.entry(item_lane_id(item)).or_default().push(idx);
+    }
+    for idxs in by_lane.values_mut() {
+        idxs.sort_by(|&a, &b| {
+            item_start_frac(&ir.items[a])
+                .partial_cmp(&item_start_frac(&ir.items[b]))
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.cmp(&b))
+        });
+        for (order, &idx) in idxs.iter().enumerate() {
+            parity[idx] = order.is_multiple_of(2);
+        }
+    }
+    parity
+}
+
 fn bar_interval(item: &Item) -> Option<(f64, f64)> {
     match item {
         Item::Span {
@@ -1094,6 +1225,14 @@ fn bar_stack_step(opts: &RenderOptions) -> f64 {
     40.0 * density
 }
 
+/// Cross-axis distance (px) between the lane center and an item offset by
+/// `LayoutStyle::Zigzag` (#565). Uses the same density scaling as
+/// [`bar_stack_step`] so Zigzag spacing grows with `lane_height` consistently
+/// with the #549 sub-row spacing it replaces.
+fn zigzag_cross_offset(opts: &RenderOptions) -> f64 {
+    bar_stack_step(opts)
+}
+
 /// Compute the laid-out coordinates for a single item.
 ///
 /// The orientation-specific projection collapses into a single primary/cross
@@ -1110,6 +1249,7 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
     let ItemLayoutArgs {
         lane_axis,
         bar_stack_level,
+        zigzag_offset,
         year_min,
         year_max,
         opts,
@@ -1132,7 +1272,11 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
     let event_range_h = EVENT_RANGE_H * density;
     let event_range_y_offset = EVENT_RANGE_Y_OFFSET * density;
     let event_stem_h = EVENT_STEM_H * density;
-    let bar_stack_offset = bar_stack_level as f64 * bar_stack_step(opts);
+    // #565: Zigzag's signed offset replaces the #549 level-based one (mutually
+    // exclusive strategies); when Zigzag is inactive this is identical to the
+    // pre-#565 `bar_stack_level as f64 * bar_stack_step(opts)` expression.
+    let bar_stack_offset =
+        zigzag_offset.unwrap_or_else(|| bar_stack_level as f64 * bar_stack_step(opts));
 
     match item {
         Item::Span {
@@ -1233,10 +1377,14 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             }
             let frac = to_year_frac(*time, *time_month, *time_day, *time_hour, *time_minute);
             let primary = primary_anchor + (frac - year_min as f64) * opts.scale;
+            // #565: Zigzag shifts the Event's cross-axis (lane) position by
+            // `bar_stack_offset` (which carries the signed zigzag offset here;
+            // #549 never stacks Events, so this is 0.0 outside Zigzag mode).
+            let event_lane_axis = lane_axis + bar_stack_offset;
             let (x, y_top, y_bottom, y_dot) = if is_vertical {
                 // x = lane axis; y_top/y_bottom/y_dot all live on the time axis.
                 (
-                    lane_axis,
+                    event_lane_axis,
                     primary - event_stem_h,
                     primary + event_stem_h,
                     primary,
@@ -1245,9 +1393,9 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
                 // x = time axis; y_top/y_bottom/y_dot live on the lane axis.
                 (
                     primary,
-                    lane_axis - event_stem_h,
-                    lane_axis + event_stem_h,
-                    lane_axis,
+                    event_lane_axis - event_stem_h,
+                    event_lane_axis + event_stem_h,
+                    event_lane_axis,
                 )
             };
             items.push(LaidItem::Event {
@@ -3140,6 +3288,276 @@ mod tests {
 
         assert_eq!(layout.group_bands.len(), 1);
         assert!((layout.group_bands[0].height - 100.0).abs() < 0.001);
+    }
+
+    // ─── #565 Zigzag layout style tests ────────────────────────────────────────
+
+    fn event_item(id: &str, lane: &str, time: i64, label: &str) -> Item {
+        Item::Event {
+            id: id.into(),
+            lane: lane.into(),
+            time,
+            label: label.into(),
+            tags: vec![],
+            source: None,
+            origin: None,
+            note: None,
+            link: None,
+            color: None,
+            time_month: None,
+            time_day: None,
+            time_hour: None,
+            time_minute: None,
+            source_span: None,
+        }
+    }
+
+    #[test]
+    fn zigzag_single_lane_alternates_cross_axis_offset_by_start_order() {
+        // #565: four Events in one lane, sorted by start time, must alternate
+        // sides of the lane axis: even index above (offset), odd index below.
+        let ir = TimelineIr {
+            meta: mk_meta((2000, 2010)),
+            lanes: vec![Lane {
+                id: "events".into(),
+                label: "Events".into(),
+                kind: "custom".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![
+                event_item("a", "events", 2001, "A"),
+                event_item("b", "events", 2003, "B"),
+                event_item("c", "events", 2005, "C"),
+                event_item("d", "events", 2007, "D"),
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::Zigzag,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        assert!(
+            !layout.zigzag_fallback,
+            "single-lane timeline must not trigger the Zigzag fallback"
+        );
+
+        let lane_axis = layout.lane_y["events"];
+        let cross: Vec<f64> = layout
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                LaidItem::Event { y_dot, .. } => Some(*y_dot),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(cross.len(), 4);
+        // A (index 0, even) and C (index 2, even) share one side...
+        assert!((cross[0] - cross[2]).abs() < 0.001);
+        // ...B (index 1, odd) and D (index 3, odd) share the other...
+        assert!((cross[1] - cross[3]).abs() < 0.001);
+        // ...and the two sides are on opposite sides of the lane axis, each
+        // offset by a non-zero amount.
+        assert!((cross[0] - lane_axis).abs() > 1.0);
+        assert!((cross[1] - lane_axis).abs() > 1.0);
+        assert!(
+            (cross[0] - lane_axis) * (cross[1] - lane_axis) < 0.0,
+            "even/odd items must be offset to opposite sides of the lane axis: {cross:?} (lane_axis={lane_axis})"
+        );
+    }
+
+    #[test]
+    fn zigzag_disabled_by_default_leaves_items_on_lane_axis() {
+        let ir = TimelineIr {
+            meta: mk_meta((2000, 2010)),
+            lanes: vec![Lane {
+                id: "events".into(),
+                label: "Events".into(),
+                kind: "custom".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![
+                event_item("a", "events", 2001, "A"),
+                event_item("b", "events", 2003, "B"),
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        assert!(!layout.zigzag_fallback);
+        let lane_axis = layout.lane_y["events"];
+        for item in &layout.items {
+            if let LaidItem::Event { y_dot, .. } = item {
+                assert!((*y_dot - lane_axis).abs() < 0.001);
+            }
+        }
+    }
+
+    #[test]
+    fn zigzag_falls_back_to_timeline_when_lane_count_exceeds_threshold() {
+        // #565: with more than ZIGZAG_MAX_LANES lanes, Zigzag must not silently
+        // apply partial/incorrect offsets — it must fall back to Timeline
+        // positioning (bar_stack_level-based, identical to layout_style=Timeline)
+        // and set `zigzag_fallback = true` so callers can warn (AGENTS.md §4.1).
+        let lanes: Vec<Lane> = (0..(ZIGZAG_MAX_LANES + 1))
+            .map(|i| Lane {
+                id: format!("lane{i}"),
+                label: format!("Lane {i}"),
+                kind: "custom".into(),
+                order: i as i64,
+                group: None,
+                source_span: None,
+            })
+            .collect();
+        let items: Vec<Item> = lanes
+            .iter()
+            .enumerate()
+            .map(|(i, lane)| event_item(&format!("e{i}"), &lane.id, 2001 + i as i64, "E"))
+            .collect();
+        let ir = TimelineIr {
+            meta: mk_meta((2000, 2010)),
+            lanes,
+            items,
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::Zigzag,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        assert!(
+            layout.zigzag_fallback,
+            "exceeding ZIGZAG_MAX_LANES must set zigzag_fallback = true"
+        );
+        // Every item must sit exactly on its own lane's axis (Timeline layout),
+        // not offset by a zigzag cross-axis shift.
+        for item in &layout.items {
+            if let LaidItem::Event {
+                item: ir_item,
+                y_dot,
+                ..
+            } = item
+            {
+                let lane_axis = layout.lane_y[item_lane_id(ir_item)];
+                assert!((*y_dot - lane_axis).abs() < 0.001);
+            }
+        }
+    }
+
+    #[test]
+    fn zigzag_and_bar_stacking_are_mutually_exclusive() {
+        // #565/#549 interaction: two overlapping Spans in the same (single)
+        // lane would normally trigger #549 sub-row stacking (non-zero
+        // bar_stack_level cross-axis offset). Under Zigzag, that #549 offset
+        // must NOT also apply — the cross-axis position is fully determined by
+        // the zigzag parity, not by bar_stack_level.
+        let ir = TimelineIr {
+            meta: mk_meta((0, 100)),
+            lanes: vec![Lane {
+                id: "x".into(),
+                label: "X".into(),
+                kind: "k".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![
+                Item::Span {
+                    id: "s1".into(),
+                    lane: "x".into(),
+                    start: 10,
+                    end: 50,
+                    label: "S1".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    note: None,
+                    link: None,
+                    color: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_open: false,
+                    source_span: None,
+                },
+                Item::Span {
+                    id: "s2".into(),
+                    lane: "x".into(),
+                    start: 20,
+                    end: 60,
+                    label: "S2".into(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    note: None,
+                    link: None,
+                    color: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_open: false,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        // Sanity check: without Zigzag, #549 stacking pushes s2 to level 1
+        // (non-zero Y offset from s1), as covered by the pre-existing
+        // `vertical_overlap_stacking_expands_lane_width`/horizontal equivalents.
+        let timeline_layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let timeline_ys: Vec<f64> = timeline_layout
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                LaidItem::Span { y, .. } => Some(*y),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            (timeline_ys[0] - timeline_ys[1]).abs() > 0.001,
+            "sanity check: #549 stacking must offset overlapping spans without Zigzag"
+        );
+
+        // Under Zigzag, the cross-axis position instead follows even/odd start
+        // order (s1 starts first = index 0/even, s2 = index 1/odd), fully
+        // replacing the #549 level-based offset.
+        let zigzag_opts = RenderOptions {
+            layout_style: LayoutStyle::Zigzag,
+            ..RenderOptions::default()
+        };
+        let zigzag_layout = LayoutModel::compute(&ir, zigzag_opts);
+        assert!(!zigzag_layout.zigzag_fallback);
+        let lane_axis = zigzag_layout.lane_y["x"];
+        let zigzag_ys: Vec<f64> = zigzag_layout
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                LaidItem::Span { y, height, .. } => Some(*y + *height / 2.0),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            (zigzag_ys[0] - lane_axis) * (zigzag_ys[1] - lane_axis) < 0.0,
+            "Zigzag must place overlapping spans on opposite sides of the lane axis: {zigzag_ys:?} (lane_axis={lane_axis})"
+        );
     }
 
     #[test]

@@ -399,7 +399,7 @@ tdsl render [OPTIONS] <FILE>
 | `--color-map <COLOR_MAP>` | タグ→色マッピング（例: `war=#cc0000,dynasty=#3366cc`） | — |
 | `--orientation <ORIENTATION>` | 時間軸方向（`horizontal` / `vertical`） | `horizontal` |
 | `--grid <GRID>` | 補助グリッド線（`none` / `decade` / `year` / `month`）。`none` でグリッド無効（デフォルト）。`decade` = 10年ごと、`year` = 1年ごと、`month` = 月ごとの薄い補助線を描画 | `none` |
-| `--layout-style <LAYOUT_STYLE>` | 高レベルレイアウトスタイル（`timeline` / `group-bands` / `gantt`）。`--orientation` と直交。`timeline` = 通常レイアウト（デフォルト）。`group-bands` = レーンの `group` が連続する箇所に背景帯を描画（#543）。`gantt` = 月単位グリッドを強調表示（`--grid` 未指定時は自動で月グリッド相当を強制）し、`span` / `event_range` のバーに開始〜終了日の期間ラベルを常時表示するプロジェクト管理向けスタイル。同一レーン内で近接するラベルは自動的にスタッキングされ重なりを回避する（#564） | `timeline` |
+| `--layout-style <LAYOUT_STYLE>` | 高レベルレイアウトスタイル（`timeline` / `group-bands` / `gantt` / `zigzag`）。`--orientation` と直交。`timeline` = 通常レイアウト（デフォルト）。`group-bands` = レーンの `group` が連続する箇所に背景帯を描画（#543）。`gantt` = 月単位グリッドを強調表示（`--grid` 未指定時は自動で月グリッド相当を強制）し、`span` / `event_range` のバーに開始〜終了日の期間ラベルを常時表示するプロジェクト管理向けスタイル。同一レーン内で近接するラベルは自動的にスタッキングされ重なりを回避する（#564）。`zigzag` = レーン内アイテムを開始時刻順に上下交互に配置（#565）。レーン数が 2 以下のときのみ有効。それ以上の場合は警告を出して通常の `timeline` レイアウトにフォールバックする（黙殺フォールバックはしない）。`gantt` / `zigzag` はいずれも #549（バーの重なり回避サブ行スタッキング）とは異なるレイアウト軸であり、`zigzag` は特に #549 と互いに排他 | `timeline` |
 | `--watch` | 入力ファイルの変更を監視し、変更検出のたびに自動再レンダリングする。`--output` が必須。`html` / `svg` のみ対応（`png` / `pdf` は非対応） | — |
 | `--show-table` | 内容一覧の表を追加する（時期・ラベル・レーン・タグ列、時系列順）。`--format html` ではギデカ HTML `<table>` として追加され、`svg` / `png` / `pdf` ではタイムライン本体の下に SVG `<rect>`/`<text>` で同等の表が描画される（#536）。PDF は従来と同じ単一ページベクトル出力のままで、表を含む全体をページに収まるように拡大縮小する（ページ分割は未実装。ADR-0002 の単一ベキトルPDF方式を踏衢） | — |
 | `--show-event-labels` | イベント（`event` / `event_range`）のドット・バー近傍にラベルテキストを常時描画する。デフォルト無効（ホバー時のツールチップのみ） | — |
@@ -460,6 +460,9 @@ tdsl render examples/china_dynasties.tdsl --layout-style group-bands --output ch
 
 # Gantt スタイル（月グリッド強調 + 期間ラベル常時表示）で HTML に出力
 tdsl render examples/china_dynasties.tdsl --layout-style gantt --output china_gantt.html
+
+# Zigzag スタイル（レーン内アイテムを上下交互に配置、単一/少数レーン向け）
+tdsl render examples/apollo_11.tdsl --layout-style zigzag --output apollo_zigzag.html
 
 # ファイル変更を監視して自動再レンダリング（Ctrl+C で終了）
 tdsl render examples/china_dynasties.tdsl --watch --output china.html
