@@ -82,7 +82,7 @@ tdsl build examples/china_dynasties.tdsl --pretty
 # Syntax and semantic check
 tdsl check examples/china_dynasties.tdsl
 
-# Render to standalone HTML (just open in a browser)
+# Render to standalone HTML (just open in a browser; no external font/CDN dependency)
 tdsl render examples/china_dynasties.tdsl --output china.html
 open china.html
 

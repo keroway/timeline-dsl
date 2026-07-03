@@ -31,9 +31,6 @@ pub fn wrap_html(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 <style>
 {css}
 {theme_css}</style>{custom_css_block}
@@ -61,8 +58,8 @@ pub fn wrap_html(
 }
 
 const EMBEDDED_CSS: &str = r#"body {
-  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI",
-    "Yu Gothic", "Meiryo", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo",
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   margin: 24px;
   color: #222;
   background: #fafafa;
@@ -439,9 +436,6 @@ pub fn wrap_html_interactive(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 <style>
 {css}
 {theme_css}{interactive_css}</style>{custom_css_block}
@@ -799,6 +793,25 @@ mod tests {
         assert!(html.contains("<svg></svg>"));
         assert!(html.contains(r#"id="tdsl-tooltip""#));
         assert!(html.contains(r#"data-tdsl-tooltip"#));
+    }
+
+    #[test]
+    fn standalone_html_has_no_external_font_dependency() {
+        let opts = RenderOptions::default();
+        let html = wrap_html("<svg></svg>", "test title", &opts, None);
+        assert!(!html.contains("fonts.googleapis.com"));
+        assert!(!html.contains("fonts.gstatic.com"));
+        assert!(!html.contains("https://"));
+        assert!(html.contains("Hiragino Sans"));
+    }
+
+    #[test]
+    fn interactive_html_has_no_external_font_dependency() {
+        let opts = RenderOptions::default();
+        let html = wrap_html_interactive("<svg></svg>", "test title", &opts, &[], None);
+        assert!(!html.contains("fonts.googleapis.com"));
+        assert!(!html.contains("fonts.gstatic.com"));
+        assert!(!html.contains("fonts.googleapis.com/css2"));
     }
 
     #[test]
