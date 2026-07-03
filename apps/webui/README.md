@@ -8,6 +8,7 @@ Timeline DSL の Web エディタ。ブラウザ上で `.tdsl` ファイルを�
 - 500ms debounce によるリアルタイム SVG プレビュー
 - エラー・警告の診断パネル
 - `.tdsl` ファイルのダウンロード / 開く
+- File System Access API 対応ブラウザ（Chrome/Edge 等）ではローカル `.tdsl` ファイルを直接開き、上書き保存できる（`hooks/useFileHandle.ts`）。非対応ブラウザ（Safari/Firefox）では従来の `<input type="file">` 選択 + ダウンロード方式にフォールバックし、UI 上で非対応を明示する
 - SVG のダウンロード
 - サンプル切り替え
 
@@ -49,6 +50,8 @@ npm run build
 - `src/gallery-meta.ts` — テンプレートギャラリーのメタ情報。本文は `examples/*.tdsl` を raw import して単一の真実源にする
 - `src/examples.ts` — 初期表示用のオフラインテンプレート一覧（`gallery-meta.ts` から派生）
 - `src/App.tsx` — メインアプリコンポーネント
+- `src/hooks/useFileHandle.ts` — File System Access API（`showOpenFilePicker` / `showSaveFilePicker`）のラップ。開いた `FileSystemFileHandle` を保持し、保存時に同一ファイルへの上書き（`createWritable()`）を行う。非対応ブラウザではダウンロードにフォールバック
+- `src/types/file-system-access.d.ts` — `Window.showOpenFilePicker` / `showSaveFilePicker` の ambient 型定義（TypeScript の標準 DOM lib には未収録）
 - `src/wasm/` — wasm-pack ビルド成果物（.gitignore 対象）
 
 ## WASM facade

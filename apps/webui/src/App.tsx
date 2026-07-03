@@ -13,6 +13,7 @@ import { useSplitPane } from './hooks/useSplitPane'
 import { useExport } from './hooks/useExport'
 import { useHistorySnapshots } from './hooks/useHistorySnapshots'
 import { useSourcePersistence } from './hooks/useSourcePersistence'
+import { useFileHandle } from './hooks/useFileHandle'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useOutsideClick } from './hooks/useOutsideClick'
 import { Toolbar } from './components/Toolbar'
@@ -59,6 +60,7 @@ function App() {
     [settings.svgOrientation, settings.svgGrid, settings.svgTheme]
   )
   const { svgContent, diagnostics, diagnosticsRef, isStalePreview } = useCompiler(source, wasmReady, settings.scale, renderOpts)
+  const fileHandle = useFileHandle(showToast, t)
   const svg = useSvgInteractions(svgContent, editorViewRef)
   const {
     splitRatio,
@@ -68,7 +70,7 @@ function App() {
     handleDividerMouseDown,
     handleDividerKeyDown,
   } = useSplitPane()
-  const exportApi = useExport(source, svgContent, settings.pngWhiteBg, renderOpts, showToast)
+  const exportApi = useExport(source, svgContent, settings.pngWhiteBg, renderOpts, showToast, fileHandle)
   const history = useHistorySnapshots({
     source,
     historyEnabled: settings.historyEnabled,
@@ -152,8 +154,22 @@ function App() {
     showToast(t('appLintFixed'), 'success')
   }
 
-  function openFile() {
-    fileInputRef.current?.click()
+  async function openFile() {
+    if (!fileHandle.supported) {
+      showToast(t('fileAccessUnsupported'), 'info')
+      fileInputRef.current?.click()
+      return
+    }
+    try {
+      const result = await fileHandle.openWithPicker()
+      if (result.status !== 'opened') return
+      history.snapshotBeforeLoad('ファイルオープン前')
+      skipAutoSaveRef.current = true
+      setSource(result.text)
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error)
+      showToast(`ファイルを開けませんでした: ${msg}`, 'error')
+    }
   }
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -163,6 +179,7 @@ function App() {
     reader.onload = (ev) => {
       const text = ev.target?.result as string
       history.snapshotBeforeLoad('ファイルオープン前')
+      fileHandle.markLegacyFileOpened(file.name)
       skipAutoSaveRef.current = true
       setSource(text)
     }
@@ -222,6 +239,9 @@ function App() {
         fileMenuOpen={fileMenuOpen}
         setFileMenuOpen={setFileMenuOpen}
         onOpenFile={openFile}
+        fileAccessSupported={fileHandle.supported}
+        currentFileName={fileHandle.fileName}
+        hasWritableFile={fileHandle.hasWritableHandle}
         onShowGallery={() => setShowGallery(true)}
         historyEnabled={settings.historyEnabled}
         historyCount={historyCount}

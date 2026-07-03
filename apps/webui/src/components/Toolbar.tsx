@@ -8,6 +8,9 @@ type ToolbarProps = {
   fileMenuOpen: boolean
   setFileMenuOpen: Dispatch<SetStateAction<boolean>>
   onOpenFile: () => void
+  fileAccessSupported: boolean
+  currentFileName: string | null
+  hasWritableFile: boolean
   onShowGallery: () => void
   historyEnabled: boolean
   historyCount: number
@@ -33,6 +36,9 @@ export function Toolbar(props: ToolbarProps) {
     fileMenuOpen,
     setFileMenuOpen,
     onOpenFile,
+    fileAccessSupported,
+    currentFileName,
+    hasWritableFile,
     onShowGallery,
     historyEnabled,
     historyCount,
@@ -73,6 +79,19 @@ export function Toolbar(props: ToolbarProps) {
               <button className="export-menu-item" onClick={() => { onOpenFile(); setFileMenuOpen(false) }}>
                 {t('toolbarOpen')}
               </button>
+              <div className="export-menu-section">
+                {currentFileName ? t.fmt('toolbarCurrentFile', { name: currentFileName }) : t('toolbarNoWritableFile')}
+              </div>
+              {!fileAccessSupported && (
+                <div className="export-menu-section" role="note">
+                  {t('toolbarFileUnsupported')}
+                </div>
+              )}
+              {fileAccessSupported && currentFileName && !hasWritableFile && (
+                <div className="export-menu-section" role="note">
+                  {t('toolbarNoWritableFile')}
+                </div>
+              )}
             </div>
           )}
         </div>

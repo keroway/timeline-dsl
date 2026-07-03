@@ -32,10 +32,18 @@ describe('i18n key parity', () => {
       'appLintFixConfirm',
       'appLintFixed',
       'appLintFixedCommentWarning',
+      'fileAccessUnsupported',
+      'fileAccessDownloadFallback',
+      'fileAccessSaved',
+      'fileAccessSavedAs',
+      'fileAccessSaveFailed',
       'splitDividerTitle',
       'toolbarFileMenu',
       'toolbarNew',
       'toolbarOpen',
+      'toolbarFileUnsupported',
+      'toolbarCurrentFile',
+      'toolbarNoWritableFile',
       'toolbarGallery',
       'toolbarSaveHistory',
       'toolbarHistory',
@@ -164,6 +172,17 @@ describe('i18n interpolation', () => {
     const t = createTranslator('en')
     // No placeholder in appFormatted; passing extra vars is harmless.
     expect(t.fmt('appFormatted', { unused: 'x' })).toBe('Formatted')
+  })
+
+  it('replaces {name} in file access messages', () => {
+    const ja = createTranslator('ja')
+    expect(ja.fmt('fileAccessSaved', { name: 'timeline.tdsl' })).toBe(
+      'timeline.tdsl に保存しました',
+    )
+    const en = createTranslator('en')
+    expect(en.fmt('toolbarCurrentFile', { name: 'timeline.tdsl' })).toBe(
+      'Current file: timeline.tdsl',
+    )
   })
 })
 
