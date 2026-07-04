@@ -23,14 +23,20 @@ cd apps/webui
 npm install
 ```
 
-### WASM ビルド（初回・crates/tdsl-wasm 変更時）
+### WASM
+
+WASM バインディングは `crates/tdsl-wasm` からビルドして公開されている npm パッケージ [`@keroway/tdsl-wasm`](https://www.npmjs.com/package/@keroway/tdsl-wasm) への依存として取得する（ADR 0001 / #580）。`npm install` だけで `node_modules/@keroway/tdsl-wasm` に展開され、追加の手動ビルド・コミットは不要。
+
+`crates/tdsl-wasm` をローカルで変更して WebUI から動作確認したい場合は、リリース前の変更を試すため一時的に `file:` 依存へ切り替える:
 
 ```bash
-# wasm-pack が未インストールの場合
-cargo install wasm-pack
+# 別ディレクトリにローカルビルドを出力
+wasm-pack build ../../crates/tdsl-wasm --target web --out-dir /tmp/tdsl-wasm-local --no-opt
 
-# WASM をビルド（apps/webui ディレクトリから実行）
-wasm-pack build ../../crates/tdsl-wasm --target web --out-dir src/wasm --no-opt
+# package.json の "@keroway/tdsl-wasm" を一時的に file: 参照に書き換えて npm install
+#   "@keroway/tdsl-wasm": "file:/tmp/tdsl-wasm-local"
+
+# 確認が終わったら package.json / package-lock.json を元の ^x.y.z に戻して npm install し直す
 ```
 
 ### 開発サーバー起動
@@ -61,7 +67,6 @@ npm run build
 - `src/App.tsx` — メインアプリコンポーネント
 - `src/hooks/useFileHandle.ts` — File System Access API（`showOpenFilePicker` / `showSaveFilePicker`）のラップ。開いた `FileSystemFileHandle` を保持し、保存時に同一ファイルへの上書き（`createWritable()`）を行う。非対応ブラウザではダウンロードにフォールバック
 - `src/types/file-system-access.d.ts` — `Window.showOpenFilePicker` / `showSaveFilePicker` の ambient 型定義（TypeScript の標準 DOM lib には未収録）
-- `src/wasm/` — wasm-pack ビルド成果物（.gitignore 対象）
 
 ## WASM facade
 

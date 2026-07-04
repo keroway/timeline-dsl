@@ -3,7 +3,10 @@
 // the main entry. All exported wrappers below are only ever called after
 // `initWasm()` has resolved (the app gates every call behind `wasmReady`), so
 // the cached module is guaranteed to be present when they run.
-type WasmModule = typeof import('./wasm/tdsl_wasm.js')
+//
+// The module itself comes from the published `@keroway/tdsl-wasm` npm package
+// (see ADR 0001) rather than a committed build artifact under `src/wasm/`.
+type WasmModule = typeof import('@keroway/tdsl-wasm')
 
 let wasm: WasmModule | null = null
 let initialized = false
@@ -47,7 +50,7 @@ export async function initWasm(): Promise<void> {
   // De-duplicate concurrent callers so the chunk is fetched and instantiated once.
   if (!loading) {
     loading = (async () => {
-      const m = await import('./wasm/tdsl_wasm.js')
+      const m = await import('@keroway/tdsl-wasm')
       await m.default()
       wasm = m
       initialized = true

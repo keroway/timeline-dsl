@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **WebUI の WASM 参照方式を npm 依存に切替え**: `apps/webui` は `apps/webui/src/wasm/` 配下のコミット済み成果物参照を廃止し、公式 npm パッケージ `@keroway/tdsl-wasm` への通常の `dependencies` に切替えた。`crates/tdsl-wasm` 変更時の手動 build+commit 運用と、それに伴う CI ドリフト検知（#579）を廃止した（ADR 0001 D6, #580）
+
 ### Fixed
 
 - **`now` キーワードが WASM ビルドをクラッシュさせる問題を修正**: `span` / `event_range` の `end` に `now`（#561）を含む `.tdsl` を `tdsl-wasm`（`wasm32-unknown-unknown`）でパースすると、未実装の `std::time::SystemTime::now()` が捕捉不能な WASM トラップを起こしていた。ウォールクロック取得を target 別に分離し、wasm32 では `js-sys::Date` を使用（ネイティブ CLI の挙動は不変）(#583)
