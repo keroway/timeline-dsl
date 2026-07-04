@@ -3,7 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-05-21
 - **Deciders**: keroway
-- **Related issues**: #291（本 ADR）, #147（親）, #292, #293, #294, #295
+- **Related issues**: #291（本 ADR）, #147（親）, #292, #293, #294, #295, #576, #579, #580, #581, #582
 - **Supersedes**: なし
 
 ## コンテキスト
@@ -75,8 +75,25 @@ ADR 本体決定に付随する技術判断を以下に明示する。後続 sub
 - **publish trigger**: release タグ push で自動 publish。緊急時の再 publish 用に `workflow_dispatch` も併設する。
 - **`NPM_TOKEN`**: GitHub Secrets に登録する。トークン取得・ローテーション手順は #292 の作業範囲で README に追記する。
   - > **更新（2026-05-25）**: 長期トークン `NPM_TOKEN` 方式は廃止し、npm Trusted Publishing（OIDC）に移行した。`Release` ワークフローは `permissions: id-token: write` で短命トークンを発行し、provenance attestation を自動付与する。設定手順は README の「Trusted Publishing / OIDC での publish」を参照。
-- **WebUI（`apps/webui`）の参照方式**: 当面は `apps/webui/src/wasm/` 配下のコミット済み成果物をそのまま参照する現行方式を維持する（開発者が `wasm-pack build ../../crates/tdsl-wasm --target web --out-dir src/wasm --no-opt` を実行してコミットする運用も継続）。`@keroway/tdsl-wasm` への npm 依存切替・自動同期スクリプト化・README の「.gitignore 対象」記述の訂正は本 ADR の範囲外とし、別 issue で検討する。
 - **`pkg/package.json` のメタデータ整備**: CI で `name`, `version`, `publishConfig.access`, `repository`, `homepage`, `bugs`, `license` を確実に注入できるよう、`build-wasm` ジョブのスクリプトを拡張する（#292 で実施）。
+
+### D6. WebUI（`apps/webui`）の参照方式: `@keroway/tdsl-wasm` への npm 依存切替（#580）
+
+- `apps/webui` は `@keroway/tdsl-wasm`（npm, D1/D2）への通常の `dependencies` として依存する。`apps/webui/src/wasm/` 配下のコミット済み成果物は廃止し、`node_modules/@keroway/tdsl-wasm` 経由で解決する。
+- 採用理由:
+  - 対外的な影響（他プロジェクトと同じ配布経路を使う一貫性）を優先する。
+  - `crates/tdsl-wasm` の変更で WebUI 側の成果物が commit し忘れにより drift する問題（#576）が構造的になくなり、#579 で追加した CI ドリフト検知ステップ（`build-wasm-check` ジョブ）も不要になるため撤去する。
+- ローカルで `crates/tdsl-wasm` の変更を WebUI から即座に試す開発ループは失われる（npm 依存のため、公開済みバージョンでしか通常は参照できない）。この点は当面許容し、ローカル確認が必要な場合は `package.json` の依存を一時的に `file:` 参照へ切り替える運用（`apps/webui/README.md` に手順を記載）で個々に対応する。自動化された local-override の仕組みは本 ADR の範囲では整備しない。
+- `apps/webui/README.md` の「`src/wasm/` は .gitignore 対象」という誤記は、確認時点で該当の記述が既に見当たらず（`wasm-pack build ... --out-dir src/wasm` の手動手順自体を README から削除したため実質的に解消）、追加対応は不要。
+
+### D7. `tdsl-wasm` の semver 運用ルール（#582）
+
+- major/minor/patch の判定は、`@keroway/tdsl-wasm` の公開 API（エクスポートされる関数のシグネチャ、`JsRenderOptions` のフィールド、`check_source`/`lint_source` の返却 JSON の形、`compile_to_ir` の IR スキーマを含む）に対する標準的な semver 解釈をそのまま適用する、というシンプルな原則を採用する。個々の変更カテゴリ（関数削除、フィールド型変更、JSON 形状変更等）を列挙した専用の分類表は設けない。
+  - 後方互換性のない変更（既存 API の削除・シグネチャ変更・返却データの意味変更等） → major
+  - 後方互換な追加（新規関数・新規フィールド・新規オプション値） → minor
+  - 挙動を変えないバグ修正 → patch
+- バージョニングは D5 の方式（Cargo workspace 全体で単一 version を共有し、release タグに 1:1 連動）を維持する。`tdsl-wasm` の公開 API が変わらない場合でも、他クレート（`tdsl-core` 等）の変更に伴って workspace version が上がることは許容する。`tdsl-wasm` の API 安定性のみを独立して追跡するバージョン体系は導入しない。
+- 破壊的変更を出す場合は `CHANGELOG.md` への明記に加えて、`keroway/obsidian-tdsl`（`@keroway/tdsl-wasm` の利用側）への事前通知（同リポジトリへの issue 起票等）を必須プロセスとする。
 
 ## 後続 sub-issue の前提条件（決定事項の要約）
 
@@ -99,6 +116,6 @@ ADR 本体決定に付随する技術判断を以下に明示する。後続 sub
 
 ## 未決定事項（本 ADR の範囲外）
 
-- WebUI（`apps/webui`）を `@keroway/tdsl-wasm` の npm 依存に切り替えるか、`apps/webui/src/wasm/` のコミット済み成果物を継続維持するか。継続する場合でも、`wasm-pack build ... --out-dir src/wasm` の実行を CI/スクリプトで自動化するか、および `apps/webui/README.md` の「`src/wasm/` は .gitignore 対象」という誤記の修正は別途検討。
-- Obsidian Community Plugin への正式申請のタイミングと前提条件（#295 で検討）。
-- `tdsl-wasm` の semver 運用ルール（破壊的変更時の major bump 基準）。
+- Obsidian Community Plugin への正式申請のタイミングと前提条件。実装（#292〜#295）は本リポジトリ側で完了しており、申請作業自体は独立リポジトリ `keroway/obsidian-tdsl` 側の作業（`obsidian-releases` への PR 提出）となるため、申請タイミング・前提条件の棚卸しも含め `keroway/obsidian-tdsl` 側で検討する（#581）。
+
+D6・D7 により、旧「未決定事項」のうち WebUI 参照方式・semver 運用ルールは決定済みとなった。

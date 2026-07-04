@@ -22,6 +22,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-# wasm-pack が生成する .snippets ディレクトリのみ除外（コンテンツは src/wasm/ に統合済み）
-src/wasm/.gitignore

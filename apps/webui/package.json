@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
+    "@keroway/tdsl-wasm": "^1.23.0",
     "@codemirror/language": "^6.12.3",
     "@codemirror/lint": "^6.9.6",
     "@codemirror/search": "^6.5.10",
