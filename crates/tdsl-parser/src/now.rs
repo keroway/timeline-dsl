@@ -3,22 +3,37 @@
 //! `span` / `event_range` may write `now` in place of an explicit `end` time
 //! value to mark an open-ended (still ongoing) period. This module resolves
 //! that keyword to a concrete UTC year at parse time, without requiring a
-//! date/time crate dependency (`std::time::SystemTime` + a small
-//! days-since-epoch → civil-date conversion is enough for year-only
-//! precision).
+//! date/time crate dependency (`std::time::SystemTime` on native targets,
+//! `js_sys::Date` on `wasm32` + a small days-since-epoch → civil-date
+//! conversion is enough for year-only precision).
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
-/// Returns the current UTC year, resolved from the system clock.
+/// Returns the current Unix time in whole seconds.
 ///
-/// Falls back to the Unix epoch year (1970) if the system clock is somehow
-/// set before `UNIX_EPOCH` (e.g. a misconfigured sandbox); this only affects
-/// the `now` keyword and never causes a parse/lowering failure.
-pub fn current_year_utc() -> i64 {
-    let secs = SystemTime::now()
+/// `std::time::SystemTime::now()` is unimplemented on `wasm32-unknown-unknown`
+/// (no OS clock) and panics with a hard, uncatchable WASM trap rather than a
+/// recoverable error (#583), so the wall-clock source is gated by target:
+/// `js-sys::Date` on wasm32, `std::time::SystemTime` everywhere else.
+#[cfg(target_arch = "wasm32")]
+fn now_unix_secs() -> i64 {
+    (js_sys::Date::now() / 1000.0) as i64
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn now_unix_secs() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
+        .unwrap_or(0)
+}
+
+/// Returns the current UTC year, resolved from the wall clock.
+///
+/// Falls back to the Unix epoch year (1970) if the clock is somehow set
+/// before `UNIX_EPOCH` (e.g. a misconfigured sandbox); this only affects
+/// the `now` keyword and never causes a parse/lowering failure.
+pub fn current_year_utc() -> i64 {
+    let secs = now_unix_secs();
     let days = secs.div_euclid(86_400);
     civil_year_from_days(days)
 }

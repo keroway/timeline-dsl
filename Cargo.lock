@@ -2691,6 +2691,7 @@ version = "1.23.0"
 dependencies = [
  "criterion",
  "insta",
+ "js-sys",
  "miette",
  "pest",
  "pest_derive",
