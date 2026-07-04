@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`now` キーワードが WASM ビルドをクラッシュさせる問題を修正**: `span` / `event_range` の `end` に `now`（#561）を含む `.tdsl` を `tdsl-wasm`（`wasm32-unknown-unknown`）でパースすると、未実装の `std::time::SystemTime::now()` が捕捉不能な WASM トラップを起こしていた。ウォールクロック取得を target 別に分離し、wasm32 では `js-sys::Date` を使用（ネイティブ CLI の挙動は不変）(#583)
 - **同一レーン内で重なる `span` / `event_range` のバー本体をサブ行スタッキングで回避**: 在位期間・戦争・製品ライフサイクルなど、同一レーンに重複期間を持つアイテムが完全に重なって描画されて読めなくなる問題を修正。区間スケジューリング（greedy interval coloring）でサブ行を自動割り当てし、サブ行数に応じて lane の実効高さ/幅を自動拡張。重なりがないレーンは従来通りの座標で回帰なし。`--layout-style group-bands` と互換 (#549)
 
 ## [1.23.0] - 2026-07-03
