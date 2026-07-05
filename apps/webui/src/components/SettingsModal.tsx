@@ -166,6 +166,18 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             </select>
           </div>
           <div className="settings-section">
+            <div className="settings-label">{t('settingsShowEventLabels')}</div>
+            <div className="settings-row">
+              <button
+                className={`btn${settings.svgShowEventLabels ? ' btn-active' : ''}`}
+                onClick={() => updateSetting('svgShowEventLabels', !settings.svgShowEventLabels)}
+                title="Event / event_range のラベルをドット・バー近傍に常時描画します（一覧表示・印刷向け）"
+              >
+                {settings.svgShowEventLabels ? t('settingsShowEventLabelsOn') : t('settingsShowEventLabelsOff')}
+              </button>
+            </div>
+          </div>
+          <div className="settings-section">
             <div className="settings-label">{t('settingsAutoSave')}</div>
             <div className="settings-row">
               <button

@@ -11,6 +11,7 @@ Timeline DSL の Web エディタ。ブラウザ上で `.tdsl` ファイルを�
 - File System Access API 対応ブラウザ（Chrome/Edge 等）ではローカル `.tdsl` ファイルを直接開き、上書き保存できる（`hooks/useFileHandle.ts`）。非対応ブラウザ（Safari/Firefox）では従来の `<input type="file">` 選択 + ダウンロード方式にフォールバックし、UI 上で非対応を明示する
 - SVG のダウンロード
 - サンプル切り替え
+- 設定パネルからイベントラベル常時表示（`show_event_labels`）・向き・グリッド・SVGテーマなどのプレビューオプションを切り替え可能。一覧確認や印刷資料作成時にホバー無しで全イベントの文字を表示できる
 - PWA としてインストール可能（初回ロード後は静的 DSL 編集・プレビューをオフライン起動可能）
 
 ## 開発

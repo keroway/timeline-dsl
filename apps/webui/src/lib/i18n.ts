@@ -81,6 +81,9 @@ export type Dictionary = {
   settingsSvgThemeDark: string
   settingsSvgThemePrint: string
   settingsSvgThemePastel: string
+  settingsShowEventLabels: string
+  settingsShowEventLabelsOn: string
+  settingsShowEventLabelsOff: string
   settingsPngBg: string
   settingsPngBgWhite: string
   settingsPngBgTransparent: string
@@ -215,6 +218,9 @@ const ja: Dictionary = {
   settingsSvgThemeDark: 'ダーク',
   settingsSvgThemePrint: '印刷',
   settingsSvgThemePastel: 'パステル',
+  settingsShowEventLabels: 'イベントラベル常時表示',
+  settingsShowEventLabelsOn: 'ON',
+  settingsShowEventLabelsOff: 'OFF',
   settingsPngBg: 'PNG背景',
   settingsPngBgWhite: '白',
   settingsPngBgTransparent: '透明',
@@ -351,6 +357,9 @@ const en: Dictionary = {
   settingsSvgThemeDark: 'Dark',
   settingsSvgThemePrint: 'Print',
   settingsSvgThemePastel: 'Pastel',
+  settingsShowEventLabels: 'Always-on Event Labels',
+  settingsShowEventLabelsOn: 'ON',
+  settingsShowEventLabelsOff: 'OFF',
   settingsPngBg: 'PNG Background',
   settingsPngBgWhite: 'White',
   settingsPngBgTransparent: 'Transparent',
