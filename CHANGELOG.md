@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-07-05
+
 ### Added
 
 - **WebUI の設定パネルに「イベントラベル常時表示」トグルを追加**: レンダラコア（#403）/ WASM facade（#417）で既に実装済みだった `show_event_labels` が `apps/webui` の UI からは制御できず、CLI/WASM 直接呼び出し経由でしか利用できなかったギャップを解消。設定モーダルに ON/OFF トグルを追加し、SVG/HTML プレビューとエクスポート（SVG/PNG/HTML/PDF）に反映する。一覧確認や印刷資料作成用途でホバー不要で全イベントのラベルを常時可視化できる (#586)
