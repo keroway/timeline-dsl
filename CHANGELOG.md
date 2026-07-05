@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **WebUI の設定パネルに「イベントラベル常時表示」トグルを追加**: レンダラコア（#403）/ WASM facade（#417）で既に実装済みだった `show_event_labels` が `apps/webui` の UI からは制御できず、CLI/WASM 直接呼び出し経由でしか利用できなかったギャップを解消。設定モーダルに ON/OFF トグルを追加し、SVG/HTML プレビューとエクスポート（SVG/PNG/HTML/PDF）に反映する。一覧確認や印刷資料作成用途でホバー不要で全イベントのラベルを常時可視化できる
+
 ### Changed
 
 - **WebUI の WASM 参照方式を npm 依存に切替え**: `apps/webui` は `apps/webui/src/wasm/` 配下のコミット済み成果物参照を廃止し、公式 npm パッケージ `@keroway/tdsl-wasm` への通常の `dependencies` に切替えた。`crates/tdsl-wasm` 変更時の手動 build+commit 運用と、それに伴う CI ドリフト検知（#579）を廃止した（ADR 0001 D6, #580）

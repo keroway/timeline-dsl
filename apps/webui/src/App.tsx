@@ -58,8 +58,13 @@ function App() {
   const t = useMemo(() => createTranslator(settings.locale), [settings.locale])
   const pwaUpdate = usePwaLifecycle(showToast, t)
   const renderOpts = useMemo(
-    () => ({ orientation: settings.svgOrientation, grid: settings.svgGrid, theme: settings.svgTheme }),
-    [settings.svgOrientation, settings.svgGrid, settings.svgTheme]
+    () => ({
+      orientation: settings.svgOrientation,
+      grid: settings.svgGrid,
+      theme: settings.svgTheme,
+      showEventLabels: settings.svgShowEventLabels,
+    }),
+    [settings.svgOrientation, settings.svgGrid, settings.svgTheme, settings.svgShowEventLabels]
   )
   const { svgContent, diagnostics, diagnosticsRef, isStalePreview } = useCompiler(source, wasmReady, settings.scale, renderOpts)
   const fileHandle = useFileHandle(showToast, t)

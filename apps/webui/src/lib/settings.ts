@@ -20,6 +20,7 @@ export type Settings = {
   svgOrientation: SvgOrientation
   svgGrid: SvgGrid
   svgTheme: SvgTheme
+  svgShowEventLabels: boolean
   locale: Locale
 }
 
@@ -41,6 +42,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   svgOrientation: 'horizontal',
   svgGrid: 'none',
   svgTheme: 'default',
+  svgShowEventLabels: false,
   locale: DEFAULT_LOCALE,
 }
 
@@ -73,6 +75,9 @@ export function readSettings(): Settings {
     }
     if (!['default', 'dark', 'print', 'pastel'].includes(merged.svgTheme)) {
       merged.svgTheme = SETTINGS_DEFAULTS.svgTheme
+    }
+    if (typeof merged.svgShowEventLabels !== 'boolean') {
+      merged.svgShowEventLabels = SETTINGS_DEFAULTS.svgShowEventLabels
     }
     if (!SUPPORTED_LOCALES.includes(merged.locale as Locale)) {
       merged.locale = SETTINGS_DEFAULTS.locale
