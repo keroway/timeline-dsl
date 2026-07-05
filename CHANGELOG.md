@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **WebUI の設定パネルに「イベントラベル常時表示」トグルを追加**: レンダラコア（#403）/ WASM facade（#417）で既に実装済みだった `show_event_labels` が `apps/webui` の UI からは制御できず、CLI/WASM 直接呼び出し経由でしか利用できなかったギャップを解消。設定モーダルに ON/OFF トグルを追加し、SVG/HTML プレビューとエクスポート（SVG/PNG/HTML/PDF）に反映する。一覧確認や印刷資料作成用途でホバー不要で全イベントのラベルを常時可視化できる
+- **WebUI の設定パネルに「イベントラベル常時表示」トグルを追加**: レンダラコア（#403）/ WASM facade（#417）で既に実装済みだった `show_event_labels` が `apps/webui` の UI からは制御できず、CLI/WASM 直接呼び出し経由でしか利用できなかったギャップを解消。設定モーダルに ON/OFF トグルを追加し、SVG/HTML プレビューとエクスポート（SVG/PNG/HTML/PDF）に反映する。一覧確認や印刷資料作成用途でホバー不要で全イベントのラベルを常時可視化できる (#586)
+- **`--layout-style zigzag` でレーン内アイテムを上下交互配置**: `--orientation` と直交する新しいレイアウトスタイル。レーン内アイテムを開始時刻順に上下交互に配置し、単一/少数レーンの歴史タイムラインの可読性を向上。レーン数が 2 以下のときのみ有効で、それを超える場合は警告を出して通常 `timeline` レイアウトにフォールバックする（黙殺フォールバックはしない、AGENTS.md §4.1）。#549（バー重なり回避サブ行スタッキング）とは排他 (#578)
+- **`--layout-style gantt` で月グリッド強調＋期間ラベルを追加**: `--orientation` と直交し `group-bands` と相互排他のプロジェクト管理向けスタイル。`--grid` 未指定時は月単位グリッド相当を自動で強制し、`span` / `event_range` のバーに開始〜終了の期間ラベルを常時表示する。近接ラベルは #537 のスタッキングアルゴリズムを流用し、#549 のサブ行 Y 位置を尊重して重なりを回避。WASM facade にも `layout_style` フィールドを追加し、従来 WASM 未露出だった `group-bands` も同時に利用可能にした (#577)
+- **`span` / `event_range` / `event` アイテムに `note` / `link` / `color` オプションを追加**: `note "..."` はツールチップ/詳細に表示する自由記述、`link "..."` は参照 URL（lowering で `http(s)` 以外のスキームを `LoweringError` として拒否＝黙殺フォールバックなし、AGENTS.md §4.1）、`color "..."` はアイテム個別色。レンダー色の優先順位は `item.color` > `color_map(tag)` > lane パレット。`tdsl fmt` / `decompile` はラウンドトリップ安全。error-catalog に E111/E112 を追記 (#574, closes #566/#567/#568)
+- **WebUI: File System Access API による開く/上書き保存に対応**: `showOpenFilePicker()` / `showSaveFilePicker()` をラップし、開いた `.tdsl` の書き込み可能ハンドルを保持。以降の保存（ツールバー/エクスポートメニュー/Ctrl+S）は同一ファイルを上書きする。API 非対応ブラウザは従来の `<input type="file">` + ダウンロードにフォールバックしつつ、明示的なトーストで通知する（黙殺フォールバックなし、AGENTS.md §4.1）(#572, closes #569)
+- **WebUI: PWA オフライン対応を追加**: `manifest.webmanifest` と Service Worker を追加し、アプリシェル（JS/CSS/WASM）を事前キャッシュ。初回ロード後は静的 DSL 編集・プレビューをオフライン起動可能にした。新バージョン検知時は画面上部の更新通知から再読み込みできる (#571)
 
 ### Changed
 
