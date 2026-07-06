@@ -83,6 +83,9 @@ UI は通常の Web stack で構築し、`.tdsl` の parse/check/render だけ�
 - `tdsl-core` と `tdsl-wikidata` の依存分離が必要
 - ブラウザから Wikidata API を呼ぶ場合は CORS、rate limit、失敗時 UI を明示的に扱う必要がある
 - 大きな `.tdsl` では main thread blocking を避けるため、後続で Web Worker 化を検討する
+  → **実装済み**（Plan 013, 2026-07-06）: `apps/webui/src/worker/tdsl.worker.ts` が
+  WASM の compile/render/lint/format を専用 Web Worker 上で実行し、
+  `apps/webui/src/worker/client.ts` が async facade と latest-wins キャンセルを提供する。
 
 判断:
 

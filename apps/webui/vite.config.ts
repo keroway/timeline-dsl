@@ -76,4 +76,10 @@ export default defineConfig({
       allow: [repoRoot],
     },
   },
+  worker: {
+    // The tdsl.worker.ts module worker imports `@keroway/tdsl-wasm` directly, so
+    // vite-plugin-wasm must also be registered for the worker's own build
+    // pipeline (Vite does not inherit top-level plugins into workers).
+    plugins: () => [wasm()],
+  },
 })

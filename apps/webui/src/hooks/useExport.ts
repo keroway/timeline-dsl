@@ -1,8 +1,7 @@
-import { checkSource, compileToIr, renderHtmlWithOptions } from '../wasmLoader'
+import { getWorkerClient, type RenderOptions } from '../wasmLoader'
 import { svgToPngBlob, triggerDownload } from '../lib/svgExport'
 import { buildShareUrl } from '../share'
 import type { ToastVariant } from '../components/Toast'
-import type { RenderOptions } from '../wasmLoader'
 import type { FileHandleApi } from './useFileHandle'
 import type { Translator } from '../lib/i18n'
 import type { ConfirmOptions } from './useConfirm'
@@ -11,16 +10,15 @@ export type ExportApi = {
   downloadTdsl: () => Promise<void>
   downloadJsonIr: () => Promise<void>
   downloadSvg: () => void
-  downloadHtml: () => void
+  downloadHtml: () => Promise<void>
   downloadPng: (whiteBg?: boolean) => void
-  exportPdf: () => void
+  exportPdf: () => Promise<void>
   copySvg: () => void
   copyPng: () => void
   copyMarkdown: () => void
   copyShareLink: () => void
 }
 
-// エクスポート系（ダウンロード/コピー/PDF 印刷）のハンドラ群をまとめて提供する。
 export function useExport(
   source: string,
   svgContent: string,
@@ -31,6 +29,8 @@ export function useExport(
   t: Translator,
   confirm: (options: ConfirmOptions) => Promise<boolean>,
 ): ExportApi {
+  const client = getWorkerClient()
+
   async function downloadTdsl() {
     await fileHandle.saveSource(source)
   }
@@ -38,18 +38,13 @@ export function useExport(
   async function downloadJsonIr() {
     let json: string
     try {
-      json = compileToIr(source)
+      json = await client.compileToIrAsync(source)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       showToast(t.fmt('exportJsonIrFailed', { msg }), 'error')
       return
     }
-    // WASM does not perform a Wikidata fetch, so items originating from
-    // import/map are not included in the IR. To avoid silently saving an
-    // incomplete IR, an explicit confirmation is shown when check_source
-    // reports an Info diagnostic (notice of unresolved import/map); saving
-    // is skipped without consent.
-    if (checkSource(source).some((d) => d.severity === 'info')) {
+    if ((await client.checkSourceAsync(source)).some((d) => d.severity === 'info')) {
       const proceed = await confirm({
         title: t('confirmJsonIrIncompleteTitle'),
         body: t('exportJsonIrIncompleteConfirm'),
@@ -65,6 +60,16 @@ export function useExport(
   function downloadSvg() {
     if (!svgContent) return
     triggerDownload(new Blob([svgContent], { type: 'image/svg+xml' }), 'timeline.svg')
+  }
+
+  async function downloadHtml() {
+    if (!svgContent) return
+    try {
+      const html = await client.renderHtmlWithOptionsAsync(source, renderOpts)
+      triggerDownload(new Blob([html], { type: 'text/html' }), 'timeline.html')
+    } catch {
+      // keep silent — errors are already shown in diagnostics
+    }
   }
 
   function downloadPng(whiteBg: boolean = true) {
@@ -107,28 +112,11 @@ export function useExport(
     }
   }
 
-  function downloadHtml() {
-    if (!svgContent) return
-    try {
-      const html = renderHtmlWithOptions(source, renderOpts)
-      triggerDownload(new Blob([html], { type: 'text/html' }), 'timeline.html')
-    } catch {
-      // keep silent — errors are already shown in diagnostics
-    }
-  }
-
-  // Export to PDF via the browser's native print-to-PDF. The CLI emits a
-  // vector PDF through tdsl-render's `pdf` feature, but that path relies on
-  // fontdb's system-font loading (ADR-0002 D5) which is unavailable in a
-  // browser WASM sandbox — CJK labels would not shape. Printing the HTML
-  // render instead lets the browser resolve fonts natively. We render into a
-  // hidden iframe (no popup-blocker, prints only the iframe content) and let
-  // the user pick "Save as PDF" in the print dialog.
-  function exportPdf() {
+  async function exportPdf() {
     if (!svgContent) return
     let html: string
     try {
-      html = renderHtmlWithOptions(source, renderOpts)
+      html = await client.renderHtmlWithOptionsAsync(source, renderOpts)
     } catch {
       showToast(t('exportPdfFailed'), 'error')
       return
@@ -152,7 +140,6 @@ export function useExport(
       }
       cw.focus()
       cw.print()
-      // Give the print dialog time to open before tearing down the iframe.
       setTimeout(cleanup, 1000)
     }
     iframe.src = url
