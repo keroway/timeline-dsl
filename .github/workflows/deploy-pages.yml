@@ -52,10 +52,28 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy1.outputs.page_url || steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      # actions/deploy-pages occasionally fails the final status-poll with a
+      # transient backend error ("Deployment failed, try again later") even
+      # though the deployment itself succeeded; retrying once resolves it.
+      # See plans/010-harden-github-pages-deploy.md.
+      - name: Deploy to GitHub Pages (attempt 1)
+        id: deploy1
+        continue-on-error: true
         uses: actions/deploy-pages@v5
+
+      - name: Wait before retry
+        if: steps.deploy1.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy to GitHub Pages (attempt 2)
+        id: deployment
+        if: steps.deploy1.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+
+      - name: Surface deploy URL
+        if: steps.deploy1.outcome == 'success'
+        run: echo "Deployed at ${{ steps.deploy1.outputs.page_url }}"
