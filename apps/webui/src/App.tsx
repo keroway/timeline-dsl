@@ -297,6 +297,7 @@ function App() {
           tdslLinterExtension={tdslLinterExtension}
           onChange={handleEditorChange}
           onCreateEditor={(view) => { editorViewRef.current = view }}
+          locale={settings.locale}
         />
         <div
           className="split-divider"
