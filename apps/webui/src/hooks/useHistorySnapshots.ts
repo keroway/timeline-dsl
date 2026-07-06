@@ -12,6 +12,7 @@ import {
   shouldAutoSnapshot,
 } from '../history'
 import type { ToastVariant } from '../components/Toast'
+import type { Translator } from '../lib/i18n'
 
 type Params = {
   source: string
@@ -20,6 +21,7 @@ type Params = {
   setSource: Dispatch<SetStateAction<string>>
   setShowHistory: Dispatch<SetStateAction<boolean>>
   skipAutoSaveRef: RefObject<boolean>
+  t: Translator
 }
 
 export type HistoryApi = {
@@ -41,7 +43,7 @@ export type HistoryApi = {
 
 // 履歴スナップショット（自動 + 手動）の state とすべての操作を所有する。
 export function useHistorySnapshots(params: Params): HistoryApi {
-  const { source, historyEnabled, showToast, setSource, setShowHistory, skipAutoSaveRef } = params
+  const { source, historyEnabled, showToast, setSource, setShowHistory, skipAutoSaveRef, t } = params
 
   const [autoSnaps, setAutoSnaps] = useState<Snapshot[]>(() => readAutoSnapshots())
   const [manualSnaps, setManualSnaps] = useState<Snapshot[]>(() => readManualSnapshots())
@@ -54,13 +56,13 @@ export function useHistorySnapshots(params: Params): HistoryApi {
     if (!historyEnabled) return
     const timer = setTimeout(() => {
       if (shouldAutoSnapshot(source, lastAutoSnapRef.current)) {
-        pushAutoSnapshot(source, '自動保存')
+        pushAutoSnapshot(source, t('historyAutoSnapshotLabel'))
         lastAutoSnapRef.current = Date.now()
         setAutoSnaps(readAutoSnapshots())
       }
     }, DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [source, historyEnabled])
+  }, [source, historyEnabled, t])
 
   function snapshotBeforeLoad(label: string) {
     if (historyEnabled && source.trim()) {
@@ -71,9 +73,14 @@ export function useHistorySnapshots(params: Params): HistoryApi {
   }
 
   function handleSaveToHistory() {
-    const snap = pushManualSnapshot(source, `手動保存 — ${new Date().toLocaleString('ja-JP')}`)
+    const datetime = new Date().toLocaleString()
+    const snap = pushManualSnapshot(
+      source,
+      t.fmt('historyManualSnapshotLabel', { datetime }),
+      t('historyManualSnapshotPrefix'),
+    )
     setManualSnaps(readManualSnapshots())
-    showToast(`履歴に保存しました: ${snap.label}`, 'success')
+    showToast(t.fmt('historySavedToHistory', { label: snap.label }), 'success')
   }
 
   function handleRestoreSnapshot(src: string) {
@@ -110,7 +117,7 @@ export function useHistorySnapshots(params: Params): HistoryApi {
     clearAllHistory()
     setAutoSnaps([])
     setManualSnaps([])
-    showToast('履歴を全件削除しました', 'success')
+    showToast(t('historyClearedAll'), 'success')
   }
 
   return {
