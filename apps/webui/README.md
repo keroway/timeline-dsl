@@ -68,6 +68,7 @@ npm run build
 - `src/App.tsx` — メインアプリコンポーネント
 - `src/hooks/useFileHandle.ts` — File System Access API（`showOpenFilePicker` / `showSaveFilePicker`）のラップ。開いた `FileSystemFileHandle` を保持し、保存時に同一ファイルへの上書き（`createWritable()`）を行う。非対応ブラウザではダウンロードにフォールバック
 - `src/types/file-system-access.d.ts` — `Window.showOpenFilePicker` / `showSaveFilePicker` の ambient 型定義（TypeScript の標準 DOM lib には未収録）
+- `src/hooks/useConfirm.ts` + `src/components/ConfirmModal.tsx` — `window.confirm` / `window.alert` の代替。フォーカストラップ・Esc キャンセル・i18n に対応したアプリ内確認モーダル。新しい確認フローを追加する場合は `window.confirm` / `window.alert` を直接使わず、`useConfirm()` が返す `confirm({ title, body, confirmLabel, cancelLabel, tone })` を使用すること
 
 ## WASM facade
 
