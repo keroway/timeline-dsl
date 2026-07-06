@@ -77,7 +77,7 @@ function App() {
     handleDividerMouseDown,
     handleDividerKeyDown,
   } = useSplitPane()
-  const exportApi = useExport(source, svgContent, settings.pngWhiteBg, renderOpts, showToast, fileHandle)
+  const exportApi = useExport(source, svgContent, settings.pngWhiteBg, renderOpts, showToast, fileHandle, t)
   const history = useHistorySnapshots({
     source,
     historyEnabled: settings.historyEnabled,
@@ -85,6 +85,7 @@ function App() {
     setSource,
     setShowHistory,
     skipAutoSaveRef,
+    t,
   })
 
   // インライン linter extension（ref 経由で最新 diagnostics を参照する）
@@ -99,7 +100,7 @@ function App() {
   }
 
   function handleGallerySelect(newSource: string) {
-    history.snapshotBeforeLoad('テンプレートロード前')
+    history.snapshotBeforeLoad(t('historySnapshotBeforeTemplate'))
     skipAutoSaveRef.current = true
     setSource(newSource)
     setShowGallery(false)
@@ -175,12 +176,12 @@ function App() {
     try {
       const result = await fileHandle.openWithPicker()
       if (result.status !== 'opened') return
-      history.snapshotBeforeLoad('ファイルオープン前')
+      history.snapshotBeforeLoad(t('historySnapshotBeforeFileOpen'))
       skipAutoSaveRef.current = true
       setSource(result.text)
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error)
-      showToast(`ファイルを開けませんでした: ${msg}`, 'error')
+      showToast(t.fmt('appFileOpenFailed', { msg }), 'error')
     }
   }
 
@@ -190,7 +191,7 @@ function App() {
     const reader = new FileReader()
     reader.onload = (ev) => {
       const text = ev.target?.result as string
-      history.snapshotBeforeLoad('ファイルオープン前')
+      history.snapshotBeforeLoad(t('historySnapshotBeforeFileOpen'))
       fileHandle.markLegacyFileOpened(file.name)
       skipAutoSaveRef.current = true
       setSource(text)
@@ -282,7 +283,7 @@ function App() {
 
       <StatusBar wasmReady={wasmReady} wasmError={wasmError} errorCount={errorCount} warnCount={warnCount} locale={settings.locale} />
 
-      <MobileTabBar mobileTab={mobileTab} setMobileTab={setMobileTab} />
+      <MobileTabBar mobileTab={mobileTab} setMobileTab={setMobileTab} locale={settings.locale} />
 
       <main className="main" ref={mainRef}>
         <EditorPane
@@ -296,6 +297,7 @@ function App() {
           tdslLinterExtension={tdslLinterExtension}
           onChange={handleEditorChange}
           onCreateEditor={(view) => { editorViewRef.current = view }}
+          locale={settings.locale}
         />
         <div
           className="split-divider"
@@ -344,7 +346,7 @@ function App() {
         />
       </main>
 
-      <DiagnosticsPanel diagnostics={diagnostics} onDiagClick={handleDiagClick} />
+      <DiagnosticsPanel diagnostics={diagnostics} onDiagClick={handleDiagClick} locale={settings.locale} />
 
       <Tooltip tooltip={svg.tooltip} />
 

@@ -65,12 +65,12 @@ export function Toolbar(props: ToolbarProps) {
       <div className="toolbar-left">
         <span className="app-title">Timeline DSL</span>
         <div className="toolbar-divider" />
-        {/* ファイルメニュー */}
+        {/* File menu */}
         <div className="export-menu-wrapper" ref={fileMenuRef}>
           <button
             className="btn"
             onClick={() => setFileMenuOpen((v) => !v)}
-            title={t('toolbarFileMenu')}
+            title={t('toolbarFileMenuTitle')}
           >
             {t('toolbarFileMenu')} ▾
           </button>
@@ -95,11 +95,11 @@ export function Toolbar(props: ToolbarProps) {
             </div>
           )}
         </div>
-        {/* テンプレートギャラリー */}
+        {/* Template gallery */}
         <button
           className="btn"
           onClick={onShowGallery}
-          title={t('toolbarGallery')}
+          title={t('toolbarGalleryTitle')}
         >
           {t('toolbarGallery')}
         </button>
@@ -139,7 +139,7 @@ export function Toolbar(props: ToolbarProps) {
         </button>
       </div>
       <div className="toolbar-right">
-        {/* エクスポートメニュー */}
+        {/* Export menu */}
         <div className="export-menu-wrapper" ref={exportMenuRef}>
           <button
             className="btn"
@@ -150,12 +150,12 @@ export function Toolbar(props: ToolbarProps) {
           </button>
           {exportMenuOpen && (
             <div className="export-menu">
-              <div className="export-menu-section">ダウンロード</div>
+              <div className="export-menu-section">{t('toolbarExportDownloadSection')}</div>
               <button className="export-menu-item" onClick={() => { exportApi.downloadTdsl(); setExportMenuOpen(false) }}>
-                .tdsl 保存
+                {t('toolbarExportTdsl')}
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.downloadJsonIr(); setExportMenuOpen(false) }}>
-                JSON IR 保存
+                {t('toolbarExportJsonIr')}
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.downloadSvg(); setExportMenuOpen(false) }} disabled={!svgContent}>
                 {t('toolbarExportSvg')}
@@ -167,28 +167,28 @@ export function Toolbar(props: ToolbarProps) {
                 {t('toolbarExportPdf')}
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.downloadPng(true); setExportMenuOpen(false) }} disabled={!svgContent}>
-                PNG 保存（白背景）
+                {t('toolbarExportPngWhite')}
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.downloadPng(false); setExportMenuOpen(false) }} disabled={!svgContent}>
-                PNG 保存（透過）
+                {t('toolbarExportPngTransparent')}
               </button>
-              <div className="export-menu-section">クリップボードへコピー</div>
+              <div className="export-menu-section">{t('toolbarExportClipboardSection')}</div>
               <button className="export-menu-item" onClick={() => { exportApi.copySvg(); setExportMenuOpen(false) }} disabled={!svgContent}>
-                SVG をコピー
+                {t('toolbarCopySvg')}
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.copyPng(); setExportMenuOpen(false) }} disabled={!svgContent}>
-                PNG をコピー
+                {t('toolbarCopyPng')}
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.copyMarkdown(); setExportMenuOpen(false) }}>
-                Markdown をコピー
+                {t('toolbarCopyMarkdown')}
               </button>
               <button className="export-menu-item" onClick={() => { exportApi.copyShareLink(); setExportMenuOpen(false) }}>
-                Share link をコピー
+                {t('toolbarCopyShareLink')}
               </button>
             </div>
           )}
         </div>
-        {/* 設定 */}
+        {/* Settings */}
         <button
           className="btn"
           onClick={onShowSettings}
@@ -201,9 +201,9 @@ export function Toolbar(props: ToolbarProps) {
           type="button"
           className="btn"
           onClick={() => window.open('https://timeline-dsl-lp.pages.dev/', '_blank', 'noopener,noreferrer')}
-          title="ランディングページ・ドキュメント"
+          title={t('toolbarAboutTitle')}
         >
-          About
+          {t('toolbarAbout')}
         </button>
         <input
           ref={fileInputRef}

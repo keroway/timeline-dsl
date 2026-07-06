@@ -13,10 +13,10 @@ export function StatusBar({ wasmReady, wasmError, errorCount, warnCount, locale 
   const t = useMemo(() => createTranslator(locale), [locale])
 
   if (!wasmReady && !wasmError) {
-    return <div className="status-bar loading">WASM を初期化中...</div>
+    return <div className="status-bar loading">{t('statusInitializing')}</div>
   }
   if (wasmError) {
-    return <div className="status-bar status-error">WASM 初期化エラー: {wasmError}</div>
+    return <div className="status-bar status-error">{t.fmt('statusWasmInitError', { msg: wasmError })}</div>
   }
   return (
     <div className="status-bar ready">

@@ -69,13 +69,13 @@ export function shouldAutoSnapshot(source: string, lastAutoMs: number): boolean 
   return snaps[0].source !== source
 }
 
-export function pushManualSnapshot(source: string, label: string): Snapshot {
+export function pushManualSnapshot(source: string, label: string, fallbackPrefix: string): Snapshot {
   const snaps = readSnapshots(HISTORY_MANUAL_KEY)
   const snap: Snapshot = {
     id: makeId(),
     kind: 'manual',
     source,
-    label: label || `手動保存 — ${formatDate(Date.now())}`,
+    label: label || `${fallbackPrefix} — ${formatDate(Date.now())}`,
     createdAt: Date.now(),
   }
   writeSnapshots(HISTORY_MANUAL_KEY, [snap, ...snaps])

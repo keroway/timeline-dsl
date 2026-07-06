@@ -4,6 +4,7 @@ import { buildShareUrl } from '../share'
 import type { ToastVariant } from '../components/Toast'
 import type { RenderOptions } from '../wasmLoader'
 import type { FileHandleApi } from './useFileHandle'
+import type { Translator } from '../lib/i18n'
 
 export type ExportApi = {
   downloadTdsl: () => Promise<void>
@@ -26,6 +27,7 @@ export function useExport(
   renderOpts: RenderOptions,
   showToast: (message: string, variant?: ToastVariant) => void,
   fileHandle: FileHandleApi,
+  t: Translator,
 ): ExportApi {
   async function downloadTdsl() {
     await fileHandle.saveSource(source)
@@ -37,17 +39,16 @@ export function useExport(
       json = compileToIr(source)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
-      showToast(`JSON IR の生成に失敗しました: ${msg}`, 'error')
+      showToast(t.fmt('exportJsonIrFailed', { msg }), 'error')
       return
     }
-    // WASM では Wikidata fetch が行われず import/map 由来のアイテムが IR に
-    // 含まれない。不完全な IR を黙って保存しないよう、check_source の Info 診断
-    // （未解決 import/map の通知）がある場合は明示的な確認を挟み、
-    // 同意がなければ保存しない。
+    // WASM does not perform a Wikidata fetch, so items originating from
+    // import/map are not included in the IR. To avoid silently saving an
+    // incomplete IR, an explicit confirmation is shown when check_source
+    // reports an Info diagnostic (notice of unresolved import/map); saving
+    // is skipped without consent.
     if (checkSource(source).some((d) => d.severity === 'info')) {
-      const proceed = window.confirm(
-        'import / map ブロックは WebUI では解決されないため、この JSON IR にインポート由来のアイテムは含まれません。完全な IR は CLI の tdsl build で取得できます。\n\n静的アイテムのみの JSON IR を保存しますか？',
-      )
+      const proceed = window.confirm(t('exportJsonIrIncompleteConfirm'))
       if (!proceed) return
     }
     triggerDownload(new Blob([json], { type: 'application/json' }), 'timeline.json')
@@ -62,39 +63,39 @@ export function useExport(
     if (!svgContent) return
     svgToPngBlob(svgContent, whiteBg)
       .then((blob) => triggerDownload(blob, 'timeline.png'))
-      .catch(() => showToast('PNG の生成に失敗しました', 'error'))
+      .catch(() => showToast(t('exportPngGenerateFailed'), 'error'))
   }
 
   function copySvg() {
     if (!svgContent) return
     navigator.clipboard.writeText(svgContent)
-      .then(() => showToast('SVG をコピーしました', 'success'))
-      .catch(() => showToast('SVG のコピーに失敗しました', 'error'))
+      .then(() => showToast(t('exportSvgCopied'), 'success'))
+      .catch(() => showToast(t('exportSvgCopyFailed'), 'error'))
   }
 
   function copyPng() {
     if (!svgContent) return
     svgToPngBlob(svgContent, pngWhiteBg)
       .then((blob) => navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]))
-      .then(() => showToast('PNG をコピーしました', 'success'))
-      .catch(() => showToast('PNG のコピーに失敗しました', 'error'))
+      .then(() => showToast(t('exportPngCopied'), 'success'))
+      .catch(() => showToast(t('exportPngCopyFailed'), 'error'))
   }
 
   function copyMarkdown() {
     const md = '```tdsl\n' + source + '\n```'
     navigator.clipboard.writeText(md)
-      .then(() => showToast('Markdown をコピーしました', 'success'))
-      .catch(() => showToast('Markdown のコピーに失敗しました', 'error'))
+      .then(() => showToast(t('exportMarkdownCopied'), 'success'))
+      .catch(() => showToast(t('exportMarkdownCopyFailed'), 'error'))
   }
 
   function copyShareLink() {
     try {
       const url = buildShareUrl(source)
       navigator.clipboard.writeText(url)
-        .then(() => showToast('Share link をコピーしました', 'success'))
-        .catch(() => showToast('Share link のコピーに失敗しました', 'error'))
+        .then(() => showToast(t('exportShareLinkCopied'), 'success'))
+        .catch(() => showToast(t('exportShareLinkCopyFailed'), 'error'))
     } catch {
-      showToast('Share link の生成に失敗しました', 'error')
+      showToast(t('exportShareLinkFailed'), 'error')
     }
   }
 
@@ -121,10 +122,10 @@ export function useExport(
     try {
       html = renderHtmlWithOptions(source, renderOpts)
     } catch {
-      showToast('PDF の生成に失敗しました', 'error')
+      showToast(t('exportPdfFailed'), 'error')
       return
     }
-    showToast('印刷ダイアログで「PDF に保存」を選択してください', 'info')
+    showToast(t('exportPdfPrintHint'), 'info')
     const blob = new Blob([html], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
     const iframe = document.createElement('iframe')
@@ -137,7 +138,7 @@ export function useExport(
     iframe.onload = () => {
       const cw = iframe.contentWindow
       if (!cw) {
-        showToast('PDF の生成に失敗しました', 'error')
+        showToast(t('exportPdfFailed'), 'error')
         cleanup()
         return
       }

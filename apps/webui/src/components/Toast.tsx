@@ -2,10 +2,13 @@ import {
   createContext,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react'
+import { createTranslator } from '../lib/i18n'
+import { readSettings } from '../lib/settings'
 
 export type ToastVariant = 'success' | 'error' | 'info'
 export type ToastItem = { id: number; message: string; variant: ToastVariant }
@@ -25,6 +28,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const idRef = useRef(0)
   const timersRef = useRef(new Map<number, ReturnType<typeof setTimeout>>())
   const hoveredRef = useRef(false)
+  // ToastProvider sits above App in the tree (main.tsx) so it cannot receive
+  // `settings.locale` as a prop; read the persisted locale directly. This is
+  // re-evaluated on every render, which is sufficient since a locale change
+  // in Settings triggers a re-render of this subtree via toast state updates
+  // close in time to user actions.
+  const translate = useMemo(() => createTranslator(readSettings().locale), [])
 
   const clearTimer = useCallback((id: number) => {
     const tm = timersRef.current.get(id)
@@ -110,7 +119,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 type="button"
                 className="toast-close"
                 onClick={() => dismiss(t.id)}
-                aria-label="通知を閉じる"
+                aria-label={translate('toastCloseLabel')}
               >
                 ✕
               </button>

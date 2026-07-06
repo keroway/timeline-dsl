@@ -140,6 +140,117 @@ export type Dictionary = {
 
   // Diagnostics panel
   diagnosticsNoErrors: string
+  diagnosticsHeader: string
+
+  // Export (hooks/useExport.ts)
+  exportJsonIrFailed: string       // {msg}
+  exportJsonIrIncompleteConfirm: string
+  exportPngGenerateFailed: string
+  exportSvgCopied: string
+  exportSvgCopyFailed: string
+  exportPngCopied: string
+  exportPngCopyFailed: string
+  exportMarkdownCopied: string
+  exportMarkdownCopyFailed: string
+  exportShareLinkCopied: string
+  exportShareLinkCopyFailed: string
+  exportShareLinkFailed: string
+  exportPdfFailed: string
+  exportPdfPrintHint: string
+
+  // History (hooks/useHistorySnapshots.ts, history.ts)
+  historySnapshotBeforeTemplate: string
+  historySnapshotBeforeFileOpen: string
+  historyAutoSnapshotLabel: string
+  historyManualSnapshotPrefix: string
+  historyManualSnapshotLabel: string  // {datetime}
+  historySavedToHistory: string       // {label}
+  historyClearedAll: string
+  historyEmpty: string
+  historyClearAll: string
+
+  // App shell
+  appFileOpenFailed: string  // {msg}
+
+  // Toolbar — export menu
+  toolbarExportDownloadSection: string
+  toolbarExportTdsl: string
+  toolbarExportJsonIr: string
+  toolbarExportPngWhite: string
+  toolbarExportPngTransparent: string
+  toolbarExportClipboardSection: string
+  toolbarCopySvg: string
+  toolbarCopyPng: string
+  toolbarCopyMarkdown: string
+  toolbarCopyShareLink: string
+  toolbarFileMenuTitle: string
+  toolbarGalleryTitle: string
+  toolbarAbout: string
+  toolbarAboutTitle: string
+
+  // Preview panel — detail panel
+  previewLabel: string
+  previewDetailTitle: string
+  previewDetailName: string
+  previewDetailType: string
+  previewDetailLane: string
+  previewDetailSource: string
+  previewDetailInfo: string
+  previewStaleBadge: string
+  previewPlaceholderNoPreview: string
+  previewPlaceholderLoading: string
+  previewEmptyValue: string
+
+  // Settings modal — extra strings
+  settingsThemeAutoTitle: string  // {scheme}
+  settingsThemeDarkLabel: string
+  settingsThemeLightLabel: string
+  settingsSvgPreviewSection: string
+  settingsShowEventLabelsTitle: string
+  settingsAutoSaveTitle: string
+  settingsAutoSaveOnHint: string
+  settingsAutoSaveOffHint: string
+  settingsHistoryTitle: string
+  settingsHistoryOnHint: string
+  settingsHistoryOffHint: string
+  settingsLocaleJa: string
+  settingsLocaleEn: string
+  settingsShortcutsSection: string
+
+  // Status bar
+  statusInitializing: string
+  statusWasmInitError: string  // {msg}
+
+  // Mobile tab bar
+  mobileTabEditor: string
+  mobileTabPreview: string
+
+  // Toast
+  toastCloseLabel: string
+
+  // Editor completions (editor/completions.ts)
+  completionTimelineDetail: string
+  completionLaneDetail: string
+  completionSpanDetail: string
+  completionEventDetail: string
+  completionEventRangeDetail: string
+  completionImportDetail: string
+  completionMapDetail: string
+  completionQueryDetail: string
+  completionColorMapDetail: string
+
+  // Editor shortcuts (editor/shortcuts.ts)
+  shortcutSave: string
+  shortcutFormat: string
+  shortcutSearch: string
+  shortcutEscape: string
+  shortcutNextSuggestion: string
+  shortcutNextMatch: string
+  shortcutUndo: string
+  shortcutRedo: string
+  shortcutSelectSnippet: string
+  shortcutShowCompletions: string
+  shortcutOpenSettings: string
 }
 
 // ─── Japanese dictionary ──────────────────────────────────────────────────────
@@ -279,6 +390,119 @@ const ja: Dictionary = {
 
   // Diagnostics panel
   diagnosticsNoErrors: 'エラーはありません',
+  diagnosticsHeader: '診断結果',
+
+  // Export
+  exportJsonIrFailed: 'JSON IR の生成に失敗しました: {msg}',
+  exportJsonIrIncompleteConfirm:
+    'import / map ブロックは WebUI では解決されないため、この JSON IR にインポート由来のアイテムは含まれません。完全な IR は CLI の tdsl build で取得できます。\n\n静的アイテムのみの JSON IR を保存しますか？',
+  exportPngGenerateFailed: 'PNG の生成に失敗しました',
+  exportSvgCopied: 'SVG をコピーしました',
+  exportSvgCopyFailed: 'SVG のコピーに失敗しました',
+  exportPngCopied: 'PNG をコピーしました',
+  exportPngCopyFailed: 'PNG のコピーに失敗しました',
+  exportMarkdownCopied: 'Markdown をコピーしました',
+  exportMarkdownCopyFailed: 'Markdown のコピーに失敗しました',
+  exportShareLinkCopied: 'Share link をコピーしました',
+  exportShareLinkCopyFailed: 'Share link のコピーに失敗しました',
+  exportShareLinkFailed: 'Share link の生成に失敗しました',
+  exportPdfFailed: 'PDF の生成に失敗しました',
+  exportPdfPrintHint: '印刷ダイアログで「PDF に保存」を選択してください',
+
+  // History
+  historySnapshotBeforeTemplate: 'テンプレートロード前',
+  historySnapshotBeforeFileOpen: 'ファイルオープン前',
+  historyAutoSnapshotLabel: '自動保存',
+  historyManualSnapshotPrefix: '手動保存',
+  historyManualSnapshotLabel: '手動保存 — {datetime}',
+  historySavedToHistory: '履歴に保存しました: {label}',
+  historyClearedAll: '履歴を全件削除しました',
+  historyEmpty: '履歴はありません',
+  historyClearAll: '全件削除',
+
+  // App shell
+  appFileOpenFailed: 'ファイルを開けませんでした: {msg}',
+
+  // Toolbar — export menu
+  toolbarExportDownloadSection: 'ダウンロード',
+  toolbarExportTdsl: '.tdsl 保存',
+  toolbarExportJsonIr: 'JSON IR 保存',
+  toolbarExportPngWhite: 'PNG 保存（白背景）',
+  toolbarExportPngTransparent: 'PNG 保存（透過）',
+  toolbarExportClipboardSection: 'クリップボードへコピー',
+  toolbarCopySvg: 'SVG をコピー',
+  toolbarCopyPng: 'PNG をコピー',
+  toolbarCopyMarkdown: 'Markdown をコピー',
+  toolbarCopyShareLink: 'Share link をコピー',
+  toolbarFileMenuTitle: 'ファイルメニュー',
+  toolbarGalleryTitle: 'テンプレートギャラリー',
+  toolbarAbout: 'About',
+  toolbarAboutTitle: 'ランディングページ・ドキュメント',
+
+  // Preview panel — detail panel
+  previewLabel: '年表プレビュー',
+  previewDetailTitle: '選択中アイテムの詳細',
+  previewDetailName: '名前',
+  previewDetailType: '種類',
+  previewDetailLane: 'レーン',
+  previewDetailSource: '出典',
+  previewDetailInfo: '情報',
+  previewStaleBadge: '直前の成功時プレビューを表示中',
+  previewPlaceholderNoPreview: 'プレビューなし（エラーを確認してください）',
+  previewPlaceholderLoading: '読み込み中...',
+  previewEmptyValue: '—',
+
+  // Settings modal — extra strings
+  settingsThemeAutoTitle: 'OS の設定に追従（現在: {scheme}）',
+  settingsThemeDarkLabel: 'ダーク',
+  settingsThemeLightLabel: 'ライト',
+  settingsSvgPreviewSection: 'SVG プレビュー設定',
+  settingsShowEventLabelsTitle:
+    'Event / event_range のラベルをドット・バー近傍に常時描画します（一覧表示・印刷向け）',
+  settingsAutoSaveTitle: '編集内容をブラウザに自動保存します（リロード後も復元）',
+  settingsAutoSaveOnHint: 'リロード後に復元されます',
+  settingsAutoSaveOffHint: '保存しません（オフ時は既存の保存を削除）',
+  settingsHistoryTitle: 'テンプレートロード・ファイルオープン・5分毎に自動スナップショットを保存',
+  settingsHistoryOnHint: '自動スナップショット有効（最大5件）',
+  settingsHistoryOffHint: '無効（既存履歴は保持）',
+  settingsLocaleJa: '日本語',
+  settingsLocaleEn: 'English',
+  settingsShortcutsSection: 'キーボードショートカット',
+
+  // Status bar
+  statusInitializing: 'WASM を初期化中...',
+  statusWasmInitError: 'WASM 初期化エラー: {msg}',
+
+  // Mobile tab bar
+  mobileTabEditor: 'エディタ',
+  mobileTabPreview: 'プレビュー',
+
+  // Toast
+  toastCloseLabel: '通知を閉じる',
+
+  // Editor completions
+  completionTimelineDetail: '年表ブロック',
+  completionLaneDetail: 'レーン定義',
+  completionSpanDetail: 'スパン',
+  completionEventDetail: 'イベント',
+  completionEventRangeDetail: 'イベント範囲',
+  completionImportDetail: 'Wikidataインポート',
+  completionMapDetail: 'マッピング',
+  completionQueryDetail: 'SPARQLクエリ',
+  completionColorMapDetail: 'タグ→色マッピング',
+
+  // Editor shortcuts
+  shortcutSave: '.tdsl をダウンロード',
+  shortcutFormat: 'エディタ内容を整形',
+  shortcutSearch: '検索・置換パネルを開く',
+  shortcutEscape: '検索パネルを閉じる / 全画面モードを終了',
+  shortcutNextSuggestion: '次の候補へ',
+  shortcutNextMatch: '次の一致へ',
+  shortcutUndo: '元に戻す',
+  shortcutRedo: 'やり直す',
+  shortcutSelectSnippet: 'スニペット候補を選択',
+  shortcutShowCompletions: '補完候補を表示',
+  shortcutOpenSettings: '設定を開く',
 }
 
 // ─── English dictionary ───────────────────────────────────────────────────────
@@ -418,6 +642,119 @@ const en: Dictionary = {
 
   // Diagnostics panel
   diagnosticsNoErrors: 'No errors',
+  diagnosticsHeader: 'Diagnostics',
+
+  // Export
+  exportJsonIrFailed: 'Failed to generate JSON IR: {msg}',
+  exportJsonIrIncompleteConfirm:
+    'import / map blocks are not resolved in WebUI, so imported items will not be included in this JSON IR. The complete IR is available via the CLI\'s tdsl build.\n\nSave the JSON IR with static items only?',
+  exportPngGenerateFailed: 'Failed to generate PNG',
+  exportSvgCopied: 'Copied SVG',
+  exportSvgCopyFailed: 'Failed to copy SVG',
+  exportPngCopied: 'Copied PNG',
+  exportPngCopyFailed: 'Failed to copy PNG',
+  exportMarkdownCopied: 'Copied Markdown',
+  exportMarkdownCopyFailed: 'Failed to copy Markdown',
+  exportShareLinkCopied: 'Copied share link',
+  exportShareLinkCopyFailed: 'Failed to copy share link',
+  exportShareLinkFailed: 'Failed to generate share link',
+  exportPdfFailed: 'Failed to generate PDF',
+  exportPdfPrintHint: 'Choose "Save as PDF" in the print dialog',
+
+  // History
+  historySnapshotBeforeTemplate: 'Before template load',
+  historySnapshotBeforeFileOpen: 'Before file open',
+  historyAutoSnapshotLabel: 'Auto save',
+  historyManualSnapshotPrefix: 'Manual save',
+  historyManualSnapshotLabel: 'Manual save — {datetime}',
+  historySavedToHistory: 'Saved to history: {label}',
+  historyClearedAll: 'Cleared all history',
+  historyEmpty: 'No history',
+  historyClearAll: 'Clear all',
+
+  // App shell
+  appFileOpenFailed: 'Could not open file: {msg}',
+
+  // Toolbar — export menu
+  toolbarExportDownloadSection: 'Download',
+  toolbarExportTdsl: 'Save .tdsl',
+  toolbarExportJsonIr: 'Save JSON IR',
+  toolbarExportPngWhite: 'Save PNG (white background)',
+  toolbarExportPngTransparent: 'Save PNG (transparent)',
+  toolbarExportClipboardSection: 'Copy to clipboard',
+  toolbarCopySvg: 'Copy SVG',
+  toolbarCopyPng: 'Copy PNG',
+  toolbarCopyMarkdown: 'Copy Markdown',
+  toolbarCopyShareLink: 'Copy share link',
+  toolbarFileMenuTitle: 'File menu',
+  toolbarGalleryTitle: 'Template gallery',
+  toolbarAbout: 'About',
+  toolbarAboutTitle: 'Landing page / documentation',
+
+  // Preview panel — detail panel
+  previewLabel: 'Timeline preview',
+  previewDetailTitle: 'Selected item details',
+  previewDetailName: 'Name',
+  previewDetailType: 'Type',
+  previewDetailLane: 'Lane',
+  previewDetailSource: 'Source',
+  previewDetailInfo: 'Info',
+  previewStaleBadge: 'Showing last successful preview',
+  previewPlaceholderNoPreview: 'No preview (check for errors)',
+  previewPlaceholderLoading: 'Loading...',
+  previewEmptyValue: '—',
+
+  // Settings modal — extra strings
+  settingsThemeAutoTitle: 'Follow OS setting (currently: {scheme})',
+  settingsThemeDarkLabel: 'Dark',
+  settingsThemeLightLabel: 'Light',
+  settingsSvgPreviewSection: 'SVG preview settings',
+  settingsShowEventLabelsTitle:
+    'Always render Event / event_range labels near the dot/bar (useful for lists/printing)',
+  settingsAutoSaveTitle: 'Automatically save edits to the browser (restored after reload)',
+  settingsAutoSaveOnHint: 'Restored after reload',
+  settingsAutoSaveOffHint: 'Not saved (turning off deletes any existing save)',
+  settingsHistoryTitle: 'Auto-snapshot on template load, file open, and every 5 minutes',
+  settingsHistoryOnHint: 'Auto snapshots enabled (5 max)',
+  settingsHistoryOffHint: 'Disabled (existing history is kept)',
+  settingsLocaleJa: '日本語',
+  settingsLocaleEn: 'English',
+  settingsShortcutsSection: 'Keyboard shortcuts',
+
+  // Status bar
+  statusInitializing: 'Initializing WASM...',
+  statusWasmInitError: 'WASM initialization error: {msg}',
+
+  // Mobile tab bar
+  mobileTabEditor: 'Editor',
+  mobileTabPreview: 'Preview',
+
+  // Toast
+  toastCloseLabel: 'Dismiss notification',
+
+  // Editor completions
+  completionTimelineDetail: 'Timeline block',
+  completionLaneDetail: 'Lane definition',
+  completionSpanDetail: 'Span',
+  completionEventDetail: 'Event',
+  completionEventRangeDetail: 'Event range',
+  completionImportDetail: 'Wikidata import',
+  completionMapDetail: 'Mapping',
+  completionQueryDetail: 'SPARQL query',
+  completionColorMapDetail: 'Tag→color mapping',
+
+  // Editor shortcuts
+  shortcutSave: 'Download .tdsl',
+  shortcutFormat: 'Format editor content',
+  shortcutSearch: 'Open search/replace panel',
+  shortcutEscape: 'Close search panel / exit fullscreen mode',
+  shortcutNextSuggestion: 'Next suggestion',
+  shortcutNextMatch: 'Next match',
+  shortcutUndo: 'Undo',
+  shortcutRedo: 'Redo',
+  shortcutSelectSnippet: 'Select snippet suggestion',
+  shortcutShowCompletions: 'Show completions',
+  shortcutOpenSettings: 'Open settings',
 }
 
 // ─── Dictionaries map ─────────────────────────────────────────────────────────

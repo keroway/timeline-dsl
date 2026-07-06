@@ -117,12 +117,12 @@ export function HistoryModal(props: HistoryModalProps) {
             </section>
           )}
           {autoSnaps.length === 0 && manualSnaps.length === 0 && (
-            <div className="history-empty">履歴はありません</div>
+            <div className="history-empty">{t('historyEmpty')}</div>
           )}
           {(autoSnaps.length > 0 || manualSnaps.length > 0) && (
             <div className="history-footer">
               <button className="btn btn-danger" onClick={onClearAll}>
-                全件削除
+                {t('historyClearAll')}
               </button>
             </div>
           )}

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView } from '@codemirror/view'
@@ -11,6 +12,7 @@ import { tdslHover } from '../lang-tdsl/hover'
 import { makeTdslCompletionSource } from '../editor/completions'
 import { lineHighlightField } from '../editor/extensions'
 import type { ColorScheme } from '../lib/settings'
+import { createTranslator, type Locale } from '../lib/i18n'
 
 type EditorPaneProps = {
   source: string
@@ -23,6 +25,7 @@ type EditorPaneProps = {
   tdslLinterExtension: Extension
   onChange: (value: string) => void
   onCreateEditor: (view: EditorView) => void
+  locale: Locale
 }
 
 export function EditorPane(props: EditorPaneProps) {
@@ -37,7 +40,10 @@ export function EditorPane(props: EditorPaneProps) {
     tdslLinterExtension,
     onChange,
     onCreateEditor,
+    locale,
   } = props
+
+  const t = useMemo(() => createTranslator(locale), [locale])
 
   return (
     <div
@@ -52,7 +58,7 @@ export function EditorPane(props: EditorPaneProps) {
           tdsl(),
           search({ top: true }),
           bracketMatching(),
-          autocompletion({ override: [makeTdslCompletionSource(() => source)] }),
+          autocompletion({ override: [makeTdslCompletionSource(() => source, t)] }),
           tdslHover(() => source),
           lineHighlightField,
           cursorLineExtension,

@@ -1,15 +1,19 @@
+import { useMemo } from 'react'
 import type { Diagnostic } from '../wasmLoader'
+import { createTranslator, type Locale } from '../lib/i18n'
 
 type DiagnosticsPanelProps = {
   diagnostics: Diagnostic[]
   onDiagClick: (diag: Diagnostic) => void
+  locale: Locale
 }
 
-export function DiagnosticsPanel({ diagnostics, onDiagClick }: DiagnosticsPanelProps) {
+export function DiagnosticsPanel({ diagnostics, onDiagClick, locale }: DiagnosticsPanelProps) {
+  const t = useMemo(() => createTranslator(locale), [locale])
   if (diagnostics.length === 0) return null
   return (
     <aside className="diagnostics-panel">
-      <div className="diagnostics-header">診断結果</div>
+      <div className="diagnostics-header">{t('diagnosticsHeader')}</div>
       <ul className="diagnostics-list">
         {diagnostics.map((d, i) => (
           <li
