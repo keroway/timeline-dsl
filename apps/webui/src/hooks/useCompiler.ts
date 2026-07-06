@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEBOUNCE_MS } from '../lib/constants'
-import { type Diagnostic, type LintIssue, type RenderOptions, checkSource, lintSource, renderSvgWithOptions } from '../wasmLoader'
+import { getWorkerClient, type Diagnostic, type LintIssue, type RenderOptions } from '../wasmLoader'
 
-// lint 結果を Diagnostic に変換する。`[lint:<code>]` プレフィックスで `check_source`
-// の診断と区別できるようにし、行のみ持つ lint には col=1 を付与して既存パネルが
-// 1-based として扱えるようにする。`parse_error` だけは `check_source` の側で同じ位置に
-// 出るため lint 側では捨てて二重表示を避ける。
 function lintIssueToDiagnostic(issue: LintIssue): Diagnostic {
   return {
     severity: issue.severity,
@@ -18,20 +14,18 @@ function lintIssueToDiagnostic(issue: LintIssue): Diagnostic {
 export type CompilerState = {
   svgContent: string
   diagnostics: Diagnostic[]
-  // CodeMirror linter が最新の diagnostics を参照するための ref
   diagnosticsRef: React.RefObject<Diagnostic[]>
   isStalePreview: boolean
 }
 
-// ソース変更を（デバウンス付きで）チェック＋SVG レンダリングし、
-// 診断とプレビュー SVG を公開する。エラー時は直前の成功プレビューを保持する。
 export function useCompiler(source: string, wasmReady: boolean, scale: number, renderOpts: RenderOptions = {}): CompilerState {
   const [svgContent, setSvgContent] = useState<string>('')
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
   const [isStalePreview, setIsStalePreview] = useState(false)
   const diagnosticsRef = useRef<Diagnostic[]>(diagnostics)
-  // CodeMirror linter が参照する ref を最新の diagnostics に同期する（render 中の
-  // ref 書き込みは避け、effect で更新する）。
+  const latestRequestIdRef = useRef(0)
+  const clientRef = useRef(getWorkerClient())
+
   useEffect(() => {
     diagnosticsRef.current = diagnostics
   }, [diagnostics])
@@ -42,22 +36,32 @@ export function useCompiler(source: string, wasmReady: boolean, scale: number, r
   }, [renderOpts])
 
   const compileAndCheck = useCallback(
-    (src: string) => {
+    async (src: string) => {
       if (!wasmReady) return
-      const checkDiags = checkSource(src)
-      const lintDiags = lintSource(src)
+      latestRequestIdRef.current += 1
+      const requestId = latestRequestIdRef.current
+      const client = clientRef.current
+
+      const checkDiags = await client.checkSourceAsync(src)
+      if (requestId !== latestRequestIdRef.current) return
+
+      const lintDiags = (await client.lintSourceAsync(src))
         .filter((i) => i.code !== 'parse_error')
         .map(lintIssueToDiagnostic)
+      if (requestId !== latestRequestIdRef.current) return
+
       const diags = [...checkDiags, ...lintDiags]
       setDiagnostics(diags)
 
       const hasErrors = diags.some((d) => d.severity === 'error')
       if (!hasErrors) {
         try {
-          const svg = renderSvgWithOptions(src, scale, renderOptsRef.current)
+          const svg = await client.renderSvgWithOptionsAsync(src, scale, renderOptsRef.current)
+          if (requestId !== latestRequestIdRef.current) return
           setSvgContent(svg)
           setIsStalePreview(false)
         } catch (e: unknown) {
+          if (requestId !== latestRequestIdRef.current) return
           const msg = e instanceof Error ? e.message : String(e)
           setDiagnostics((prev) => [
             ...prev,
@@ -77,25 +81,26 @@ export function useCompiler(source: string, wasmReady: boolean, scale: number, r
     if (!wasmReady) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      compileAndCheck(source)
+      void compileAndCheck(source)
     }, DEBOUNCE_MS)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [source, wasmReady, scale, compileAndCheck])
 
-  // renderOpts が変化したら即座に再レンダリング（ソース変更なし）
   useEffect(() => {
     if (!wasmReady) return
-    queueMicrotask(() => compileAndCheck(source))
-    // renderOpts の変更時のみ発火させる
+    queueMicrotask(() => {
+      void compileAndCheck(source)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renderOpts.orientation, renderOpts.grid, renderOpts.theme, wasmReady])
+  }, [renderOpts.orientation, renderOpts.grid, renderOpts.theme, wasmReady, renderOpts.showEventLabels])
 
-  // Initial compile when WASM becomes ready
   useEffect(() => {
     if (wasmReady) {
-      queueMicrotask(() => compileAndCheck(source))
+      queueMicrotask(() => {
+        void compileAndCheck(source)
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wasmReady])
