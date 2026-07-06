@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
 import { EditorView } from '@codemirror/view'
 import { forceLinting } from '@codemirror/lint'
-import { type Diagnostic, formatSource, lintFixSource } from './wasmLoader'
+import { getWorkerClient, type Diagnostic } from './wasmLoader'
 import { useToast } from './components/useToast'
 import { readInitialSource } from './lib/initialSource'
 import { makeTdslLinter } from './editor/extensions'
@@ -109,14 +109,14 @@ function App() {
     setShowGallery(false)
   }
 
-  function handleFormat() {
+  async function handleFormat() {
     if (!wasmReady) return
     const view = editorViewRef.current
     if (!view) return
     const currentSource = view.state.doc.toString()
     let formatted: string
     try {
-      formatted = formatSource(currentSource)
+      formatted = await getWorkerClient().formatSourceAsync(currentSource)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       showToast(t.fmt('appFormatFailed', { msg }), 'error')
@@ -149,7 +149,7 @@ function App() {
     const currentSource = view.state.doc.toString()
     let fixed: string
     try {
-      fixed = lintFixSource(currentSource)
+      fixed = await getWorkerClient().lintFixSourceAsync(currentSource)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       showToast(t.fmt('appLintFixFailed', { msg }), 'error')
