@@ -185,18 +185,18 @@ export function PreviewPanel(props: PreviewPanelProps) {
       )}
       {/* Selected item detail panel */}
       {selectedItem && (
-        <div className="detail-panel" aria-label="選択中アイテムの詳細">
+        <div className="detail-panel" aria-label={t('previewDetailTitle')}>
           <div className="detail-header">
-            <span>詳細</span>
-            <button className="detail-close" onClick={() => setSelectedItem(null)} aria-label="詳細を閉じる">✕</button>
+            <span>{t('previewDetailTitle')}</span>
+            <button className="detail-close" onClick={() => setSelectedItem(null)} aria-label={t('previewDetailClose')}>✕</button>
           </div>
           <dl className="detail-list">
-            <dt>名前</dt><dd>{selectedItem.label || '—'}</dd>
-            <dt>種類</dt><dd>{selectedItem.type || '—'}</dd>
-            <dt>レーン</dt><dd>{selectedItem.lane || '—'}</dd>
-            {selectedItem.source && <><dt>出典</dt><dd>{selectedItem.source}</dd></>}
+            <dt>{t('previewDetailName')}</dt><dd>{selectedItem.label || t('previewEmptyValue')}</dd>
+            <dt>{t('previewDetailType')}</dt><dd>{selectedItem.type || t('previewEmptyValue')}</dd>
+            <dt>{t('previewDetailLane')}</dt><dd>{selectedItem.lane || t('previewEmptyValue')}</dd>
+            {selectedItem.source && <><dt>{t('previewDetailSource')}</dt><dd>{selectedItem.source}</dd></>}
             {selectedItem.tooltip && (
-              <><dt>情報</dt><dd className="detail-tooltip">{selectedItem.tooltip}</dd></>
+              <><dt>{t('previewDetailInfo')}</dt><dd className="detail-tooltip">{selectedItem.tooltip}</dd></>
             )}
           </dl>
         </div>
@@ -211,12 +211,12 @@ export function PreviewPanel(props: PreviewPanelProps) {
         onDoubleClick={onDoubleClick}
         onClick={onClick}
         onKeyDown={onKeyDown}
-        aria-label="年表プレビュー"
+        aria-label={t('previewLabel')}
       >
         {svgContent ? (
           <>
             {isStalePreview && (
-              <div className="stale-preview-badge">直前の成功時プレビューを表示中</div>
+              <div className="stale-preview-badge">{t('previewStaleBadge')}</div>
             )}
             <div
               ref={svgContainerRef}
@@ -226,7 +226,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
           </>
         ) : (
           <div className="preview-placeholder">
-            {wasmReady ? 'プレビューなし（エラーを確認してください）' : '読み込み中...'}
+            {wasmReady ? t('previewPlaceholderNoPreview') : t('previewPlaceholderLoading')}
           </div>
         )}
       </div>

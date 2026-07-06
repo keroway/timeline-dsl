@@ -1,7 +1,7 @@
 import { useMemo, type ChangeEvent } from 'react'
 import type { ColorScheme, Settings } from '../lib/settings'
 import { createTranslator, SUPPORTED_LOCALES, type Locale } from '../lib/i18n'
-import { SHORTCUTS } from '../editor/shortcuts'
+import { getShortcuts } from '../editor/shortcuts'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type SettingsModalProps = {
@@ -15,6 +15,7 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
   const { theme: themePref, fontSize, lineWrap, scale, pngWhiteBg } = settings
   const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose })
   const t = useMemo(() => createTranslator(settings.locale), [settings.locale])
+  const shortcuts = useMemo(() => getShortcuts(t), [t])
 
   function handleFontSizeChange(e: ChangeEvent<HTMLSelectElement>) {
     updateSetting('fontSize', parseInt(e.target.value, 10))
@@ -45,7 +46,9 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
                 aria-checked={themePref === 'auto'}
                 className={`btn${themePref === 'auto' ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('theme', 'auto')}
-                title={`OS の設定に追従（現在: ${systemScheme === 'dark' ? 'ダーク' : 'ライト'}）`}
+                title={t.fmt('settingsThemeAutoTitle', {
+                  scheme: systemScheme === 'dark' ? t('settingsThemeDarkLabel') : t('settingsThemeLightLabel'),
+                })}
               >
                 {t('settingsThemeAuto')}
               </button>
@@ -126,7 +129,7 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
           </div>
           <hr className="settings-divider" />
           <div className="settings-section">
-            <div className="settings-label">SVG プレビュー設定</div>
+            <div className="settings-label">{t('settingsSvgPreviewSection')}</div>
           </div>
           <div className="settings-section">
             <div className="settings-label">{t('settingsOrientation')}</div>
@@ -171,7 +174,7 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
               <button
                 className={`btn${settings.svgShowEventLabels ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('svgShowEventLabels', !settings.svgShowEventLabels)}
-                title="Event / event_range のラベルをドット・バー近傍に常時描画します（一覧表示・印刷向け）"
+                title={t('settingsShowEventLabelsTitle')}
               >
                 {settings.svgShowEventLabels ? t('settingsShowEventLabelsOn') : t('settingsShowEventLabelsOff')}
               </button>
@@ -183,12 +186,12 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
               <button
                 className={`btn${settings.autoSaveEnabled ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('autoSaveEnabled', !settings.autoSaveEnabled)}
-                title="編集内容をブラウザに自動保存します（リロード後も復元）"
+                title={t('settingsAutoSaveTitle')}
               >
                 {settings.autoSaveEnabled ? t('settingsAutoSaveOn') : t('settingsAutoSaveOff')}
               </button>
               <span className="settings-hint">
-                {settings.autoSaveEnabled ? 'リロード後に復元されます' : '保存しません（オフ時は既存の保存を削除）'}
+                {settings.autoSaveEnabled ? t('settingsAutoSaveOnHint') : t('settingsAutoSaveOffHint')}
               </span>
             </div>
           </div>
@@ -198,12 +201,12 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
               <button
                 className={`btn${settings.historyEnabled ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('historyEnabled', !settings.historyEnabled)}
-                title="テンプレートロード・ファイルオープン・5分毎に自動スナップショットを保存"
+                title={t('settingsHistoryTitle')}
               >
                 {settings.historyEnabled ? t('settingsHistoryOn') : t('settingsHistoryOff')}
               </button>
               <span className="settings-hint">
-                {settings.historyEnabled ? '自動スナップショット有効（最大5件）' : '無効（既存履歴は保持）'}
+                {settings.historyEnabled ? t('settingsHistoryOnHint') : t('settingsHistoryOffHint')}
               </span>
             </div>
           </div>
@@ -217,7 +220,7 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             >
               {SUPPORTED_LOCALES.map((loc) => (
                 <option key={loc} value={loc}>
-                  {loc === 'ja' ? '日本語' : 'English'}
+                  {loc === 'ja' ? t('settingsLocaleJa') : t('settingsLocaleEn')}
                 </option>
               ))}
             </select>
@@ -235,10 +238,10 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
           </div>
           <hr className="settings-divider" />
           <div className="settings-section">
-            <div className="settings-label">キーボードショートカット</div>
+            <div className="settings-label">{t('settingsShortcutsSection')}</div>
             <table className="shortcuts-table">
               <tbody>
-                {SHORTCUTS.map(({ key, desc }) => (
+                {shortcuts.map(({ key, desc }) => (
                   <tr key={key}>
                     <td><kbd className="kbd">{key}</kbd></td>
                     <td>{desc}</td>

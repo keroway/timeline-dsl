@@ -283,7 +283,7 @@ function App() {
 
       <StatusBar wasmReady={wasmReady} wasmError={wasmError} errorCount={errorCount} warnCount={warnCount} locale={settings.locale} />
 
-      <MobileTabBar mobileTab={mobileTab} setMobileTab={setMobileTab} />
+      <MobileTabBar mobileTab={mobileTab} setMobileTab={setMobileTab} locale={settings.locale} />
 
       <main className="main" ref={mainRef}>
         <EditorPane
@@ -345,7 +345,7 @@ function App() {
         />
       </main>
 
-      <DiagnosticsPanel diagnostics={diagnostics} onDiagClick={handleDiagClick} />
+      <DiagnosticsPanel diagnostics={diagnostics} onDiagClick={handleDiagClick} locale={settings.locale} />
 
       <Tooltip tooltip={svg.tooltip} />
 
