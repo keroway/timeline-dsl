@@ -5,10 +5,11 @@ import type { ToastVariant } from '../components/Toast'
 import type { RenderOptions } from '../wasmLoader'
 import type { FileHandleApi } from './useFileHandle'
 import type { Translator } from '../lib/i18n'
+import type { ConfirmOptions } from './useConfirm'
 
 export type ExportApi = {
   downloadTdsl: () => Promise<void>
-  downloadJsonIr: () => void
+  downloadJsonIr: () => Promise<void>
   downloadSvg: () => void
   downloadHtml: () => void
   downloadPng: (whiteBg?: boolean) => void
@@ -28,12 +29,13 @@ export function useExport(
   showToast: (message: string, variant?: ToastVariant) => void,
   fileHandle: FileHandleApi,
   t: Translator,
+  confirm: (options: ConfirmOptions) => Promise<boolean>,
 ): ExportApi {
   async function downloadTdsl() {
     await fileHandle.saveSource(source)
   }
 
-  function downloadJsonIr() {
+  async function downloadJsonIr() {
     let json: string
     try {
       json = compileToIr(source)
@@ -48,7 +50,13 @@ export function useExport(
     // reports an Info diagnostic (notice of unresolved import/map); saving
     // is skipped without consent.
     if (checkSource(source).some((d) => d.severity === 'info')) {
-      const proceed = window.confirm(t('exportJsonIrIncompleteConfirm'))
+      const proceed = await confirm({
+        title: t('confirmJsonIrIncompleteTitle'),
+        body: t('exportJsonIrIncompleteConfirm'),
+        confirmLabel: t('confirmProceed'),
+        cancelLabel: t('confirmCancel'),
+        tone: 'warn',
+      })
       if (!proceed) return
     }
     triggerDownload(new Blob([json], { type: 'application/json' }), 'timeline.json')

@@ -145,6 +145,7 @@ export type Dictionary = {
   // Export (hooks/useExport.ts)
   exportJsonIrFailed: string       // {msg}
   exportJsonIrIncompleteConfirm: string
+  confirmJsonIrIncompleteTitle: string
   exportPngGenerateFailed: string
   exportSvgCopied: string
   exportSvgCopyFailed: string
@@ -251,6 +252,11 @@ export type Dictionary = {
   shortcutSelectSnippet: string
   shortcutShowCompletions: string
   shortcutOpenSettings: string
+
+  // Confirm modal (replaces window.confirm — components/ConfirmModal.tsx)
+  confirmProceed: string
+  confirmCancel: string
+  confirmLintFixTitle: string
 }
 
 // ─── Japanese dictionary ──────────────────────────────────────────────────────
@@ -396,6 +402,7 @@ const ja: Dictionary = {
   exportJsonIrFailed: 'JSON IR の生成に失敗しました: {msg}',
   exportJsonIrIncompleteConfirm:
     'import / map ブロックは WebUI では解決されないため、この JSON IR にインポート由来のアイテムは含まれません。完全な IR は CLI の tdsl build で取得できます。\n\n静的アイテムのみの JSON IR を保存しますか？',
+  confirmJsonIrIncompleteTitle: 'JSON IR が不完全です',
   exportPngGenerateFailed: 'PNG の生成に失敗しました',
   exportSvgCopied: 'SVG をコピーしました',
   exportSvgCopyFailed: 'SVG のコピーに失敗しました',
@@ -503,6 +510,11 @@ const ja: Dictionary = {
   shortcutSelectSnippet: 'スニペット候補を選択',
   shortcutShowCompletions: '補完候補を表示',
   shortcutOpenSettings: '設定を開く',
+
+  // Confirm modal
+  confirmProceed: '続行',
+  confirmCancel: 'キャンセル',
+  confirmLintFixTitle: 'Lint 修正の確認',
 }
 
 // ─── English dictionary ───────────────────────────────────────────────────────
@@ -648,6 +660,7 @@ const en: Dictionary = {
   exportJsonIrFailed: 'Failed to generate JSON IR: {msg}',
   exportJsonIrIncompleteConfirm:
     'import / map blocks are not resolved in WebUI, so imported items will not be included in this JSON IR. The complete IR is available via the CLI\'s tdsl build.\n\nSave the JSON IR with static items only?',
+  confirmJsonIrIncompleteTitle: 'Incomplete JSON IR',
   exportPngGenerateFailed: 'Failed to generate PNG',
   exportSvgCopied: 'Copied SVG',
   exportSvgCopyFailed: 'Failed to copy SVG',
@@ -755,6 +768,11 @@ const en: Dictionary = {
   shortcutSelectSnippet: 'Select snippet suggestion',
   shortcutShowCompletions: 'Show completions',
   shortcutOpenSettings: 'Open settings',
+
+  // Confirm modal
+  confirmProceed: 'Proceed',
+  confirmCancel: 'Cancel',
+  confirmLintFixTitle: 'Confirm lint fix',
 }
 
 // ─── Dictionaries map ─────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@ import { useCompiler } from './hooks/useCompiler'
 import { useSvgInteractions } from './hooks/useSvgInteractions'
 import { useSplitPane } from './hooks/useSplitPane'
 import { useExport } from './hooks/useExport'
+import { useConfirm } from './hooks/useConfirm'
 import { useHistorySnapshots } from './hooks/useHistorySnapshots'
 import { useSourcePersistence } from './hooks/useSourcePersistence'
 import { useFileHandle } from './hooks/useFileHandle'
@@ -27,6 +28,7 @@ import { Tooltip } from './components/Tooltip'
 import { SettingsModal } from './components/SettingsModal'
 import { GalleryModal } from './components/GalleryModal'
 import { HistoryModal } from './components/HistoryModal'
+import { ConfirmModal } from './components/ConfirmModal'
 import { createTranslator } from './lib/i18n'
 import './App.css'
 
@@ -77,7 +79,8 @@ function App() {
     handleDividerMouseDown,
     handleDividerKeyDown,
   } = useSplitPane()
-  const exportApi = useExport(source, svgContent, settings.pngWhiteBg, renderOpts, showToast, fileHandle, t)
+  const { confirm, confirmState } = useConfirm()
+  const exportApi = useExport(source, svgContent, settings.pngWhiteBg, renderOpts, showToast, fileHandle, t, confirm)
   const history = useHistorySnapshots({
     source,
     historyEnabled: settings.historyEnabled,
@@ -139,7 +142,7 @@ function App() {
     void pwaUpdate.updateServiceWorker(true)
   }
 
-  function handleLintFix() {
+  async function handleLintFix() {
     if (!wasmReady) return
     const view = editorViewRef.current
     if (!view) return
@@ -160,7 +163,14 @@ function App() {
     const warning = hadComment
       ? t('appLintFixCommentConfirm')
       : t('appLintFixConfirm')
-    if (!window.confirm(warning)) return
+    const proceed = await confirm({
+      title: t('confirmLintFixTitle'),
+      body: warning,
+      confirmLabel: t('confirmProceed'),
+      cancelLabel: t('confirmCancel'),
+      tone: 'warn',
+    })
+    if (!proceed) return
     view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: fixed },
     })
@@ -378,6 +388,7 @@ function App() {
           locale={settings.locale}
         />
       )}
+      {confirmState && <ConfirmModal state={confirmState} />}
     </div>
   )
 }
