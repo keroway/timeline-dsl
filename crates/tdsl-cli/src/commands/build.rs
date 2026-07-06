@@ -133,3 +133,239 @@ pub(crate) fn load_ir(
 
     Ok(ir)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Minimal but complete valid `.tdsl` source, used to exercise `load_ir` /
+    /// `cmd_build` offline (no Wikidata network access) and deterministically.
+    const MINIMAL_TDSL: &str = r#"
+timeline "Test" {
+    title "Test";
+    unit year;
+    range 0..100;
+    calendar proleptic_gregorian;
+}
+
+lane "A" as a { kind custom; order 1; }
+
+event a 10 "E1" { id "e1"; };
+"#;
+
+    fn write_temp_tdsl(name: &str, contents: &str) -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static N: AtomicU32 = AtomicU32::new(0);
+        let n = N.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "tdsl_build_test_{}_{}_{}",
+            std::process::id(),
+            n,
+            name
+        ));
+        std::fs::write(&path, contents).expect("failed to write temp .tdsl fixture");
+        path
+    }
+
+    fn default_cache_opts() -> tdsl_wikidata::CacheOptions {
+        tdsl_wikidata::CacheOptions {
+            no_cache: false,
+            ttl: std::time::Duration::from_secs(86400),
+        }
+    }
+
+    #[test]
+    fn cmd_build_errors_when_inputs_empty() {
+        let err = cmd_build(
+            &[],
+            None,
+            false,
+            true,
+            default_cache_opts(),
+            std::time::Duration::from_secs(30),
+        )
+        .expect_err("empty inputs must error");
+        assert!(
+            err.contains("at least one input FILE is required"),
+            "unexpected error message: {err}"
+        );
+        assert!(
+            err.contains("--json-schema"),
+            "error should mention the --json-schema escape hatch: {err}"
+        );
+    }
+
+    #[test]
+    fn cmd_build_offline_writes_output_file() {
+        let input = write_temp_tdsl("in.tdsl", MINIMAL_TDSL);
+        let out_path = std::env::temp_dir().join(format!(
+            "tdsl_build_test_out_{}_{}.json",
+            std::process::id(),
+            line!()
+        ));
+
+        cmd_build(
+            std::slice::from_ref(&input),
+            Some(&out_path),
+            false,
+            true, // offline: must not touch the network
+            default_cache_opts(),
+            std::time::Duration::from_secs(30),
+        )
+        .expect("offline build of minimal valid source should succeed");
+
+        let written = std::fs::read_to_string(&out_path).expect("output file must be written");
+        let value: serde_json::Value =
+            serde_json::from_str(&written).expect("output must be valid JSON");
+        assert_eq!(value["meta"]["title"], "Test");
+        assert_eq!(value["lanes"].as_array().map(|a| a.len()), Some(1));
+
+        let _ = std::fs::remove_file(&input);
+        let _ = std::fs::remove_file(&out_path);
+    }
+
+    #[test]
+    fn cmd_build_offline_pretty_vs_compact_output_differs() {
+        let input = write_temp_tdsl("in_pretty.tdsl", MINIMAL_TDSL);
+        let pretty_path = std::env::temp_dir().join(format!(
+            "tdsl_build_test_pretty_{}_{}.json",
+            std::process::id(),
+            line!()
+        ));
+        let compact_path = std::env::temp_dir().join(format!(
+            "tdsl_build_test_compact_{}_{}.json",
+            std::process::id(),
+            line!()
+        ));
+
+        cmd_build(
+            std::slice::from_ref(&input),
+            Some(&pretty_path),
+            true,
+            true,
+            default_cache_opts(),
+            std::time::Duration::from_secs(30),
+        )
+        .expect("pretty offline build should succeed");
+        cmd_build(
+            std::slice::from_ref(&input),
+            Some(&compact_path),
+            false,
+            true,
+            default_cache_opts(),
+            std::time::Duration::from_secs(30),
+        )
+        .expect("compact offline build should succeed");
+
+        let pretty = std::fs::read_to_string(&pretty_path).unwrap();
+        let compact = std::fs::read_to_string(&compact_path).unwrap();
+        assert!(pretty.contains('\n'), "pretty output should be multi-line");
+        assert!(
+            !compact.contains('\n'),
+            "compact output should be single-line"
+        );
+        // Both must parse to the same semantic JSON value.
+        let pv: serde_json::Value = serde_json::from_str(&pretty).unwrap();
+        let cv: serde_json::Value = serde_json::from_str(&compact).unwrap();
+        assert_eq!(pv, cv);
+
+        let _ = std::fs::remove_file(&input);
+        let _ = std::fs::remove_file(&pretty_path);
+        let _ = std::fs::remove_file(&compact_path);
+    }
+
+    #[test]
+    fn cmd_build_offline_merges_multiple_inputs() {
+        let input_a = write_temp_tdsl("merge_a.tdsl", MINIMAL_TDSL);
+        let second = MINIMAL_TDSL
+            .replace("lane \"A\" as a", "lane \"B\" as b")
+            .replace("event a 10", "event b 20")
+            .replace("\"e1\"", "\"e2\"");
+        let input_b = write_temp_tdsl("merge_b.tdsl", &second);
+        let out_path = std::env::temp_dir().join(format!(
+            "tdsl_build_test_merged_{}_{}.json",
+            std::process::id(),
+            line!()
+        ));
+
+        cmd_build(
+            &[input_a.clone(), input_b.clone()],
+            Some(&out_path),
+            false,
+            true,
+            default_cache_opts(),
+            std::time::Duration::from_secs(30),
+        )
+        .expect("offline merge build should succeed");
+
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(
+            value["lanes"].as_array().map(|a| a.len()),
+            Some(2),
+            "merged IR should contain both lanes: {value}"
+        );
+
+        let _ = std::fs::remove_file(&input_a);
+        let _ = std::fs::remove_file(&input_b);
+        let _ = std::fs::remove_file(&out_path);
+    }
+
+    #[test]
+    fn cmd_build_errors_on_missing_input_file() {
+        let missing = std::env::temp_dir().join(format!(
+            "tdsl_build_test_missing_{}_{}.tdsl",
+            std::process::id(),
+            line!()
+        ));
+        let err = cmd_build(
+            std::slice::from_ref(&missing),
+            None,
+            false,
+            true,
+            default_cache_opts(),
+            std::time::Duration::from_secs(30),
+        )
+        .expect_err("missing input file must error");
+        assert!(
+            err.contains("Failed to read"),
+            "unexpected error message: {err}"
+        );
+    }
+
+    #[test]
+    fn cmd_json_schema_pretty_vs_compact() {
+        let pretty_path = std::env::temp_dir().join(format!(
+            "tdsl_schema_test_pretty_{}_{}.json",
+            std::process::id(),
+            line!()
+        ));
+        let compact_path = std::env::temp_dir().join(format!(
+            "tdsl_schema_test_compact_{}_{}.json",
+            std::process::id(),
+            line!()
+        ));
+
+        cmd_json_schema(Some(&pretty_path), true).expect("pretty schema write should succeed");
+        cmd_json_schema(Some(&compact_path), false).expect("compact schema write should succeed");
+
+        let pretty = std::fs::read_to_string(&pretty_path).unwrap();
+        let compact = std::fs::read_to_string(&compact_path).unwrap();
+        assert!(pretty.contains('\n'));
+        assert!(!compact.contains('\n'));
+        assert!(pretty.contains("$schema"));
+
+        let _ = std::fs::remove_file(&pretty_path);
+        let _ = std::fs::remove_file(&compact_path);
+    }
+
+    #[test]
+    fn cmd_json_schema_errors_on_unwritable_output_path() {
+        let bad_path = std::path::Path::new("/nonexistent-dir-for-tdsl-tests/out.json");
+        let err = cmd_json_schema(Some(bad_path), false).expect_err("unwritable path must error");
+        assert!(
+            err.contains("Failed to write"),
+            "unexpected error message: {err}"
+        );
+    }
+}

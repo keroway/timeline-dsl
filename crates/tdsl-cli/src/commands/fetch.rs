@@ -447,6 +447,29 @@ pub(crate) fn print_inspect_report(report: &InspectReport) {
 mod tests {
     use super::*;
 
+    /// `cmd_search` validates the query before spinning up the Tokio runtime /
+    /// touching the network, so empty/whitespace-only queries can be asserted
+    /// offline and deterministically.
+    #[test]
+    fn cmd_search_rejects_empty_query() {
+        let err = cmd_search("", "ja", 10, false, std::time::Duration::from_secs(30))
+            .expect_err("empty query must error");
+        assert!(
+            err.contains("must not be empty"),
+            "unexpected error message: {err}"
+        );
+    }
+
+    #[test]
+    fn cmd_search_rejects_whitespace_only_query() {
+        let err = cmd_search("   ", "ja", 10, false, std::time::Duration::from_secs(30))
+            .expect_err("whitespace-only query must error");
+        assert!(
+            err.contains("must not be empty"),
+            "unexpected error message: {err}"
+        );
+    }
+
     #[test]
     fn suggest_span_from_inception_and_dissolved() {
         let claims = vec![
