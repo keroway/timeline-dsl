@@ -82,15 +82,16 @@ npm run build
 
 ## シンタックスハイライトのキーワード管理
 
-### 方針: ビルド時自動生成（真実源 = `src/lang-tdsl/keywords.ts`）
+### 方針: ビルド時自動生成（真実源 = `src/lang-tdsl/keywords.json`）
 
-キーワード集合の**単一真実源**は `src/lang-tdsl/keywords.ts` です。
+キーワード集合の**単一真実源**は `src/lang-tdsl/keywords.json` です。
 VS Code 拡張の `editors/vscode/syntaxes/tdsl.tmLanguage.json` のキーワードパターンは、
 `npm run build` の `prebuild` フックで自動生成されます（手動同期不要）。
 
 | ファイル | 役割 |
 |---|---|
-| `src/lang-tdsl/keywords.ts` | キーワード配列の単一真実源（`BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS`）|
+| `src/lang-tdsl/keywords.json` | キーワード配列の単一真実源（`BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS`）|
+| `src/lang-tdsl/keywords.ts` | `keywords.json` を型付きで re-export するだけの生成物寄りファイル（手編集しない）|
 | `src/lang-tdsl/index.ts` | CodeMirror StreamLanguage 定義（`keywords.ts` をインポート）|
 | `editors/vscode/syntaxes/tdsl.tmLanguage.json` | VS Code TextMate grammar（ビルド時に自動更新）|
 | `editors/vscode/scripts/gen-grammar-keywords.mjs` | 生成スクリプト |
@@ -99,6 +100,6 @@ VS Code 拡張の `editors/vscode/syntaxes/tdsl.tmLanguage.json` のキーワー
 
 1. `crates/tdsl-parser/src/grammar.pest` に文法規則を追加
 2. `crates/tdsl-parser/src/builder.rs` / `crates/tdsl-core/src/lower.rs` を更新
-3. **`apps/webui/src/lang-tdsl/keywords.ts`** の `BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS` に追加
+3. **`apps/webui/src/lang-tdsl/keywords.json`** の `BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS` に追加
 4. `cargo test --workspace` と `npm run build` がパスすることを確認（`npm run build` で `tdsl.tmLanguage.json` が自動更新される）
 5. 再生成された `editors/vscode/syntaxes/tdsl.tmLanguage.json` を **必ずコミット**する。コミット忘れは CI の `Build WebUI` ジョブ内の "Check tmLanguage.json drift" ステップで検出され失敗する

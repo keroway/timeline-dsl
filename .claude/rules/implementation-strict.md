@@ -42,7 +42,7 @@
 - [ ] **要件の 1 行要約**: 何を達成すれば「完了」か。
 - [ ] **影響クレート**: tdsl-parser / tdsl-core / tdsl-wikidata / tdsl-render / tdsl-wasm / tdsl-cli / apps/webui / editors/vscode のどれを触るか。
 - [ ] **依存方向の確認**: 触るクレートが上位クレート（cli, render）に依存していないか。
-- [ ] **文法変更を含むか**: 含むなら `grammar.pest` → `ast.rs` → `builder.rs` → `lower.rs` → `ir.rs` → `dsl-spec.md` → `keywords.ts` の更新順序を守る。
+- [ ] **文法変更を含むか**: 含むなら `grammar.pest` → `ast.rs` → `builder.rs` → `lower.rs` → `ir.rs` → `dsl-spec.md` → `keywords.json` の更新順序を守る。
 - [ ] **テスト方針**: parser のユニットテスト / lowering のテスト / E2E（`scripts/e2e-smoke.sh`）のどこに置くか。
 - [ ] **docs 更新対象**: README.md / README.ja.md / docs/dsl-spec.md / docs/cli-spec.md / CHANGELOG.md のどれか。
 - [ ] **後方互換**: 既存の `.tdsl` ファイル（`examples/` 配下）がそのまま通るか確認したか。
