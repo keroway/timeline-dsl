@@ -25,7 +25,10 @@ export type WorkerLike = Pick<Worker, 'postMessage' | 'terminate'> & {
   onerror: ((event: ErrorEvent) => void) | null
 }
 
-export function createWorkerClient(workerFactory?: () => WorkerLike): WorkerClient {
+export function createWorkerClient(
+  workerFactory?: () => WorkerLike,
+  onFatalError?: (error: Error) => void,
+): WorkerClient {
   const worker = workerFactory
     ? workerFactory()
     : new Worker(new URL('./tdsl.worker.ts', import.meta.url), { type: 'module' })
@@ -49,17 +52,26 @@ export function createWorkerClient(workerFactory?: () => WorkerLike): WorkerClie
     pending.clear()
   }
 
+  function fail(error: string) {
+    if (readyState === 'error') return
+    readyState = 'error'
+    readyError = error
+    const failure = new Error(error)
+    readyReject?.(failure)
+    rejectAll(failure)
+    onFatalError?.(failure)
+  }
+
   worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
     const data = event.data
     if ('type' in data) {
       if (data.type === 'ready') {
-        readyState = 'ready'
-        readyResolve?.()
+        if (readyState !== 'error') {
+          readyState = 'ready'
+          readyResolve?.()
+        }
       } else {
-        readyState = 'error'
-        readyError = data.error
-        readyReject?.(new Error(data.error))
-        rejectAll(new Error(data.error))
+        fail(data.error)
       }
       return
     }
@@ -75,11 +87,7 @@ export function createWorkerClient(workerFactory?: () => WorkerLike): WorkerClie
   }
 
   worker.onerror = (event: ErrorEvent) => {
-    const error = event.message || 'Worker error'
-    readyState = 'error'
-    readyError = error
-    readyReject?.(new Error(error))
-    rejectAll(new Error(error))
+    fail(event.message || 'Worker error')
   }
 
   async function request<T extends WorkerRequest>(message: T): Promise<unknown> {
@@ -137,8 +145,14 @@ export function createWorkerClient(workerFactory?: () => WorkerLike): WorkerClie
 let sharedClient: WorkerClient | null = null
 
 export function getWorkerClient(): WorkerClient {
-  if (!sharedClient) {
-    sharedClient = createWorkerClient()
-  }
-  return sharedClient
+  if (sharedClient) return sharedClient
+
+  const client = createWorkerClient(undefined, () => {
+    // A late event from an obsolete Worker must not discard its replacement.
+    if (sharedClient === client) {
+      sharedClient = null
+    }
+  })
+  sharedClient = client
+  return client
 }

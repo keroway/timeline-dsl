@@ -40,10 +40,18 @@ pub(crate) fn cmd_ast(input: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
+/// `ParseError` から miette のキャレット付き診断文字列を生成する。
+pub(crate) fn render_parse_error(
+    err: &tdsl_parser::error::ParseError,
+    src: &str,
+    filename: &str,
+) -> String {
+    let diag = tdsl_parser::ParseDiagnostic::from_parse_error(err, src, filename);
+    let report = miette::Report::new(diag);
+    format!("{report:?}")
+}
+
 /// `ParseError` を miette のキャレット付きスニペットで標準エラー出力に書き出す。
 pub(crate) fn print_parse_error(err: &tdsl_parser::error::ParseError, src: &str, filename: &str) {
-    let diag = tdsl_parser::ParseDiagnostic::from_parse_error(err, src, filename);
-    // miette fancy レポート（ANSI カラー＋キャレット）を stderr に出力する。
-    let report = miette::Report::new(diag);
-    eprintln!("{report:?}");
+    eprintln!("{}", render_parse_error(err, src, filename));
 }

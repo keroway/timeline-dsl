@@ -24,7 +24,6 @@ export function useCompiler(source: string, wasmReady: boolean, scale: number, r
   const [isStalePreview, setIsStalePreview] = useState(false)
   const diagnosticsRef = useRef<Diagnostic[]>(diagnostics)
   const latestRequestIdRef = useRef(0)
-  const clientRef = useRef(getWorkerClient())
 
   useEffect(() => {
     diagnosticsRef.current = diagnostics
@@ -40,36 +39,38 @@ export function useCompiler(source: string, wasmReady: boolean, scale: number, r
       if (!wasmReady) return
       latestRequestIdRef.current += 1
       const requestId = latestRequestIdRef.current
-      const client = clientRef.current
+      // Resolve per request so a Worker invalidated after a fatal error is replaced.
+      const client = getWorkerClient()
 
-      const checkDiags = await client.checkSourceAsync(src)
-      if (requestId !== latestRequestIdRef.current) return
+      try {
+        const checkDiags = await client.checkSourceAsync(src)
+        if (requestId !== latestRequestIdRef.current) return
 
-      const lintDiags = (await client.lintSourceAsync(src))
-        .filter((i) => i.code !== 'parse_error')
-        .map(lintIssueToDiagnostic)
-      if (requestId !== latestRequestIdRef.current) return
+        const lintDiags = (await client.lintSourceAsync(src))
+          .filter((i) => i.code !== 'parse_error')
+          .map(lintIssueToDiagnostic)
+        if (requestId !== latestRequestIdRef.current) return
 
-      const diags = [...checkDiags, ...lintDiags]
-      setDiagnostics(diags)
+        const diags = [...checkDiags, ...lintDiags]
+        setDiagnostics(diags)
 
-      const hasErrors = diags.some((d) => d.severity === 'error')
-      if (!hasErrors) {
-        try {
-          const svg = await client.renderSvgWithOptionsAsync(src, scale, renderOptsRef.current)
-          if (requestId !== latestRequestIdRef.current) return
-          setSvgContent(svg)
-          setIsStalePreview(false)
-        } catch (e: unknown) {
-          if (requestId !== latestRequestIdRef.current) return
-          const msg = e instanceof Error ? e.message : String(e)
-          setDiagnostics((prev) => [
-            ...prev,
-            { severity: 'error', message: msg, line: 0, col: 0 },
-          ])
+        const hasErrors = diags.some((d) => d.severity === 'error')
+        if (hasErrors) {
           setIsStalePreview(true)
+          return
         }
-      } else {
+
+        const svg = await client.renderSvgWithOptionsAsync(src, scale, renderOptsRef.current)
+        if (requestId !== latestRequestIdRef.current) return
+        setSvgContent(svg)
+        setIsStalePreview(false)
+      } catch (e: unknown) {
+        if (requestId !== latestRequestIdRef.current) return
+        const msg = e instanceof Error ? e.message : String(e)
+        setDiagnostics((prev) => [
+          ...prev,
+          { severity: 'error', message: msg, line: 0, col: 0 },
+        ])
         setIsStalePreview(true)
       }
     },

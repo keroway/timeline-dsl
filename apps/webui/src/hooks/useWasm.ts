@@ -11,12 +11,34 @@ export function useWasm(): WasmStatus {
   const [wasmError, setWasmError] = useState<string | null>(null)
 
   useEffect(() => {
-    getWorkerClient().ready()
-      .then(() => setWasmReady(true))
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err)
+    let cancelled = false
+
+    async function initializeWorker() {
+      let lastError: unknown
+      // A transient Worker/WASM startup failure gets one fresh-client retry.
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          await getWorkerClient().ready()
+          if (!cancelled) {
+            setWasmReady(true)
+            setWasmError(null)
+          }
+          return
+        } catch (err: unknown) {
+          lastError = err
+        }
+      }
+
+      if (!cancelled) {
+        const msg = lastError instanceof Error ? lastError.message : String(lastError)
         setWasmError(msg)
-      })
+      }
+    }
+
+    void initializeWorker()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return { wasmReady, wasmError }

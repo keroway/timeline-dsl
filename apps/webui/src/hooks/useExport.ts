@@ -29,32 +29,30 @@ export function useExport(
   t: Translator,
   confirm: (options: ConfirmOptions) => Promise<boolean>,
 ): ExportApi {
-  const client = getWorkerClient()
-
   async function downloadTdsl() {
     await fileHandle.saveSource(source)
   }
 
   async function downloadJsonIr() {
-    let json: string
     try {
-      json = await client.compileToIrAsync(source)
+      // Resolve per action so a prior Worker failure does not poison exports.
+      const client = getWorkerClient()
+      const json = await client.compileToIrAsync(source)
+      if ((await client.checkSourceAsync(source)).some((d) => d.severity === 'info')) {
+        const proceed = await confirm({
+          title: t('confirmJsonIrIncompleteTitle'),
+          body: t('exportJsonIrIncompleteConfirm'),
+          confirmLabel: t('confirmProceed'),
+          cancelLabel: t('confirmCancel'),
+          tone: 'warn',
+        })
+        if (!proceed) return
+      }
+      triggerDownload(new Blob([json], { type: 'application/json' }), 'timeline.json')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       showToast(t.fmt('exportJsonIrFailed', { msg }), 'error')
-      return
     }
-    if ((await client.checkSourceAsync(source)).some((d) => d.severity === 'info')) {
-      const proceed = await confirm({
-        title: t('confirmJsonIrIncompleteTitle'),
-        body: t('exportJsonIrIncompleteConfirm'),
-        confirmLabel: t('confirmProceed'),
-        cancelLabel: t('confirmCancel'),
-        tone: 'warn',
-      })
-      if (!proceed) return
-    }
-    triggerDownload(new Blob([json], { type: 'application/json' }), 'timeline.json')
   }
 
   function downloadSvg() {
@@ -65,7 +63,7 @@ export function useExport(
   async function downloadHtml() {
     if (!svgContent) return
     try {
-      const html = await client.renderHtmlWithOptionsAsync(source, renderOpts)
+      const html = await getWorkerClient().renderHtmlWithOptionsAsync(source, renderOpts)
       triggerDownload(new Blob([html], { type: 'text/html' }), 'timeline.html')
     } catch {
       // keep silent — errors are already shown in diagnostics
@@ -116,7 +114,7 @@ export function useExport(
     if (!svgContent) return
     let html: string
     try {
-      html = await client.renderHtmlWithOptionsAsync(source, renderOpts)
+      html = await getWorkerClient().renderHtmlWithOptionsAsync(source, renderOpts)
     } catch {
       showToast(t('exportPdfFailed'), 'error')
       return
