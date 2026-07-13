@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`tdsl build` がパースエラーメッセージを握りつぶし空の `Err(String)` を返していた問題を修正**: `load_ir`（`crates/tdsl-cli/src/commands/build.rs`）は miette のキャレット付き診断を stderr へ出力するのみで、呼び出し元へは空文字列しか返していなかった。`check::print_parse_error` から診断文字列を返す `render_parse_error` を分離し、`load_ir` はそれを `Err` ペイロードとして伝播する。無効な `.tdsl` を `cmd_build` に通し、返却エラーが空でなく実際の診断を含むことを検証する回帰テストを追加 (#606)
+- **WebUI: Web Worker が `onerror` 後に回復不能となり、リロードするまで compile/render が恒久的に壊れる問題を修正**: `client.ts` の `getWorkerClient()` は致命的エラー後も同一の `sharedClient` をキャッシュし続け、`readyState === 'error'` になった Worker へのリクエストが永久に失敗していた。`onFatalError` コールバックで共有クライアントを無効化し、次回 `getWorkerClient()` 呼び出し時に新しい Worker を生成・`ready()` し直すようにした。`useWasm` の初期化は一時的な失敗に対して 1 回リトライし、`useCompiler` / `useExport` は Worker クライアントをリクエスト単位で再解決することで、無効化されたクライアントに固執しないようにした (#607)
+
 ## [1.24.0] - 2026-07-05
 
 ### Added

@@ -88,10 +88,8 @@ pub(crate) fn load_ir(
 ) -> Result<tdsl_core::ir::TimelineIr, String> {
     let source = super::read_source(input)?;
     let filename = input.display().to_string();
-    let file = tdsl_parser::parse(&source).map_err(|e| {
-        super::check::print_parse_error(&e, &source, &filename);
-        String::new()
-    })?;
+    let file = tdsl_parser::parse(&source)
+        .map_err(|e| super::check::render_parse_error(&e, &source, &filename))?;
 
     let ir = if offline {
         tdsl_core::lower::lower_static_with_diagnostics(&file, None)
@@ -309,6 +307,36 @@ event a 10 "E1" { id "e1"; };
         let _ = std::fs::remove_file(&input_a);
         let _ = std::fs::remove_file(&input_b);
         let _ = std::fs::remove_file(&out_path);
+    }
+
+    #[test]
+    fn cmd_build_returns_actionable_parse_error() {
+        let input = write_temp_tdsl(
+            "invalid_syntax.tdsl",
+            r#"
+                timeline "Test" {
+                    unit year;
+                    range 0..100;
+            "#,
+        );
+
+        let err = cmd_build(
+            std::slice::from_ref(&input),
+            None,
+            false,
+            true,
+            default_cache_opts(),
+            std::time::Duration::from_secs(30),
+        )
+        .expect_err("invalid DSL must return its parse diagnostic");
+
+        assert!(!err.trim().is_empty(), "parse error must not be empty");
+        assert!(
+            err.contains("構文エラー"),
+            "parse error must contain an actionable diagnostic: {err}"
+        );
+
+        let _ = std::fs::remove_file(&input);
     }
 
     #[test]
