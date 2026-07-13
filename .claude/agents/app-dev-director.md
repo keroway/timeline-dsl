@@ -37,7 +37,7 @@ model: opus
   - 静的アイテムの `source` も `sources[]` に登録されているか
   - lane ID の決定性（日本語ラベルのみで空 ID にならない、`lane_N` のフォールバックがある）
   - docs（dsl-spec / README.md / README.ja.md / CHANGELOG）の更新漏れ
-  - シンタックスハイライトキーワード（`apps/webui/src/lang-tdsl/keywords.ts`）の更新漏れ
+  - シンタックスハイライトキーワード（`apps/webui/src/lang-tdsl/keywords.json`）の更新漏れ
 
 ## やらないこと
 

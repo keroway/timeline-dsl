@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **キーワード管理ドキュメントの single source of truth 記載を `keywords.ts` → `keywords.json` に修正**: 実装（`keywords.ts` 自身のコメント、`gen-grammar-keywords.mjs`、`crates/tdsl-lsp/src/keywords.rs`）は既に `keywords.json` を真実源としていたが、`CLAUDE.md` / `apps/webui/README.md` の記述が乖離していた (#623)
+
 ## [1.25.0] - 2026-07-13
 
 ### Fixed
