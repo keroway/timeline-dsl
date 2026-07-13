@@ -49,6 +49,54 @@ pub fn parse_time_literal(s: &str) -> Result<ast::TimeValue, error::ParseError> 
     builder::parse_time_value(time_value_pair)
 }
 
+/// 単独の `source_ref` 文字列（`<prefix>:<qid>` 形式、例: `wd:Q7209`）を
+/// [`ast::SourceRef`] にパースする。
+///
+/// 前後の空白は許容して除去するが、文字列内部に余計なトークンがある場合は拒否する。
+/// `tdsl import-csv` の `source` 列（#608）など、DSL 本文の外部で source_ref 文字列を
+/// 解釈する経路から利用する。
+pub fn parse_source_ref_literal(s: &str) -> Result<ast::SourceRef, error::ParseError> {
+    let trimmed = s.trim();
+    let mut pairs = TdslParser::parse(Rule::source_ref_only, trimmed)?;
+    let outer = pairs
+        .next()
+        .ok_or_else(|| error::ParseError::UnexpectedRule {
+            rule: "source_ref_only: empty".to_string(),
+            location: "0:0".to_string(),
+        })?;
+    let source_ref_pair = outer
+        .into_inner()
+        .find(|p| matches!(p.as_rule(), Rule::source_ref))
+        .ok_or_else(|| error::ParseError::UnexpectedRule {
+            rule: "source_ref_only: missing source_ref".to_string(),
+            location: "0:0".to_string(),
+        })?;
+    Ok(builder::build_source_ref(source_ref_pair))
+}
+
+/// 単独の `ident` 文字列（DSL の `ident` 文法: 先頭は英字/`_`、以降は英数字/`_`/`-`）を
+/// パースし、正規化済みの文字列として返す。
+///
+/// `origin` オプションの値検証（`tdsl import-csv` の `origin` 列、#608 など）に利用する。
+pub fn parse_ident_literal(s: &str) -> Result<String, error::ParseError> {
+    let trimmed = s.trim();
+    let mut pairs = TdslParser::parse(Rule::ident_only, trimmed)?;
+    let outer = pairs
+        .next()
+        .ok_or_else(|| error::ParseError::UnexpectedRule {
+            rule: "ident_only: empty".to_string(),
+            location: "0:0".to_string(),
+        })?;
+    let ident_pair = outer
+        .into_inner()
+        .find(|p| matches!(p.as_rule(), Rule::ident))
+        .ok_or_else(|| error::ParseError::UnexpectedRule {
+            rule: "ident_only: missing ident".to_string(),
+            location: "0:0".to_string(),
+        })?;
+    Ok(ident_pair.as_str().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1351,6 +1399,47 @@ mod tests {
             parse_time_literal("-0206-01").unwrap(),
             ast::TimeValue::YearMonth(-206, 1)
         );
+    }
+
+    // ─── parse_source_ref_literal / parse_ident_literal (公開API, #608) ───
+
+    #[test]
+    fn parse_source_ref_literal_accepts_wd_qid() {
+        let r = parse_source_ref_literal("wd:Q7209").unwrap();
+        assert_eq!(r.prefix, "wd");
+        assert_eq!(r.qid, "Q7209");
+    }
+
+    #[test]
+    fn parse_source_ref_literal_strips_outer_whitespace() {
+        let r = parse_source_ref_literal("  wd:Q1  ").unwrap();
+        assert_eq!(r.prefix, "wd");
+        assert_eq!(r.qid, "Q1");
+    }
+
+    #[test]
+    fn parse_source_ref_literal_rejects_malformed_input() {
+        assert!(parse_source_ref_literal("").is_err());
+        assert!(parse_source_ref_literal("badformat").is_err());
+        assert!(parse_source_ref_literal("wd:notaqid").is_err());
+        assert!(parse_source_ref_literal("wd:Q1 extra").is_err());
+        assert!(parse_source_ref_literal(":Q1").is_err());
+    }
+
+    #[test]
+    fn parse_ident_literal_accepts_valid_ident() {
+        assert_eq!(parse_ident_literal("wikidata").unwrap(), "wikidata");
+        assert_eq!(
+            parse_ident_literal("  manual_entry  ").unwrap(),
+            "manual_entry"
+        );
+    }
+
+    #[test]
+    fn parse_ident_literal_rejects_invalid_ident() {
+        assert!(parse_ident_literal("").is_err());
+        assert!(parse_ident_literal("123bad").is_err());
+        assert!(parse_ident_literal("has space").is_err());
     }
 
     // ─── 時間式オフセット (#148) ──────────────────────────────────

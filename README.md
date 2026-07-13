@@ -209,8 +209,10 @@ tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 ```
 
 > `export-csv` writes the IR to CSV (`lane,type,start,end,time,label,tags,id,source,origin`).
-> Re-importing the first 8 columns via `import-csv` yields a semantically equal IR; `source` /
-> `origin` are emitted for reference but ignored on import. See [docs/cli-spec.md](docs/cli-spec.md#export-csv).
+> Re-importing all 10 columns via `import-csv` yields a semantically equal IR: `source` /
+> `origin` are round-tripped too (#608), validated against the DSL's `source_ref` / `ident`
+> grammar, and malformed values are rejected rather than silently dropped. See
+> [docs/cli-spec.md](docs/cli-spec.md#export-csv).
 
 ## DSL Syntax
 

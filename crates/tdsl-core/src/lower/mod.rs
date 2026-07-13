@@ -152,7 +152,7 @@ pub(crate) fn lane_suggestion_hint(unknown: &str, available: &[String]) -> Strin
 }
 
 pub(crate) fn source_str(sr: &Option<tdsl_parser::ast::SourceRef>) -> Option<String> {
-    sr.as_ref().map(|s| format!("{}:{}", s.prefix, s.qid))
+    sr.as_ref().map(ToString::to_string)
 }
 
 pub(crate) fn slug(s: &str) -> String {

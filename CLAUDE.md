@@ -140,7 +140,7 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.json` をミラー�
 - `template` / `apply` 構文（共通フォーマットのテンプレート再利用）
 - `color_map` ブロック（タグ→色マッピングの宣言的定義）
 - `tdsl decompile`（JSON IR → `.tdsl` 逆変換）
-- `tdsl export-csv`（IR → CSV。`import-csv` と対称。先頭 8 列が往復で保持され、`source`/`origin` は参照用に出力）
+- `tdsl export-csv`（IR → CSV。`import-csv` と対称。`source`/`origin` を含む 10 列全てが往復で保持される）
 - Wikidata取得キャッシュ（TTL管理、`~/.cache/tdsl/` に保存）
 - Wikidata APIリトライ（HTTP 429・5xx に対するexponential backoff、最大5回 / `DEFAULT_MAX_RETRIES`）
 - `tdsl cache status` / `tdsl cache clear` によるキャッシュ管理
@@ -152,10 +152,6 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.json` をミラー�
 - Criterion ベンチマーク（パーサ・lowering・レンダリング）
 - `tdsl merge`（複数 `.tdsl` ファイルのIRマージ）
 - GitHub Actions composite action（`action.yml`）: `uses: keroway/timeline-dsl@v1` で `.tdsl` → SVG/HTML レンダリングを CI から呼び出せる（詳細: `docs/ci-integration.md`）
-
-### 未実装（今後の拡張）
-
-- CSV エクスポート時の `source`/`origin` 往復（現状 `import-csv` がそれらの列を読まず失われる）
 
 ## サンプルファイル
 

@@ -511,6 +511,7 @@ tdsl init \
 ## `import-csv`
 
 CSV ファイルから年表アイテムを読み込み、`.tdsl` スニペットに変換します。CSV のヘッダ行に `lane,type,start,end,time,label,tags,id` を含める必要があります。
+任意で `source` / `origin` 列も受理し、`export-csv` が出力する 10 列の CSV をそのまま往復できます（#608）。
 
 ```
 tdsl import-csv [OPTIONS] <CSV>
@@ -534,6 +535,13 @@ tdsl import-csv [OPTIONS] <CSV>
 | `label` | ○ | 表示ラベル |
 | `tags` | — | タグ（カンマ区切り） |
 | `id` | — | アイテム ID（省略時は自動採番） |
+| `source` | —（任意） | 出典参照。`<ident>:<QID>` 形式（例 `wd:Q7209`）。空欄可（#608） |
+| `origin` | —（任意） | 由来。DSL の `ident` 文法を満たす値（例 `wikidata`）。空欄可（#608） |
+
+`source` / `origin` は両列とも独立して任意（旧8列形式の CSV も引き続き受理される）。
+`origin=wikidata` の行は `source` が `wd:Q<id>` 形式であることを必須とし（#608 provenance 契約）、
+不整合は CSV 行番号付きのエラーで拒否されます（silent に破棄しない）。
+`wd:Q…` ソースで `origin` が `wikidata` 以外（または空欄）の場合は、static provenance としてそのまま保持されます（書き換えない）。
 
 ### 時刻リテラル
 
@@ -549,6 +557,21 @@ tdsl import-csv [OPTIONS] <CSV>
 - 紀元前の月日・時分精度も許可する（例: `-0206-01`, `-0206-01-15`）。
 - 月の範囲は 1〜12、日の範囲は 1〜31（カレンダー妥当性の細かな検証は lowering 側で行う）。
 - 不正フォーマット時は CSV 行番号付きで「`time must be YYYY-MM-DDTHH:MM, YYYY-MM-DD, YYYY-MM, or YYYY (got`2020-13-01`): ...`」のように原因が表示される。
+
+### `source` / `origin` リテラル
+
+任意列 `source` は `<ident>:<QID>`（例 `wd:Q7209`）、`origin` は DSL の `ident` 文法（先頭英字/`_`、
+以降英数字/`_`/`-`）を満たす値を受理する。不正フォーマット時は CSV 行番号付きで拒否される。
+
+```bash
+# source 列の形式不正
+$ tdsl import-csv items.csv
+Error: CSV row 3: source must be `<ident>:<QID>` (e.g. `wd:Q7209`), got `badvalue`: ...
+
+# origin=wikidata なのに source が wd:Q<id> 形式でない
+$ tdsl import-csv items.csv
+Error: CSV row 5: origin=wikidata requires a source column value in the form `wd:Q<id>`
+```
 
 ### オプション
 
@@ -573,13 +596,15 @@ tdsl import-csv new_items.csv --append my_timeline.tdsl
 **CSV 例:**
 
 ```csv
-lane,type,start,end,time,label,tags,id
-dynasty,span,-206,9,,"前漢",dynasty,han_early
-events,event,,,221,"秦の統一",unification,qin_unify
-war,event_range,-206,-202,,"楚漢戦争",war,chuhan_war
-mission,event,,,1969-07-20,"アポロ11号着陸",space,event:apollo
-ww2,span,1939-09-01,1945-09-02,,"第二次世界大戦",war,span:ww2
+lane,type,start,end,time,label,tags,id,source,origin
+dynasty,span,-206,9,,"前漢",dynasty,han_early,,
+events,event,,,221,"秦の統一",unification,qin_unify,,
+war,event_range,-206,-202,,"楚漢戦争",war,chuhan_war,,
+mission,event,,,1969-07-20,"アポロ11号着陸",space,event:apollo,wd:Q43653,wikidata
+ww2,span,1939-09-01,1945-09-02,,"第二次世界大戦",war,span:ww2,,
 ```
+
+（`source` / `origin` 列は省略可能。旧8列のみの CSVも引き続き受理されます）。
 
 ---
 
@@ -600,9 +625,8 @@ tdsl export-csv [OPTIONS] <FILE>
 
 ### CSV 列仕様
 
-ヘッダは `lane,type,start,end,time,label,tags,id,source,origin` の 10 列です。先頭 8 列は
-`import-csv` が受理する列と一致し、ラウンドトリップで保持されます。`source` / `origin` は
-参照用に出力されますが、**`import-csv` では無視される**ため往復では失われます。
+ヘッダは `lane,type,start,end,time,label,tags,id,source,origin` の 10 列です。`source` / `origin`
+を含めて全 10 列が `import-csv` でラウンドトリップされます（#608）。
 
 | 列名 | 説明 |
 |---|---|
@@ -613,8 +637,8 @@ tdsl export-csv [OPTIONS] <FILE>
 | `label` | 表示ラベル |
 | `tags` | タグ（`|`区切り。`import-csv` は `|` と `,` の両方を受理） |
 | `id` | アイテム ID |
-| `source` | 出典（例 `wd:Q1`）。空欄可。`import-csv` は無視 |
-| `origin` | 由来（例 `wikidata`）。空欄可。`import-csv` は無視 |
+| `source` | 出典（例 `wd:Q1`）。空欄可。`import-csv` で往復保持（#608） |
+| `origin` | 由来（例 `wikidata`）。空欄可。`import-csv` で往復保持（#608） |
 
 時刻は `YYYY` / `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` で出力されます（紀元前の月日・時分精度も保持し、`import-csv` と整合）。
 
@@ -640,7 +664,7 @@ tdsl export-csv my_timeline.tdsl --offline --output items.csv
 tdsl build my_timeline.tdsl --offline --output ir.json
 tdsl export-csv ir.json --output items.csv
 
-# import-csv との往復（先頭 8 列が意味的に同値）
+# import-csv との往復（10 列全て（source/origin 含む）が意味的に同値、#608）
 tdsl export-csv my_timeline.tdsl --offline --output items.csv
 tdsl import-csv items.csv
 ```

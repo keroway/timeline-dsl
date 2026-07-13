@@ -186,6 +186,10 @@ time_literal_only = { SOI ~ time_value ~ EOI }
 ident          = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
 dotted_ident   = @{ ident ~ ("." ~ ident)+ }
 source_ref     = ${ ident ~ ":" ~ qid }
+// `source_ref` / `ident`(origin) も time_literal_only と同様に単独パース用のエントリポイントを提供する。
+// `tdsl-parser::parse_source_ref_literal` / `parse_ident_literal` から CSV 経路 (#608) で再利用される。
+source_ref_only = { SOI ~ source_ref ~ EOI }
+ident_only      = { SOI ~ ident ~ EOI }
 string_literal = ${ "\"" ~ string_inner ~ "\"" }
 string_inner   = @{ (!"\"" ~ !"\\" ~ ANY | "\\" ~ ANY)* }
 string_list    =  { string_literal ~ ("," ~ string_literal)* }

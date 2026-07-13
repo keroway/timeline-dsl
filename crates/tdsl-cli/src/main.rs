@@ -288,8 +288,11 @@ enum Commands {
         lanes: String,
     },
 
-    /// Import timeline items from CSV (`lane,type,start,end,time,label,tags,id`).
-    /// `start` / `end` / `time` columns accept `YYYY-MM-DD`, `YYYY-MM`, or `YYYY` (negative years are year-precision only)
+    /// Import timeline items from CSV (`lane,type,start,end,time,label,tags,id`, plus optional
+    /// `source` / `origin`).
+    /// `start` / `end` / `time` columns accept `YYYY-MM-DD`, `YYYY-MM`, or `YYYY` (negative years are year-precision only).
+    /// `source` must be `<ident>:<QID>` (e.g. `wd:Q7209`) and `origin` must be a valid DSL ident;
+    /// `origin=wikidata` requires a `wd:Q<id>` source (#608).
     ImportCsv {
         /// Input CSV file path (UTF-8 with header row)
         #[arg(value_name = "CSV")]
@@ -305,9 +308,9 @@ enum Commands {
     },
 
     /// Export timeline items from IR to CSV (`lane,type,start,end,time,label,tags,id,source,origin`).
-    /// Symmetric with `import-csv`: re-importing the 8 import columns yields a semantically
-    /// equal IR. The `source` / `origin` columns are preserved for reference but ignored by
-    /// `import-csv`. Output is generated from the IR (single source of truth), not the parser.
+    /// Symmetric with `import-csv`: re-importing all 10 columns (including `source` / `origin`,
+    /// #608) yields a semantically equal IR. Output is generated from the IR (single source of
+    /// truth), not the parser.
     ExportCsv {
         /// Input `.tdsl` source or `.json` IR file path
         #[arg(value_name = "FILE")]

@@ -234,6 +234,12 @@ pub struct SourceRef {
     pub qid: String,
 }
 
+impl std::fmt::Display for SourceRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.prefix, self.qid)
+    }
+}
+
 // ─── Import ─────────────────────────────────────────────────
 
 /// `import <source_type> as <alias> { ... }` ブロックのAST表現。

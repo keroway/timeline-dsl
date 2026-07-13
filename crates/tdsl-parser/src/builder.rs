@@ -717,7 +717,7 @@ fn extract_string_literal(pair: &Pair<'_, Rule>) -> String {
     out
 }
 
-fn build_source_ref(pair: Pair<'_, Rule>) -> SourceRef {
+pub(crate) fn build_source_ref(pair: Pair<'_, Rule>) -> SourceRef {
     let s = pair.as_str();
     let (prefix, qid) = s.split_once(':').unwrap();
     SourceRef {

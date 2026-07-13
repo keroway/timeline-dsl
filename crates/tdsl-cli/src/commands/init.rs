@@ -85,6 +85,12 @@ pub(crate) struct ImportedCsvItem {
     label: String,
     tags: Vec<String>,
     id: Option<String>,
+    /// #608: `export-csv` が出力する `source` 列（例 `wd:Q7209`）を任意列として受理し、
+    /// 往復で保持する。
+    source: Option<tdsl_parser::ast::SourceRef>,
+    /// #608: `export-csv` が出力する `origin` 列（例 `wikidata`）を任意列として受理し、
+    /// 往復で保持する。
+    origin: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -221,6 +227,15 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             return Err(format!("CSV is missing required column: {key}"));
         }
     }
+    // #608: source/origin は任意列だが、重複ヘッダは (既存の必須列も含め) 一律に拒否する。
+    for key in required.iter().chain(["source", "origin"].iter()) {
+        let count = headers.iter().filter(|h| h == key).count();
+        if count > 1 {
+            return Err(format!("CSV header `{key}` is duplicated"));
+        }
+    }
+    let has_source_column = headers.iter().any(|h| h == "source");
+    let has_origin_column = headers.iter().any(|h| h == "origin");
 
     let mut items = Vec::new();
     for (idx, record) in reader.records().enumerate() {
@@ -232,6 +247,17 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
                 .position(|h| h == name)
                 .ok_or_else(|| format!("CSV is missing required column: {name}"))?;
             Ok(record.get(pos).unwrap_or("").trim().to_string())
+        };
+        // 任意列用: ヘッダ自体がなければ常に空文字列を返す（旧8列CSVとの後方互換）。
+        let get_optional = |name: &str, present: bool| -> String {
+            if !present {
+                return String::new();
+            }
+            let pos = headers.iter().position(|h| h == name);
+            match pos {
+                Some(pos) => record.get(pos).unwrap_or("").trim().to_string(),
+                None => String::new(),
+            }
         };
 
         let lane = get("lane")?;
@@ -295,6 +321,41 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             if raw.is_empty() { None } else { Some(raw) }
         };
 
+        // #608: source / origin は任意列。値があれば DSL の source_ref / ident 文法で検証し、
+        // 不正を silent に破棄しない（AGENTS.md §4.1）。
+        let source = {
+            let raw = get_optional("source", has_source_column);
+            if raw.is_empty() {
+                None
+            } else {
+                Some(tdsl_parser::parse_source_ref_literal(&raw).map_err(|e| {
+                    format!(
+                        "CSV row {row_no}: source must be `<ident>:<QID>` (e.g. `wd:Q7209`), got `{raw}`: {e}"
+                    )
+                })?)
+            }
+        };
+        let origin = {
+            let raw = get_optional("origin", has_origin_column);
+            if raw.is_empty() {
+                None
+            } else {
+                Some(tdsl_parser::parse_ident_literal(&raw).map_err(|e| {
+                    format!("CSV row {row_no}: origin must be a valid identifier, got `{raw}`: {e}")
+                })?)
+            }
+        };
+        // #608 provenance 契約: origin=wikidata は source=wd:Q<id> を必須とする。
+        // wd:Q… source で他/無 origin の場合は static provenance として保持（書き換えない）。
+        if origin.as_deref() == Some("wikidata") {
+            let source_is_wd = matches!(&source, Some(s) if s.prefix == "wd");
+            if !source_is_wd {
+                return Err(format!(
+                    "CSV row {row_no}: origin=wikidata requires a source column value in the form `wd:Q<id>`"
+                ));
+            }
+        }
+
         items.push(ImportedCsvItem {
             lane,
             item_type,
@@ -304,6 +365,8 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             label,
             tags,
             id,
+            source,
+            origin,
         });
     }
 
@@ -327,8 +390,15 @@ pub(crate) fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
                 .join(", ");
             write!(options, "tags [{tags}]; ").unwrap();
         }
+        if let Some(source) = &item.source {
+            // SourceRef の Display は `<prefix>:<qid>`（例: `wd:Q7209`）を出力する。
+            write!(options, "source {source}; ").unwrap();
+        }
         if let Some(id) = &item.id {
             write!(options, r#"id "{}"; "#, super::escape_tdsl_string(id)).unwrap();
+        }
+        if let Some(origin) = &item.origin {
+            write!(options, "origin {origin}; ").unwrap();
         }
         let block_options = if options.is_empty() {
             "{}".to_string()
@@ -547,6 +617,143 @@ a,event,,,-0206-01,foo,,\n",
             items[0].time,
             Some(tdsl_parser::ast::TimeValue::YearMonth(-206, 1))
         ));
+    }
+
+    // ─── source / origin 往復保持 (#608) ───
+
+    #[test]
+    fn parse_csv_items_accepts_legacy_8_column_csv() {
+        // 旧8列CSV（source/origin ヘッダなし）は引き続き受理され、source/origin は None になる。
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id\n\
+a,event,,,2020,foo,,legacy:1\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].source, None);
+        assert_eq!(items[0].origin, None);
+    }
+
+    #[test]
+    fn parse_csv_items_accepts_source_and_origin_columns() {
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,source,origin\n\
+a,event,,,1969,アポロ11号,,event:apollo,wd:Q1,wikidata\n\
+a,event,,,1201,手作りの記録,,event:manual,,\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+        assert_eq!(items.len(), 2);
+        let source0 = items[0].source.as_ref().expect("source should be Some");
+        assert_eq!(source0.prefix, "wd");
+        assert_eq!(source0.qid, "Q1");
+        assert_eq!(items[0].origin.as_deref(), Some("wikidata"));
+        // 空欄は None（両列とも任意）
+        assert_eq!(items[1].source, None);
+        assert_eq!(items[1].origin, None);
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_invalid_source_format() {
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,source,origin\n\
+a,event,,,2020,foo,,,badvalue,\n",
+        );
+        let err = parse_csv_items(&path).unwrap_err();
+        std::fs::remove_file(path).ok();
+        assert!(err.contains("CSV row 2"), "missing row no: {err}");
+        assert!(err.contains("source"), "missing field: {err}");
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_invalid_origin_format() {
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,source,origin\n\
+a,event,,,2020,foo,,,,123bad\n",
+        );
+        let err = parse_csv_items(&path).unwrap_err();
+        std::fs::remove_file(path).ok();
+        assert!(err.contains("CSV row 2"), "missing row no: {err}");
+        assert!(err.contains("origin"), "missing field: {err}");
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_origin_wikidata_without_wd_source() {
+        // origin=wikidata なのに source が空欄 -> エラー
+        let path_missing = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,source,origin\n\
+a,event,,,2020,foo,,,,wikidata\n",
+        );
+        let err = parse_csv_items(&path_missing).unwrap_err();
+        std::fs::remove_file(path_missing).ok();
+        assert!(
+            err.contains("origin=wikidata requires"),
+            "unexpected error: {err}"
+        );
+
+        // origin=wikidata なのに source が wd: 以外 -> エラー
+        let path_wrong_prefix = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,source,origin\n\
+a,event,,,2020,foo,,,other:Q1,wikidata\n",
+        );
+        let err = parse_csv_items(&path_wrong_prefix).unwrap_err();
+        std::fs::remove_file(path_wrong_prefix).ok();
+        assert!(
+            err.contains("origin=wikidata requires"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_csv_items_accepts_wd_source_with_non_wikidata_origin() {
+        // wd:Q… source で origin が wikidata 以外（or 無）は static provenance として保持される（書き換えない）。
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,source,origin\n\
+a,event,,,2020,foo,,,wd:Q1,manual\n\
+a,event,,,2021,bar,,,wd:Q2,\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+        assert_eq!(items[0].source.as_ref().unwrap().qid, "Q1");
+        assert_eq!(items[0].origin.as_deref(), Some("manual"));
+        assert_eq!(items[1].source.as_ref().unwrap().qid, "Q2");
+        assert_eq!(items[1].origin, None);
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_duplicate_source_header() {
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,source,source\n\
+a,event,,,2020,foo,,,wd:Q1,wd:Q1\n",
+        );
+        let err = parse_csv_items(&path).unwrap_err();
+        std::fs::remove_file(path).ok();
+        assert!(err.contains("duplicated"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn render_imported_csv_items_emits_source_and_origin_and_round_trips() {
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,source,origin\n\
+a,event,,,1969,アポロ11号,,event:apollo,wd:Q1,wikidata\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+
+        let snippet = render_imported_csv_items(&items);
+        assert!(
+            snippet.contains("source wd:Q1;"),
+            "missing source: {snippet}"
+        );
+        assert!(
+            snippet.contains("origin wikidata;"),
+            "missing origin: {snippet}"
+        );
+
+        let file = tdsl_parser::parse(&snippet)
+            .unwrap_or_else(|e| panic!("re-parse failed: {e}\n--- snippet ---\n{snippet}"));
+        assert_eq!(file.statements.len(), 1);
     }
 
     #[test]
