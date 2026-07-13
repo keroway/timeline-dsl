@@ -508,3 +508,125 @@ fn export_csv_then_import_csv_round_trips() {
     );
     let _ = std::fs::remove_file(&csv_path);
 }
+
+/// #608: `export-csv` → `import-csv` → `build` の往復で `source`/`origin`（wd:Q… / wikidata）
+/// が保持され、再度 IR 化できることを検証する。ネットワーク依存を避けるため Wikidata 連携は
+/// 使わず、静的 `.tdsl` に手動で `source`/`origin` を付与した fixture を使う（AGENTS.md §5、
+/// implementation-strict.md §5）。
+#[test]
+fn export_csv_then_import_csv_preserves_provenance() {
+    let tdsl_path = unique_temp("provenance_source.tdsl");
+    std::fs::write(
+        &tdsl_path,
+        r#"timeline "Provenance Test" {
+    title "Provenance Test";
+    unit year;
+    range 1900..2000;
+    calendar proleptic_gregorian;
+}
+
+lane "Missions" as missions { kind custom; order 10; }
+
+event missions 1969 "Apollo 11 landing" {
+    id "event:apollo";
+    source wd:Q43653;
+    origin wikidata;
+};
+
+event missions 1901 "Hand-written record" {
+    id "event:manual";
+};
+"#,
+    )
+    .unwrap();
+
+    let csv_path = unique_temp("provenance.csv");
+    let exported = tdsl_bin()
+        .arg("export-csv")
+        .arg(&tdsl_path)
+        .arg("--offline")
+        .arg("--output")
+        .arg(&csv_path)
+        .output()
+        .expect("failed to run tdsl export-csv");
+    assert!(
+        exported.status.success(),
+        "export-csv exited non-zero: {}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    let csv = std::fs::read_to_string(&csv_path).expect("csv output should exist");
+    assert!(
+        csv.contains("wd:Q43653") && csv.contains("wikidata"),
+        "exported CSV must carry provenance: {csv}"
+    );
+
+    let reimported = tdsl_bin()
+        .arg("import-csv")
+        .arg(&csv_path)
+        .output()
+        .expect("failed to run tdsl import-csv");
+    assert!(
+        reimported.status.success(),
+        "import-csv exited non-zero: {}",
+        String::from_utf8_lossy(&reimported.stderr)
+    );
+    let snippet = String::from_utf8(reimported.stdout).expect("non-UTF-8 stdout");
+    assert!(
+        snippet.contains("source wd:Q43653;"),
+        "round-trip must preserve source: {snippet}"
+    );
+    assert!(
+        snippet.contains("origin wikidata;"),
+        "round-trip must preserve origin: {snippet}"
+    );
+
+    // 再度ビルドして意味的に妥当な DSL/IR であることを確認する。
+    let snippet_path = unique_temp("provenance_reimported.tdsl");
+    std::fs::write(&snippet_path, format!(
+        "timeline \"T\" {{\n    title \"T\";\n    unit year;\n    range 1900..2000;\n    calendar proleptic_gregorian;\n}}\n\nlane \"Missions\" as missions {{ kind custom; order 10; }}\n\n{snippet}"
+    ))
+    .unwrap();
+    let rebuilt = tdsl_bin()
+        .args(["build", "--offline"])
+        .arg(&snippet_path)
+        .output()
+        .expect("failed to run tdsl build");
+    assert!(
+        rebuilt.status.success(),
+        "rebuilding the re-imported snippet must succeed: {}",
+        String::from_utf8_lossy(&rebuilt.stderr)
+    );
+
+    let _ = std::fs::remove_file(&tdsl_path);
+    let _ = std::fs::remove_file(&csv_path);
+    let _ = std::fs::remove_file(&snippet_path);
+}
+
+/// #608: 不正な provenance（`origin=wikidata` なのに `source` が `wd:Q<id>` 形式でない）を
+/// 含む CSV は `import-csv` が非ゼロ終了・エラーメッセージで拒否する（silent に破棄しない）。
+#[test]
+fn import_csv_rejects_malformed_provenance() {
+    let csv_path = unique_temp("malformed_provenance.csv");
+    std::fs::write(
+        &csv_path,
+        "lane,type,start,end,time,label,tags,id,source,origin\n\
+missions,event,,,1969,Apollo 11,,event:apollo,,wikidata\n",
+    )
+    .unwrap();
+
+    let out = tdsl_bin()
+        .arg("import-csv")
+        .arg(&csv_path)
+        .output()
+        .expect("failed to run tdsl import-csv");
+    assert!(
+        !out.status.success(),
+        "import-csv must fail on malformed provenance"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("origin=wikidata requires"),
+        "stderr must explain the provenance error: {stderr}"
+    );
+    let _ = std::fs::remove_file(&csv_path);
+}

@@ -205,8 +205,9 @@ tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 ```
 
 > `export-csv` は IR を CSV（`lane,type,start,end,time,label,tags,id,source,origin`）に書き出します。
-> 先頭 8 列を `import-csv` で再取り込むと意味的に同値の IR が得られます。`source` / `origin` は
-> 参照用に出力されますが import 時には無視されます。詳細は [docs/cli-spec.md](docs/cli-spec.md#export-csv) を参照。
+> 全 10 列を `import-csv` で再取り込むと意味的に同値の IR が得られます。`source` / `origin`
+> も往復保持され（#608）、DSL の `source_ref` / `ident` 文法で検証され、不正な値は silent に破棄せず
+> 拒否されます。詳細は [docs/cli-spec.md](docs/cli-spec.md#export-csv) を参照。
 
 ## DSL文法
 

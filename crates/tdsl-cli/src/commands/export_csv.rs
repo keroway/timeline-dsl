@@ -3,9 +3,10 @@ use tdsl_core::ir::{Item, TimelineIr};
 /// IR を CSV へエクスポートする。`import-csv` と対称な往復を可能にする。
 ///
 /// 入力は `.tdsl` ソース（lowering して IR 化）または `.json`（IR を直接読み込み）。
-/// 出力カラムは `import-csv` が受理する 8 列（`lane,type,start,end,time,label,tags,id`）に
-/// `source` / `origin` を加えた 10 列。`source` / `origin` は `import-csv` では無視されるが、
-/// 人間・他ツール向けに保持する（往復で保証されるのは 8 列）。
+/// 出力カラムは `lane,type,start,end,time,label,tags,id,source,origin` の 10 列。
+/// `source` / `origin` も含めて `import-csv` で往復保持される（#608）。`source` は `<ident>:<QID>`
+/// 形式（例 `wd:Q7209`）、`origin` は DSL の `ident` 文法を満たす必要があり、不正な値は
+/// `import-csv` がエラーとして拒否する（silent に破棄しない、AGENTS.md §4.1）。
 pub(crate) fn cmd_export_csv(
     input: &std::path::Path,
     output: Option<&std::path::Path>,
@@ -355,18 +356,22 @@ mod tests {
             }
             other => panic!("expected span, got {other:?}"),
         }
-        // event: 時刻精度が往復
+        // event: 時刻精度が往復。#608: source/origin（wd:Q1 / wikidata）も往復する。
         match &ir2.items[1] {
             Item::Event {
                 time,
                 time_month,
                 time_day,
                 label,
+                source,
+                origin,
                 ..
             } => {
                 assert_eq!(*time, 1969);
                 assert_eq!((*time_month, *time_day), (Some(7), Some(20)));
                 assert_eq!(label, "Apollo 11");
+                assert_eq!(source.as_deref(), Some("wd:Q1"));
+                assert_eq!(origin.as_deref(), Some("wikidata"));
             }
             other => panic!("expected event, got {other:?}"),
         }

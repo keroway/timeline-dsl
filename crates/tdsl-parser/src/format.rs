@@ -20,8 +20,7 @@ use crate::ast::{
     ApplyBlock, ClaimExpr, Comment, CompareOp, EventDecl, EventRangeDecl, FieldPriorityConfig,
     FieldStrategy, File, FilterExpr, FilterOperand, GroupDecl, ImportBlock, ImportItem, ItemProps,
     LabelExpr, LaneDecl, MapBlock, MapExpr, MapFallback, MapProp, MapTargetType, ReimportPolicy,
-    SourceRef, SpanDecl, Spanned, Statement, StringMatchOp, TemplateBlock, TimeValue,
-    TimelineBlock,
+    SpanDecl, Spanned, Statement, StringMatchOp, TemplateBlock, TimeValue, TimelineBlock,
 };
 use crate::error::ParseError;
 
@@ -290,7 +289,7 @@ fn write_item_props(out: &mut String, p: &ItemProps) {
         writeln!(out, "{INDENT}tags [{joined}];").unwrap();
     }
     if let Some(s) = &p.source {
-        writeln!(out, "{INDENT}source {};", format_source_ref(s)).unwrap();
+        writeln!(out, "{INDENT}source {s};").unwrap();
     }
     if let Some(id) = &p.id {
         writeln!(out, r#"{INDENT}id "{}";"#, escape_string(id)).unwrap();
@@ -308,10 +307,6 @@ fn write_item_props(out: &mut String, p: &ItemProps) {
         writeln!(out, r#"{INDENT}color "{}";"#, escape_string(color)).unwrap();
     }
     write!(out, "}}").unwrap();
-}
-
-fn format_source_ref(s: &SourceRef) -> String {
-    format!("{}:{}", s.prefix, s.qid)
 }
 
 // ─── import ──────────────────────────────────────────────────────────────────
