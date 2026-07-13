@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-07-13
+
 ### Fixed
 
 - **`tdsl build` がパースエラーメッセージを握りつぶし空の `Err(String)` を返していた問題を修正**: `load_ir`（`crates/tdsl-cli/src/commands/build.rs`）は miette のキャレット付き診断を stderr へ出力するのみで、呼び出し元へは空文字列しか返していなかった。`check::print_parse_error` から診断文字列を返す `render_parse_error` を分離し、`load_ir` はそれを `Err` ペイロードとして伝播する。無効な `.tdsl` を `cmd_build` に通し、返却エラーが空でなく実際の診断を含むことを検証する回帰テストを追加 (#606)
