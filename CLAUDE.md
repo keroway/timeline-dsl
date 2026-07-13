@@ -96,15 +96,15 @@ WebUI と WASM バインディングはソーステキストを渡している�
 
 ### シンタックスハイライトのキーワード管理
 
-キーワードの**単一真実源**は `apps/webui/src/lang-tdsl/keywords.ts` です。
+キーワードの**単一真実源**は `apps/webui/src/lang-tdsl/keywords.json` です。
 VS Code 拡張の `editors/vscode/syntaxes/tdsl.tmLanguage.json` は `npm run build` 時に自動生成されます。
 
-- `apps/webui/src/lang-tdsl/keywords.ts` — `BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS` を編集する
+- `apps/webui/src/lang-tdsl/keywords.json` — `BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS` を編集する。`apps/webui/src/lang-tdsl/keywords.ts` は `keywords.json` を型付きで re-export するだけの生成物寄りファイルであり、手編集しない
 - `npm run build`（または `node editors/vscode/scripts/gen-grammar-keywords.mjs`）を実行すると `tdsl.tmLanguage.json` が自動更新される
 
 詳細は `apps/webui/README.md` の「シンタックスハイライトのキーワード管理」セクションを参照。
 
-Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.ts` をミラーし、ドリフト防止テストで同期を保証する。
+Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.json` をミラーし、ドリフト防止テストで同期を保証する。
 
 ## Wikidataプロパティ（頻用）
 

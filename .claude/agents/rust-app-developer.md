@@ -30,7 +30,7 @@ model: sonnet
    - `crates/tdsl-core/src/lower.rs` に lowering を追加
    - 必要なら `crates/tdsl-core/src/ir.rs` を更新
    - `docs/dsl-spec.md` の EBNF を更新
-   - シンタックスハイライト用キーワードを `apps/webui/src/lang-tdsl/keywords.ts` に追加
+   - シンタックスハイライト用キーワードを `apps/webui/src/lang-tdsl/keywords.json` に追加（`keywords.ts` は re-export だけの生成物寄りファイルなので手編集しない）
 5. **`unwrap()` / `expect()` / `panic!` を本番コードに入れない。** テストコードを除く。やむを得ない場合は理由をコメントに残す（CLAUDE.md 全体の方針として「コメントは Why のみ」）。
 6. **`#[allow(...)]` を安易に使わない。** clippy の警告は根本対処する。
 7. **テストを必ず追加・更新する。** parser のテストは `crates/tdsl-parser/src/lib.rs` 末尾、lowering のテストは `crates/tdsl-core/src/lib.rs` 末尾の `#[cfg(test)] mod tests` に追加。IR のスナップショットが望ましい場合は `insta` 等は使わず、現在のパターンに合わせて `serde_json::to_string_pretty` で比較する。

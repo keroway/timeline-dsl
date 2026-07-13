@@ -27,7 +27,7 @@ bash scripts/e2e-smoke.sh
 ```
 
 - [ ] 上記のローカルゲートを通過した
-- [ ] 文法変更を含む場合、`keywords.ts` / `dsl-spec.md` を更新した
+- [ ] 文法変更を含む場合、`keywords.json` / `dsl-spec.md` を更新した
 - [ ] 仕様変更を含む場合、docs（README / CHANGELOG など）を更新した
 - [ ] 既存の `examples/` がそのまま通ることを確認した
 
