@@ -22,6 +22,7 @@ describe('i18n key parity', () => {
     // exhaustive object (the dictionaries inside i18n.ts already enforce this,
     // but we verify the exported translator returns a non-empty string for each).
     const sampleKeys: Array<keyof Dictionary> = [
+      'documentTitle',
       'appFormatFailed',
       'appAlreadyFormatted',
       'appFormatted',

@@ -18,6 +18,7 @@ import { useFileHandle } from './hooks/useFileHandle'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useOutsideClick } from './hooks/useOutsideClick'
 import { usePwaLifecycle } from './hooks/usePwaLifecycle'
+import { useDocumentMeta } from './hooks/useDocumentMeta'
 import { Toolbar } from './components/Toolbar'
 import { StatusBar } from './components/StatusBar'
 import { MobileTabBar, type MobileTab } from './components/MobileTabBar'
@@ -58,6 +59,7 @@ function App() {
   const { wasmReady, wasmError } = useWasm()
   const { settings, updateSetting, systemScheme, colorScheme } = useSettings()
   const t = useMemo(() => createTranslator(settings.locale), [settings.locale])
+  useDocumentMeta(settings.locale, t)
   const pwaUpdate = usePwaLifecycle(showToast, t)
   const renderOpts = useMemo(
     () => ({

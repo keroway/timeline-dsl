@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`export-csv` → `import-csv` の `source`/`origin` 往復保持に対応**: 従来 `import-csv` は先頭8列のみを読み `source`/`origin` を破棄していたが、任意列として受理し DSL の `source_ref` / `ident` 文法（`crates/tdsl-parser` に新規公開した `parse_source_ref_literal` / `parse_ident_literal`）で検証したうえで往復保持するようにした。`origin=wikidata` は `source=wd:Q<id>` を必須とし（不整合は行番号付きエラーで拒否）、`wd:Q…` source を持つ静的アイテムの `origin` は書き換えない。旧8列形式の CSV は引き続き受理される（後方互換） (#608)
+- **WebUI: GitHub Pages デモの SEO/OGP メタデータと `<html lang>`/`document.title` のロケール連動を追加**: `apps/webui/index.html` に `<meta name="description">` / Open Graph / Twitter Card を追加し、SNS 共有時のプレビューが空だった問題を解消した（`og:image`/`og:url`/`twitter:image` は OGP 仕様上絶対 URL で固定記述）。OG 画像 （`apps/webui/public/og-image.png`, 1200x630）はこれまで未使用だった `src/assets/hero.png` を PWA の brand 背景色（`#13131f`）に合成して生成。新規フック `useDocumentMeta`（`apps/webui/src/hooks/useDocumentMeta.ts`）が設定ロケール（`ja`/`en`）に応じて `document.documentElement.lang` と `document.title`（`i18n.ts` 新規キー `documentTitle`）を実行時に同期する。静的 HTML の既定値も `lang="en"` 固定から `lang="ja"`（`DEFAULT_LOCALE`）に修正
+
 ### Fixed
 
 - **キーワード管理ドキュメントの single source of truth 記載を `keywords.ts` → `keywords.json` に修正**: 実装（`keywords.ts` 自身のコメント、`gen-grammar-keywords.mjs`、`crates/tdsl-lsp/src/keywords.rs`）は既に `keywords.json` を真実源としていたが、`CLAUDE.md` / `apps/webui/README.md` の記述が乖離していた (#623)
