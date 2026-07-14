@@ -9,6 +9,9 @@ export const DEFAULT_LOCALE: Locale = 'ja'
 // Every key must be present in all locale dictionaries (enforced by tests).
 // Values may contain `{name}` placeholders; use `t.fmt(key, { name })`.
 export type Dictionary = {
+  // Document meta (index.html <title> sync — hooks/useDocumentMeta.ts)
+  documentTitle: string
+
   // App / toast
   appFormatFailed: string
   appAlreadyFormatted: string
@@ -261,6 +264,9 @@ export type Dictionary = {
 
 // ─── Japanese dictionary ──────────────────────────────────────────────────────
 const ja: Dictionary = {
+  // Document meta
+  documentTitle: 'Timeline DSL WebUI — .tdsl エディタ & プレビュー',
+
   // App / toast
   appFormatFailed: '整形に失敗しました: {msg}',
   appAlreadyFormatted: '既に整形済みです',
@@ -519,6 +525,9 @@ const ja: Dictionary = {
 
 // ─── English dictionary ───────────────────────────────────────────────────────
 const en: Dictionary = {
+  // Document meta
+  documentTitle: 'Timeline DSL WebUI — .tdsl Editor & Live Preview',
+
   // App / toast
   appFormatFailed: 'Format failed: {msg}',
   appAlreadyFormatted: 'Already formatted',
