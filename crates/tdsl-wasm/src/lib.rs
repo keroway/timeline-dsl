@@ -247,6 +247,97 @@ span a 10..50 "A Span" {};
         assert!(result.is_err(), "invalid syntax must fail to parse");
     }
 
+    // ─── 秒・offsetの native/wasm ラウンドトリップ確認 (#615, ADR 0003 D6) ───
+    //
+    // `tdsl-wasm` は `wasm32` ターゲット向けの cdylib だが、`cfg(test)` のユニットテスト自体は
+    // ホスト（native）ターゲットで実行される（`cargo test -p tdsl-wasm` は wasm32 ではなく
+    // ホスト triple でビルドされる）。`compile_to_ir` が内部で呼ぶのと同じ
+    // `tdsl_parser::parse` + `lower_static_with_source` を直接呼び、秒/offset付き時刻が
+    // native と完全に同一の IR JSON を生成することを確認する（chrono 等外部日時クレートを
+    // 使わず自前の整数演算で実装されているため、wasm ビルドでも同じ結果になるはず）。
+    #[test]
+    fn compile_to_ir_roundtrips_second_precision_without_offset() {
+        let src = r#"timeline "T" { unit year; range 0..2000; }
+lane "A" as a {}
+event a 2024-01-01T10:00:30 "E" {};
+"#;
+        let file = tdsl_parser::parse(src).expect("source must parse");
+        let ir = lower_static_with_source(&file, Some(src)).expect("source must lower");
+        let json = serde_json::to_value(&ir).expect("IR must serialize");
+        let event = &json["items"][0];
+        assert_eq!(event["time_second"], 30);
+        assert!(
+            event.get("time_offset_minutes").is_none() || event["time_offset_minutes"].is_null(),
+            "offsetなしの場合 time_offset_minutes は null/不在であるべき: {event}"
+        );
+    }
+
+    #[test]
+    fn compile_to_ir_roundtrips_offset_minutes() {
+        let src = r#"timeline "T" { unit year; range 0..2000; }
+lane "A" as a {}
+event a 2024-01-01T10:00+09:00 "E" {};
+"#;
+        let file = tdsl_parser::parse(src).expect("source must parse");
+        let ir = lower_static_with_source(&file, Some(src)).expect("source must lower");
+        let json = serde_json::to_value(&ir).expect("IR must serialize");
+        let event = &json["items"][0];
+        assert_eq!(event["time_offset_minutes"], 540);
+    }
+
+    #[test]
+    fn compile_to_ir_roundtrips_second_and_negative_offset() {
+        let src = r#"timeline "T" { unit year; range 0..2000; }
+lane "A" as a {}
+event a 2024-01-01T10:00:45-05:00 "E" {};
+"#;
+        let file = tdsl_parser::parse(src).expect("source must parse");
+        let ir = lower_static_with_source(&file, Some(src)).expect("source must lower");
+        let json = serde_json::to_value(&ir).expect("IR must serialize");
+        let event = &json["items"][0];
+        assert_eq!(event["time_second"], 45);
+        assert_eq!(event["time_offset_minutes"], -300);
+    }
+
+    #[test]
+    fn compile_to_ir_second_offset_json_matches_expected_golden_fields() {
+        // 前記3テスト(compile_to_ir_roundtrips_*)は個別フィールドをassertするので、
+        // このテストはpretty-printされたJSON全体を固定のゴールデン値と比較し、
+        // キーの欠落・serdeタグ変更等、個別フィールドassertだけでは検知できない
+        // 全体形状のドリフトを拁う。
+        //
+        // 注意: compile_to_ir 自体(Result<String, JsValue>)はwasm_bindgenのJsValueを使うため
+        // native tripleでの cfg(test) からは呼べない。このテストは compile_to_ir が内部で
+        // 呼ぶのと完全に同一のパス(parse + lower_static_with_source + プリティ直列化)を
+        // 直接検証するものであり、wasm32ターゲット自体の実行は行っていない
+        // (docs/adr/0003 の「実測結果」にも明記)。
+        let src = r#"timeline "T" { unit year; range 0..2000; }
+lane "A" as a {}
+span a 2024-01-01T10:00:30+09:00..2024-06-01T00:00:00Z "S" {};
+"#;
+        let file = tdsl_parser::parse(src).expect("source must parse");
+        let ir = lower_static_with_source(&file, Some(src)).expect("source must lower");
+        let json = serde_json::to_string_pretty(&ir).expect("IR must serialize to pretty JSON");
+        let value: serde_json::Value =
+            serde_json::from_str(&json).expect("pretty JSON must reparse");
+        let span = &value["items"][0];
+        assert_eq!(span["type"], "span");
+        assert_eq!(span["start"], 2024);
+        assert_eq!(span["start_month"], 1);
+        assert_eq!(span["start_day"], 1);
+        assert_eq!(span["start_hour"], 10);
+        assert_eq!(span["start_minute"], 0);
+        assert_eq!(span["start_second"], 30);
+        assert_eq!(span["start_offset_minutes"], 540);
+        assert_eq!(span["end"], 2024);
+        assert_eq!(span["end_month"], 6);
+        assert_eq!(span["end_day"], 1);
+        assert_eq!(span["end_hour"], 0);
+        assert_eq!(span["end_minute"], 0);
+        assert_eq!(span["end_second"], 0);
+        assert_eq!(span["end_offset_minutes"], 0);
+    }
+
     #[test]
     fn lower_unknown_lane_returns_lowering_err() {
         let src = r#"timeline "Test" {
