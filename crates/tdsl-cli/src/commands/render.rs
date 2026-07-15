@@ -6,6 +6,10 @@ pub(crate) struct PdfCliOptions {
     pub landscape: bool,
     pub margin_mm: f64,
     pub title: Option<String>,
+    /// ADR-0004 D3: opt-in table pagination. Requires `--show-table`; the CLI
+    /// rejects `--pdf-pagination` without `--show-table` explicitly rather than
+    /// silently no-op'ing (AGENTS.md §4.1).
+    pub pagination: bool,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -146,16 +150,10 @@ fn do_render(
         }
     }
 
-    // --show-table only applies to HTML output; emit a notice for other formats.
-    let effective_show_table = match format {
-        RenderFormat::Html => show_table,
-        _ => {
-            if show_table {
-                eprintln!("Note: --show-table is only supported with --format html; ignoring.");
-            }
-            false
-        }
-    };
+    // #541: --show-table renders for every format (html/svg/png/pdf), each via
+    // its own SVG-based rendering path in tdsl-render. There is no format for
+    // which show_table must be forced off, so the CLI simply forwards it.
+    let effective_show_table = show_table;
 
     // #565: --layout-style zigzag only applies when the timeline has at most
     // ZIGZAG_MAX_LANES lanes; LayoutModel silently degrades to Timeline layout
@@ -210,6 +208,17 @@ fn do_render(
             write_render_binary(&bytes, output)
         }
         RenderFormat::Pdf => {
+            // ADR-0004 D3: --pdf-pagination without --show-table is an explicit
+            // error, not a silent no-op (AGENTS.md §4.1). This mirrors the
+            // PdfError::PaginationRequiresTable check inside tdsl-render, but is
+            // surfaced here as a plain CLI error message before any rendering work
+            // happens.
+            if pdf_cli.pagination && !effective_show_table {
+                return Err(
+                    "--pdf-pagination requires --show-table (nothing to paginate otherwise)"
+                        .to_string(),
+                );
+            }
             let pdf_opts = tdsl_render::PdfOptions {
                 page_size: pdf_cli.size,
                 landscape: pdf_cli.landscape,
@@ -217,8 +226,7 @@ fn do_render(
                 // When --pdf-title is not given, render_pdf fills in ir.meta.title.
                 title: pdf_cli.title,
                 creation_date: today_pdf_date(),
-                // CLI wiring for --pdf-pagination is added in #619.
-                pagination: false,
+                pagination: pdf_cli.pagination,
             };
             let bytes = tdsl_render::render_pdf(&ir, opts, pdf_opts)
                 .map_err(|e| format!("PDF rendering failed: {e}"))?;
@@ -313,6 +321,7 @@ fn cmd_render_watch(
                 landscape: false,
                 margin_mm: 10.0,
                 title: None,
+                pagination: false,
             },
         )
     };

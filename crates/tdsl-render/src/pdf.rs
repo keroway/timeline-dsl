@@ -164,13 +164,21 @@ pub fn render_pdf(
 
     let (_, _, _, content_w, content_h) = pdf_page_geometry(&pdf_opts)?;
     let rows_per_page = table_rows_per_page(content_h)?;
-    let mut pages = vec![timeline_svg];
-    if table_rows.is_empty() {
-        pages.push(svg::render_table_page_svg(&[], content_w, content_h)?);
+    let row_chunks: Vec<&[crate::layout::TableRow]> = if table_rows.is_empty() {
+        vec![&[]]
     } else {
-        for rows in table_rows.chunks(rows_per_page) {
-            pages.push(svg::render_table_page_svg(rows, content_w, content_h)?);
-        }
+        table_rows.chunks(rows_per_page).collect()
+    };
+    let total_table_pages = row_chunks.len();
+    let mut pages = vec![timeline_svg];
+    for (index, rows) in row_chunks.into_iter().enumerate() {
+        pages.push(svg::render_table_page_svg(
+            rows,
+            content_w,
+            content_h,
+            index + 1,
+            total_table_pages,
+        )?);
     }
     svg_pages_to_pdf(&pages, pdf_opts)
 }
@@ -859,6 +867,32 @@ mod tests {
         assert!(
             text.contains("/CreationDate"),
             "PDF must contain /CreationDate when creation_date is set"
+        );
+    }
+
+    #[test]
+    fn paginated_pdf_title_metadata_is_set_once_regardless_of_page_count() {
+        // ADR-0004 D4: a single /Title entry for the whole document, independent
+        // of how many chart/table pages exist.
+        let ir = ir_with_table_rows(70);
+        let bytes = render_pdf(
+            &ir,
+            RenderOptions {
+                show_table: true,
+                ..RenderOptions::default()
+            },
+            PdfOptions {
+                pagination: true,
+                title: Some("Paginated Title".to_string()),
+                ..PdfOptions::default()
+            },
+        )
+        .expect("paginated PDF with title renders");
+        let text = String::from_utf8_lossy(&bytes);
+        assert_eq!(
+            text.matches("/Title").count(),
+            1,
+            "exactly one /Title entry must exist regardless of page count"
         );
     }
 

@@ -172,6 +172,131 @@ fn render_watch_png_format_fails() {
 }
 
 // ---------------------------------------------------------------------------
+// render: --pdf-pagination (#619, ADR-0004)
+// ---------------------------------------------------------------------------
+
+/// `tdsl render --help` output contains the `--pdf-pagination` flag.
+#[test]
+fn render_help_includes_pdf_pagination_flag() {
+    let out = tdsl_bin()
+        .args(["render", "--help"])
+        .output()
+        .expect("failed to run tdsl");
+
+    let stdout = String::from_utf8(out.stdout).expect("non-UTF-8 stdout");
+    assert!(
+        stdout.contains("--pdf-pagination"),
+        "--pdf-pagination should appear in render --help output"
+    );
+}
+
+/// ADR-0004 D3: `--pdf-pagination` without `--show-table` is an explicit CLI
+/// error (nothing to paginate), not a silent no-op.
+#[test]
+fn render_pdf_pagination_without_show_table_fails() {
+    let out_path = unique_temp("pagination_no_table.pdf");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/china_dynasties.tdsl").to_str().unwrap(),
+            "--format",
+            "pdf",
+            "--pdf-pagination",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        !out.status.success(),
+        "--pdf-pagination without --show-table should exit non-zero"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--pdf-pagination requires --show-table"),
+        "stderr must explain the missing --show-table requirement: {stderr}"
+    );
+    assert!(
+        !out_path.exists(),
+        "no output file should be written when validation fails"
+    );
+}
+
+/// `--format pdf --show-table --pdf-pagination` succeeds and produces a
+/// multi-page PDF (chart page + at least one table page).
+#[test]
+fn render_pdf_pagination_with_show_table_succeeds_and_is_multi_page() {
+    let out_path = unique_temp("pagination_ok.pdf");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/china_dynasties.tdsl").to_str().unwrap(),
+            "--format",
+            "pdf",
+            "--show-table",
+            "--pdf-pagination",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        out.status.success(),
+        "render --format pdf --show-table --pdf-pagination should succeed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let bytes = std::fs::read(&out_path).expect("output PDF should exist");
+    assert!(bytes.starts_with(b"%PDF-"), "output must be a valid PDF");
+    let text = String::from_utf8_lossy(&bytes);
+    let page_objects = text.matches("/Type/Page").count() + text.matches("/Type /Page").count();
+    let page_trees = text.matches("/Type/Pages").count() + text.matches("/Type /Pages").count();
+    assert!(
+        page_objects - page_trees >= 2,
+        "paginated PDF must have at least 2 pages (chart + table), got {}",
+        page_objects - page_trees
+    );
+    let _ = std::fs::remove_file(&out_path);
+}
+
+/// `--format pdf --show-table` (without `--pdf-pagination`) still produces the
+/// existing single-page PDF, confirming the #541 CLI fix (show_table is no
+/// longer forced to false for non-HTML formats) preserves default behaviour.
+#[test]
+fn render_pdf_show_table_without_pagination_is_still_single_page() {
+    let out_path = unique_temp("show_table_single_page.pdf");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/china_dynasties.tdsl").to_str().unwrap(),
+            "--format",
+            "pdf",
+            "--show-table",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let bytes = std::fs::read(&out_path).expect("output PDF should exist");
+    let text = String::from_utf8_lossy(&bytes);
+    let page_objects = text.matches("/Type/Page").count() + text.matches("/Type /Page").count();
+    let page_trees = text.matches("/Type/Pages").count() + text.matches("/Type /Pages").count();
+    assert_eq!(
+        page_objects - page_trees,
+        1,
+        "show_table without pagination must remain a single page"
+    );
+    let _ = std::fs::remove_file(&out_path);
+}
+
+// ---------------------------------------------------------------------------
 // build: static (offline) compilation to IR JSON
 // ---------------------------------------------------------------------------
 
