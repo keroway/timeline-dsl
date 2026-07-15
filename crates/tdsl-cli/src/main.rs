@@ -236,7 +236,7 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         watch: bool,
 
-        /// Append an item listing table after the SVG (HTML format only; ignored for svg/png/pdf)
+        /// Append an item listing table after the SVG (all formats: html/svg/png/pdf)
         #[arg(long, default_value_t = false)]
         show_table: bool,
 
@@ -263,6 +263,13 @@ enum Commands {
         /// Override the PDF document Title metadata (defaults to the timeline title). Only applied with --format pdf.
         #[arg(long)]
         pdf_title: Option<String>,
+
+        /// Split the item table onto separate PDF pages, keeping the timeline
+        /// chart on a single page (ADR-0004). Requires --show-table; only
+        /// applied with --format pdf. Default: disabled (existing single-page
+        /// table behavior is unchanged).
+        #[arg(long, default_value_t = false)]
+        pdf_pagination: bool,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -695,6 +702,7 @@ fn main() {
             pdf_landscape,
             pdf_margin,
             pdf_title,
+            pdf_pagination,
         } => commands::render::cmd_render(
             &input,
             output.as_deref(),
@@ -727,6 +735,7 @@ fn main() {
                 landscape: pdf_landscape,
                 margin_mm: pdf_margin,
                 title: pdf_title,
+                pagination: pdf_pagination,
             },
         ),
         Commands::Init {

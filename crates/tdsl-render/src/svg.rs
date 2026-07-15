@@ -229,10 +229,16 @@ fn render_table(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
 /// SVG into the printable area without scaling. `rows` must contain only whole
 /// table rows; callers determine pagination boundaries before invoking this
 /// function.
+///
+/// `page_number`/`total_pages` (1-based, ADR-0004 D4) render a `"i / N"` footer
+/// centred at the bottom of the printable area on every table page, so the
+/// reader can tell their position even after the pages are printed/reordered.
 pub(crate) fn render_table_page_svg(
     rows: &[crate::layout::TableRow],
     width: f32,
     height: f32,
+    page_number: usize,
+    total_pages: usize,
 ) -> Result<String, std::fmt::Error> {
     let mut s = String::new();
     let width = f64::from(width);
@@ -315,6 +321,17 @@ pub(crate) fn render_table_page_svg(
         }
     }
     writeln!(s, "  </g>")?;
+
+    // ADR-0004 D4: repeat a "i / N" page-number footer on every table page,
+    // centred near the bottom of the printable area.
+    writeln!(
+        s,
+        r#"  <text class="tdsl-table-page-footer" x="{x}" y="{y}" text-anchor="middle" font-size="9">{label}</text>"#,
+        x = fmt_f(width / 2.0),
+        y = fmt_f(height - 6.0),
+        label = escape_xml(&format!("{page_number} / {total_pages}")),
+    )?;
+
     writeln!(s, "</svg>")?;
     Ok(s)
 }
@@ -2503,5 +2520,87 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(svg_default, svg_explicit_false);
+    }
+
+    // ─── render_table_page_svg: header repetition + page-number footer (#619 / ADR-0004 D4) ───
+
+    fn sample_table_rows(count: usize) -> Vec<crate::layout::TableRow> {
+        (0..count)
+            .map(|i| crate::layout::TableRow {
+                sort_year: i as i64,
+                sort_type: 0,
+                time_str: format!("{i}"),
+                label: format!("Item {i}"),
+                lane_label: "漢".to_string(),
+                tags: String::new(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn render_table_page_svg_repeats_column_headers_on_every_page() {
+        // ADR-0004 D4: the header row (column names) must be present on every
+        // table page, not just the first.
+        let rows = sample_table_rows(3);
+        let svg = render_table_page_svg(&rows, 500.0, 700.0, 1, 3).unwrap();
+        for col in [
+            crate::layout::TABLE_COL_TIME,
+            crate::layout::TABLE_COL_LABEL,
+            crate::layout::TABLE_COL_LANE,
+            crate::layout::TABLE_COL_TAGS,
+        ] {
+            assert!(
+                svg.contains(col),
+                "table page SVG must contain the '{col}' column header, got: {svg}"
+            );
+        }
+    }
+
+    #[test]
+    fn render_table_page_svg_includes_page_number_footer() {
+        let rows = sample_table_rows(2);
+        let svg = render_table_page_svg(&rows, 500.0, 700.0, 2, 5).unwrap();
+        assert!(
+            svg.contains("2 / 5"),
+            "table page SVG must contain a '2 / 5' page-number footer, got: {svg}"
+        );
+        assert!(
+            svg.contains("tdsl-table-page-footer"),
+            "page-number footer must use the tdsl-table-page-footer CSS hook class"
+        );
+    }
+
+    #[test]
+    fn render_table_page_svg_page_number_differs_across_pages() {
+        let rows = sample_table_rows(2);
+        let page1 = render_table_page_svg(&rows, 500.0, 700.0, 1, 3).unwrap();
+        let page2 = render_table_page_svg(&rows, 500.0, 700.0, 2, 3).unwrap();
+        let page3 = render_table_page_svg(&rows, 500.0, 700.0, 3, 3).unwrap();
+        assert!(page1.contains("1 / 3"));
+        assert!(page2.contains("2 / 3"));
+        assert!(page3.contains("3 / 3"));
+    }
+
+    #[test]
+    fn render_table_page_svg_renders_cjk_lane_label_and_header() {
+        // CJK lane label "漢" (from sample_table_rows) plus the CJK column
+        // headers (時期/ラベル/レーン/タグ) must both appear verbatim, escaped
+        // for XML but not otherwise mangled/dropped.
+        let rows = sample_table_rows(1);
+        let svg = render_table_page_svg(&rows, 500.0, 700.0, 1, 1).unwrap();
+        assert!(svg.contains("漢"), "CJK lane label must appear, got: {svg}");
+        assert!(svg.contains("時期"));
+        assert!(svg.contains("ラベル"));
+        assert!(svg.contains("レーン"));
+        assert!(svg.contains("タグ"));
+    }
+
+    #[test]
+    fn render_table_page_svg_empty_rows_still_has_header_and_footer() {
+        // The first (and only) page of an empty table must still show the
+        // repeated header and a "1 / 1" footer rather than an empty document.
+        let svg = render_table_page_svg(&[], 500.0, 700.0, 1, 1).unwrap();
+        assert!(svg.contains(crate::layout::TABLE_COL_TIME));
+        assert!(svg.contains("1 / 1"));
     }
 }
