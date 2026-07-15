@@ -364,13 +364,23 @@ fn pdf_page_geometry(pdf_opts: &PdfOptions) -> Result<(f32, f32, f32, f32, f32),
 }
 
 /// Calculate how many complete table data rows fit below a repeated header.
+///
+/// Reserves one row's worth of height for the repeated column header and
+/// requires at least one more complete row for the page-number footer
+/// (rendered separately, see `svg::render_table_page_svg`), so the minimum
+/// viable printable area fits header + 1 data row + footer margin. Returning
+/// `0` here would make callers `chunks(0)` and panic, so this is rejected as
+/// an explicit error instead (AGENTS.md §4.1 no silent fallback).
 fn table_rows_per_page(content_height: f32) -> Result<usize, PdfError> {
     let complete_rows = (f64::from(content_height) / TABLE_ROW_HEIGHT).floor() as usize;
-    complete_rows.checked_sub(1).ok_or_else(|| {
-        PdfError::InvalidMargin(
+    // -1 for the header row that is repeated on every page.
+    let rows_after_header = complete_rows.saturating_sub(1);
+    if rows_after_header == 0 {
+        return Err(PdfError::InvalidMargin(
             "printable area is too short to fit a table header and one complete row".to_string(),
-        )
-    })
+        ));
+    }
+    Ok(rows_after_header)
 }
 
 /// Convert one or more independently rendered SVG pages into one PDF document.
@@ -671,6 +681,32 @@ mod tests {
         )
         .expect_err("pagination without a table must fail");
         assert!(matches!(err, PdfError::PaginationRequiresTable));
+    }
+
+    #[test]
+    fn pagination_with_narrow_printable_area_is_explicit_error_not_panic() {
+        // Regression: landscape + a very large margin leaves a printable area
+        // that fits the header but zero complete data rows. This must be a
+        // clear `InvalidMargin` error, not a `chunks(0)` panic.
+        let ir = ir_with_table_rows(3);
+        let err = render_pdf(
+            &ir,
+            RenderOptions {
+                show_table: true,
+                ..RenderOptions::default()
+            },
+            PdfOptions {
+                pagination: true,
+                landscape: true,
+                margin_mm: 100.0,
+                ..PdfOptions::default()
+            },
+        )
+        .expect_err("a printable area too short for one data row must error");
+        assert!(
+            matches!(err, PdfError::InvalidMargin(_)),
+            "expected InvalidMargin, got: {err}"
+        );
     }
 
     #[test]

@@ -236,7 +236,7 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         watch: bool,
 
-        /// Append an item listing table after the SVG (HTML format only; ignored for svg/png/pdf)
+        /// Append an item listing table after the SVG (all formats: html/svg/png/pdf)
         #[arg(long, default_value_t = false)]
         show_table: bool,
 
