@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`--pdf-pagination`: PDF出力でアイテムテーブルを複数ページに分割するオプションを追加**（ADR-0004 / #618, #619）: `tdsl render --format pdf --show-table --pdf-pagination` で、タイムライン本体（1ページ目、従来どおり単一ページ）とアイテムテーブル（2ページ目以降、用紙サイズ・余白・縦横向きから計算した行数ごとに分割）に分けて出力できるようになった。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する。PDF ドキュメントタイトルメタデータはページ分割の有無に関係なく単一。`--pdf-pagination` は opt-in（デフォルト無効）で、既存の `--format pdf` 単体・`--show-table` 単体の出力は完全に不変。`--show-table` なしで `--pdf-pagination` を指定するとエラー（silent no-op にしない、AGENTS.md §4.1）。タイムライン本体（チャート部分）のページ分割は本機能のスコープ外（ADR-0004 D1）
+
+### Fixed
+
+- **CLI `--show-table` が PDF/PNG/SVG 出力で常に `false` に上書きされていた問題を修正**: `crates/tdsl-cli/src/commands/render.rs` の `effective_show_table` 判定は `--show-table` を HTML 形式のみ有効としてそれ以外では警告を出して `false` に強制しており、tdsl-render が #536/#541 で SVG/PNG/PDF の `show_table` に対応済みだったことと不整合だった（CLI 経由では `--format pdf --show-table` を指定しても表が描画されない状態）。全フォーマットで `--show-table` をそのまま使うように修正した (#619)
+
 ## [1.26.0] - 2026-07-15
 
 ### Added
