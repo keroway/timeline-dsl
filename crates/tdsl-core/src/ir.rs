@@ -16,10 +16,20 @@ pub enum TimelineUnit {
     Hour,
     /// Sub-day axis unit (#556): minute ticks, for very short timelines.
     Minute,
+    /// Sub-day axis unit (#614, ADR 0003): second ticks, for the shortest
+    /// timelines (recordings, movement logs, sub-minute event schedules).
+    Second,
 }
 
 impl TimelineUnit {
-    pub const ALL: [Self; 5] = [Self::Year, Self::Month, Self::Day, Self::Hour, Self::Minute];
+    pub const ALL: [Self; 6] = [
+        Self::Year,
+        Self::Month,
+        Self::Day,
+        Self::Hour,
+        Self::Minute,
+        Self::Second,
+    ];
 
     pub fn parse(value: &str) -> Option<Self> {
         match value {
@@ -28,6 +38,7 @@ impl TimelineUnit {
             "day" => Some(Self::Day),
             "hour" => Some(Self::Hour),
             "minute" => Some(Self::Minute),
+            "second" => Some(Self::Second),
             _ => None,
         }
     }
@@ -39,6 +50,7 @@ impl TimelineUnit {
             Self::Day => "day",
             Self::Hour => "hour",
             Self::Minute => "minute",
+            Self::Second => "second",
         }
     }
 }

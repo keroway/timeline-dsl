@@ -864,6 +864,59 @@ mod tests {
         assert!(out.contains("span ww 1939-09-01..1945-09-02 \"WW2\" {};"));
     }
 
+    // ─── #614 (ADR 0003): fmt の秒・offset round-trip ───
+
+    #[test]
+    fn format_preserves_second_precision() {
+        let src = r#"event han 2024-01-01T10:00:30 "tick" {};"#;
+        let out = fmt(src);
+        assert!(
+            out.contains("event han 2024-01-01T10:00:30 \"tick\" {};"),
+            "got: {out}"
+        );
+    }
+
+    #[test]
+    fn format_preserves_utc_offset_z() {
+        let src = r#"event han 2024-01-01T10:00:30Z "tick" {};"#;
+        let out = fmt(src);
+        assert!(
+            out.contains("event han 2024-01-01T10:00:30Z \"tick\" {};"),
+            "got: {out}"
+        );
+    }
+
+    #[test]
+    fn format_preserves_positive_and_negative_offsets() {
+        let src = r#"
+            event han 2024-01-01T10:00:30+09:00 "jst" {};
+            event han 2024-01-01T10:00:30-05:00 "est" {};
+        "#;
+        let out = fmt(src);
+        assert!(out.contains("2024-01-01T10:00:30+09:00"), "got: {out}");
+        assert!(out.contains("2024-01-01T10:00:30-05:00"), "got: {out}");
+    }
+
+    #[test]
+    fn format_preserves_unit_second_and_second_range() {
+        let src =
+            r#"timeline "T" { unit second; range 2024-01-01T10:00:00..2024-01-01T10:00:30; }"#;
+        let out = fmt(src);
+        assert!(out.contains("unit second;"), "got: {out}");
+        assert!(
+            out.contains("range 2024-01-01T10:00:00..2024-01-01T10:00:30;"),
+            "got: {out}"
+        );
+    }
+
+    #[test]
+    fn format_second_and_offset_is_idempotent() {
+        let src = r#"event han 2024-01-01T10:00:30+09:00 "tick" {};"#;
+        let once = fmt(src);
+        let twice = fmt(&once);
+        assert_eq!(once, twice, "formatting must be idempotent");
+    }
+
     #[test]
     fn format_empty_import_block() {
         let src = r#"import wikidata as wd {}"#;

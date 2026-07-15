@@ -583,6 +583,31 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) -> std::fmt::Res
             )?;
         }
     }
+
+    // Second minor ticks (unit=second only, #614, ADR 0003).
+    let pixels_per_second = layout.opts.scale / (365.25 * 24.0 * 60.0 * 60.0);
+    for (year, month, day, hour, minute, second) in layout.second_ticks() {
+        let x = layout.second_frac_to_x(year, month, day, hour, minute, second);
+        writeln!(
+            s,
+            r#"  <line class="tdsl-axis-second-tick" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,
+            x = fmt_f(x),
+            y1 = fmt_f(baseline_y - 2.0),
+            y2 = fmt_f(baseline_y),
+        )?;
+        if pixels_per_second >= 4.0 {
+            let label = crate::layout::format_second_tick_label(
+                month, day, hour, minute, second, single_day,
+            );
+            writeln!(
+                s,
+                r#"  <text class="tdsl-axis-text tdsl-axis-second-text" x="{x}" y="{y}" text-anchor="middle">{label}</text>"#,
+                x = fmt_f(x),
+                y = fmt_f(baseline_y - 5.0),
+                label = escape_xml(&label),
+            )?;
+        }
+    }
     Ok(())
 }
 
@@ -1612,6 +1637,115 @@ mod tests {
         assert!(
             svg.contains(">14:00<") || svg.contains(">00:00<"),
             "expected single-day HH:00 hour label: {svg}"
+        );
+    }
+
+    #[test]
+    fn svg_renders_second_ticks_for_unit_second_timeline() {
+        // #614 (ADR 0003): unit second produces second-level axis ticks/labels
+        // within a single-day range.
+        let ir = TimelineIr {
+            meta: tdsl_core::ir::Meta {
+                title: "Countdown".into(),
+                unit: "second".into(),
+                range: (1969, 1969),
+                range_start_month: Some(7),
+                range_start_day: Some(20),
+                range_start_hour: Some(20),
+                range_start_minute: Some(17),
+                range_start_second: Some(0),
+                range_end_month: Some(7),
+                range_end_day: Some(20),
+                range_end_hour: Some(20),
+                range_end_minute: Some(18),
+                range_end_second: Some(0),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "mission".into(),
+                label: "Mission".into(),
+                kind: "event".into(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::Event {
+                id: "landing".into(),
+                lane: "mission".into(),
+                time: 1969,
+                label: "Landing".into(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                note: None,
+                link: None,
+                color: None,
+                time_month: Some(7),
+                time_day: Some(20),
+                time_hour: Some(20),
+                time_minute: Some(17),
+                time_second: Some(40),
+                time_offset_minutes: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 365.25 * 24.0 * 60.0 * 60.0 * 6.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-axis-second-tick"),
+            "expected second tick lines in SVG: {svg}"
+        );
+        assert!(
+            svg.contains(">20:17:00<") || svg.contains(">20:18:00<"),
+            "expected single-day HH:MM:SS second label: {svg}"
+        );
+    }
+
+    #[test]
+    fn svg_second_ticks_empty_for_non_second_unit() {
+        // unit=hour must not emit second ticks even if range_*_second happens
+        // to be populated.
+        let ir = TimelineIr {
+            meta: tdsl_core::ir::Meta {
+                title: "Apollo 11".into(),
+                unit: "hour".into(),
+                range: (1969, 1969),
+                range_start_month: Some(7),
+                range_start_day: Some(20),
+                range_start_hour: Some(0),
+                range_start_minute: Some(0),
+                range_start_second: Some(0),
+                range_end_month: Some(7),
+                range_end_day: Some(20),
+                range_end_hour: Some(23),
+                range_end_minute: Some(59),
+                range_end_second: Some(59),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+        let opts = RenderOptions {
+            scale: 365.25 * 24.0 * 60.0 * 60.0 * 6.0,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts);
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            !svg.contains("tdsl-axis-second-tick"),
+            "unit=hour must not render second ticks: {svg}"
         );
     }
 

@@ -793,6 +793,29 @@ impl<'a> LayoutModel<'a> {
         frac_to_x(frac, self.year_min, self.opts.scale, self.opts.left_gutter)
     }
 
+    /// X coordinate for a (year, month, day, hour, minute, second) fractional
+    /// position (#614, ADR 0003).
+    #[allow(clippy::too_many_arguments)]
+    pub fn second_frac_to_x(
+        &self,
+        year: i64,
+        month: u8,
+        day: u8,
+        hour: u8,
+        minute: u8,
+        second: u8,
+    ) -> f64 {
+        let frac = to_year_frac_with_second(
+            year,
+            Some(month),
+            Some(day),
+            Some(hour),
+            Some(minute),
+            Some(second),
+        );
+        frac_to_x(frac, self.year_min, self.opts.scale, self.opts.left_gutter)
+    }
+
     /// Hour-level minor-tick positions for `unit=hour` timelines (#556).
     ///
     /// Returns `(year, month, day, hour)` quadruples covering the visible range.
@@ -872,6 +895,45 @@ impl<'a> LayoutModel<'a> {
         ticks
     }
 
+    /// Second-level minor-tick positions for `unit=second` timelines (#614,
+    /// ADR 0003).
+    ///
+    /// Returns `(year, month, day, hour, minute, second)` sextuples.
+    /// Density-controlled thinning (1s → 5s → 15s → 30s) mirrors
+    /// `minute_ticks()`. Empty when `unit != "second"` or the scale is too
+    /// small to show even 30s ticks.
+    pub fn second_ticks(&self) -> Vec<(i64, u8, u8, u8, u8, u8)> {
+        if self.ir.meta.unit != "second" {
+            return Vec::new();
+        }
+
+        let pixels_per_second = self.opts.scale / (365.25 * 24.0 * 60.0 * 60.0);
+        if pixels_per_second * 30.0 < 6.0 {
+            return Vec::new();
+        }
+
+        let step: u8 = if pixels_per_second >= 6.0 {
+            1
+        } else if pixels_per_second >= 1.2 {
+            5
+        } else if pixels_per_second >= 0.4 {
+            15
+        } else {
+            30
+        };
+
+        let Some((mut current, end)) = self.subday_range_bounds_sec() else {
+            return Vec::new();
+        };
+
+        let mut ticks = Vec::new();
+        while current <= end {
+            ticks.push(current);
+            current = advance_time_seconds(current, i64::from(step));
+        }
+        ticks
+    }
+
     /// Declared date/time bounds for sub-day axes. Requires at least month/day
     /// precision on both range endpoints; otherwise `unit hour/minute` has no
     /// meaningful bounded tick domain and returns no sub-day ticks instead of
@@ -892,6 +954,32 @@ impl<'a> LayoutModel<'a> {
                 meta.range_end_day?,
                 meta.range_end_hour.unwrap_or(23),
                 meta.range_end_minute.unwrap_or(59),
+            ),
+        ))
+    }
+
+    /// Second-precision variant of [`Self::subday_range_bounds`] for `unit
+    /// second` (#614). Requires month/day precision on both endpoints; hour
+    /// defaults to 0/23, minute defaults to 0/59, second defaults to 0/59 when
+    /// unspecified (mirrors `subday_range_bounds`'s hour/minute defaults).
+    fn subday_range_bounds_sec(&self) -> Option<(TimeTupleSec, TimeTupleSec)> {
+        let meta = &self.ir.meta;
+        Some((
+            (
+                meta.range.0,
+                meta.range_start_month?,
+                meta.range_start_day?,
+                meta.range_start_hour.unwrap_or(0),
+                meta.range_start_minute.unwrap_or(0),
+                meta.range_start_second.unwrap_or(0),
+            ),
+            (
+                meta.range.1,
+                meta.range_end_month?,
+                meta.range_end_day?,
+                meta.range_end_hour.unwrap_or(23),
+                meta.range_end_minute.unwrap_or(59),
+                meta.range_end_second.unwrap_or(59),
             ),
         ))
     }
@@ -1001,6 +1089,44 @@ fn advance_time_minutes(
         remaining -= step;
     }
     (year, month, day, hour, minute)
+}
+
+type TimeTupleSec = (i64, u8, u8, u8, u8, u8);
+
+/// Like [`advance_time_minutes`] but advances whole seconds, for `unit second`
+/// tick generation (#614, ADR 0003).
+fn advance_time_seconds(
+    (mut year, mut month, mut day, mut hour, mut minute, mut second): TimeTupleSec,
+    delta_seconds: i64,
+) -> TimeTupleSec {
+    let mut remaining = delta_seconds.max(0);
+    while remaining > 0 {
+        let step = remaining.min(1);
+        second += step as u8;
+        if second >= 60 {
+            second = 0;
+            minute += 1;
+            if minute >= 60 {
+                minute = 0;
+                hour += 1;
+                if hour >= 24 {
+                    hour = 0;
+                    day += 1;
+                    let last = tdsl_core::ir::days_in_month(year, month);
+                    if day > last {
+                        day = 1;
+                        month += 1;
+                        if month > 12 {
+                            month = 1;
+                            year += 1;
+                        }
+                    }
+                }
+            }
+        }
+        remaining -= step;
+    }
+    (year, month, day, hour, minute, second)
 }
 
 // --- item layout helpers ---
@@ -1128,6 +1254,7 @@ fn item_start_frac(item: &Item) -> f64 {
             start_day,
             start_hour,
             start_minute,
+            start_second,
             ..
         }
         | Item::EventRange {
@@ -1136,16 +1263,32 @@ fn item_start_frac(item: &Item) -> f64 {
             start_day,
             start_hour,
             start_minute,
+            start_second,
             ..
-        } => start_frac_with_time(*start, *start_month, *start_day, *start_hour, *start_minute),
+        } => start_frac_with_second(
+            *start,
+            *start_month,
+            *start_day,
+            *start_hour,
+            *start_minute,
+            *start_second,
+        ),
         Item::Event {
             time,
             time_month,
             time_day,
             time_hour,
             time_minute,
+            time_second,
             ..
-        } => to_year_frac(*time, *time_month, *time_day, *time_hour, *time_minute),
+        } => to_year_frac_with_second(
+            *time,
+            *time_month,
+            *time_day,
+            *time_hour,
+            *time_minute,
+            *time_second,
+        ),
     }
 }
 
@@ -1187,10 +1330,12 @@ fn bar_interval(item: &Item) -> Option<(f64, f64)> {
             start_day,
             start_hour,
             start_minute,
+            start_second,
             end_month,
             end_day,
             end_hour,
             end_minute,
+            end_second,
             ..
         }
         | Item::EventRange {
@@ -1200,15 +1345,30 @@ fn bar_interval(item: &Item) -> Option<(f64, f64)> {
             start_day,
             start_hour,
             start_minute,
+            start_second,
             end_month,
             end_day,
             end_hour,
             end_minute,
+            end_second,
             ..
         } => {
-            let start =
-                start_frac_with_time(*start, *start_month, *start_day, *start_hour, *start_minute);
-            let end = end_frac_with_time(*end, *end_month, *end_day, *end_hour, *end_minute);
+            let start = start_frac_with_second(
+                *start,
+                *start_month,
+                *start_day,
+                *start_hour,
+                *start_minute,
+                *start_second,
+            );
+            let end = end_frac_with_second(
+                *end,
+                *end_month,
+                *end_day,
+                *end_hour,
+                *end_minute,
+                *end_second,
+            );
             Some((start, end.max(start)))
         }
         Item::Event { .. } => None,
@@ -1286,16 +1446,31 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             start_day,
             start_hour,
             start_minute,
+            start_second,
             end_month,
             end_day,
             end_hour,
             end_minute,
+            end_second,
             ..
         } => {
             // 仕様 §1.4: start は year/月の頭、end は year/月の末日を採用（混在精度補完）
-            let sf =
-                start_frac_with_time(*start, *start_month, *start_day, *start_hour, *start_minute);
-            let ef = end_frac_with_time(*end, *end_month, *end_day, *end_hour, *end_minute);
+            let sf = start_frac_with_second(
+                *start,
+                *start_month,
+                *start_day,
+                *start_hour,
+                *start_minute,
+                *start_second,
+            );
+            let ef = end_frac_with_second(
+                *end,
+                *end_month,
+                *end_day,
+                *end_hour,
+                *end_minute,
+                *end_second,
+            );
             let (primary_start, primary_extent) =
                 primary_axis_segment(sf, ef, year_min, year_max, opts.scale, primary_anchor);
             let cross_start = lane_axis - span_half_h + bar_stack_offset;
@@ -1323,15 +1498,30 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             start_day,
             start_hour,
             start_minute,
+            start_second,
             end_month,
             end_day,
             end_hour,
             end_minute,
+            end_second,
             ..
         } => {
-            let sf =
-                start_frac_with_time(*start, *start_month, *start_day, *start_hour, *start_minute);
-            let ef = end_frac_with_time(*end, *end_month, *end_day, *end_hour, *end_minute);
+            let sf = start_frac_with_second(
+                *start,
+                *start_month,
+                *start_day,
+                *start_hour,
+                *start_minute,
+                *start_second,
+            );
+            let ef = end_frac_with_second(
+                *end,
+                *end_month,
+                *end_day,
+                *end_hour,
+                *end_minute,
+                *end_second,
+            );
             let (primary_start, primary_extent) =
                 primary_axis_segment(sf, ef, year_min, year_max, opts.scale, primary_anchor);
             // Horizontal bands sit just below the lane center
@@ -1370,12 +1560,20 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             time_day,
             time_hour,
             time_minute,
+            time_second,
             ..
         } => {
             if !year_in_range(*time, year_min, year_max) {
                 return;
             }
-            let frac = to_year_frac(*time, *time_month, *time_day, *time_hour, *time_minute);
+            let frac = to_year_frac_with_second(
+                *time,
+                *time_month,
+                *time_day,
+                *time_hour,
+                *time_minute,
+                *time_second,
+            );
             let primary = primary_anchor + (frac - year_min as f64) * opts.scale;
             // #565: Zigzag shifts the Event's cross-axis (lane) position by
             // `bar_stack_offset` (which carries the signed zigzag offset here;
@@ -1943,6 +2141,23 @@ pub(crate) fn format_minute_tick_label(
     }
 }
 
+/// Format a second-tick axis label (#614, ADR 0003): `HH:MM:SS` for a
+/// single-day timeline, `MM-DD HH:MM:SS` when the timeline spans multiple days.
+pub(crate) fn format_second_tick_label(
+    month: u8,
+    day: u8,
+    hour: u8,
+    minute: u8,
+    second: u8,
+    single_day: bool,
+) -> String {
+    if single_day {
+        format!("{hour:02}:{minute:02}:{second:02}")
+    } else {
+        format!("{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}")
+    }
+}
+
 struct ItemCommon<'a> {
     tags: &'a [String],
     source: &'a Option<String>,
@@ -2211,6 +2426,19 @@ fn to_year_frac(
     hour: Option<u8>,
     minute: Option<u8>,
 ) -> f64 {
+    to_year_frac_with_second(year, month, day, hour, minute, None)
+}
+
+/// Like [`to_year_frac`] but also folds in second precision (#614, ADR 0003).
+/// `second` is only meaningful once `minute` is `Some`.
+fn to_year_frac_with_second(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+    second: Option<u8>,
+) -> f64 {
     let mut frac = year as f64;
     if let Some(m) = month {
         frac += (m.clamp(1, 12) - 1) as f64 / 12.0;
@@ -2220,6 +2448,9 @@ fn to_year_frac(
                 frac += h.min(23) as f64 / 24.0 / 365.25;
                 if let Some(min) = minute {
                     frac += min.min(59) as f64 / 1440.0 / 365.25;
+                    if let Some(s) = second {
+                        frac += s.min(59) as f64 / 86400.0 / 365.25;
+                    }
                 }
             }
         }
@@ -2227,27 +2458,36 @@ fn to_year_frac(
     frac
 }
 
-fn start_frac_with_time(
+/// Fractional-year position including hour/minute/second precision (#556,
+/// #614, ADR 0003). `second` is only meaningful once `minute` is `Some`; a
+/// bare `second` without `minute` cannot occur in practice (the AST/IR always
+/// set hour+minute together with second, see `TimeValue::DateTimeSecond`).
+fn start_frac_with_second(
     year: i64,
     month: Option<u8>,
     day: Option<u8>,
     hour: Option<u8>,
     minute: Option<u8>,
+    second: Option<u8>,
 ) -> f64 {
     start_frac(year, month, day)
         + hour.unwrap_or(0).min(23) as f64 / 24.0 / 365.25
         + minute.unwrap_or(0).min(59) as f64 / 1440.0 / 365.25
+        + second.unwrap_or(0).min(59) as f64 / 86400.0 / 365.25
 }
 
-fn end_frac_with_time(
+/// Like [`start_frac_with_second`] but for the end endpoint of a Span/EventRange
+/// (#556, #614).
+fn end_frac_with_second(
     year: i64,
     month: Option<u8>,
     day: Option<u8>,
     hour: Option<u8>,
     minute: Option<u8>,
+    second: Option<u8>,
 ) -> f64 {
     match hour {
-        Some(_) => start_frac_with_time(year, month, day, hour, minute),
+        Some(_) => start_frac_with_second(year, month, day, hour, minute, second),
         None => end_frac(year, month, day),
     }
 }

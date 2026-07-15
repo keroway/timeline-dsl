@@ -126,7 +126,7 @@ pub(crate) fn format_id_time(t: &ast::TimeValue) -> String {
 }
 
 /// offset(分単位)を `Z` または `±HH:MM` 形式に整形する（ID用の補助関数）。
-pub(crate) fn format_offset_suffix(offset_minutes: i16) -> String {
+pub fn format_offset_suffix(offset_minutes: i16) -> String {
     if offset_minutes == 0 {
         return "Z".to_string();
     }

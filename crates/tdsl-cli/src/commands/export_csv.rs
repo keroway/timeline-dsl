@@ -49,17 +49,29 @@ fn load_ir_for_export(
     }
 }
 
-/// IR の年 + 月日・時分精度を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` 形式へ整形する。
+/// IR の年 + 月日・時分秒・offset 精度を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` /
+/// `YYYY-MM-DDTHH:MM` / `YYYY-MM-DDTHH:MM:SS` / `YYYY-MM-DDTHH:MM(:SS)±HH:MM`
+/// 形式へ整形する（ADR 0003 D1/D4, #614: `import-csv` が同じ文字列を
+/// `tdsl_parser::parse_time_literal` で再パースできるよう round-trip 可能な形式を保つ）。
 fn format_time(
     year: i64,
     month: Option<u8>,
     day: Option<u8>,
     hour: Option<u8>,
     minute: Option<u8>,
+    second: Option<u8>,
+    offset_minutes: Option<i16>,
 ) -> String {
     match (month, day, hour, minute) {
         (Some(m), Some(d), Some(h), Some(min)) => {
-            format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}")
+            let base = match second {
+                Some(s) => format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}:{s:02}"),
+                None => format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}"),
+            };
+            match offset_minutes {
+                Some(off) => format!("{base}{}", tdsl_core::lower::format_offset_suffix(off)),
+                None => base,
+            }
         }
         (Some(m), Some(d), _, _) => format!("{year:04}-{m:02}-{d:02}"),
         (Some(m), _, _, _) => format!("{year:04}-{m:02}"),
@@ -102,10 +114,14 @@ fn item_to_row(item: &Item) -> [String; 10] {
             start_day,
             start_hour,
             start_minute,
+            start_second,
+            start_offset_minutes,
             end_month,
             end_day,
             end_hour,
             end_minute,
+            end_second,
+            end_offset_minutes,
             label,
             tags,
             source,
@@ -115,8 +131,24 @@ fn item_to_row(item: &Item) -> [String; 10] {
         } => [
             lane.clone(),
             "span".to_string(),
-            format_time(*start, *start_month, *start_day, *start_hour, *start_minute),
-            format_time(*end, *end_month, *end_day, *end_hour, *end_minute),
+            format_time(
+                *start,
+                *start_month,
+                *start_day,
+                *start_hour,
+                *start_minute,
+                *start_second,
+                *start_offset_minutes,
+            ),
+            format_time(
+                *end,
+                *end_month,
+                *end_day,
+                *end_hour,
+                *end_minute,
+                *end_second,
+                *end_offset_minutes,
+            ),
             String::new(),
             label.clone(),
             join_tags(tags),
@@ -131,6 +163,8 @@ fn item_to_row(item: &Item) -> [String; 10] {
             time_day,
             time_hour,
             time_minute,
+            time_second,
+            time_offset_minutes,
             label,
             tags,
             source,
@@ -142,7 +176,15 @@ fn item_to_row(item: &Item) -> [String; 10] {
             "event".to_string(),
             String::new(),
             String::new(),
-            format_time(*time, *time_month, *time_day, *time_hour, *time_minute),
+            format_time(
+                *time,
+                *time_month,
+                *time_day,
+                *time_hour,
+                *time_minute,
+                *time_second,
+                *time_offset_minutes,
+            ),
             label.clone(),
             join_tags(tags),
             id.clone(),
@@ -157,10 +199,14 @@ fn item_to_row(item: &Item) -> [String; 10] {
             start_day,
             start_hour,
             start_minute,
+            start_second,
+            start_offset_minutes,
             end_month,
             end_day,
             end_hour,
             end_minute,
+            end_second,
+            end_offset_minutes,
             label,
             tags,
             source,
@@ -170,8 +216,24 @@ fn item_to_row(item: &Item) -> [String; 10] {
         } => [
             lane.clone(),
             "event_range".to_string(),
-            format_time(*start, *start_month, *start_day, *start_hour, *start_minute),
-            format_time(*end, *end_month, *end_day, *end_hour, *end_minute),
+            format_time(
+                *start,
+                *start_month,
+                *start_day,
+                *start_hour,
+                *start_minute,
+                *start_second,
+                *start_offset_minutes,
+            ),
+            format_time(
+                *end,
+                *end_month,
+                *end_day,
+                *end_hour,
+                *end_minute,
+                *end_second,
+                *end_offset_minutes,
+            ),
             String::new(),
             label.clone(),
             join_tags(tags),
@@ -392,6 +454,118 @@ mod tests {
             } => {
                 assert_eq!((*start, *end), (-221, -206));
                 assert_eq!(label, "Qin");
+            }
+            other => panic!("expected event_range, got {other:?}"),
+        }
+    }
+
+    // ─── #614 (ADR 0003): 秒・オフセットの export-csv → import-csv round-trip ───
+
+    fn ir_with_second_and_offset() -> TimelineIr {
+        TimelineIr {
+            meta: Meta {
+                title: "Sec".to_string(),
+                unit: "second".to_string(),
+                range: (2024, 2024),
+                calendar: "proleptic_gregorian".to_string(),
+                color_map: HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "a".to_string(),
+                label: "Lane A".to_string(),
+                kind: "custom".to_string(),
+                order: 10,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::EventRange {
+                id: "event_range:a:sec".to_string(),
+                lane: "a".to_string(),
+                start: 2024,
+                end: 2024,
+                label: "Countdown".to_string(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                note: None,
+                link: None,
+                color: None,
+                start_month: Some(1),
+                start_day: Some(1),
+                start_hour: Some(10),
+                start_minute: Some(0),
+                start_second: Some(30),
+                start_offset_minutes: Some(540),
+                end_month: Some(1),
+                end_day: Some(1),
+                end_hour: Some(10),
+                end_minute: Some(1),
+                end_second: Some(0),
+                end_offset_minutes: Some(540),
+                end_open: false,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        }
+    }
+
+    #[test]
+    fn render_csv_includes_second_and_offset_in_time_columns() {
+        let csv = render_csv(&ir_with_second_and_offset()).unwrap();
+        let mut lines = csv.lines();
+        lines.next(); // header
+        let row = lines.next().unwrap();
+        assert!(
+            row.contains("2024-01-01T10:00:30+09:00"),
+            "expected start with second+offset in CSV row: {row}"
+        );
+        assert!(
+            row.contains("2024-01-01T10:01:00+09:00"),
+            "expected end with second+offset in CSV row: {row}"
+        );
+    }
+
+    #[test]
+    fn export_then_import_round_trips_second_and_offset() {
+        let ir = ir_with_second_and_offset();
+        let csv = render_csv(&ir).unwrap();
+
+        let tmp = std::env::temp_dir().join(format!(
+            "tdsl_export_roundtrip_sec_{:?}_{}.csv",
+            std::thread::current().id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&tmp, &csv).unwrap();
+        let items = super::super::init::parse_csv_items(&tmp).expect("import-csv parse");
+        std::fs::remove_file(&tmp).ok();
+        let snippet = super::super::init::render_imported_csv_items(&items);
+
+        let reconstructed = format!(
+            "timeline \"Sec\" {{\n    title \"Sec\";\n    unit second;\n    range 2024..2024;\n    calendar proleptic_gregorian;\n}}\n\nlane \"Lane A\" as a {{ kind custom; order 10; }}\n\n{snippet}"
+        );
+
+        let file = tdsl_parser::parse(&reconstructed)
+            .unwrap_or_else(|e| panic!("re-parse failed: {e}\n---\n{reconstructed}"));
+        let ir2 = tdsl_core::lower::lower_static(&file).expect("re-lower must succeed");
+
+        assert_eq!(ir2.items.len(), 1);
+        match &ir2.items[0] {
+            Item::EventRange {
+                start_second,
+                start_offset_minutes,
+                end_second,
+                end_offset_minutes,
+                ..
+            } => {
+                assert_eq!(*start_second, Some(30));
+                assert_eq!(*start_offset_minutes, Some(540));
+                assert_eq!(*end_second, Some(0));
+                assert_eq!(*end_offset_minutes, Some(540));
             }
             other => panic!("expected event_range, got {other:?}"),
         }

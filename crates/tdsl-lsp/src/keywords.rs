@@ -56,6 +56,7 @@ pub const MISC_KEYWORDS: &[&str] = &[
     "day",
     "hour",
     "minute",
+    "second",
     "now",
     "dynasty",
     "person",
