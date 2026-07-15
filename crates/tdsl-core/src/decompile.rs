@@ -28,12 +28,14 @@ fn format_open_ended_end(
     day: Option<u8>,
     hour: Option<u8>,
     minute: Option<u8>,
+    second: Option<u8>,
+    offset_minutes: Option<i16>,
     end_open: bool,
 ) -> String {
     if end_open {
         "now".to_string()
     } else {
-        format_time(year, month, day, hour, minute)
+        format_time(year, month, day, hour, minute, second, offset_minutes)
     }
 }
 
@@ -45,17 +47,28 @@ fn format_color_map_key(k: &str) -> String {
     }
 }
 
-/// IR の年 + 月日・時分精度を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` 形式の文字列に整形する。
+/// IR の年 + 月日・時分秒・offset 精度を `YYYY` / `YYYY-MM` / `YYYY-MM-DD` /
+/// `YYYY-MM-DDTHH:MM` / `YYYY-MM-DDTHH:MM:SS` / `YYYY-MM-DDTHH:MM(:SS)±HH:MM`
+/// 形式の文字列に整形する（ADR 0003 D1/D4, #614: 秒・offset を round-trip 可能にする）。
 fn format_time(
     year: i64,
     month: Option<u8>,
     day: Option<u8>,
     hour: Option<u8>,
     minute: Option<u8>,
+    second: Option<u8>,
+    offset_minutes: Option<i16>,
 ) -> String {
     match (month, day, hour, minute) {
         (Some(m), Some(d), Some(h), Some(min)) => {
-            format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}")
+            let base = match second {
+                Some(s) => format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}:{s:02}"),
+                None => format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}"),
+            };
+            match offset_minutes {
+                Some(off) => format!("{base}{}", crate::lower::format_offset_suffix(off)),
+                None => base,
+            }
         }
         (Some(m), Some(d), _, _) => format!("{year:04}-{m:02}-{d:02}"),
         (Some(m), _, _, _) => format!("{year:04}-{m:02}"),
@@ -85,6 +98,8 @@ pub fn decompile(ir: &TimelineIr) -> String {
         ir.meta.range_start_day,
         ir.meta.range_start_hour,
         ir.meta.range_start_minute,
+        ir.meta.range_start_second,
+        ir.meta.range_start_offset_minutes,
     );
     let range_end_str = format_time(
         ir.meta.range.1,
@@ -92,6 +107,8 @@ pub fn decompile(ir: &TimelineIr) -> String {
         ir.meta.range_end_day,
         ir.meta.range_end_hour,
         ir.meta.range_end_minute,
+        ir.meta.range_end_second,
+        ir.meta.range_end_offset_minutes,
     );
     writeln!(out, "    range {range_start_str}..{range_end_str};").unwrap();
     writeln!(out, "    calendar {};", ir.meta.calendar).unwrap();
@@ -135,10 +152,14 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 start_day,
                 start_hour,
                 start_minute,
+                start_second,
+                start_offset_minutes,
                 end_month,
                 end_day,
                 end_hour,
                 end_minute,
+                end_second,
+                end_offset_minutes,
                 end_open,
                 label,
                 tags,
@@ -151,14 +172,23 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 ..
             } => {
                 let props = render_props(id, tags, source, origin, note, link, color);
-                let start_s =
-                    format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
+                let start_s = format_time(
+                    *start,
+                    *start_month,
+                    *start_day,
+                    *start_hour,
+                    *start_minute,
+                    *start_second,
+                    *start_offset_minutes,
+                );
                 let end_s = format_open_ended_end(
                     *end,
                     *end_month,
                     *end_day,
                     *end_hour,
                     *end_minute,
+                    *end_second,
+                    *end_offset_minutes,
                     *end_open,
                 );
                 writeln!(
@@ -175,6 +205,8 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 time_day,
                 time_hour,
                 time_minute,
+                time_second,
+                time_offset_minutes,
                 label,
                 tags,
                 source,
@@ -186,7 +218,15 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 ..
             } => {
                 let props = render_props(id, tags, source, origin, note, link, color);
-                let time_s = format_time(*time, *time_month, *time_day, *time_hour, *time_minute);
+                let time_s = format_time(
+                    *time,
+                    *time_month,
+                    *time_day,
+                    *time_hour,
+                    *time_minute,
+                    *time_second,
+                    *time_offset_minutes,
+                );
                 writeln!(out, r#"event {lane} {time_s} "{}" {props};"#, escape(label)).unwrap();
             }
             Item::EventRange {
@@ -197,10 +237,14 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 start_day,
                 start_hour,
                 start_minute,
+                start_second,
+                start_offset_minutes,
                 end_month,
                 end_day,
                 end_hour,
                 end_minute,
+                end_second,
+                end_offset_minutes,
                 end_open,
                 label,
                 tags,
@@ -213,14 +257,23 @@ pub fn decompile(ir: &TimelineIr) -> String {
                 ..
             } => {
                 let props = render_props(id, tags, source, origin, note, link, color);
-                let start_s =
-                    format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
+                let start_s = format_time(
+                    *start,
+                    *start_month,
+                    *start_day,
+                    *start_hour,
+                    *start_minute,
+                    *start_second,
+                    *start_offset_minutes,
+                );
                 let end_s = format_open_ended_end(
                     *end,
                     *end_month,
                     *end_day,
                     *end_hour,
                     *end_minute,
+                    *end_second,
+                    *end_offset_minutes,
                     *end_open,
                 );
                 writeln!(
@@ -635,5 +688,169 @@ mod tests {
             ir2.meta.color_map.get("dynasty").map(String::as_str),
             Some("#3366cc")
         );
+    }
+
+    // ─── #614 (ADR 0003): 秒・offset の round-trip ───
+
+    fn ir_with_time(
+        start_second: Option<u8>,
+        start_offset_minutes: Option<i16>,
+        end_second: Option<u8>,
+        end_offset_minutes: Option<i16>,
+    ) -> TimelineIr {
+        TimelineIr {
+            meta: Meta {
+                title: "Second Timeline".to_string(),
+                unit: "second".to_string(),
+                range: (2024, 2024),
+                range_start_month: Some(1),
+                range_start_day: Some(1),
+                range_start_hour: Some(10),
+                range_start_minute: Some(0),
+                range_start_second: Some(0),
+                range_start_offset_minutes: None,
+                range_end_month: Some(1),
+                range_end_day: Some(1),
+                range_end_hour: Some(11),
+                range_end_minute: Some(0),
+                range_end_second: Some(0),
+                range_end_offset_minutes: None,
+                calendar: "proleptic_gregorian".to_string(),
+                color_map: HashMap::new(),
+            },
+            lanes: vec![Lane {
+                id: "a".to_string(),
+                label: "Lane A".to_string(),
+                kind: "custom".to_string(),
+                order: 1,
+                group: None,
+                source_span: None,
+            }],
+            items: vec![Item::EventRange {
+                id: "event_range:a:1".to_string(),
+                lane: "a".to_string(),
+                start: 2024,
+                end: 2024,
+                label: "Window".to_string(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                note: None,
+                link: None,
+                color: None,
+                start_month: Some(1),
+                start_day: Some(1),
+                start_hour: Some(10),
+                start_minute: Some(0),
+                start_second,
+                start_offset_minutes,
+                end_month: Some(1),
+                end_day: Some(1),
+                end_hour: Some(10),
+                end_minute: Some(30),
+                end_second,
+                end_offset_minutes,
+                end_open: false,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        }
+    }
+
+    #[test]
+    fn decompile_roundtrip_preserves_second_precision_without_offset() {
+        let ir = ir_with_time(Some(30), None, Some(45), None);
+        let tdsl = decompile(&ir);
+        assert!(
+            tdsl.contains("2024-01-01T10:00:30..2024-01-01T10:30:45"),
+            "expected second-precision literals in decompiled output: {tdsl}"
+        );
+
+        let file = tdsl_parser::parse(&tdsl).expect("decompiled output must parse");
+        let ir2 = crate::lower::lower_static(&file).expect("must lower without errors");
+        match &ir2.items[0] {
+            Item::EventRange {
+                start_second,
+                start_offset_minutes,
+                end_second,
+                end_offset_minutes,
+                ..
+            } => {
+                assert_eq!(*start_second, Some(30));
+                assert_eq!(*start_offset_minutes, None);
+                assert_eq!(*end_second, Some(45));
+                assert_eq!(*end_offset_minutes, None);
+            }
+            _ => panic!("expected event_range"),
+        }
+    }
+
+    #[test]
+    fn decompile_roundtrip_preserves_utc_offset_z() {
+        let ir = ir_with_time(Some(0), Some(0), Some(0), Some(0));
+        let tdsl = decompile(&ir);
+        assert!(
+            tdsl.contains("2024-01-01T10:00:00Z..2024-01-01T10:30:00Z"),
+            "expected Z offset suffix in decompiled output: {tdsl}"
+        );
+
+        let file = tdsl_parser::parse(&tdsl).expect("decompiled output must parse");
+        let ir2 = crate::lower::lower_static(&file).expect("must lower without errors");
+        match &ir2.items[0] {
+            Item::EventRange {
+                start_offset_minutes,
+                end_offset_minutes,
+                ..
+            } => {
+                assert_eq!(*start_offset_minutes, Some(0));
+                assert_eq!(*end_offset_minutes, Some(0));
+            }
+            _ => panic!("expected event_range"),
+        }
+    }
+
+    #[test]
+    fn decompile_roundtrip_preserves_positive_and_negative_offsets() {
+        // +09:00 (JST) と -05:00 の両方が round-trip することを確認する。
+        let ir = ir_with_time(Some(15), Some(540), Some(15), Some(-300));
+        let tdsl = decompile(&ir);
+        assert!(
+            tdsl.contains("2024-01-01T10:00:15+09:00"),
+            "expected +09:00 offset suffix in decompiled output: {tdsl}"
+        );
+        assert!(
+            tdsl.contains("2024-01-01T10:30:15-05:00"),
+            "expected -05:00 offset suffix in decompiled output: {tdsl}"
+        );
+
+        let file = tdsl_parser::parse(&tdsl).expect("decompiled output must parse");
+        let ir2 = crate::lower::lower_static(&file).expect("must lower without errors");
+        match &ir2.items[0] {
+            Item::EventRange {
+                start_second,
+                start_offset_minutes,
+                end_second,
+                end_offset_minutes,
+                ..
+            } => {
+                assert_eq!(*start_second, Some(15));
+                assert_eq!(*start_offset_minutes, Some(540));
+                assert_eq!(*end_second, Some(15));
+                assert_eq!(*end_offset_minutes, Some(-300));
+            }
+            _ => panic!("expected event_range"),
+        }
+    }
+
+    #[test]
+    fn decompile_roundtrip_preserves_unit_second_meta() {
+        let ir = ir_with_time(Some(0), None, Some(0), None);
+        let tdsl = decompile(&ir);
+        assert!(tdsl.contains("unit second;"));
+
+        let file = tdsl_parser::parse(&tdsl).expect("decompiled output must parse");
+        let ir2 = crate::lower::lower_static(&file).expect("must lower without errors");
+        assert_eq!(ir2.meta.unit, "second");
     }
 }

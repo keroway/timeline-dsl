@@ -29,7 +29,7 @@
 - **WebUI** — ブラウザ上でリアルタイム編集・プレビュー（WASM駆動）。フォントサイズ・ライト/ダークテーマ選択対応
 - **レーン構造** — 王朝・人物・国などをレーン（縦軸カテゴリ）で整理
 - **3種の時間要素** — `span`（存続期間）、`event`（点イベント）、`event_range`（期間イベント）
-- **拡張時刻精度** — 年・月・日・分単位の時刻（`YYYY-MM-DDTHH:MM`）と、紀元前の月日（例: `-0206-01-15`）に対応
+- **拡張時刻精度** — 年・月・日・分単位の時刻（`YYYY-MM-DDTHH:MM`）、秒単位の時刻とUTCオフセット（`YYYY-MM-DDTHH:MM:SS±HH:MM`、ADR 0003）、と紀元前の月日（例: `-0206-01-15`）に対応
 - **ライセンス追跡** — Wikidataデータ（CC0）の出典を自動記録
 
 ## インストール
@@ -213,7 +213,7 @@ tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 
 ### timeline ブロック
 
-タイトル・単位・表示範囲・暦法・カラーマッピングを宣言する。`unit` の許容値は `year` / `month` / `day` / `hour` / `minute` で、未知の値は lowering エラーになります。
+タイトル・単位・表示範囲・暦法・カラーマッピングを宣言する。`unit` の許容値は `year` / `month` / `day` / `hour` / `minute` / `second` で、未知の値は lowering エラーになります。
 
 ```
 timeline "中国王朝年表" {

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`unit second` の軸ティック/ラベル生成 + decompile/fmt/CSV の秒・UTCオフセット対応**（ADR-0003 / #614）: `crates/tdsl-render` に `unit second` の軸ティック・ラベル生成（1s→5s→15s→30s の密度制御、`hour`/`minute` と同様のパターン）を追加し、Span/Event/EventRange の座標計算にも秒精度を反映した。`tdsl decompile` と `export-csv` は秒・UTCオフセット（`Z` / `±HH:MM`）を round-trip 可能な形式で出力するように修正（従来は無声で破棄していた）。`tdsl fmt` は `TimeValue::Display` 経由で既に秒・offsetを保持できていたことを round-trip テストで確認。`TimelineUnit` に `Second` variant、DSL/VS Code/LSP のキーワード一覧に `second` を追加
+
 - **`--pdf-pagination`: PDF出力でアイテムテーブルを複数ページに分割するオプションを追加**（ADR-0004 / #618, #619）: `tdsl render --format pdf --show-table --pdf-pagination` で、タイムライン本体（1ページ目、従来どおり単一ページ）とアイテムテーブル（2ページ目以降、用紙サイズ・余白・縦横向きから計算した行数ごとに分割）に分けて出力できるようになった。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する。PDF ドキュメントタイトルメタデータはページ分割の有無に関係なく単一。`--pdf-pagination` は opt-in（デフォルト無効）で、既存の `--format pdf` 単体・`--show-table` 単体の出力は完全に不変。`--show-table` なしで `--pdf-pagination` を指定するとエラー（silent no-op にしない、AGENTS.md §4.1）。タイムライン本体（チャート部分）のページ分割は本機能のスコープ外（ADR-0004 D1）
 
 ### Fixed

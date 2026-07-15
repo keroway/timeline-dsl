@@ -29,7 +29,7 @@ A domain-specific language (DSL) compiler for timelines. Define timelines as tex
 - **WebUI** — Real-time editing and preview in the browser (WASM-powered), with font size and light/dark theme selection
 - **Lane structure** — Organize dynasties, people, nations, etc. into lanes (vertical categories)
 - **3 time element types** — `span` (duration), `event` (point event), `event_range` (range event)
-- **Extended time precision** — Year, month, day, minute-level time-of-day (`YYYY-MM-DDTHH:MM`), and BCE month/day dates (e.g. `-0206-01-15`)
+- **Extended time precision** — Year, month, day, minute-level time-of-day (`YYYY-MM-DDTHH:MM`), second-level precision and UTC offsets (`YYYY-MM-DDTHH:MM:SS±HH:MM`, ADR 0003), and BCE month/day dates (e.g. `-0206-01-15`)
 - **License tracking** — Automatically records the source of Wikidata data (CC0)
 
 ## Installation
@@ -218,7 +218,7 @@ tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 
 ### timeline block
 
-Declares the title, unit, display range, calendar, and color mapping. Supported `unit` values are `year`, `month`, `day`, `hour`, and `minute`; unknown values fail during lowering instead of falling back silently.
+Declares the title, unit, display range, calendar, and color mapping. Supported `unit` values are `year`, `month`, `day`, `hour`, `minute`, and `second`; unknown values fail during lowering instead of falling back silently.
 
 ```
 timeline "Chinese Dynasties" {

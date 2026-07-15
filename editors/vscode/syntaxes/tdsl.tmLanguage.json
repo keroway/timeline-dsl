@@ -100,7 +100,7 @@
     },
     "keyword-misc": {
       "name": "keyword.other.misc.tdsl",
-      "match": "\\b(as|query|wikidata|unit|range|calendar|kind|order|tags|source|label|start|end|time|id|target_type|target_lane|merge_by_source|overwrite_imported|keep_manual|proleptic_gregorian|year|month|day|hour|minute|now|dynasty|person|country|custom|era|title|field_priority|origin|note|link|color|expand|qualifier)\\b"
+      "match": "\\b(as|query|wikidata|unit|range|calendar|kind|order|tags|source|label|start|end|time|id|target_type|target_lane|merge_by_source|overwrite_imported|keep_manual|proleptic_gregorian|year|month|day|hour|minute|second|now|dynasty|person|country|custom|era|title|field_priority|origin|note|link|color|expand|qualifier)\\b"
     },
     "number": {
       "name": "constant.numeric.tdsl",

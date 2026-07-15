@@ -132,12 +132,14 @@ timeline "中国王朝年表" {
 | プロパティ | 必須 | 説明 |
 |---|---|---|
 | `title` | 任意 | 年表の表示タイトル |
-| `unit` | 任意 | 時間単位（`year`, `month`, `day`, `hour`, `minute`）。未知の値は lowering エラー |
+| `unit` | 任意 | 時間単位（`year`, `month`, `day`, `hour`, `minute`, `second`）。未知の値は lowering エラー |
 | `range` | 任意 | 表示範囲。`開始..終了` の形式。負の値は紀元前 |
 | `calendar` | 任意 | 暦法。`proleptic_gregorian` 等 |
 | `color_map` | 任意 | タグ→色のマッピング。`タグ名: "#16進数カラーコード";` の形式で複数定義可能 |
 
 `unit hour` / `unit minute`（#556）は `YYYY-MM-DDTHH:MM` のような時分精度のタイムライン向け。Renderer は `timeline.range` の月日・時分精度に基づき、過密にならないよう 1h→3h→6h→12h、または 1min→5min→15min→30min のように目盛りを間引く。単日範囲では `HH:MM`、複数日範囲では `MM-DD HH:MM` 形式の軸ラベルを使う。
+
+`unit second`（#614、ADR 0003）は `YYYY-MM-DDTHH:MM:SS` のような秒精度のタイムライン向け。`hour`/`minute` と同様に 1s→5s→15s→30s の間引きを行い、単日範囲では `HH:MM:SS`、複数日範囲では `MM-DD HH:MM:SS` 形式の軸ラベルを使う。秒・UTCオフセット（`Z` / `±HH:MM`）構文の詳細は ADR 0003 を参照。offset の有無が混在する値同士の比較は明示的エラーになる（silent fallback しない）。
 
 `color_map` で定義した色は `tdsl render` 時に自動適用される。`color_map` は hex 色（`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`）と単純な CSS 色キーワードを受け付ける。複雑な CSS 値は安全のため renderer が無視する。高度な装飾は CLI の `--custom-css` を使う。`--color-map "war=#cc0000"` CLIフラグで上書きも可能。
 

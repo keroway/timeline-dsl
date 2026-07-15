@@ -38,6 +38,7 @@
     "day",
     "hour",
     "minute",
+    "second",
     "now",
     "dynasty",
     "person",
