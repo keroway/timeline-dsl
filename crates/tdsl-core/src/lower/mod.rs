@@ -125,6 +125,17 @@ pub(crate) fn format_id_time(t: &ast::TimeValue) -> String {
     }
 }
 
+/// 秒精度・オフセット付きの `TimeValue` を拒否する（IRがまだ保持できないため、#613で対応予定）。
+/// silent に分精度へ切り捨てるのではなく、明示的エラーを返す（AGENTS.md §4.1）。
+pub(crate) fn reject_sub_minute_precision(
+    t: &ast::TimeValue,
+) -> Result<(), crate::error::LoweringError> {
+    if t.second().is_some() || t.offset_minutes().is_some() {
+        return Err(crate::error::LoweringError::SubMinutePrecisionNotYetSupported(t.to_string()));
+    }
+    Ok(())
+}
+
 /// offset(分単位)を `Z` または `±HH:MM` 形式に整形する（ID用の補助関数）。
 /// 本体の正規化・比較セマンティクスは #613 (IR/lowering の秒精度対応) で実装する。
 pub(crate) fn format_offset_suffix(offset_minutes: i16) -> String {

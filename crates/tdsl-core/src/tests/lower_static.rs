@@ -1063,3 +1063,92 @@ fn lower_item_color_rejects_unsafe_value() {
     let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
     assert!(err.contains("InvalidItemColor"), "got: {err}");
 }
+
+// ─── 秒精度・オフセット: IR未対応の明示エラー (ADR 0003 / #612, IR対応は#613) ───
+
+#[test]
+fn lower_event_with_second_precision_is_explicit_error_not_silently_truncated() {
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        lane "A" as a {}
+        event a 2024-01-01T10:00:30 "E" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
+    assert!(
+        err.contains("SubMinutePrecisionNotYetSupported"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn lower_event_with_offset_is_explicit_error_not_silently_dropped() {
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        lane "A" as a {}
+        event a 2024-01-01T10:00+09:00 "E" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
+    assert!(
+        err.contains("SubMinutePrecisionNotYetSupported"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn lower_span_with_second_and_offset_on_either_endpoint_is_rejected() {
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        lane "A" as a {}
+        span a 2024-01-01T10:00..2024-01-01T11:00:00Z "S" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
+    assert!(
+        err.contains("SubMinutePrecisionNotYetSupported"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn lower_event_range_with_second_precision_is_rejected() {
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        lane "A" as a {}
+        event_range a 2024-01-01T10:00:15..2024-01-01T10:00:45 "ER" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
+    assert!(
+        err.contains("SubMinutePrecisionNotYetSupported"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn lower_timeline_range_with_offset_is_rejected() {
+    let src = r#"
+        timeline "T" { unit year; range 2024-01-01T00:00Z..2024-01-02T00:00Z; }
+        lane "A" as a {}
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
+    assert!(
+        err.contains("SubMinutePrecisionNotYetSupported"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn lower_minute_precision_without_second_or_offset_still_works() {
+    // 後方互換性: 既存の分精度(offsetなし)は引き続き成功する
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        lane "A" as a {}
+        event a 2024-01-01T10:00 "E" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    assert_eq!(ir.items.len(), 1);
+}

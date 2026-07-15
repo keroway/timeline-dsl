@@ -4,7 +4,7 @@ use crate::error::LoweringError;
 use crate::ir::{Item, SourceSpan};
 
 use super::context::LoweringContext;
-use super::{format_id_time, offset_to_line_col, source_str};
+use super::{format_id_time, offset_to_line_col, reject_sub_minute_precision, source_str};
 
 fn validate_link(link: &Option<String>) -> Result<Option<String>, LoweringError> {
     match link {
@@ -82,6 +82,14 @@ impl LoweringContext {
                             continue;
                         }
                     };
+                    if let Err(err) = reject_sub_minute_precision(&s.start) {
+                        self.errors.push(err);
+                        continue;
+                    }
+                    if let Err(err) = reject_sub_minute_precision(&s.end) {
+                        self.errors.push(err);
+                        continue;
+                    }
                     self.add_source_from_ref(&s.props.source);
                     let source_span = line_offsets.map(|lo| {
                         let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
@@ -142,6 +150,10 @@ impl LoweringContext {
                             continue;
                         }
                     };
+                    if let Err(err) = reject_sub_minute_precision(&e.time) {
+                        self.errors.push(err);
+                        continue;
+                    }
                     self.add_source_from_ref(&e.props.source);
                     let source_span = line_offsets.map(|lo| {
                         let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
@@ -196,6 +208,14 @@ impl LoweringContext {
                             continue;
                         }
                     };
+                    if let Err(err) = reject_sub_minute_precision(&er.start) {
+                        self.errors.push(err);
+                        continue;
+                    }
+                    if let Err(err) = reject_sub_minute_precision(&er.end) {
+                        self.errors.push(err);
+                        continue;
+                    }
                     self.add_source_from_ref(&er.props.source);
                     let source_span = line_offsets.map(|lo| {
                         let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
