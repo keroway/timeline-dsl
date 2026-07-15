@@ -171,6 +171,21 @@ fn time_value_at_byte_offset(
             continue;
         }
         let stmt_text = source.get(stmt.span.start..stmt.span.end)?;
+        // span/event/event_range の文法では時刻リテラルが label(および note 等)より
+        // 必ず前に現れるので、label/note の自由文字列が偶然同じ literal 文字列を
+        // 含む場合の誤マッチ(false positive)を避けるため、検索対象を最初の `"`
+        // より前に限定する。timeline ブロックは `timeline "name" { title "...";
+        // ... range START..END; }` と range リテラルより前に引用符が現れるのでこの
+        // 制限を適用しない(全文を検索対象とする)。
+        let search_region: &str = match &stmt.node {
+            ast::Statement::Span(_) | ast::Statement::Event(_) | ast::Statement::EventRange(_) => {
+                match stmt_text.find('"') {
+                    Some(quote_pos) => &stmt_text[..quote_pos],
+                    None => stmt_text,
+                }
+            }
+            _ => stmt_text,
+        };
         let candidates: Vec<TimeValue> = match &stmt.node {
             ast::Statement::Span(s) => vec![s.start, s.end],
             ast::Statement::Event(e) => vec![e.time],
@@ -188,7 +203,7 @@ fn time_value_at_byte_offset(
             // 入っていれば採用する（同じ TimeValue が複数箇所にあることは通常ないが、
             // 万一の重複時は最初に見つかったものを返す）。
             let mut search_from = 0usize;
-            while let Some(rel_pos) = stmt_text[search_from..].find(text.as_str()) {
+            while let Some(rel_pos) = search_region[search_from..].find(text.as_str()) {
                 let abs_start = stmt.span.start + search_from + rel_pos;
                 let abs_end = abs_start + text.len();
                 if cursor_byte >= abs_start && cursor_byte < abs_end {
@@ -819,6 +834,40 @@ event a 2024-01-01T10:00:30Z "E" {};
         assert_eq!(
             range.end.character, 28,
             "リテラル全体(Z含む)をカバーするべき"
+        );
+    }
+
+    #[test]
+    fn time_value_hover_label_containing_same_literal_text_does_not_cause_false_positive_in_label()
+    {
+        // レビュー指摘: label に偶然同一の時刻リテラル文字列が含まれている場合、
+        // カーソルを label 側の文字列に置いても本物のリテラルを指すrangeに
+        // 誤マッチしてはならない(hover=Noneが正)。
+        let src = r#"timeline "test" { title "test"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "A" as a { kind custom; order 1; }
+event a 2024-01-01T10:00:30 "see also 2024-01-01T10:00:30" {};
+"#;
+        // "2024-01-01T10:00:30" がlabel内(2回目の出現)でのカーソル位置。
+        let label_occurrence_char = src.lines().nth(2).unwrap().find("see also").unwrap() + 10;
+        let pos = Position {
+            line: 2,
+            character: label_occurrence_char as u32,
+        };
+        let result = compute_hover_with(src, pos, |_| None);
+        assert!(
+            result.is_none(),
+            "label内の文字列一致でTimeValue hoverが誤マッチしてはならない, got: {result:?}"
+        );
+
+        // 一方で本物のリテラル(labelより前)ではhoverが正しく返ることを確認。
+        let real_pos = Position {
+            line: 2,
+            character: 10,
+        };
+        let real_result = compute_hover_with(src, real_pos, |_| None);
+        assert!(
+            real_result.is_some(),
+            "本物のリテラル位置ではhoverが返るべき"
         );
     }
 

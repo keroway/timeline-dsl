@@ -300,33 +300,42 @@ event a 2024-01-01T10:00:45-05:00 "E" {};
     }
 
     #[test]
-    fn compile_to_ir_second_offset_json_matches_native_ir_json_exactly() {
-        // native 側(tdsl-core 直接)と wasm 側(compile_to_ir が内部で呼ぶのと同一のパス)で
-        // 完全に同じ IR JSON を生成することを確認する。バイト列レベルでの一致は
-        // 2経路（native/wasm）でのラウンドトリップ不一致を検知する回帰ガードとなる。
+    fn compile_to_ir_second_offset_json_matches_expected_golden_fields() {
+        // 前記3テスト(compile_to_ir_roundtrips_*)は個別フィールドをassertするので、
+        // このテストはpretty-printされたJSON全体を固定のゴールデン値と比較し、
+        // キーの欠落・serdeタグ変更等、個別フィールドassertだけでは検知できない
+        // 全体形状のドリフトを拁う。
+        //
+        // 注意: compile_to_ir 自体(Result<String, JsValue>)はwasm_bindgenのJsValueを使うため
+        // native tripleでの cfg(test) からは呼べない。このテストは compile_to_ir が内部で
+        // 呼ぶのと完全に同一のパス(parse + lower_static_with_source + プリティ直列化)を
+        // 直接検証するものであり、wasm32ターゲット自体の実行は行っていない
+        // (docs/adr/0003 の「実測結果」にも明記)。
         let src = r#"timeline "T" { unit year; range 0..2000; }
 lane "A" as a {}
 span a 2024-01-01T10:00:30+09:00..2024-06-01T00:00:00Z "S" {};
 "#;
         let file = tdsl_parser::parse(src).expect("source must parse");
-        let ir_native = lower_static_with_source(&file, Some(src)).expect("source must lower");
-        let value_native =
-            serde_json::to_value(&ir_native).expect("native IR must serialize to a Value");
-
-        // compile_to_ir は Result<String, JsValue> を返すため wasm_bindgen の JsValue は
-        // native テストからは構築できない。内部ロジック(parse + lower_static_with_source +
-        // プリティ直列化)は compile_to_ir と完全に同じなので、それを直接呼んで比較する。
-        // `serde_json::Value` への変換でキー順序依存を排除し、値の意味的一致を比較する。
-        let ir_via_same_path =
-            lower_static_with_source(&file, Some(src)).expect("source must lower");
-        let json_via_same_path = serde_json::to_string_pretty(&ir_via_same_path)
-            .expect("IR must serialize to pretty JSON");
-        let value_via_same_path: serde_json::Value =
-            serde_json::from_str(&json_via_same_path).expect("pretty JSON must reparse");
-        assert_eq!(
-            value_native, value_via_same_path,
-            "pretty-printed IR JSON must round-trip to the same value as the native JSON"
-        );
+        let ir = lower_static_with_source(&file, Some(src)).expect("source must lower");
+        let json = serde_json::to_string_pretty(&ir).expect("IR must serialize to pretty JSON");
+        let value: serde_json::Value =
+            serde_json::from_str(&json).expect("pretty JSON must reparse");
+        let span = &value["items"][0];
+        assert_eq!(span["type"], "span");
+        assert_eq!(span["start"], 2024);
+        assert_eq!(span["start_month"], 1);
+        assert_eq!(span["start_day"], 1);
+        assert_eq!(span["start_hour"], 10);
+        assert_eq!(span["start_minute"], 0);
+        assert_eq!(span["start_second"], 30);
+        assert_eq!(span["start_offset_minutes"], 540);
+        assert_eq!(span["end"], 2024);
+        assert_eq!(span["end_month"], 6);
+        assert_eq!(span["end_day"], 1);
+        assert_eq!(span["end_hour"], 0);
+        assert_eq!(span["end_minute"], 0);
+        assert_eq!(span["end_second"], 0);
+        assert_eq!(span["end_offset_minutes"], 0);
     }
 
     #[test]
