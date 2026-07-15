@@ -19,7 +19,7 @@ use svg2pdf::usvg::{Options, Tree};
 use tdsl_core::ir::TimelineIr;
 use thiserror::Error;
 
-use crate::layout::{LayoutModel, RenderOptions};
+use crate::layout::{LayoutModel, RenderOptions, TABLE_ROW_HEIGHT, collect_table_rows};
 use crate::svg;
 
 /// Errors that can occur while converting the timeline SVG to a PDF.
@@ -33,6 +33,8 @@ pub enum PdfError {
     Convert(String),
     #[error("invalid PDF margin: {0}")]
     InvalidMargin(String),
+    #[error("PDF pagination requires RenderOptions::show_table to be enabled")]
+    PaginationRequiresTable,
 }
 
 /// Standard page sizes for PDF output.
@@ -99,6 +101,9 @@ pub struct PdfOptions {
     /// PDF CreationDate metadata. When `None` the CreationDate entry is
     /// omitted from the document information dictionary.
     pub creation_date: Option<PdfDate>,
+    /// Split the item table onto separate PDF pages. This is opt-in; when
+    /// disabled the historical single-page SVG-to-PDF path is retained.
+    pub pagination: bool,
 }
 
 impl Default for PdfOptions {
@@ -109,6 +114,7 @@ impl Default for PdfOptions {
             margin_mm: 10.0,
             title: None,
             creation_date: None,
+            pagination: false,
         }
     }
 }
@@ -127,15 +133,46 @@ pub fn render_pdf(
 ) -> Result<Vec<u8>, PdfError> {
     // usvg does not support CSS custom properties; force plain hex lane colours.
     opts.use_css_vars = false;
-    let layout = LayoutModel::compute(ir, opts);
-    let svg_str = svg::render_svg(&layout)?;
 
     // Supplement title from IR metadata when the caller did not override it.
     if pdf_opts.title.is_none() && !ir.meta.title.is_empty() {
         pdf_opts.title = Some(ir.meta.title.clone());
     }
 
-    svg_to_pdf(&svg_str, pdf_opts)
+    if !pdf_opts.pagination {
+        let layout = LayoutModel::compute(ir, opts);
+        let svg_str = svg::render_svg(&layout)?;
+        return svg_to_pdf(&svg_str, pdf_opts);
+    }
+    if !opts.show_table {
+        return Err(PdfError::PaginationRequiresTable);
+    }
+
+    // The chart remains a single, unmodified timeline page. Only the item table
+    // is paginated, per ADR-0004 D1/D2.
+    let lane_label_lookup = |lane_id: &str| -> String {
+        ir.lanes
+            .iter()
+            .find(|lane| lane.id == lane_id)
+            .map(|lane| lane.label.clone())
+            .unwrap_or_else(|| lane_id.to_string())
+    };
+    let table_rows = collect_table_rows(ir, lane_label_lookup);
+    opts.show_table = false;
+    let timeline_layout = LayoutModel::compute(ir, opts);
+    let timeline_svg = svg::render_svg(&timeline_layout)?;
+
+    let (_, _, _, content_w, content_h) = pdf_page_geometry(&pdf_opts)?;
+    let rows_per_page = table_rows_per_page(content_h)?;
+    let mut pages = vec![timeline_svg];
+    if table_rows.is_empty() {
+        pages.push(svg::render_table_page_svg(&[], content_w, content_h)?);
+    } else {
+        for rows in table_rows.chunks(rows_per_page) {
+            pages.push(svg::render_table_page_svg(rows, content_w, content_h)?);
+        }
+    }
+    svg_pages_to_pdf(&pages, pdf_opts)
 }
 
 /// Convert a pre-rendered SVG string to a vector PDF byte buffer.
@@ -283,6 +320,138 @@ pub fn svg_to_pdf(svg_str: &str, pdf_opts: PdfOptions) -> Result<Vec<u8>, PdfErr
     Ok(pdf.finish())
 }
 
+/// Return the physical page and printable-area dimensions in PDF points.
+fn pdf_page_geometry(pdf_opts: &PdfOptions) -> Result<(f32, f32, f32, f32, f32), PdfError> {
+    let (mut page_width, mut page_height) = pdf_opts.page_size.portrait_pt();
+    if pdf_opts.landscape {
+        std::mem::swap(&mut page_width, &mut page_height);
+    }
+    if !pdf_opts.margin_mm.is_finite() || pdf_opts.margin_mm < 0.0 {
+        return Err(PdfError::InvalidMargin(format!(
+            "margin must be a non-negative, finite number of millimetres, got {}",
+            pdf_opts.margin_mm
+        )));
+    }
+    let margin = (pdf_opts.margin_mm * 72.0 / 25.4) as f32;
+    if 2.0 * margin >= page_width.min(page_height) {
+        let orientation = if pdf_opts.landscape {
+            "landscape"
+        } else {
+            "portrait"
+        };
+        return Err(PdfError::InvalidMargin(format!(
+            "margin {} mm is too large for the {} {} page; it leaves no printable area",
+            pdf_opts.margin_mm,
+            pdf_opts.page_size.name(),
+            orientation,
+        )));
+    }
+    Ok((
+        page_width,
+        page_height,
+        margin,
+        page_width - 2.0 * margin,
+        page_height - 2.0 * margin,
+    ))
+}
+
+/// Calculate how many complete table data rows fit below a repeated header.
+fn table_rows_per_page(content_height: f32) -> Result<usize, PdfError> {
+    let complete_rows = (f64::from(content_height) / TABLE_ROW_HEIGHT).floor() as usize;
+    complete_rows.checked_sub(1).ok_or_else(|| {
+        PdfError::InvalidMargin(
+            "printable area is too short to fit a table header and one complete row".to_string(),
+        )
+    })
+}
+
+/// Convert one or more independently rendered SVG pages into one PDF document.
+///
+/// Every SVG is fit into the same printable area and gets a distinct page
+/// object. The SVG-to-PDF conversion remains vector-based for every page.
+fn svg_pages_to_pdf(svg_pages: &[String], pdf_opts: PdfOptions) -> Result<Vec<u8>, PdfError> {
+    let (page_width, page_height, margin, content_width, content_height) =
+        pdf_page_geometry(&pdf_opts)?;
+
+    let mut opt = Options::default();
+    opt.fontdb_mut().load_system_fonts();
+    let mut trees = Vec::with_capacity(svg_pages.len());
+    for svg_page in svg_pages {
+        let resolved = svg::resolve_lane_vars_in_styles(svg_page);
+        trees.push(Tree::from_str(&resolved, &opt)?);
+    }
+
+    let mut alloc = Ref::new(1);
+    let catalog_id = alloc.bump();
+    let page_tree_id = alloc.bump();
+    let info_id = alloc.bump();
+    let page_ids: Vec<(Ref, Ref)> = (0..trees.len())
+        .map(|_| (alloc.bump(), alloc.bump()))
+        .collect();
+
+    let mut pdf = Pdf::new();
+    pdf.catalog(catalog_id).pages(page_tree_id);
+    pdf.pages(page_tree_id)
+        .kids(page_ids.iter().map(|(page_id, _)| *page_id))
+        .count(page_ids.len() as i32);
+
+    for (tree, (page_id, content_id)) in trees.iter().zip(&page_ids) {
+        let svg_size = tree.size();
+        let scale = (content_width / svg_size.width()).min(content_height / svg_size.height());
+        let draw_width = svg_size.width() * scale;
+        let draw_height = svg_size.height() * scale;
+        let tx = margin + (content_width - draw_width) / 2.0;
+        let ty = margin + (content_height - draw_height) / 2.0;
+
+        let (svg_chunk_raw, svg_old_id) =
+            svg2pdf::to_chunk(tree, svg2pdf::ConversionOptions::default())
+                .map_err(|error| PdfError::Convert(error.to_string()))?;
+        let mut id_map: HashMap<Ref, Ref> = HashMap::new();
+        let svg_chunk =
+            svg_chunk_raw.renumber(|old| *id_map.entry(old).or_insert_with(|| alloc.bump()));
+        let svg_id = *id_map.get(&svg_old_id).ok_or_else(|| {
+            PdfError::Convert("svg chunk renumber: XObject ID not found".to_string())
+        })?;
+        let svg_name = Name(b"S1");
+
+        {
+            let mut page = pdf.page(*page_id);
+            page.media_box(pdf_writer::Rect::new(0.0, 0.0, page_width, page_height));
+            page.parent(page_tree_id);
+            page.contents(*content_id);
+            let mut resources = page.resources();
+            resources.x_objects().pair(svg_name, svg_id);
+            resources.finish();
+            page.finish();
+        }
+        let mut content = Content::new();
+        content
+            .save_state()
+            .transform([draw_width, 0.0, 0.0, draw_height, tx, ty])
+            .x_object(svg_name)
+            .restore_state();
+        pdf.stream(*content_id, &content.finish());
+        pdf.extend(&svg_chunk);
+    }
+
+    {
+        let mut info = pdf.document_info(info_id);
+        info.producer(TextStr("tdsl (svg2pdf)"));
+        if let Some(ref title) = pdf_opts.title {
+            info.title(TextStr(title.as_str()));
+        }
+        if let Some(date) = pdf_opts.creation_date {
+            info.creation_date(
+                pdf_writer::Date::new(date.year)
+                    .month(date.month)
+                    .day(date.day),
+            );
+        }
+        info.finish();
+    }
+    Ok(pdf.finish())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,6 +506,38 @@ mod tests {
     /// PDF file signature: %PDF-
     const PDF_SIGNATURE: &[u8] = &[0x25, 0x50, 0x44, 0x46, 0x2D];
 
+    fn page_object_count(bytes: &[u8]) -> usize {
+        let text = String::from_utf8_lossy(bytes);
+        let page_objects = text.matches("/Type/Page").count() + text.matches("/Type /Page").count();
+        let page_trees = text.matches("/Type/Pages").count() + text.matches("/Type /Pages").count();
+        page_objects - page_trees
+    }
+
+    fn ir_with_table_rows(row_count: usize) -> TimelineIr {
+        let mut ir = sample_ir();
+        let template = ir.items[0].clone();
+        ir.items = (0..row_count)
+            .map(|index| {
+                let mut item = template.clone();
+                if let Item::Span {
+                    id,
+                    label,
+                    start,
+                    end,
+                    ..
+                } = &mut item
+                {
+                    *id = format!("span:{index}");
+                    *label = format!("Item {index}");
+                    *start = index as i64;
+                    *end = index as i64 + 1;
+                }
+                item
+            })
+            .collect();
+        ir
+    }
+
     #[test]
     fn render_pdf_produces_valid_pdf_bytes() {
         let ir = sample_ir();
@@ -383,6 +584,85 @@ mod tests {
             1,
             "show_table=true PDF output must remain a single page (no duplication)"
         );
+    }
+
+    #[test]
+    fn paginated_table_uses_complete_rows_and_expected_page_count() {
+        // Default A4 printable height fits 34 data rows: one repeated header
+        // consumes the 35th 22pt row. Seventy rows therefore produce three
+        // table pages plus the unchanged chart page.
+        let ir = ir_with_table_rows(70);
+        let bytes = render_pdf(
+            &ir,
+            RenderOptions {
+                show_table: true,
+                ..RenderOptions::default()
+            },
+            PdfOptions {
+                pagination: true,
+                ..PdfOptions::default()
+            },
+        )
+        .expect("paginated PDF renders");
+        assert!(bytes.starts_with(PDF_SIGNATURE));
+        assert_eq!(page_object_count(&bytes), 4);
+    }
+
+    #[test]
+    fn paginated_table_respects_landscape_printable_height() {
+        // A4 landscape fits 23 data rows with its repeated header, so the same
+        // seventy rows require four table pages and one chart page.
+        let ir = ir_with_table_rows(70);
+        let bytes = render_pdf(
+            &ir,
+            RenderOptions {
+                show_table: true,
+                ..RenderOptions::default()
+            },
+            PdfOptions {
+                pagination: true,
+                landscape: true,
+                ..PdfOptions::default()
+            },
+        )
+        .expect("landscape paginated PDF renders");
+        assert_eq!(page_object_count(&bytes), 5);
+    }
+
+    #[test]
+    fn paginated_table_respects_margin_row_capacity() {
+        // A4 with 50mm margins leaves 558pt of printable height: 25 physical
+        // table rows, of which one is the repeated header. Fifty data rows
+        // thus require three table pages plus the timeline page.
+        let ir = ir_with_table_rows(50);
+        let bytes = render_pdf(
+            &ir,
+            RenderOptions {
+                show_table: true,
+                ..RenderOptions::default()
+            },
+            PdfOptions {
+                pagination: true,
+                margin_mm: 50.0,
+                ..PdfOptions::default()
+            },
+        )
+        .expect("paginated PDF with custom margins renders");
+        assert_eq!(page_object_count(&bytes), 4);
+    }
+
+    #[test]
+    fn pagination_requires_table_in_render_options() {
+        let err = render_pdf(
+            &sample_ir(),
+            RenderOptions::default(),
+            PdfOptions {
+                pagination: true,
+                ..PdfOptions::default()
+            },
+        )
+        .expect_err("pagination without a table must fail");
+        assert!(matches!(err, PdfError::PaginationRequiresTable));
     }
 
     #[test]
