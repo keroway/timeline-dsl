@@ -407,7 +407,7 @@ tdsl render [OPTIONS] <FILE>
 | `--pdf-landscape` | PDF を横向き（landscape）で出力する。`--format pdf` のみ有効 | — |
 | `--pdf-margin <MM>` | PDF の用紙マージン（mm）。`--format pdf` のみ有効 | `10` |
 | `--pdf-title <TITLE>` | PDF ドキュメントの Title メタデータを上書きする（未指定時は年表タイトルを使用）。`--format pdf` のみ有効 | — |
-| `--pdf-pagination` | アイテムテーブルを用紙サイズ・余白に収まる行数ごとに複数ページへ分割する（ADR-0004）。1 ページ目は従来どおりタイムライン本体（縮小描画）のみで、2 ページ目以降にテーブルを分割描画する。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する。opt-in（デフォルト無効）で、既存の単一ページ出力は変更されない。`--show-table` が指定されていない場合はエラー（分割対象のテーブルが存在しないため、silent no-op にはしない）。`--format pdf` のみ有効。既存のタイムライン描画オプションとの相互作用（ADR-0004 D5）: `--show-legend` はタイムラインページ（1ページ目）のみに描画されテーブルページには影響しない。`--layout-style group-bands` / `gantt` / `zigzag`、および open-ended range（`now` 終了）はいずれもタイムライン本体（1ページ目）の描画にのみ関わり、本フラグの有効/無効によってタイムラインページの描画内容が変わることはない（ページ分割はテーブルのみが対象） | — |
+| `--pdf-pagination` | アイテムテーブルを用紙サイズ・余白に収まる行数ごとに複数ページへ分割する（ADR-0004）。1 ページ目は従来どおりタイムライン本体（縮小描画）のみで、2 ページ目以降にテーブルを分割描画する。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する（`N` はテーブルページ数のみを数えたもので、1 ページ目のタイムラインチャートは含まない）。opt-in（デフォルト無効）で、既存の単一ページ出力は変更されない。`--show-table` が指定されていない場合はエラー（分割対象のテーブルが存在しないため、silent no-op にはしない）。`--format pdf` のみ有効。既存のタイムライン描画オプションとの相互作用（ADR-0004 D5）: `--show-legend` はタイムラインページ（1ページ目）のみに描画されテーブルページには影響しない。`--layout-style group-bands` / `gantt` / `zigzag`、および open-ended range（`now` 終了）はいずれもタイムライン本体（1ページ目）の描画にのみ関わり、本フラグの有効/無効によってタイムラインページの描画内容が変わることはない（ページ分割はテーブルのみが対象） | — |
 
 ### 実行例
 
@@ -435,6 +435,9 @@ tdsl render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-lands
 
 # PDF タイトルメタデータを明示指定
 tdsl render examples/china_dynasties.tdsl --format pdf --pdf-title "中国王朝年表" --output china.pdf
+
+# アイテムテーブルを複数ページに分割（ADR-0004、--show-table 必須。1ページ目はタイムライン本体のみ）
+tdsl render examples/china_dynasties.tdsl --format pdf --show-table --pdf-pagination --output china_paginated.pdf
 
 # インタラクティブモードで HTML を生成
 tdsl render examples/china_dynasties.tdsl --interactive --output china_interactive.html

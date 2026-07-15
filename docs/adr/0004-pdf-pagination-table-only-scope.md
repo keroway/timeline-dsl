@@ -77,13 +77,15 @@
 
 ## 影響範囲
 
-実装（#618〜#622）で変更が見込まれるファイル:
+実装（#618〜#622）で実際に変更されたファイル:
 
-- `crates/tdsl-render/src/pdf.rs` — テーブルページ分割ロジック、ページ番号・見出し再描画
-- `crates/tdsl-cli/src/main.rs` — `--pdf-pagination` フラグの追加・バリデーション（D3 のエラー条件含む）
-- `docs/cli-spec.md` — `--pdf-pagination` の追記（現行 `docs/cli-spec.md:404` 周辺）
-- `docs/dsl-spec.md` — PDF 出力節（現行 `docs/dsl-spec.md:598` 周辺）にページ分割（テーブルのみ）の説明を追記
-- `CHANGELOG.md` — 実装完了時に記録
+- `crates/tdsl-render/src/pdf.rs` — テーブルページ分割ロジック、ページ番号・見出し再描画、既存レイアウト機能との整合テスト（#620）、用紙サイズ×縦横マトリクス・CJK・テーマ切り替えテスト（#621）
+- `crates/tdsl-render/src/svg.rs` — `render_table_page_svg`（テーブルページの列見出し再描画・page-number footer描画）
+- `crates/tdsl-render/README.md` — テスト戦略ドキュメント（D7方針と実装手順、#621）
+- `crates/tdsl-cli/src/main.rs` ・ `crates/tdsl-cli/src/commands/render.rs` — `--pdf-pagination` フラグの追加・バリデーション（D3 のエラー条件含む、#619）
+- `docs/cli-spec.md` — `--pdf-pagination` の追記・実行例（#622）
+- `docs/dsl-spec.md` — PDF 出力節にページ分割（テーブルのみ）の説明を追記（#622）
+- `CHANGELOG.md` — #618〜#622 の実装内容を記録（#622）
 
 ## 既知リスク
 
