@@ -1234,4 +1234,206 @@ mod tests {
             "paginated output with many rows must have at least a chart page and one table page"
         );
     }
+
+    // ─── #621: 決定的レイアウトテスト — 用紙サイズ × 縦横向きのマトリックス (ADR-0004 D7) ───
+    //
+    // 以下の期待ページ数は、TABLE_ROW_HEIGHT(22pt)と各用紙サイズのポイント寸法、デフォルト
+    // margin(10mm)から導出した値をハードコードしたものであり、`table_rows_per_page`の
+    // 実装(pdf.rs 中の同名関数)を二重実装してはいない(下記の各ケースは `render_pdf` を
+    // 実際に呼び出して得た `page_object_count` と比較する)。
+    //
+    //   A4 portrait : content_h=785.20pt → 34 rows/page
+    //   A4 landscape: content_h=538.58pt → 23 rows/page
+    //   A3 portrait : content_h=1133.86pt → 50 rows/page
+    //   A3 landscape: content_h=785.20pt → 34 rows/page
+    //   Letter portrait : content_h=735.31pt → 32 rows/page
+    //   Letter landscape: content_h=555.31pt → 24 rows/page
+    //
+    // 70 rows での期待 total pages (1 chart page + ceil(70/rows_per_page) table pages):
+    #[test]
+    fn pagination_page_count_matrix_across_page_size_and_orientation() {
+        let cases: &[(PdfPageSize, bool, usize)] = &[
+            (PdfPageSize::A4, false, 4),     // ceil(70/34)=3 + 1
+            (PdfPageSize::A4, true, 5),      // ceil(70/23)=4 + 1
+            (PdfPageSize::A3, false, 3),     // ceil(70/50)=2 + 1
+            (PdfPageSize::A3, true, 4),      // ceil(70/34)=3 + 1
+            (PdfPageSize::Letter, false, 4), // ceil(70/32)=3 + 1
+            (PdfPageSize::Letter, true, 4),  // ceil(70/24)=3 + 1
+        ];
+        let ir = ir_with_table_rows(70);
+        for (page_size, landscape, expected_total_pages) in cases.iter().copied() {
+            let bytes = render_pdf(
+                &ir,
+                RenderOptions {
+                    show_table: true,
+                    ..RenderOptions::default()
+                },
+                PdfOptions {
+                    pagination: true,
+                    page_size,
+                    landscape,
+                    ..PdfOptions::default()
+                },
+            )
+            .unwrap_or_else(|e| {
+                panic!("render_pdf must succeed for {page_size:?} landscape={landscape}: {e}")
+            });
+            assert_eq!(
+                page_object_count(&bytes),
+                expected_total_pages,
+                "{page_size:?} landscape={landscape}: expected {expected_total_pages} total pages (1 chart + table pages)"
+            );
+        }
+    }
+
+    /// CJKテキスト(長いラベル、漢字・ひらがな・カタカナ混在)を含む行でページ分割した場合、
+    /// 各テーブルページの見出し・ページ番号フッタが存在し、ページ数が期待通りであることを
+    /// `render_pdf_svg_pages` 経由で検証する(中間SVG文字列を直接assertし、バイナリ埋め込み後のPDFAssertionの
+    /// 限界を回避する)。
+    fn ir_with_cjk_table_rows(row_count: usize) -> TimelineIr {
+        let mut ir = sample_ir();
+        ir.lanes = vec![Lane {
+            id: "han".into(),
+            label: "漢・唐・宋・元・明・清（中国历代王朝）".into(),
+            kind: "dynasty".into(),
+            order: 10,
+            group: None,
+            source_span: None,
+        }];
+        let template = ir.items[0].clone();
+        ir.items = (0..row_count)
+            .map(|index| {
+                let mut item = template.clone();
+                if let Item::Span {
+                    id,
+                    lane,
+                    label,
+                    tags,
+                    start,
+                    end,
+                    ..
+                } = &mut item
+                {
+                    *id = format!("span:{index}");
+                    *lane = "han".into();
+                    *label = format!(
+                        "長いラベル {index}: ひらがな・カタカナ・漢字が混在するテーブル行テキスト"
+                    );
+                    *tags = vec!["王朝".into()];
+                    *start = index as i64;
+                    *end = index as i64 + 1;
+                }
+                item
+            })
+            .collect();
+        ir
+    }
+
+    #[test]
+    fn cjk_table_rows_paginate_with_expected_page_count_and_repeated_header() {
+        let ir = ir_with_cjk_table_rows(70); // same 70 rows as the A4-portrait matrix case above
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let pdf_opts = PdfOptions {
+            pagination: true,
+            ..PdfOptions::default()
+        };
+        let pages = render_pdf_svg_pages(&ir, opts, &pdf_opts)
+            .expect("render_pdf_svg_pages with CJK rows succeeds");
+        assert_eq!(
+            pages.len(),
+            4,
+            "CJK content must not change the page count derived purely from row count/geometry"
+        );
+        for (index, table_page) in pages[1..].iter().enumerate() {
+            for col in [
+                crate::layout::TABLE_COL_TIME,
+                crate::layout::TABLE_COL_LABEL,
+                crate::layout::TABLE_COL_LANE,
+                crate::layout::TABLE_COL_TAGS,
+            ] {
+                assert!(
+                    table_page.contains(col),
+                    "table page {} must repeat the '{col}' CJK column header, got: {table_page}",
+                    index + 1
+                );
+            }
+            let expected_footer = format!("{} / {}", index + 1, pages.len() - 1);
+            assert!(
+                table_page.contains(&expected_footer),
+                "table page {} must contain the '{expected_footer}' page-number footer",
+                index + 1
+            );
+        }
+        // Sanity check: the long CJK label text actually made it into at least
+        // one table page (not silently dropped/truncated to empty).
+        assert!(
+            pages[1..].iter().any(|page| page.contains("長いラベル")),
+            "CJK label text must appear verbatim in a table page"
+        );
+    }
+
+    /// ADR-0004 D1/D5: `RenderOptions.color_map`によるテーマ(タグ→色)の切り替えは
+    /// タイムライン本体(1ページ目)の描画にしか影響しない。paginationの有効/無効とは
+    /// 直交であり、ページ数を変えず、タイムラインページの描画にも差分が出ないことを
+    /// 検証する（CLIは `ir.meta.color_map` を `RenderOptions.color_map` にコピーして渡すが、
+    /// `tdsl-render` 自体は後者のみを参照する）。
+    #[test]
+    fn color_map_theme_does_not_affect_pagination_or_page_count() {
+        let ir = ir_with_table_rows(40);
+        let opts = RenderOptions {
+            show_table: true,
+            color_map: std::collections::HashMap::from([(
+                "dynasty".to_string(),
+                "#cc0000".to_string(),
+            )]),
+            ..RenderOptions::default()
+        };
+        let pdf_opts = PdfOptions {
+            pagination: true,
+            ..PdfOptions::default()
+        };
+        let with_theme = render_pdf_svg_pages(&ir, opts, &pdf_opts)
+            .expect("render_pdf_svg_pages with color_map theme succeeds");
+
+        let without_theme = render_pdf_svg_pages(
+            &ir,
+            RenderOptions {
+                show_table: true,
+                ..RenderOptions::default()
+            },
+            &pdf_opts,
+        )
+        .expect("render_pdf_svg_pages without color_map theme succeeds");
+
+        assert_eq!(
+            with_theme.len(),
+            without_theme.len(),
+            "color_map theme must not change the number of pages"
+        );
+        // The theme color must actually appear in the timeline page (sanity
+        // check that the color_map was applied at all)...
+        assert!(
+            with_theme[0].contains("fill:#cc0000;"),
+            "sanity check: color_map theme color must appear in the timeline page, got: {}",
+            with_theme[0]
+        );
+        // ...but table pages must be byte-for-byte identical regardless of the
+        // theme, since `render_table_page_svg` never receives `RenderOptions`
+        // (or any lane/tag color information) at all.
+        for (index, (themed, plain)) in with_theme[1..]
+            .iter()
+            .zip(without_theme[1..].iter())
+            .enumerate()
+        {
+            assert_eq!(
+                themed,
+                plain,
+                "table page {} must be identical regardless of color_map theme",
+                index + 1
+            );
+        }
+    }
 }
