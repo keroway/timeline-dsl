@@ -4,6 +4,7 @@ use crate::error::LoweringError;
 use crate::ir::{Meta, TimelineUnit, supported_timeline_units};
 
 use super::context::LoweringContext;
+use super::reject_sub_minute_precision;
 
 impl LoweringContext {
     /// Pass 1: Collect timeline meta and lane declarations.
@@ -20,6 +21,16 @@ impl LoweringContext {
                         .iter()
                         .cloned()
                         .collect::<std::collections::HashMap<_, _>>();
+                    if let Some(r) = t.range.as_ref() {
+                        if let Err(err) = reject_sub_minute_precision(&r.start) {
+                            self.errors.push(err);
+                            continue;
+                        }
+                        if let Err(err) = reject_sub_minute_precision(&r.end) {
+                            self.errors.push(err);
+                            continue;
+                        }
+                    }
                     let (
                         range_yy,
                         range_start_month,

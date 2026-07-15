@@ -26,8 +26,9 @@ pub fn parse(source: &str) -> Result<ast::File, error::ParseError> {
 
 /// 単独の時刻リテラル文字列を [`ast::TimeValue`] にパースする。
 ///
-/// `YYYY-MM-DD` / `YYYY-MM` / `YYYY` の 3 形式に対応し、月 1〜12 / 日 1〜31
-/// の範囲外は `ParseError` を返す。前後の空白は許容して除去するが、
+/// `YYYY-MM-DDTHH:MM[:SS][Z|±HH:MM]`、`YYYY-MM-DD`、`YYYY-MM`、`YYYY` に対応し、
+/// 月 1〜12 / 日 1〜31 / 時 0〜23 / 分・秒 0〜59 / offset -14:00〜+14:00 の
+/// 範囲外は `ParseError` を返す。前後の空白は許容して除去するが、
 /// 文字列内部に余計なトークンがある場合は拒否する。
 /// `tdsl import-csv` など、DSL 本文の外部で時刻文字列を解釈する経路から利用する。
 pub fn parse_time_literal(s: &str) -> Result<ast::TimeValue, error::ParseError> {
@@ -1269,13 +1270,19 @@ mod tests {
 
     #[test]
     fn parse_time_value_display_round_trip() {
-        // Display 実装が `Date` を `YYYY-MM-DD` で表示することを確認
+        // Display 実装が各精度の時刻をDSL構文へ戻すことを確認
         let d = ast::TimeValue::Date(1969, 7, 20);
         assert_eq!(format!("{d}"), "1969-07-20");
         let m = ast::TimeValue::YearMonth(1939, 9);
         assert_eq!(format!("{m}"), "1939-09");
         let y = ast::TimeValue::Year(-206);
         assert_eq!(format!("{y}"), "-206");
+        let second = ast::TimeValue::DateTimeSecond(1969, 7, 20, 20, 17, 40);
+        assert_eq!(format!("{second}"), "1969-07-20T20:17:40");
+        let offset = ast::TimeValue::DateTimeOffset(1969, 7, 20, 20, 17, -300);
+        assert_eq!(format!("{offset}"), "1969-07-20T20:17-05:00");
+        let utc = ast::TimeValue::DateTimeSecondOffset(1969, 7, 20, 20, 17, 40, 0);
+        assert_eq!(format!("{utc}"), "1969-07-20T20:17:40Z");
     }
 
     #[test]
@@ -1297,6 +1304,30 @@ mod tests {
     }
 
     #[test]
+    fn parse_time_value_second_and_offset_accessors() {
+        let second = ast::TimeValue::DateTimeSecond(1969, 7, 20, 20, 17, 40);
+        assert_eq!(second.year(), 1969);
+        assert_eq!(second.hour(), Some(20));
+        assert_eq!(second.minute(), Some(17));
+        assert_eq!(second.second(), Some(40));
+        assert_eq!(second.offset_minutes(), None);
+
+        let offset = ast::TimeValue::DateTimeOffset(1969, 7, 20, 20, 17, 540);
+        assert_eq!(offset.hour(), Some(20));
+        assert_eq!(offset.second(), None);
+        assert_eq!(offset.offset_minutes(), Some(540));
+
+        let both = ast::TimeValue::DateTimeSecondOffset(1969, 7, 20, 20, 17, 40, -300);
+        assert_eq!(both.second(), Some(40));
+        assert_eq!(both.offset_minutes(), Some(-300));
+
+        // offsetなしの既存 variant は second/offset ともに None
+        let dt = ast::TimeValue::DateTime(1969, 7, 20, 20, 17);
+        assert_eq!(dt.second(), None);
+        assert_eq!(dt.offset_minutes(), None);
+    }
+
+    #[test]
     fn parse_time_value_to_sortable_order() {
         use ast::TimeValue::*;
         assert!(Year(1939).to_sortable() < Year(1940).to_sortable());
@@ -1304,6 +1335,20 @@ mod tests {
         assert!(Date(1939, 9, 1).to_sortable() > Date(1939, 8, 31).to_sortable());
         // 同年の Year は (year, 0, 0) なので、月日付きより前に位置する
         assert!(Year(1939).to_sortable() < YearMonth(1939, 1).to_sortable());
+        // 秒・オフセット付き variant も (year, month, day) までは同様に比較できる
+        // （時分秒・ offset を含めた正規化比較は lowering（#613）の責務）
+        assert_eq!(
+            DateTimeSecond(1969, 7, 20, 20, 17, 40).to_sortable(),
+            Date(1969, 7, 20).to_sortable()
+        );
+        assert_eq!(
+            DateTimeOffset(1969, 7, 20, 20, 17, 540).to_sortable(),
+            Date(1969, 7, 20).to_sortable()
+        );
+        assert_eq!(
+            DateTimeSecondOffset(1969, 7, 20, 20, 17, 40, 540).to_sortable(),
+            Date(1969, 7, 20).to_sortable()
+        );
     }
 
     // ─── parse_time_literal (公開 API) ───────────────────────
@@ -1350,9 +1395,69 @@ mod tests {
     }
 
     #[test]
-    fn parse_time_literal_invalid_hour_minute_rejected() {
+    fn parse_time_literal_datetime_second_and_offset() {
+        assert_eq!(
+            parse_time_literal("1969-07-20T20:17:40").unwrap(),
+            ast::TimeValue::DateTimeSecond(1969, 7, 20, 20, 17, 40)
+        );
+        assert_eq!(
+            parse_time_literal("1969-07-20T20:17Z").unwrap(),
+            ast::TimeValue::DateTimeOffset(1969, 7, 20, 20, 17, 0)
+        );
+        assert_eq!(
+            parse_time_literal("-0206-01-15T00:00:01+14:00").unwrap(),
+            ast::TimeValue::DateTimeSecondOffset(-206, 1, 15, 0, 0, 1, 840)
+        );
+        assert_eq!(
+            parse_time_literal("2020-01-01T23:59-14:00").unwrap(),
+            ast::TimeValue::DateTimeOffset(2020, 1, 1, 23, 59, -840)
+        );
+        assert_eq!(
+            parse_time_literal("2020-01-01T23:59:59+05:45").unwrap(),
+            ast::TimeValue::DateTimeSecondOffset(2020, 1, 1, 23, 59, 59, 345)
+        );
+    }
+
+    #[test]
+    fn parse_datetime_second_and_offset_in_event_and_now_end() {
+        let src = r#"span lane 2020-01-01T00:00:01Z..now "open" {}; event lane 2020-01-01T00:00+09:00 "offset" {};"#;
+        let file = parse(src).unwrap();
+        match &file.statements[0].node {
+            ast::Statement::Span(span) => {
+                assert_eq!(
+                    span.start,
+                    ast::TimeValue::DateTimeSecondOffset(2020, 1, 1, 0, 0, 1, 0)
+                );
+                assert!(span.end_open);
+            }
+            _ => panic!("expected span"),
+        }
+        match &file.statements[1].node {
+            ast::Statement::Event(event) => assert_eq!(
+                event.time,
+                ast::TimeValue::DateTimeOffset(2020, 1, 1, 0, 0, 540)
+            ),
+            _ => panic!("expected event"),
+        }
+    }
+
+    #[test]
+    fn parse_time_literal_invalid_hour_minute_second_and_offset_rejected() {
         assert!(parse_time_literal("2020-01-01T24:00").is_err());
         assert!(parse_time_literal("2020-01-01T23:60").is_err());
+        assert!(parse_time_literal("2020-01-01T23:59:60").is_err());
+        assert!(matches!(
+            parse_time_literal("2020-01-01T23:59+14:01"),
+            Err(error::ParseError::InvalidOffset { .. })
+        ));
+        assert!(matches!(
+            parse_time_literal("2020-01-01T23:59-14:01"),
+            Err(error::ParseError::InvalidOffset { .. })
+        ));
+        // Fixed-width offset syntax is rejected by the PEG parser, rather than guessed.
+        assert!(parse_time_literal("2020-01-01T23:59+9:00").is_err());
+        assert!(parse_time_literal("2020-01-01T23:59+09:3").is_err());
+        assert!(parse_time_literal("2020-01-01T23:59+25:00").is_err());
     }
 
     #[test]

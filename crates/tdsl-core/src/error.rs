@@ -47,4 +47,12 @@ pub enum LoweringError {
 
     #[error("Invalid item color value: {0}")]
     InvalidItemColor(String),
+
+    /// 秒精度・オフセット付き時刻はまだ IR に反映できない（#613 で対応予定）。
+    /// silent に分精度へ切り捨てることはせず、明示的エラーとして拒否する
+    /// （AGENTS.md §4.1 no silent fallback / ADR 0003）。
+    #[error(
+        "Second precision and UTC offset are parsed but not yet supported by the IR (tracked in #613): {0}"
+    )]
+    SubMinutePrecisionNotYetSupported(String),
 }

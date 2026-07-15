@@ -74,18 +74,35 @@ pub struct TimelineBlock {
     pub color_map: Vec<(String, String)>,
 }
 
-/// 時刻リテラル。年・月・日・時・分の精度を保持する。
+/// 時刻リテラル。年・月・日・時・分・秒・オフセットの精度を保持する。
 ///
 /// `Year(y)` は `YYYY` または `-YYYY`（紀元前）、
 /// `YearMonth(y, m)` は `YYYY-MM`、
 /// `Date(y, m, d)` は `YYYY-MM-DD`、
 /// `DateTime(y, m, d, hh, mm)` は `YYYY-MM-DDTHH:MM` に対応する。
+///
+/// 秒・オフセット付き variant（ADR 0003）:
+/// `DateTimeSecond(y, m, d, hh, mm, ss)` は `YYYY-MM-DDTHH:MM:SS`、
+/// `DateTimeOffset(y, m, d, hh, mm, offset_min)` は `YYYY-MM-DDTHH:MM(Z|±HH:MM)`、
+/// `DateTimeSecondOffset(y, m, d, hh, mm, ss, offset_min)` は
+/// `YYYY-MM-DDTHH:MM:SS(Z|±HH:MM)` に対応する。
+/// `offset_min` は分単位（例: `+09:00` → `540`、`-05:00` → `-300`、`Z` → `0`）。
+/// offset の有無自体が意味を持つ（ADR 0003 D2/D3）ため、`DateTime`/`DateTimeSecond`
+/// （offsetなし）と `DateTimeOffset`/`DateTimeSecondOffset`（offsetあり、`Z` も offset
+/// あり=0分として扱う）は明確に区別される。offset 付き値同士の正規化比較・
+/// offsetなしとの混在比較エラーは lowering（`tdsl-core`）の責務（ADR 0003 D2）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimeValue {
     Year(i64),
     YearMonth(i64, u8),
     Date(i64, u8, u8),
     DateTime(i64, u8, u8, u8, u8),
+    /// `YYYY-MM-DDTHH:MM:SS`（offsetなし）。
+    DateTimeSecond(i64, u8, u8, u8, u8, u8),
+    /// `YYYY-MM-DDTHH:MM(Z|±HH:MM)`。最後の `i16` は offset（分単位）。
+    DateTimeOffset(i64, u8, u8, u8, u8, i16),
+    /// `YYYY-MM-DDTHH:MM:SS(Z|±HH:MM)`。最後の `i16` は offset（分単位）。
+    DateTimeSecondOffset(i64, u8, u8, u8, u8, u8, i16),
 }
 
 impl TimeValue {
@@ -94,7 +111,11 @@ impl TimeValue {
         match self {
             TimeValue::Year(y) => *y,
             TimeValue::YearMonth(y, _) => *y,
-            TimeValue::Date(y, _, _) | TimeValue::DateTime(y, _, _, _, _) => *y,
+            TimeValue::Date(y, _, _)
+            | TimeValue::DateTime(y, _, _, _, _)
+            | TimeValue::DateTimeSecond(y, _, _, _, _, _)
+            | TimeValue::DateTimeOffset(y, _, _, _, _, _)
+            | TimeValue::DateTimeSecondOffset(y, _, _, _, _, _, _) => *y,
         }
     }
 
@@ -102,27 +123,59 @@ impl TimeValue {
         match self {
             TimeValue::Year(_) => None,
             TimeValue::YearMonth(_, m) => Some(*m),
-            TimeValue::Date(_, m, _) | TimeValue::DateTime(_, m, _, _, _) => Some(*m),
+            TimeValue::Date(_, m, _)
+            | TimeValue::DateTime(_, m, _, _, _)
+            | TimeValue::DateTimeSecond(_, m, _, _, _, _)
+            | TimeValue::DateTimeOffset(_, m, _, _, _, _)
+            | TimeValue::DateTimeSecondOffset(_, m, _, _, _, _, _) => Some(*m),
         }
     }
 
     pub fn day(&self) -> Option<u8> {
         match self {
             TimeValue::Year(_) | TimeValue::YearMonth(_, _) => None,
-            TimeValue::Date(_, _, d) | TimeValue::DateTime(_, _, d, _, _) => Some(*d),
+            TimeValue::Date(_, _, d)
+            | TimeValue::DateTime(_, _, d, _, _)
+            | TimeValue::DateTimeSecond(_, _, d, _, _, _)
+            | TimeValue::DateTimeOffset(_, _, d, _, _, _)
+            | TimeValue::DateTimeSecondOffset(_, _, d, _, _, _, _) => Some(*d),
         }
     }
 
     pub fn hour(&self) -> Option<u8> {
         match self {
-            TimeValue::DateTime(_, _, _, h, _) => Some(*h),
+            TimeValue::DateTime(_, _, _, h, _)
+            | TimeValue::DateTimeSecond(_, _, _, h, _, _)
+            | TimeValue::DateTimeOffset(_, _, _, h, _, _)
+            | TimeValue::DateTimeSecondOffset(_, _, _, h, _, _, _) => Some(*h),
             _ => None,
         }
     }
 
     pub fn minute(&self) -> Option<u8> {
         match self {
-            TimeValue::DateTime(_, _, _, _, m) => Some(*m),
+            TimeValue::DateTime(_, _, _, _, m)
+            | TimeValue::DateTimeSecond(_, _, _, _, m, _)
+            | TimeValue::DateTimeOffset(_, _, _, _, m, _)
+            | TimeValue::DateTimeSecondOffset(_, _, _, _, m, _, _) => Some(*m),
+            _ => None,
+        }
+    }
+
+    /// 秒部分。秒精度を持たない値では `None`。
+    pub fn second(&self) -> Option<u8> {
+        match self {
+            TimeValue::DateTimeSecond(_, _, _, _, _, second)
+            | TimeValue::DateTimeSecondOffset(_, _, _, _, _, second, _) => Some(*second),
+            _ => None,
+        }
+    }
+
+    /// UTC からのオフセット（分単位）。オフセットを持たない civil time では `None`。
+    pub fn offset_minutes(&self) -> Option<i16> {
+        match self {
+            TimeValue::DateTimeOffset(_, _, _, _, _, offset)
+            | TimeValue::DateTimeSecondOffset(_, _, _, _, _, _, offset) => Some(*offset),
             _ => None,
         }
     }
@@ -134,7 +187,11 @@ impl TimeValue {
         match self {
             TimeValue::Year(y) => (*y, 0, 0),
             TimeValue::YearMonth(y, m) => (*y, *m, 0),
-            TimeValue::Date(y, m, d) | TimeValue::DateTime(y, m, d, _, _) => (*y, *m, *d),
+            TimeValue::Date(y, m, d)
+            | TimeValue::DateTime(y, m, d, _, _)
+            | TimeValue::DateTimeSecond(y, m, d, _, _, _)
+            | TimeValue::DateTimeOffset(y, m, d, _, _, _)
+            | TimeValue::DateTimeSecondOffset(y, m, d, _, _, _, _) => (*y, *m, *d),
         }
     }
 }
@@ -148,7 +205,29 @@ impl std::fmt::Display for TimeValue {
             TimeValue::DateTime(y, m, d, h, min) => {
                 write!(f, "{y:04}-{m:02}-{d:02}T{h:02}:{min:02}")
             }
+            TimeValue::DateTimeSecond(y, m, d, h, min, second) => {
+                write!(f, "{y:04}-{m:02}-{d:02}T{h:02}:{min:02}:{second:02}")
+            }
+            TimeValue::DateTimeOffset(y, m, d, h, min, offset) => {
+                write!(f, "{y:04}-{m:02}-{d:02}T{h:02}:{min:02}")?;
+                write_offset(f, *offset)
+            }
+            TimeValue::DateTimeSecondOffset(y, m, d, h, min, second, offset) => {
+                write!(f, "{y:04}-{m:02}-{d:02}T{h:02}:{min:02}:{second:02}")?;
+                write_offset(f, *offset)
+            }
         }
+    }
+}
+
+/// offset（分単位）を `Z`（0分）または `±HH:MM` として書き出す内部ヘルパ。
+fn write_offset(f: &mut std::fmt::Formatter<'_>, offset_minutes: i16) -> std::fmt::Result {
+    if offset_minutes == 0 {
+        write!(f, "Z")
+    } else {
+        let sign = if offset_minutes < 0 { '-' } else { '+' };
+        let abs = offset_minutes.unsigned_abs();
+        write!(f, "{sign}{:02}:{:02}", abs / 60, abs % 60)
     }
 }
 

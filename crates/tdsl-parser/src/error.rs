@@ -23,6 +23,12 @@ pub enum ParseError {
 
     #[error("Invalid day at {location}: {value} (expected 1-31)")]
     InvalidDay { value: u32, location: String },
+
+    #[error("Invalid second at {location}: {value} (expected 0-59)")]
+    InvalidSecond { value: u32, location: String },
+
+    #[error("Invalid UTC offset at {location}: {value} (expected Z or -14:00 through +14:00)")]
+    InvalidOffset { value: String, location: String },
 }
 
 /// miette の fancy レポート（キャレット付きスニペット）を生成するための診断ラッパー。
@@ -91,7 +97,9 @@ impl ParseDiagnostic {
             ParseError::InvalidInt { location, .. }
             | ParseError::UnexpectedRule { location, .. }
             | ParseError::InvalidMonth { location, .. }
-            | ParseError::InvalidDay { location, .. } => parse_byte_range_to_span(location, src),
+            | ParseError::InvalidDay { location, .. }
+            | ParseError::InvalidSecond { location, .. }
+            | ParseError::InvalidOffset { location, .. } => parse_byte_range_to_span(location, src),
             ParseError::UnknownPolicy(_) | ParseError::UnknownTargetType(_) => None,
         }
     }
@@ -157,7 +165,9 @@ impl ParseError {
             ParseError::InvalidInt { location, .. }
             | ParseError::UnexpectedRule { location, .. }
             | ParseError::InvalidMonth { location, .. }
-            | ParseError::InvalidDay { location, .. } => byte_range_to_loc(location, src),
+            | ParseError::InvalidDay { location, .. }
+            | ParseError::InvalidSecond { location, .. }
+            | ParseError::InvalidOffset { location, .. } => byte_range_to_loc(location, src),
             ParseError::UnknownPolicy(_) | ParseError::UnknownTargetType(_) => None,
         }
     }

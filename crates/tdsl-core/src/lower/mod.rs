@@ -107,7 +107,44 @@ pub(crate) fn format_id_time(t: &ast::TimeValue) -> String {
         ast::TimeValue::DateTime(y, m, d, h, min) => {
             format!("{y:04}-{m:02}-{d:02}T{h:02}:{min:02}")
         }
+        ast::TimeValue::DateTimeSecond(y, m, d, h, min, s) => {
+            format!("{y:04}-{m:02}-{d:02}T{h:02}:{min:02}:{s:02}")
+        }
+        ast::TimeValue::DateTimeOffset(y, m, d, h, min, off) => {
+            format!(
+                "{y:04}-{m:02}-{d:02}T{h:02}:{min:02}{}",
+                format_offset_suffix(*off)
+            )
+        }
+        ast::TimeValue::DateTimeSecondOffset(y, m, d, h, min, s, off) => {
+            format!(
+                "{y:04}-{m:02}-{d:02}T{h:02}:{min:02}:{s:02}{}",
+                format_offset_suffix(*off)
+            )
+        }
     }
+}
+
+/// 秒精度・オフセット付きの `TimeValue` を拒否する（IRがまだ保持できないため、#613で対応予定）。
+/// silent に分精度へ切り捨てるのではなく、明示的エラーを返す（AGENTS.md §4.1）。
+pub(crate) fn reject_sub_minute_precision(
+    t: &ast::TimeValue,
+) -> Result<(), crate::error::LoweringError> {
+    if t.second().is_some() || t.offset_minutes().is_some() {
+        return Err(crate::error::LoweringError::SubMinutePrecisionNotYetSupported(t.to_string()));
+    }
+    Ok(())
+}
+
+/// offset(分単位)を `Z` または `±HH:MM` 形式に整形する（ID用の補助関数）。
+/// 本体の正規化・比較セマンティクスは #613 (IR/lowering の秒精度対応) で実装する。
+pub(crate) fn format_offset_suffix(offset_minutes: i16) -> String {
+    if offset_minutes == 0 {
+        return "Z".to_string();
+    }
+    let sign = if offset_minutes < 0 { '-' } else { '+' };
+    let abs = offset_minutes.unsigned_abs();
+    format!("{sign}{:02}:{:02}", abs / 60, abs % 60)
 }
 
 /// バイトオフセットから (1-based 行番号, 1-based 列番号) に変換する。
