@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::helpers::{MockWikidataClient, make_entity, make_time_statement};
 use crate::{error, ir, lower};
 use tdsl_wikidata::WikidataEntity;
-use tdsl_wikidata::entity::LabelValue;
+use tdsl_wikidata::entity::{DataValue, LabelValue, Snak, Statement, TimeValue};
 
 #[tokio::test]
 async fn lower_with_wikidata_supports_query_import_mapping_multiple_entities() {
@@ -1191,4 +1191,86 @@ async fn lower_with_wikidata_warns_when_required_field_unresolved() {
             .any(|w| w.contains("Q7209") && w.contains("span")),
         "未解決を示す warning が報告されること: {warnings:?}"
     );
+}
+
+/// #613 (ADR 0003 D5) end-to-end: Wikidata の time precision 14（秒）が
+/// claim(...).second 経由で最終 IR の `time_second` まで伝播することを確認する。
+/// Wikidata は offset を提供しないため `time_offset_minutes` は常に `None`（D5）。
+#[tokio::test]
+async fn lower_with_wikidata_precision_14_second_propagates_to_ir_time_second() {
+    let src = r#"
+        timeline "T" { unit year; range -500..1000; }
+        lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+        import wikidata as wd {
+            entity Q1 as launch;
+        }
+
+        map wd.launch to event {
+            lane dynasty;
+            time claim(P571).second;
+            label label@ja ?? label@en;
+        }
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+
+    let mut labels = HashMap::new();
+    labels.insert(
+        "ja".to_string(),
+        LabelValue {
+            language: "ja".to_string(),
+            value: "発射".to_string(),
+        },
+    );
+    let mut claims = HashMap::new();
+    claims.insert(
+        "P571".to_string(),
+        vec![Statement {
+            mainsnak: Snak {
+                snaktype: "value".to_string(),
+                property: "P571".to_string(),
+                datavalue: Some(DataValue::Time {
+                    value: TimeValue {
+                        time: "+2024-01-01T10:00:42Z".to_string(),
+                        precision: 14,
+                        calendarmodel: "http://www.wikidata.org/entity/Q1985727".to_string(),
+                    },
+                }),
+            },
+            rank: "normal".to_string(),
+            qualifiers: HashMap::new(),
+        }],
+    );
+    let entity = WikidataEntity {
+        id: "Q1".to_string(),
+        labels,
+        claims,
+    };
+    let mut entities = HashMap::new();
+    entities.insert("Q1".to_string(), entity);
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+    assert_eq!(ir.items.len(), 1);
+    match &ir.items[0] {
+        ir::Item::Event {
+            time_second,
+            time_offset_minutes,
+            ..
+        } => {
+            assert_eq!(
+                *time_second,
+                Some(42),
+                "precision=14 の秒が IR に伝播されるべき"
+            );
+            assert_eq!(
+                *time_offset_minutes, None,
+                "Wikidata は offset を提供しないため常に None (ADR 0003 D5)"
+            );
+        }
+        other => panic!("expected event, got: {other:?}"),
+    }
 }

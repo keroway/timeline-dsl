@@ -72,10 +72,14 @@ fn validate_warns_on_span_start_gt_end() {
             start_day: None,
             start_hour: None,
             start_minute: None,
+            start_second: None,
+            start_offset_minutes: None,
             end_month: None,
             end_day: None,
             end_hour: None,
             end_minute: None,
+            end_second: None,
+            end_offset_minutes: None,
             end_open: false,
             source_span: None,
         }],
@@ -126,10 +130,14 @@ fn validate_warns_on_event_range_start_gt_end() {
             start_day: None,
             start_hour: None,
             start_minute: None,
+            start_second: None,
+            start_offset_minutes: None,
             end_month: None,
             end_day: None,
             end_hour: None,
             end_minute: None,
+            end_second: None,
+            end_offset_minutes: None,
             end_open: false,
             source_span: None,
         }],
@@ -231,10 +239,14 @@ fn validate_no_warning_on_valid_span() {
             start_day: None,
             start_hour: None,
             start_minute: None,
+            start_second: None,
+            start_offset_minutes: None,
             end_month: None,
             end_day: None,
             end_hour: None,
             end_minute: None,
+            end_second: None,
+            end_offset_minutes: None,
             end_open: false,
             source_span: None,
         }],
@@ -316,6 +328,92 @@ event l 150 "inside" {};
     assert!(
         warnings.is_empty(),
         "expected no warnings for in-range items, got: {warnings:?}"
+    );
+}
+
+// ─── 秒・offsetを含む比較の修正(#613 reviewer指摘): validate.rs はIRの second/offset
+// フィールドを考慮して比較するべきで、単なる (year, month, day, hour, minute)
+// タプル比較に退化してはならない ───
+
+/// UTC上では逆順なのに、offsetを無視した旧ロジックでは正常(start<end)と判定されてしまうケース。
+/// start=+09:00の10:00、end=UTCの01:30 → UTC正規化すると start(01:00Z) > end(01:30Z)は偵（正常）だが、
+/// 逆に startが遅いケースを作り、offsetを無視すると誤って正常判定されることを確認する。
+#[test]
+fn validate_warns_on_span_start_gt_end_when_utc_normalized_even_if_naive_tuple_looks_ok() {
+    // naive(日付・時刻の数値だけを見る)比較では start(01:00) < end(02:00) だが、
+    // start は -14:00（UTC = local + 14h = 2024-01-01T15:00Z）、
+    // end   は +14:00（UTC = local - 14h = 2023-12-31T12:00Z）とすると、
+    // UTC正規化後は start(2024-01-01T15:00Z) > end(2023-12-31T12:00Z) となり逆順になる。
+    // offsetを無視した旧実装(naive tuple比較)ではこの逆順を検知できない。
+    let src = r#"
+timeline "t" { title "t"; unit year; range 2023-01-01T00:00Z..2025-01-01T00:00Z; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+span l 2024-01-01T01:00-14:00..2024-01-01T02:00+14:00 "utc reversed" {};
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("start") && w.contains("end")),
+        "UTC正規化すると start > end になるはずだが警告がない: {warnings:?}"
+    );
+}
+
+/// 秒のみが逆順な event_range（分・時・日は同一）でも警告が出ることを確認する。
+/// 旧ロジック（sortable_tuple が second を含まない）では検知できないバグだった。
+#[test]
+fn validate_warns_on_event_range_second_only_reversal() {
+    let src = r#"
+timeline "t" { title "t"; unit year; range 2024-01-01T00:00:00..2024-01-02T00:00:00; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+event_range l 2024-01-01T10:00:45..2024-01-01T10:00:15 "second reversed" {};
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("start") && w.contains("end")),
+        "秒のみが逆順なら警告が出るはず: {warnings:?}"
+    );
+}
+
+/// offsetなし timeline range と offset付き event の比較は、loweringではチェックされない
+/// （loweringはitemの start/end 同士と rangeの start/end 同士しか比較しないため）。
+/// validate.rs がADR 0003 D2に従い、曖昧な比較として警告を出すことを確認する。
+#[test]
+fn validate_warns_on_mixed_offset_between_item_and_timeline_range() {
+    let src = r#"
+timeline "t" { title "t"; unit year; range 2024-01-01T00:00..2024-01-02T00:00; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+event l 2024-01-01T12:00Z "has offset" {};
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings.iter().any(|w| w.contains("mixes a UTC-offset")),
+        "offset有無が混在した場合は明示的な警告を出すべき: {warnings:?}"
+    );
+}
+
+/// offset付き同士の range/itemは UTC正規化して正しく比較され、余計な警告は出ないことを確認する。
+#[test]
+fn validate_no_warning_when_offset_item_is_inside_offset_range() {
+    let src = r#"
+timeline "t" { title "t"; unit year; range 2024-01-01T00:00Z..2024-01-02T00:00Z; calendar proleptic_gregorian; }
+lane "l" as l { kind custom; order 10; }
+event l 2024-01-01T21:00+09:00 "inside, +09:00 = 12:00Z" {};
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let warnings = validate::validate(&ir);
+    assert!(
+        warnings.is_empty(),
+        "offset正規化後に範囲内なら警告は出ないはず: {warnings:?}"
     );
 }
 

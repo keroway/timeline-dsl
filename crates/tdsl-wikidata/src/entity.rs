@@ -126,7 +126,7 @@ impl WikidataEntity {
     }
 }
 
-/// Parsed time value with optional month/day/hour/minute precision.
+/// Parsed time value with optional month/day/hour/minute/second precision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimePoint {
     pub year: i64,
@@ -138,6 +138,9 @@ pub struct TimePoint {
     pub hour: Option<u8>,
     /// `Some` when precision >= 13 (minute).
     pub minute: Option<u8>,
+    /// `Some` when precision >= 14 (second, ADR 0003 D5). Wikidata does not provide UTC
+    /// offsets, so imported values are always offset-less ("bare" civil time).
+    pub second: Option<u8>,
     pub precision: u8,
 }
 
@@ -204,6 +207,17 @@ pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::Wikid
     } else {
         None
     };
+    // ADR 0003 D5: Wikidata's time precision scale defines 14 (second) as its finest
+    // grain. `>= 14` mirrors the `>= 10/11/12/13` pattern above for forward compatibility
+    // with any coarser/finer precision values the API might report.
+    let second = if tv.precision >= 14 {
+        clock
+            .next()
+            .and_then(|s| s.parse::<u8>().ok())
+            .filter(|&s| s <= 59)
+    } else {
+        None
+    };
 
     Ok(TimePoint {
         year: sign * year,
@@ -211,6 +225,7 @@ pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::Wikid
         day,
         hour,
         minute,
+        second,
         precision: tv.precision,
     })
 }
@@ -321,6 +336,19 @@ mod tests {
         assert_eq!(tp.year, -206);
         assert_eq!(tp.month, Some(1));
         assert_eq!(tp.day, Some(15));
+    }
+
+    #[test]
+    fn parse_time_precision_second() {
+        let tv = TimeValue {
+            time: "+1969-07-20T20:17:40Z".to_string(),
+            precision: 14,
+            calendarmodel: String::new(),
+        };
+        let tp = time_value_to_timepoint(&tv).unwrap();
+        assert_eq!(tp.hour, Some(20));
+        assert_eq!(tp.minute, Some(17));
+        assert_eq!(tp.second, Some(40));
     }
 
     #[test]

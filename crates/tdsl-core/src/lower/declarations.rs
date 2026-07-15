@@ -3,8 +3,8 @@ use tdsl_parser::ast;
 use crate::error::LoweringError;
 use crate::ir::{Meta, TimelineUnit, supported_timeline_units};
 
+use super::compare_time_values;
 use super::context::LoweringContext;
-use super::reject_sub_minute_precision;
 
 impl LoweringContext {
     /// Pass 1: Collect timeline meta and lane declarations.
@@ -16,31 +16,31 @@ impl LoweringContext {
                         self.errors.push(LoweringError::MultipleTimelines);
                         continue;
                     }
+                    if let Some(range) = &t.range
+                        && let Err(err) = compare_time_values(&range.start, &range.end)
+                    {
+                        self.errors.push(err);
+                        continue;
+                    }
                     let color_map = t
                         .color_map
                         .iter()
                         .cloned()
                         .collect::<std::collections::HashMap<_, _>>();
-                    if let Some(r) = t.range.as_ref() {
-                        if let Err(err) = reject_sub_minute_precision(&r.start) {
-                            self.errors.push(err);
-                            continue;
-                        }
-                        if let Err(err) = reject_sub_minute_precision(&r.end) {
-                            self.errors.push(err);
-                            continue;
-                        }
-                    }
                     let (
                         range_yy,
                         range_start_month,
                         range_start_day,
                         range_start_hour,
                         range_start_minute,
+                        range_start_second,
+                        range_start_offset_minutes,
                         range_end_month,
                         range_end_day,
                         range_end_hour,
                         range_end_minute,
+                        range_end_second,
+                        range_end_offset_minutes,
                     ) = match t.range.as_ref() {
                         Some(r) => (
                             (r.start.year(), r.end.year()),
@@ -48,12 +48,30 @@ impl LoweringContext {
                             r.start.day(),
                             r.start.hour(),
                             r.start.minute(),
+                            r.start.second(),
+                            r.start.offset_minutes(),
                             r.end.month(),
                             r.end.day(),
                             r.end.hour(),
                             r.end.minute(),
+                            r.end.second(),
+                            r.end.offset_minutes(),
                         ),
-                        None => ((0, 2000), None, None, None, None, None, None, None, None),
+                        None => (
+                            (0, 2000),
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                        ),
                     };
 
                     let unit = match t.unit.as_deref() {
@@ -78,10 +96,14 @@ impl LoweringContext {
                         range_start_day,
                         range_start_hour,
                         range_start_minute,
+                        range_start_second,
+                        range_start_offset_minutes,
                         range_end_month,
                         range_end_day,
                         range_end_hour,
                         range_end_minute,
+                        range_end_second,
+                        range_end_offset_minutes,
                         calendar: t
                             .calendar
                             .clone()

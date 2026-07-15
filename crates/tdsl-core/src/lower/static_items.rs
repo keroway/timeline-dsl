@@ -4,7 +4,7 @@ use crate::error::LoweringError;
 use crate::ir::{Item, SourceSpan};
 
 use super::context::LoweringContext;
-use super::{format_id_time, offset_to_line_col, reject_sub_minute_precision, source_str};
+use super::{compare_time_values, format_id_time, offset_to_line_col, source_str};
 
 fn validate_link(link: &Option<String>) -> Result<Option<String>, LoweringError> {
     match link {
@@ -82,11 +82,10 @@ impl LoweringContext {
                             continue;
                         }
                     };
-                    if let Err(err) = reject_sub_minute_precision(&s.start) {
-                        self.errors.push(err);
-                        continue;
-                    }
-                    if let Err(err) = reject_sub_minute_precision(&s.end) {
+                    if let Err(err) = compare_time_values(&s.start, &s.end) {
+                        // 比較自体の結果(start>end等)は validate.rs の診断に任せるが、
+                        // offset付き/なしの混在比較(MixedOffsetComparison)は曖昧さを残さず
+                        // lowering 段階で明示エラーとする(ADR 0003 D2)。
                         self.errors.push(err);
                         continue;
                     }
@@ -116,10 +115,14 @@ impl LoweringContext {
                         start_day: s.start.day(),
                         start_hour: s.start.hour(),
                         start_minute: s.start.minute(),
+                        start_second: s.start.second(),
+                        start_offset_minutes: s.start.offset_minutes(),
                         end_month: s.end.month(),
                         end_day: s.end.day(),
                         end_hour: s.end.hour(),
                         end_minute: s.end.minute(),
+                        end_second: s.end.second(),
+                        end_offset_minutes: s.end.offset_minutes(),
                         end_open: s.end_open,
                         source_span,
                     });
@@ -150,10 +153,6 @@ impl LoweringContext {
                             continue;
                         }
                     };
-                    if let Err(err) = reject_sub_minute_precision(&e.time) {
-                        self.errors.push(err);
-                        continue;
-                    }
                     self.add_source_from_ref(&e.props.source);
                     let source_span = line_offsets.map(|lo| {
                         let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
@@ -179,6 +178,8 @@ impl LoweringContext {
                         time_day: e.time.day(),
                         time_hour: e.time.hour(),
                         time_minute: e.time.minute(),
+                        time_second: e.time.second(),
+                        time_offset_minutes: e.time.offset_minutes(),
                         source_span,
                     });
                 }
@@ -208,11 +209,8 @@ impl LoweringContext {
                             continue;
                         }
                     };
-                    if let Err(err) = reject_sub_minute_precision(&er.start) {
-                        self.errors.push(err);
-                        continue;
-                    }
-                    if let Err(err) = reject_sub_minute_precision(&er.end) {
+                    if let Err(err) = compare_time_values(&er.start, &er.end) {
+                        // Span と同様、MixedOffsetComparison のみを lowering 段階で明示エラーとする。
                         self.errors.push(err);
                         continue;
                     }
@@ -242,10 +240,14 @@ impl LoweringContext {
                         start_day: er.start.day(),
                         start_hour: er.start.hour(),
                         start_minute: er.start.minute(),
+                        start_second: er.start.second(),
+                        start_offset_minutes: er.start.offset_minutes(),
                         end_month: er.end.month(),
                         end_day: er.end.day(),
                         end_hour: er.end.hour(),
                         end_minute: er.end.minute(),
+                        end_second: er.end.second(),
+                        end_offset_minutes: er.end.offset_minutes(),
                         end_open: er.end_open,
                         source_span,
                     });
