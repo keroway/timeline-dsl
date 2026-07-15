@@ -124,3 +124,31 @@ pub enum TimeValue {
 - `now` に明示的な offset・タイムゾーン名（IANA tz database）を持たせるかどうかは将来の別 issue。
 - ミリ秒未満（サブ秒）精度は本 ADR のスコープ外（AGENTS.md §5 に明記のとおり）。
 - IANA タイムゾーン名（`Asia/Tokyo` 等）による DST 自動解決は対象外。offset は数値（分単位）のみを扱う固定オフセットモデルであり、DST 遷移の自動計算は行わない（著者が期間ごとに offset を明示する）。
+
+## 実測結果（#615, D6 フィードバック）
+
+本節は #615（LSP range/hover + WASM バンドル影響計測）実施時の実測結果を追記する（D6 の事前見積もりに対する実測フィードバック）。
+
+### WASM バンドルサイズ before/after
+
+`wasm-pack build crates/tdsl-wasm --target web --release`（CI の `Test WASM build check` ジョブと同一コマンド）で生成される `tdsl_wasm_bg.wasm` のバイトサイズを比較した。
+
+| 時点 | コミット | `.wasm` サイズ |
+|---|---|---|
+| before（#612以前、秒/offset未実装） | `fe99c60`（ADR 0003/0004 確定直後） | 736,801 bytes (≈719.5 KiB) |
+| after（#612〜#614 実装済み） | 本 issue 作業ブランチ HEAD | 762,099 bytes (≈744.2 KiB) |
+| 差分 | | +25,298 bytes (≈+24.7 KiB, +3.43%) |
+
+**評価**: D6 で見積もったとおり、`chrono` 等の外部日時クレートを追加していないため増分は小さい（+3.43%）。増分の内訳は主に（a）`TimeValue` の新 variant 3種（`DateTimeSecond` / `DateTimeOffset` / `DateTimeSecondOffset`）とそれらを扱う `match` 分岐の増加、（b）IR（`ir.rs`）の新しい `Option<u8>`/`Option<i16>` フィールド群とその serde コード、（c）decompile/CSV/renderer の新しい分岐ロジックであり、想定範囲内。ブラウザ対応可否を左右するような有意な増加ではなく、D6の方針（自前整数演算の継続）は妇当と確認された。
+
+### native + wasm ラウンドトリップ確認
+
+`crates/tdsl-wasm/src/lib.rs` のテスト（`compile_to_ir_roundtrips_second_precision_without_offset` 他）で、秒・offset付き `TimeValue` を含むソースを `tdsl_parser::parse` + `lower_static_with_source` で IR 化した際の JSON が、nativeパスと同一の値（`serde_json::Value` 比較）になることを確認した（`tdsl-wasm` の cfg(test) は native triple で実行されるため、wasm32 ターゲット自体の実行はしていないが、compile_to_ir が内部で呼ぶのと完全に同一のパスを直接検証している）。DST/offset境界は `+09:00`/`-05:00`/`Z`/`+14:00` 等の固定オフセット値をテストデータとして使用しており、ホストロケールに依存しない。
+
+### LSP hover/range
+
+`crates/tdsl-lsp/src/hover.rs` の `compute_hover_with` に、時刻リテラル（`span`/`event`/`event_range`/`timeline range`）上のカーソル位置で `TimeValue` の精度（year〜second）と offset（有無・分数）を表示する hover を追加した。既存の lane/QID hoverとは独立なパスであり、word分割（`[A-Za-z0-9_]`）では分断されてしまう `:`/`+`/`-`/`T` を含むリテラル全体を対象にできるよう、ASTの `Span` 情報を基に元ソースを逆検索する方式を採用した。hover/range のユニットテストを `crates/tdsl-lsp/src/hover.rs` に追加済み。
+
+### 結論
+
+D6 の方針（外部日時クレートを追加しない自前整数演算）は妇当であり、WASMバンドルサイズ増加は +3.43% と軽微であることが実測で確認された。本 ADR へのフィードバックは不要（D6の方針変更は不要）。

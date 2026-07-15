@@ -7,6 +7,7 @@
 //! - QID（`Q[0-9]+`）にカーソルを当てると、キャッシュ済みエンティティ情報を表示する。
 //! - ネットワーク I/O は行わない（offline 前提・CI 安全）。
 
+use tdsl_parser::ast::{self, TimeValue};
 use tdsl_wikidata::WikidataEntity;
 use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, Position, Range};
 
@@ -114,6 +115,136 @@ pub(crate) fn byte_offset_to_utf16(s: &str, byte_offset: usize) -> usize {
         .sum()
 }
 
+/// 行番号(0-based)からその行の先頭バイトオフセットを返す。行が存在しなければ `source.len()`。
+fn line_byte_offset(source: &str, line: usize) -> usize {
+    let mut offset = 0usize;
+    for (i, l) in source.split('\n').enumerate() {
+        if i == line {
+            return offset;
+        }
+        offset += l.len() + 1; // +1 for '\n'
+    }
+    source.len()
+}
+
+/// バイト範囲(0-based, half-open)を LSP `Range`（UTF-16 character）に変換する。
+fn byte_range_to_lsp_range(source: &str, byte_range: std::ops::Range<usize>) -> Range {
+    let to_position = |byte_offset: usize| -> Position {
+        let mut remaining = byte_offset;
+        for (line_idx, line_str) in source.split('\n').enumerate() {
+            let line_len_with_nl = line_str.len() + 1;
+            if remaining <= line_str.len() {
+                return Position {
+                    line: line_idx as u32,
+                    character: byte_offset_to_utf16(line_str, remaining) as u32,
+                };
+            }
+            remaining = remaining.saturating_sub(line_len_with_nl);
+        }
+        Position {
+            line: 0,
+            character: 0,
+        }
+    };
+    Range {
+        start: to_position(byte_range.start),
+        end: to_position(byte_range.end),
+    }
+}
+
+/// ソース内の全 statement を走査し、いずれかの `TimeValue` の `Display` 文字列が
+/// `cursor_byte` を含む位置に実際に出現するかを探す。
+///
+/// `TimeValue` 自体はソース上の位置情報を持たないため、各 statement の `Span`（バイト
+/// 範囲）内で `to_string()` したテキストを検索することで位置を逆逸する（ADR 0003 D1/D4
+/// で追加された `DateTimeSecond`/`DateTimeOffset`/`DateTimeSecondOffset` を含む全 variant に
+/// 対応する。lane/QID の word-based hover とは独立なパス）。
+///
+/// 見つかった場合は (TimeValue, リテラルのバイト範囲) を返す。
+fn time_value_at_byte_offset(
+    file: &ast::File,
+    source: &str,
+    cursor_byte: usize,
+) -> Option<(TimeValue, std::ops::Range<usize>)> {
+    for stmt in &file.statements {
+        if cursor_byte < stmt.span.start || cursor_byte >= stmt.span.end {
+            continue;
+        }
+        let stmt_text = source.get(stmt.span.start..stmt.span.end)?;
+        let candidates: Vec<TimeValue> = match &stmt.node {
+            ast::Statement::Span(s) => vec![s.start, s.end],
+            ast::Statement::Event(e) => vec![e.time],
+            ast::Statement::EventRange(er) => vec![er.start, er.end],
+            ast::Statement::Timeline(t) => t
+                .range
+                .as_ref()
+                .map(|r| vec![r.start, r.end])
+                .unwrap_or_default(),
+            _ => vec![],
+        };
+        for value in candidates {
+            let text = value.to_string();
+            // stmt_text 内で text の全出現位置を調べ、cursor がそのいずれかの範囲に
+            // 入っていれば採用する（同じ TimeValue が複数箇所にあることは通常ないが、
+            // 万一の重複時は最初に見つかったものを返す）。
+            let mut search_from = 0usize;
+            while let Some(rel_pos) = stmt_text[search_from..].find(text.as_str()) {
+                let abs_start = stmt.span.start + search_from + rel_pos;
+                let abs_end = abs_start + text.len();
+                if cursor_byte >= abs_start && cursor_byte < abs_end {
+                    return Some((value, abs_start..abs_end));
+                }
+                search_from += rel_pos + text.len();
+            }
+        }
+    }
+    None
+}
+
+/// `TimeValue` の精度・値を人間可読な markdown として整形する（ADR 0003 D1/D4）。
+fn time_value_hover_markdown(value: &TimeValue) -> String {
+    let precision = match value {
+        TimeValue::Year(_) => "year",
+        TimeValue::YearMonth(_, _) => "year-month",
+        TimeValue::Date(_, _, _) => "date",
+        TimeValue::DateTime(_, _, _, _, _) => "date-time (minute)",
+        TimeValue::DateTimeSecond(_, _, _, _, _, _) => "date-time (second)",
+        TimeValue::DateTimeOffset(_, _, _, _, _, _) => "date-time (minute, offset)",
+        TimeValue::DateTimeSecondOffset(_, _, _, _, _, _, _) => "date-time (second, offset)",
+    };
+    let mut md = format!(
+        "**{value}**\n\n- precision: {precision}\n- year: {}\n",
+        value.year()
+    );
+    if let Some(m) = value.month() {
+        md.push_str(&format!("- month: {m}\n"));
+    }
+    if let Some(d) = value.day() {
+        md.push_str(&format!("- day: {d}\n"));
+    }
+    if let Some(h) = value.hour() {
+        md.push_str(&format!("- hour: {h}\n"));
+    }
+    if let Some(mi) = value.minute() {
+        md.push_str(&format!("- minute: {mi}\n"));
+    }
+    if let Some(s) = value.second() {
+        md.push_str(&format!("- second: {s}\n"));
+    }
+    match value.offset_minutes() {
+        Some(offset) => {
+            md.push_str(&format!(
+                "- offset: {} ({offset} min from UTC)\n",
+                tdsl_core::lower::format_offset_suffix(offset)
+            ));
+        }
+        None => {
+            md.push_str("- offset: (none — bare civil time, ADR 0003 D3)\n");
+        }
+    }
+    md
+}
+
 /// 単一の lane ID トークンに対する hover マークダウン本文を返す。
 /// source をパース・静的 lowering して lanes を引き、id 一致する lane があれば
 /// ラベル・kind・order を整形して返す。一致しなければ None。
@@ -196,6 +327,30 @@ pub fn compute_hover_with<F>(source: &str, position: Position, lookup: F) -> Opt
 where
     F: Fn(&str) -> Option<WikidataEntity>,
 {
+    // 時刻リテラル(秒・offset付きを含む)の hover を最初に試す。
+    // 時刻リテラルは `:` / `+` / `-` / `T` を含むため word_at_position の
+    // [A-Za-z0-9_] トークン判定では分断されてしまう。パース済み AST の
+    // Span/Event/EventRange/Timeline range の TimeValue を直接探すことで、word
+    // 分割に依存せずにリテラル全体を対象にできる(#615, ADR 0003 D1/D4)。
+    if let Ok(file) = tdsl_parser::parse(source)
+        && let Some(line_str) = source.lines().nth(position.line as usize)
+        && let Some(col_byte) = utf16_offset_to_byte(line_str, position.character as usize)
+    {
+        let line_start_byte = line_byte_offset(source, position.line as usize);
+        let cursor_byte = line_start_byte + col_byte;
+        if let Some((value, byte_range)) = time_value_at_byte_offset(&file, source, cursor_byte) {
+            let md = time_value_hover_markdown(&value);
+            let range = byte_range_to_lsp_range(source, byte_range);
+            return Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: md,
+                }),
+                range: Some(range),
+            });
+        }
+    }
+
     let (word, word_range) = word_at_position(source, position)?;
 
     // まず lane として解決を試みる
@@ -571,5 +726,147 @@ lane "foo" as foo { kind custom; order 1; }
         };
         let result = compute_hover_with(src, pos, |_| None);
         assert!(result.is_none(), "非トークン位置は None を返す");
+    }
+
+    // --- time_value_at_byte_offset / time_value_hover_markdown (#615, ADR 0003 D1/D4) ---
+
+    #[test]
+    fn time_value_hover_shows_second_and_no_offset() {
+        let src = r#"timeline "test" { title "test"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "A" as a { kind custom; order 1; }
+event a 2024-01-01T10:00:30 "E" {};
+"#;
+        // 3行目(0-based: 2)の "2024-01-01T10:00:30" の先頭付近にカーソルを置く。
+        // "event a " = 8 文字。
+        let pos = Position {
+            line: 2,
+            character: 10,
+        };
+        let result = compute_hover_with(src, pos, |_| None);
+        assert!(
+            result.is_some(),
+            "秒付き時刻リテラルの hover が返るべき: {result:?}"
+        );
+        let hover = result.unwrap();
+        if let HoverContents::Markup(mc) = hover.contents {
+            assert!(
+                mc.value.contains("2024-01-01T10:00:30"),
+                "リテラル全体を含む: {}",
+                mc.value
+            );
+            assert!(
+                mc.value.contains("second"),
+                "秒精度であることを示す: {}",
+                mc.value
+            );
+            assert!(
+                mc.value.contains("none"),
+                "offsetなしであることを示す: {}",
+                mc.value
+            );
+        } else {
+            panic!("MarkupContent でない");
+        }
+    }
+
+    #[test]
+    fn time_value_hover_shows_offset_minutes() {
+        let src = r#"timeline "test" { title "test"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "A" as a { kind custom; order 1; }
+event a 2024-01-01T10:00+09:00 "E" {};
+"#;
+        let pos = Position {
+            line: 2,
+            character: 10,
+        };
+        let result = compute_hover_with(src, pos, |_| None);
+        assert!(
+            result.is_some(),
+            "offset付き時刻リテラルの hover が返るべき"
+        );
+        let hover = result.unwrap();
+        if let HoverContents::Markup(mc) = hover.contents {
+            assert!(
+                mc.value.contains("2024-01-01T10:00+09:00"),
+                "リテラル全体を含む: {}",
+                mc.value
+            );
+            assert!(
+                mc.value.contains("540"),
+                "offset分数(540)を含む: {}",
+                mc.value
+            );
+        } else {
+            panic!("MarkupContent でない");
+        }
+    }
+
+    #[test]
+    fn time_value_hover_range_covers_full_literal_not_just_year() {
+        let src = r#"timeline "test" { title "test"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "A" as a { kind custom; order 1; }
+event a 2024-01-01T10:00:30Z "E" {};
+"#;
+        let pos = Position {
+            line: 2,
+            character: 10,
+        };
+        let result = compute_hover_with(src, pos, |_| None);
+        let hover = result.expect("hover が返るべき");
+        let range = hover.range.expect("range が付与されるべき");
+        // "event a " (8 chars) から始まり "2024-01-01T10:00:30Z" (20 chars) で終わる。
+        assert_eq!(range.start.character, 8, "リテラルの開始位置");
+        assert_eq!(
+            range.end.character, 28,
+            "リテラル全体(Z含む)をカバーするべき"
+        );
+    }
+
+    #[test]
+    fn time_value_hover_minute_precision_has_no_second_field() {
+        let src = r#"timeline "test" { title "test"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "A" as a { kind custom; order 1; }
+event a 2024-01-01T10:00 "E" {};
+"#;
+        let pos = Position {
+            line: 2,
+            character: 10,
+        };
+        let result = compute_hover_with(src, pos, |_| None);
+        let hover = result.expect("hover が返るべき");
+        if let HoverContents::Markup(mc) = hover.contents {
+            assert!(
+                !mc.value.contains("- second:"),
+                "分精度では second フィールドを含めない: {}",
+                mc.value
+            );
+        } else {
+            panic!("MarkupContent でない");
+        }
+    }
+
+    #[test]
+    fn time_value_hover_timeline_range_endpoint() {
+        let src = r#"timeline "test" { title "test"; unit year; range 2024-01-01T10:00:30+09:00..2025-01-01T00:00:00Z; calendar proleptic_gregorian; }
+lane "A" as a { kind custom; order 1; }
+"#;
+        // 1行目の range 式内の最初の時刻リテラル上にカーソルを置く。
+        let byte_pos = src.find("2024-01-01T10:00:30+09:00").unwrap();
+        let col = src[..byte_pos].chars().count();
+        let pos = Position {
+            line: 0,
+            character: col as u32,
+        };
+        let result = compute_hover_with(src, pos, |_| None);
+        assert!(
+            result.is_some(),
+            "timeline range の時刻リテラルも hover 対象になるべき"
+        );
+        let hover = result.unwrap();
+        if let HoverContents::Markup(mc) = hover.contents {
+            assert!(mc.value.contains("2024-01-01T10:00:30+09:00"));
+        } else {
+            panic!("MarkupContent でない");
+        }
     }
 }

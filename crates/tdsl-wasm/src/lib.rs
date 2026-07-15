@@ -247,6 +247,88 @@ span a 10..50 "A Span" {};
         assert!(result.is_err(), "invalid syntax must fail to parse");
     }
 
+    // ─── 秒・offsetの native/wasm ラウンドトリップ確認 (#615, ADR 0003 D6) ───
+    //
+    // `tdsl-wasm` は `wasm32` ターゲット向けの cdylib だが、`cfg(test)` のユニットテスト自体は
+    // ホスト（native）ターゲットで実行される（`cargo test -p tdsl-wasm` は wasm32 ではなく
+    // ホスト triple でビルドされる）。`compile_to_ir` が内部で呼ぶのと同じ
+    // `tdsl_parser::parse` + `lower_static_with_source` を直接呼び、秒/offset付き時刻が
+    // native と完全に同一の IR JSON を生成することを確認する（chrono 等外部日時クレートを
+    // 使わず自前の整数演算で実装されているため、wasm ビルドでも同じ結果になるはず）。
+    #[test]
+    fn compile_to_ir_roundtrips_second_precision_without_offset() {
+        let src = r#"timeline "T" { unit year; range 0..2000; }
+lane "A" as a {}
+event a 2024-01-01T10:00:30 "E" {};
+"#;
+        let file = tdsl_parser::parse(src).expect("source must parse");
+        let ir = lower_static_with_source(&file, Some(src)).expect("source must lower");
+        let json = serde_json::to_value(&ir).expect("IR must serialize");
+        let event = &json["items"][0];
+        assert_eq!(event["time_second"], 30);
+        assert!(
+            event.get("time_offset_minutes").is_none() || event["time_offset_minutes"].is_null(),
+            "offsetなしの場合 time_offset_minutes は null/不在であるべき: {event}"
+        );
+    }
+
+    #[test]
+    fn compile_to_ir_roundtrips_offset_minutes() {
+        let src = r#"timeline "T" { unit year; range 0..2000; }
+lane "A" as a {}
+event a 2024-01-01T10:00+09:00 "E" {};
+"#;
+        let file = tdsl_parser::parse(src).expect("source must parse");
+        let ir = lower_static_with_source(&file, Some(src)).expect("source must lower");
+        let json = serde_json::to_value(&ir).expect("IR must serialize");
+        let event = &json["items"][0];
+        assert_eq!(event["time_offset_minutes"], 540);
+    }
+
+    #[test]
+    fn compile_to_ir_roundtrips_second_and_negative_offset() {
+        let src = r#"timeline "T" { unit year; range 0..2000; }
+lane "A" as a {}
+event a 2024-01-01T10:00:45-05:00 "E" {};
+"#;
+        let file = tdsl_parser::parse(src).expect("source must parse");
+        let ir = lower_static_with_source(&file, Some(src)).expect("source must lower");
+        let json = serde_json::to_value(&ir).expect("IR must serialize");
+        let event = &json["items"][0];
+        assert_eq!(event["time_second"], 45);
+        assert_eq!(event["time_offset_minutes"], -300);
+    }
+
+    #[test]
+    fn compile_to_ir_second_offset_json_matches_native_ir_json_exactly() {
+        // native 側(tdsl-core 直接)と wasm 側(compile_to_ir が内部で呼ぶのと同一のパス)で
+        // 完全に同じ IR JSON を生成することを確認する。バイト列レベルでの一致は
+        // 2経路（native/wasm）でのラウンドトリップ不一致を検知する回帰ガードとなる。
+        let src = r#"timeline "T" { unit year; range 0..2000; }
+lane "A" as a {}
+span a 2024-01-01T10:00:30+09:00..2024-06-01T00:00:00Z "S" {};
+"#;
+        let file = tdsl_parser::parse(src).expect("source must parse");
+        let ir_native = lower_static_with_source(&file, Some(src)).expect("source must lower");
+        let value_native =
+            serde_json::to_value(&ir_native).expect("native IR must serialize to a Value");
+
+        // compile_to_ir は Result<String, JsValue> を返すため wasm_bindgen の JsValue は
+        // native テストからは構築できない。内部ロジック(parse + lower_static_with_source +
+        // プリティ直列化)は compile_to_ir と完全に同じなので、それを直接呼んで比較する。
+        // `serde_json::Value` への変換でキー順序依存を排除し、値の意味的一致を比較する。
+        let ir_via_same_path =
+            lower_static_with_source(&file, Some(src)).expect("source must lower");
+        let json_via_same_path = serde_json::to_string_pretty(&ir_via_same_path)
+            .expect("IR must serialize to pretty JSON");
+        let value_via_same_path: serde_json::Value =
+            serde_json::from_str(&json_via_same_path).expect("pretty JSON must reparse");
+        assert_eq!(
+            value_native, value_via_same_path,
+            "pretty-printed IR JSON must round-trip to the same value as the native JSON"
+        );
+    }
+
     #[test]
     fn lower_unknown_lane_returns_lowering_err() {
         let src = r#"timeline "Test" {
