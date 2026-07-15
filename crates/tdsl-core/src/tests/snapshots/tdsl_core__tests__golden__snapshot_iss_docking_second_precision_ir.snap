@@ -1,0 +1,140 @@
+---
+source: crates/tdsl-core/src/tests/golden.rs
+expression: ir
+---
+{
+  "meta": {
+    "title": "ISS Crew Dragon Docking — Key Events (UTC)",
+    "unit": "second",
+    "range": [
+      2024,
+      2024
+    ],
+    "range_start_month": 3,
+    "range_start_day": 4,
+    "range_start_hour": 12,
+    "range_start_minute": 0,
+    "range_end_month": 3,
+    "range_end_day": 4,
+    "range_end_hour": 14,
+    "range_end_minute": 0,
+    "range_start_second": 0,
+    "range_start_offset_minutes": 0,
+    "range_end_second": 0,
+    "range_end_offset_minutes": 0,
+    "calendar": "proleptic_gregorian"
+  },
+  "lanes": [
+    {
+      "id": "docking",
+      "label": "ドッキング作業",
+      "kind": "custom",
+      "order": 1
+    },
+    {
+      "id": "comms",
+      "label": "通信",
+      "kind": "custom",
+      "order": 2
+    }
+  ],
+  "items": [
+    {
+      "type": "event",
+      "id": "event:docking:sequence-start",
+      "lane": "docking",
+      "time": 2024,
+      "label": "自動ドッキングシーケンス開始",
+      "tags": [
+        "milestone"
+      ],
+      "time_month": 3,
+      "time_day": 4,
+      "time_hour": 12,
+      "time_minute": 0,
+      "time_second": 0,
+      "time_offset_minutes": 0
+    },
+    {
+      "type": "event_range",
+      "id": "event_range:docking:final-approach",
+      "lane": "docking",
+      "start": 2024,
+      "end": 2024,
+      "label": "最終接近フェーズ",
+      "tags": [
+        "phase"
+      ],
+      "start_month": 3,
+      "start_day": 4,
+      "start_hour": 12,
+      "start_minute": 0,
+      "start_second": 0,
+      "start_offset_minutes": 0,
+      "end_month": 3,
+      "end_day": 4,
+      "end_hour": 13,
+      "end_minute": 39,
+      "end_second": 15,
+      "end_offset_minutes": 0
+    },
+    {
+      "type": "event",
+      "id": "event:docking:soft-capture",
+      "lane": "docking",
+      "time": 2024,
+      "label": "ソフトキャプチャ確立",
+      "tags": [
+        "milestone",
+        "highlight"
+      ],
+      "note": "秒精度が必要な瞬間の例（分精度では丸められてしまう）",
+      "time_month": 3,
+      "time_day": 4,
+      "time_hour": 13,
+      "time_minute": 39,
+      "time_second": 15,
+      "time_offset_minutes": 0
+    },
+    {
+      "type": "event",
+      "id": "event:docking:hard-dock",
+      "lane": "docking",
+      "time": 2024,
+      "label": "ハードドッキング完了",
+      "tags": [
+        "milestone",
+        "highlight"
+      ],
+      "time_month": 3,
+      "time_day": 4,
+      "time_hour": 13,
+      "time_minute": 41,
+      "time_second": 2,
+      "time_offset_minutes": 0
+    },
+    {
+      "type": "span",
+      "id": "span:comms:window",
+      "lane": "comms",
+      "start": 2024,
+      "end": 2024,
+      "label": "地上管制との通信ウィンドウ",
+      "tags": [
+        "comms"
+      ],
+      "start_month": 3,
+      "start_day": 4,
+      "start_hour": 12,
+      "start_minute": 0,
+      "start_second": 0,
+      "start_offset_minutes": 0,
+      "end_month": 3,
+      "end_day": 4,
+      "end_hour": 13,
+      "end_minute": 41,
+      "end_second": 2,
+      "end_offset_minutes": 0
+    }
+  ]
+}

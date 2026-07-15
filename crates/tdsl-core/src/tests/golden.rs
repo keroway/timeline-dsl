@@ -72,3 +72,53 @@ fn snapshot_internet_history_ir() {
     let ir = lower::lower_static(&file).unwrap();
     insta::assert_json_snapshot!(ir);
 }
+
+/// #612〜#616（ADR 0003）: 秒精度・UTCオフセット(`Z`)構文を使った新規サンプル。
+/// このスナップショットは秒/offsetフィールド（`*_second` / `*_offset_minutes`）を
+/// 含むIR構造が意図せず変化しないことを保証する。
+#[test]
+fn snapshot_iss_docking_second_precision_ir() {
+    let src = read_example("iss_docking_second_precision.tdsl");
+    let file = tdsl_parser::parse(&src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    insta::assert_json_snapshot!(ir);
+}
+
+/// #612〜#616（ADR 0003）: `+HH:MM` / `-HH:MM` / `Z` の複数オフセット表記を使った
+/// 新規サンプル。offset付き値同士がUTC正規化されて比較されること（D2）を含め、
+/// パース・loweringが壊れないことを保証する。
+#[test]
+fn snapshot_global_conference_timezones_ir() {
+    let src = read_example("global_conference_timezones.tdsl");
+    let file = tdsl_parser::parse(&src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    insta::assert_json_snapshot!(ir);
+}
+
+/// 既存の minute-level（秒・offsetなし）サンプルが、秒/offset対応実装後も
+/// 引き続き変更なくパース・lowerできることを保証する回帰テスト（#616受け入れ条件）。
+/// 対象は分精度の時刻構文を使う既存サンプル全件。
+#[test]
+fn existing_minute_level_examples_still_parse_and_lower_unchanged() {
+    let minute_level_examples = [
+        "apollo_11.tdsl",
+        "apollo_11_hourly.tdsl",
+        "china_dynasties.tdsl",
+        "japanese_history.tdsl",
+        "world_wars.tdsl",
+        "sci_tech_timeline.tdsl",
+        "fictional_empire.tdsl",
+        "internet_history.tdsl",
+        "grouped_dynasties.tdsl",
+    ];
+    // 注: template_apply_example.tdsl は `import wikidata` を含むため lower_static では
+    // 実行できない（Wikidata連携が必要）。本テストは静的のみのサンプルを対象とする。
+    for name in minute_level_examples {
+        let src = read_example(name);
+        let file = tdsl_parser::parse(&src)
+            .unwrap_or_else(|e| panic!("{name} must still parse after second/offset support: {e}"));
+        lower::lower_static(&file).unwrap_or_else(|e| {
+            panic!("{name} must still lower after second/offset support: {e:?}")
+        });
+    }
+}
