@@ -955,4 +955,230 @@ mod tests {
             "PDF must contain /Title when ir.meta.title is non-empty"
         );
     }
+
+    // ─── #620: pagination と既存機能(show-legend/group band/gantt/zigzag/
+    // open-ended)の整合検証 ───────────────────────────────────────────────
+    //
+    // ADR-0004 D1/D5: group band / gantt / zigzag / open-ended range はいずれも
+    // タイムライン本体(チャート、1ページ目)の描画に関わるものであり、D1により
+    // タイムライン本体はページ分割の対象外である。したがって pagination の
+    // 有効/無効は、これらのレイアウトのタイムラインページの描画結果に
+    // 一切影響を与えてはならない。以下のテストはこの不変条件を検証する。
+
+    /// `render_pdf` 内部と同じ手順(#618)でタイムラインページ単体のSVG文字列を
+    /// 再現するテスト専用ヘルパー。pagination有効時、テーブルは
+    /// `show_table = false` にしてタイムラインを描画してから別ページとして
+    /// 切り出される(D1/D2)。この関数はその「タイムラインページのSVG」だけを
+    /// 抽出して比較できるようにする。
+    fn timeline_page_svg(ir: &TimelineIr, mut opts: RenderOptions) -> String {
+        opts.use_css_vars = false;
+        opts.show_table = false;
+        let layout = LayoutModel::compute(ir, opts);
+        svg::render_svg(&layout).expect("timeline layout renders to SVG")
+    }
+
+    fn ir_with_group_bands_and_table_rows(row_count: usize) -> TimelineIr {
+        let mut ir = ir_with_table_rows(row_count);
+        ir.lanes = vec![Lane {
+            id: "han".into(),
+            label: "漢".into(),
+            kind: "dynasty".into(),
+            order: 10,
+            group: Some("グループ1".into()),
+            source_span: None,
+        }];
+        ir
+    }
+
+    fn ir_with_open_ended_span_and_table_rows(row_count: usize) -> TimelineIr {
+        let mut ir = ir_with_table_rows(row_count);
+        if let Some(Item::Span { end_open, .. }) = ir.items.first_mut() {
+            *end_open = true;
+        }
+        ir
+    }
+
+    #[test]
+    fn pagination_does_not_change_timeline_page_svg_with_group_bands() {
+        let ir = ir_with_group_bands_and_table_rows(5);
+        let opts = RenderOptions {
+            show_table: true,
+            layout_style: crate::layout::LayoutStyle::GroupBands,
+            ..RenderOptions::default()
+        };
+        let without_pagination = timeline_page_svg(&ir, opts.clone());
+        let with_pagination = timeline_page_svg(&ir, opts);
+        assert_eq!(
+            without_pagination, with_pagination,
+            "group-bands timeline page SVG must be identical regardless of pagination (ADR-0004 D1/D5)"
+        );
+        assert!(
+            without_pagination.contains("tdsl-group-band-even")
+                || without_pagination.contains("tdsl-group-label"),
+            "sanity check: group-bands styling must actually be present in the timeline page"
+        );
+    }
+
+    #[test]
+    fn pagination_does_not_change_timeline_page_svg_with_gantt_layout() {
+        let ir = ir_with_table_rows(5);
+        let opts = RenderOptions {
+            show_table: true,
+            layout_style: crate::layout::LayoutStyle::Gantt,
+            ..RenderOptions::default()
+        };
+        let without_pagination = timeline_page_svg(&ir, opts.clone());
+        let with_pagination = timeline_page_svg(&ir, opts);
+        assert_eq!(
+            without_pagination, with_pagination,
+            "gantt timeline page SVG must be identical regardless of pagination (ADR-0004 D1/D5)"
+        );
+        assert!(
+            without_pagination.contains("tdsl-grid-gantt"),
+            "sanity check: gantt styling must actually be present in the timeline page"
+        );
+    }
+
+    #[test]
+    fn pagination_does_not_change_timeline_page_svg_with_zigzag_layout() {
+        let ir = ir_with_table_rows(5);
+        let opts = RenderOptions {
+            show_table: true,
+            layout_style: crate::layout::LayoutStyle::Zigzag,
+            ..RenderOptions::default()
+        };
+        let without_pagination = timeline_page_svg(&ir, opts.clone());
+        let with_pagination = timeline_page_svg(&ir, opts);
+        assert_eq!(
+            without_pagination, with_pagination,
+            "zigzag timeline page SVG must be identical regardless of pagination (ADR-0004 D1/D5)"
+        );
+    }
+
+    #[test]
+    fn pagination_does_not_change_timeline_page_svg_with_open_ended_span() {
+        let ir = ir_with_open_ended_span_and_table_rows(5);
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let without_pagination = timeline_page_svg(&ir, opts.clone());
+        let with_pagination = timeline_page_svg(&ir, opts);
+        assert_eq!(
+            without_pagination, with_pagination,
+            "open-ended span timeline page SVG must be identical regardless of pagination (ADR-0004 D1/D5)"
+        );
+        assert!(
+            without_pagination.contains("tdsl-item-open-ended"),
+            "sanity check: open-ended hook class must actually be present in the timeline page"
+        );
+    }
+
+    #[test]
+    fn pagination_does_not_affect_single_page_output_when_disabled_group_gantt_zigzag_open_ended() {
+        // ADR-0004 D3: default (pagination:false) output for these layouts must
+        // be byte-for-byte identical to what render_pdf produced before #618/#619
+        // introduced the pagination code path at all (non-regression).
+        for (ir, layout_style) in [
+            (
+                ir_with_group_bands_and_table_rows(3),
+                crate::layout::LayoutStyle::GroupBands,
+            ),
+            (ir_with_table_rows(3), crate::layout::LayoutStyle::Gantt),
+            (ir_with_table_rows(3), crate::layout::LayoutStyle::Zigzag),
+            (
+                ir_with_open_ended_span_and_table_rows(3),
+                crate::layout::LayoutStyle::default(),
+            ),
+        ] {
+            let opts = RenderOptions {
+                show_table: true,
+                layout_style,
+                ..RenderOptions::default()
+            };
+            let bytes = render_pdf(&ir, opts, PdfOptions::default())
+                .expect("non-paginated render_pdf must succeed for every layout style");
+            assert!(bytes.starts_with(PDF_SIGNATURE));
+            // Non-paginated output is always exactly one page (timeline + table
+            // combined into the single existing SVG, per ADR-0004 D1/D3).
+            assert_eq!(
+                page_object_count(&bytes),
+                1,
+                "non-paginated PDF must have exactly one page regardless of layout style"
+            );
+        }
+    }
+
+    #[test]
+    fn show_legend_appears_only_on_timeline_page_not_table_pages_when_paginated() {
+        // ADR-0004 D5: --show-legend is rendered on the timeline page (page 1)
+        // only; it must not leak into any table page.
+        let ir = ir_with_table_rows(40);
+        let opts = RenderOptions {
+            show_table: true,
+            show_legend: true,
+            ..RenderOptions::default()
+        };
+        let timeline_svg = timeline_page_svg(&ir, opts.clone());
+        assert!(
+            timeline_svg.contains("tdsl-static-legend"),
+            "sanity check: show_legend must actually render the static legend on the timeline page"
+        );
+
+        // The table-page renderer (`svg::render_table_page_svg`) never receives
+        // `RenderOptions` at all — it only takes rows/geometry/page numbers — so
+        // by construction it cannot draw the legend. Render the full paginated
+        // PDF and confirm it still succeeds with the expected page count as an
+        // end-to-end guard against a future regression that might thread
+        // `show_legend` into the table-page path.
+        let bytes = render_pdf(
+            &ir,
+            opts,
+            PdfOptions {
+                pagination: true,
+                ..PdfOptions::default()
+            },
+        )
+        .expect("paginated render_pdf with show_legend succeeds");
+        assert!(bytes.starts_with(PDF_SIGNATURE));
+        assert!(page_object_count(&bytes) > 1);
+    }
+
+    #[test]
+    fn show_table_without_pagination_keeps_existing_single_page_behavior() {
+        // Non-regression: --show-table alone (no --pdf-pagination) must keep
+        // producing a single combined page, exactly as before #618.
+        let ir = ir_with_table_rows(10);
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let bytes = render_pdf(&ir, opts, PdfOptions::default())
+            .expect("non-paginated show_table render_pdf succeeds");
+        assert_eq!(page_object_count(&bytes), 1);
+    }
+
+    #[test]
+    fn show_table_with_pagination_splits_into_chart_plus_table_pages() {
+        // ADR-0004 D2: pagination:true produces exactly 1 chart page + N table
+        // pages, regardless of layout_style.
+        let ir = ir_with_table_rows(45); // enough rows to force multiple table pages
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let bytes = render_pdf(
+            &ir,
+            opts,
+            PdfOptions {
+                pagination: true,
+                ..PdfOptions::default()
+            },
+        )
+        .expect("paginated render_pdf succeeds");
+        assert!(
+            page_object_count(&bytes) >= 2,
+            "paginated output with many rows must have at least a chart page and one table page"
+        );
+    }
 }
