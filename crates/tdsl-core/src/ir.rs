@@ -166,6 +166,18 @@ pub struct Meta {
     /// `range` end の分精度。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range_end_minute: Option<u8>,
+    /// `range` start の秒精度（ADR 0003 D1）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_start_second: Option<u8>,
+    /// `range` start の UTC オフセット（分単位。ADR 0003 D1/D2）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_start_offset_minutes: Option<i16>,
+    /// `range` end の秒精度（ADR 0003 D1）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_end_second: Option<u8>,
+    /// `range` end の UTC オフセット（分単位。ADR 0003 D1/D2）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_end_offset_minutes: Option<i16>,
     /// 使用するカレンダー体系（例: `"proleptic_gregorian"`）。
     pub calendar: String,
     /// タグ→CSS カラー文字列のマッピング（`color_map` ブロックで宣言）。
@@ -224,6 +236,12 @@ pub enum Item {
         start_hour: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         start_minute: Option<u8>,
+        /// start の秒精度（ADR 0003 D1）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        start_second: Option<u8>,
+        /// start の UTC オフセット（分単位。`None` は「オフセットなしの裸の暦時刻」を意味する（ADR 0003 D2/D3）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        start_offset_minutes: Option<i16>,
         #[serde(skip_serializing_if = "Option::is_none")]
         end_month: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -232,6 +250,12 @@ pub enum Item {
         end_hour: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         end_minute: Option<u8>,
+        /// end の秒精度（ADR 0003 D1）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        end_second: Option<u8>,
+        /// end の UTC オフセット（分単位。ADR 0003 D2/D3）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        end_offset_minutes: Option<i16>,
         /// `end` が `now`（継続中）で補完されたかどうか（#550）。`end` 自体は常に具体値（lowering 時の
         /// 現在年）を保持するが、`end_open == true` の場合 renderer / decompile はそれを
         /// 「継続中」として扱う。既存 IR との後方互換のため `false` の場合はシリアライズしない。
@@ -267,6 +291,12 @@ pub enum Item {
         time_hour: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         time_minute: Option<u8>,
+        /// time の秒精度（ADR 0003 D1）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        time_second: Option<u8>,
+        /// time の UTC オフセット（分単位。ADR 0003 D2/D3）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        time_offset_minutes: Option<i16>,
         /// DSL ソース上の定義位置（双方向ジャンプ用）。
         #[serde(skip_serializing_if = "Option::is_none")]
         source_span: Option<SourceSpan>,
@@ -298,6 +328,12 @@ pub enum Item {
         start_hour: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         start_minute: Option<u8>,
+        /// start の秒精度（ADR 0003 D1）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        start_second: Option<u8>,
+        /// start の UTC オフセット（分単位。ADR 0003 D2/D3）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        start_offset_minutes: Option<i16>,
         #[serde(skip_serializing_if = "Option::is_none")]
         end_month: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -306,6 +342,12 @@ pub enum Item {
         end_hour: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
         end_minute: Option<u8>,
+        /// end の秒精度（ADR 0003 D1）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        end_second: Option<u8>,
+        /// end の UTC オフセット（分単位。ADR 0003 D2/D3）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        end_offset_minutes: Option<i16>,
         /// `end` が `now`（継続中）で補完されたかどうか（#550）。Span のドキュメントと同様。
         #[serde(default, skip_serializing_if = "is_false")]
         end_open: bool,

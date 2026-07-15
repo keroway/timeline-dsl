@@ -125,19 +125,7 @@ pub(crate) fn format_id_time(t: &ast::TimeValue) -> String {
     }
 }
 
-/// 秒精度・オフセット付きの `TimeValue` を拒否する（IRがまだ保持できないため、#613で対応予定）。
-/// silent に分精度へ切り捨てるのではなく、明示的エラーを返す（AGENTS.md §4.1）。
-pub(crate) fn reject_sub_minute_precision(
-    t: &ast::TimeValue,
-) -> Result<(), crate::error::LoweringError> {
-    if t.second().is_some() || t.offset_minutes().is_some() {
-        return Err(crate::error::LoweringError::SubMinutePrecisionNotYetSupported(t.to_string()));
-    }
-    Ok(())
-}
-
 /// offset(分単位)を `Z` または `±HH:MM` 形式に整形する（ID用の補助関数）。
-/// 本体の正規化・比較セマンティクスは #613 (IR/lowering の秒精度対応) で実装する。
 pub(crate) fn format_offset_suffix(offset_minutes: i16) -> String {
     if offset_minutes == 0 {
         return "Z".to_string();
@@ -145,6 +133,53 @@ pub(crate) fn format_offset_suffix(offset_minutes: i16) -> String {
     let sign = if offset_minutes < 0 { '-' } else { '+' };
     let abs = offset_minutes.unsigned_abs();
     format!("{sign}{:02}:{:02}", abs / 60, abs % 60)
+}
+
+/// ADR 0003 D2 に準拠した、offset の有無を考慮した時刻比較。
+///
+/// - offset 付き同士は `offset_minutes` を差し引いて UTC 相当の暦時刻に正規化して比較する。
+/// - offset なし同士は、従来どおり暦時刻の値そのもので比較する（`to_sortable()` 相当）。
+/// - 片方のみ offset 付きの場合は曖昧な比較として明示エラー（`MixedOffsetComparison`）を返す。
+///   offset なしを暗黙に UTC とみなすことはしない（AGENTS.md §4.1）。
+pub(crate) fn compare_time_values(
+    a: &ast::TimeValue,
+    b: &ast::TimeValue,
+) -> Result<std::cmp::Ordering, crate::error::LoweringError> {
+    match (a.offset_minutes(), b.offset_minutes()) {
+        (Some(off_a), Some(off_b)) => {
+            let norm_a = normalize_sortable_utc(a, off_a);
+            let norm_b = normalize_sortable_utc(b, off_b);
+            Ok(norm_a.cmp(&norm_b))
+        }
+        (None, None) => Ok(a.to_sortable().cmp(&b.to_sortable())),
+        _ => Err(crate::error::LoweringError::MixedOffsetComparison(
+            a.to_string(),
+            b.to_string(),
+        )),
+    }
+}
+
+/// offset付き civil time を UTC 秒へ正規化する。日跨ぎ・月跨ぎ・BCEにも対応する
+/// proleptic Gregorian の整数演算だけを使い、外部日時クレートには依存しない（ADR 0003 D6）。
+fn normalize_sortable_utc(t: &ast::TimeValue, offset_minutes: i16) -> i128 {
+    let (year, month, day) = t.to_sortable();
+    let days = days_from_civil(year, month.max(1), day.max(1));
+    let seconds = i128::from(t.hour().unwrap_or(0)) * 3600
+        + i128::from(t.minute().unwrap_or(0)) * 60
+        + i128::from(t.second().unwrap_or(0))
+        - i128::from(offset_minutes) * 60;
+    days * 86_400 + seconds
+}
+
+/// Howard Hinnant の civil-date-to-days 変換を i128/BCE対応に移植したもの。
+fn days_from_civil(year: i64, month: u8, day: u8) -> i128 {
+    let year = i128::from(year) - i128::from((month <= 2) as u8);
+    let era = if year >= 0 { year } else { year - 399 } / 400;
+    let yoe = year - era * 400;
+    let month = i128::from(month);
+    let doy = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + i128::from(day) - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe
 }
 
 /// バイトオフセットから (1-based 行番号, 1-based 列番号) に変換する。

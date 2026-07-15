@@ -1064,40 +1064,56 @@ fn lower_item_color_rejects_unsafe_value() {
     assert!(err.contains("InvalidItemColor"), "got: {err}");
 }
 
-// ─── 秒精度・オフセット: IR未対応の明示エラー (ADR 0003 / #612, IR対応は#613) ───
+// ─── 秒精度・オフセット: IR保持・正規化比較 (ADR 0003 D1/D2 / #613) ───
 
 #[test]
-fn lower_event_with_second_precision_is_explicit_error_not_silently_truncated() {
+fn lower_event_with_second_precision_is_preserved_in_ir() {
     let src = r#"
         timeline "T" { unit year; range 0..2000; }
         lane "A" as a {}
         event a 2024-01-01T10:00:30 "E" {};
     "#;
     let file = tdsl_parser::parse(src).unwrap();
-    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
-    assert!(
-        err.contains("SubMinutePrecisionNotYetSupported"),
-        "got: {err}"
-    );
+    let ir = lower::lower_static(&file).unwrap();
+    match &ir.items[0] {
+        ir::Item::Event {
+            time_second,
+            time_offset_minutes,
+            ..
+        } => {
+            assert_eq!(*time_second, Some(30));
+            assert_eq!(*time_offset_minutes, None);
+        }
+        _ => panic!("expected event"),
+    }
 }
 
 #[test]
-fn lower_event_with_offset_is_explicit_error_not_silently_dropped() {
+fn lower_event_with_offset_is_preserved_in_ir() {
     let src = r#"
         timeline "T" { unit year; range 0..2000; }
         lane "A" as a {}
         event a 2024-01-01T10:00+09:00 "E" {};
     "#;
     let file = tdsl_parser::parse(src).unwrap();
-    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
-    assert!(
-        err.contains("SubMinutePrecisionNotYetSupported"),
-        "got: {err}"
-    );
+    let ir = lower::lower_static(&file).unwrap();
+    match &ir.items[0] {
+        ir::Item::Event {
+            time_second,
+            time_offset_minutes,
+            ..
+        } => {
+            assert_eq!(*time_second, None);
+            assert_eq!(*time_offset_minutes, Some(540));
+        }
+        _ => panic!("expected event"),
+    }
 }
 
 #[test]
-fn lower_span_with_second_and_offset_on_either_endpoint_is_rejected() {
+fn lower_span_mixing_offset_and_no_offset_endpoints_is_explicit_error() {
+    // ADR 0003 D2: offset付きとoffsetなしの比較は曖昧なので明示エラーとする
+    // (silent にUTCとみなさない)。
     let src = r#"
         timeline "T" { unit year; range 0..2000; }
         lane "A" as a {}
@@ -1105,44 +1121,74 @@ fn lower_span_with_second_and_offset_on_either_endpoint_is_rejected() {
     "#;
     let file = tdsl_parser::parse(src).unwrap();
     let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
-    assert!(
-        err.contains("SubMinutePrecisionNotYetSupported"),
-        "got: {err}"
-    );
+    assert!(err.contains("MixedOffsetComparison"), "got: {err}");
 }
 
 #[test]
-fn lower_event_range_with_second_precision_is_rejected() {
+fn lower_event_range_with_second_precision_is_preserved_in_ir() {
     let src = r#"
         timeline "T" { unit year; range 0..2000; }
         lane "A" as a {}
         event_range a 2024-01-01T10:00:15..2024-01-01T10:00:45 "ER" {};
     "#;
     let file = tdsl_parser::parse(src).unwrap();
-    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
-    assert!(
-        err.contains("SubMinutePrecisionNotYetSupported"),
-        "got: {err}"
+    let ir = lower::lower_static(&file).unwrap();
+    match &ir.items[0] {
+        ir::Item::EventRange {
+            start_second,
+            end_second,
+            start_offset_minutes,
+            end_offset_minutes,
+            ..
+        } => {
+            assert_eq!(*start_second, Some(15));
+            assert_eq!(*end_second, Some(45));
+            assert_eq!(*start_offset_minutes, None);
+            assert_eq!(*end_offset_minutes, None);
+        }
+        _ => panic!("expected event_range"),
+    }
+}
+
+#[test]
+fn offset_comparison_normalizes_across_day_boundary() {
+    use std::cmp::Ordering;
+    let late_plus_14 = tdsl_parser::ast::TimeValue::DateTimeOffset(2024, 1, 2, 0, 10, 840);
+    let early_utc = tdsl_parser::ast::TimeValue::DateTimeOffset(2024, 1, 1, 10, 20, 0);
+    assert_eq!(
+        lower::compare_time_values(&late_plus_14, &early_utc).unwrap(),
+        Ordering::Less
     );
 }
 
 #[test]
-fn lower_timeline_range_with_offset_is_rejected() {
+fn lower_event_range_offset_same_on_both_endpoints_succeeds() {
+    // offset付き同士の比較はUTC正規化して問題なく成功する(ADR 0003 D2)。
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        lane "A" as a {}
+        event_range a 2024-01-01T10:00:00+09:00..2024-01-01T12:00:00+09:00 "ER" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    assert_eq!(ir.items.len(), 1);
+}
+
+#[test]
+fn lower_timeline_range_with_offset_is_preserved_in_meta() {
     let src = r#"
         timeline "T" { unit year; range 2024-01-01T00:00Z..2024-01-02T00:00Z; }
         lane "A" as a {}
     "#;
     let file = tdsl_parser::parse(src).unwrap();
-    let err = format!("{:?}", lower::lower_static(&file).unwrap_err());
-    assert!(
-        err.contains("SubMinutePrecisionNotYetSupported"),
-        "got: {err}"
-    );
+    let ir = lower::lower_static(&file).unwrap();
+    assert_eq!(ir.meta.range_start_offset_minutes, Some(0));
+    assert_eq!(ir.meta.range_end_offset_minutes, Some(0));
 }
 
 #[test]
 fn lower_minute_precision_without_second_or_offset_still_works() {
-    // 後方互換性: 既存の分精度(offsetなし)は引き続き成功する
+    // 後方互換性: 既存の分精度(offsetなし)は引き続き成功し、second/offsetはNoneのまま
     let src = r#"
         timeline "T" { unit year; range 0..2000; }
         lane "A" as a {}
@@ -1151,4 +1197,15 @@ fn lower_minute_precision_without_second_or_offset_still_works() {
     let file = tdsl_parser::parse(src).unwrap();
     let ir = lower::lower_static(&file).unwrap();
     assert_eq!(ir.items.len(), 1);
+    match &ir.items[0] {
+        ir::Item::Event {
+            time_second,
+            time_offset_minutes,
+            ..
+        } => {
+            assert_eq!(*time_second, None);
+            assert_eq!(*time_offset_minutes, None);
+        }
+        _ => panic!("expected event"),
+    }
 }

@@ -12,6 +12,9 @@ use crate::ir::Item;
 use super::context::LoweringContext;
 
 #[cfg(feature = "wikidata")]
+type TimeParts = (Option<u8>, Option<u8>, Option<u8>, Option<u8>, Option<u8>);
+
+#[cfg(feature = "wikidata")]
 impl LoweringContext {
     /// Pass 4: Apply map blocks and apply blocks to generate items from imported entities.
     pub(crate) fn pass4_apply_maps(&mut self, file: &ast::File) {
@@ -228,9 +231,8 @@ impl LoweringContext {
         let item_source = Some(source_id.clone());
         let origin = Some("wikidata".to_string());
 
-        let time_parts = |tp: &TimePoint| -> (Option<u8>, Option<u8>, Option<u8>, Option<u8>) {
-            (tp.month, tp.day, tp.hour, tp.minute)
-        };
+        let time_parts =
+            |tp: &TimePoint| -> TimeParts { (tp.month, tp.day, tp.hour, tp.minute, tp.second) };
 
         // Generate item ID. When expand is active, include the property and statement index
         // to ensure uniqueness across multiple statements for the same entity.
@@ -249,8 +251,8 @@ impl LoweringContext {
             MapTargetType::Span => {
                 if let (Some(s), Some(e)) = (start, end) {
                     let id = make_id("span", s.year);
-                    let (s_month, s_day, s_hour, s_minute) = time_parts(&s);
-                    let (e_month, e_day, e_hour, e_minute) = time_parts(&e);
+                    let (s_month, s_day, s_hour, s_minute, s_second) = time_parts(&s);
+                    let (e_month, e_day, e_hour, e_minute, e_second) = time_parts(&e);
                     let item = Item::Span {
                         id,
                         lane: lane_ref,
@@ -267,10 +269,15 @@ impl LoweringContext {
                         start_day: s_day,
                         start_hour: s_hour,
                         start_minute: s_minute,
+                        start_second: s_second,
+                        // Wikidata は UTC offset を提供しないため常に None（ADR 0003 D5）。
+                        start_offset_minutes: None,
                         end_month: e_month,
                         end_day: e_day,
                         end_hour: e_hour,
                         end_minute: e_minute,
+                        end_second: e_second,
+                        end_offset_minutes: None,
                         end_open: false,
                         source_span: None,
                     };
@@ -284,7 +291,7 @@ impl LoweringContext {
             MapTargetType::Event => {
                 if let Some(t) = time {
                     let id = make_id("event", t.year);
-                    let (t_month, t_day, t_hour, t_minute) = time_parts(&t);
+                    let (t_month, t_day, t_hour, t_minute, t_second) = time_parts(&t);
                     let item = Item::Event {
                         id,
                         lane: lane_ref,
@@ -300,6 +307,9 @@ impl LoweringContext {
                         time_day: t_day,
                         time_hour: t_hour,
                         time_minute: t_minute,
+                        time_second: t_second,
+                        // Wikidata は UTC offset を提供しないため常に None（ADR 0003 D5）。
+                        time_offset_minutes: None,
                         source_span: None,
                     };
                     self.insert_imported_item(item, &entity.id, policy);
@@ -312,8 +322,8 @@ impl LoweringContext {
             MapTargetType::EventRange => {
                 if let (Some(s), Some(e)) = (start, end) {
                     let id = make_id("event_range", s.year);
-                    let (s_month, s_day, s_hour, s_minute) = time_parts(&s);
-                    let (e_month, e_day, e_hour, e_minute) = time_parts(&e);
+                    let (s_month, s_day, s_hour, s_minute, s_second) = time_parts(&s);
+                    let (e_month, e_day, e_hour, e_minute, e_second) = time_parts(&e);
                     let item = Item::EventRange {
                         id,
                         lane: lane_ref,
@@ -330,10 +340,15 @@ impl LoweringContext {
                         start_day: s_day,
                         start_hour: s_hour,
                         start_minute: s_minute,
+                        start_second: s_second,
+                        // Wikidata は UTC offset を提供しないため常に None（ADR 0003 D5）。
+                        start_offset_minutes: None,
                         end_month: e_month,
                         end_day: e_day,
                         end_hour: e_hour,
                         end_minute: e_minute,
+                        end_second: e_second,
+                        end_offset_minutes: None,
                         end_open: false,
                         source_span: None,
                     };
@@ -376,6 +391,7 @@ pub(crate) fn eval_map_expr(
                     day: None,
                     hour: None,
                     minute: None,
+                    second: None,
                     precision: 9,
                 });
             }
@@ -391,6 +407,7 @@ pub(crate) fn eval_map_expr(
 /// - `.day`: year + month + day (if precision >= 11)
 /// - `.hour`: year + month + day + hour (if precision >= 12)
 /// - `.minute`: year + month + day + hour + minute (if precision >= 13)
+/// - `.second`: year + month + day + hour + minute + second (if precision >= 14, ADR 0003 D5)
 ///
 /// If `expr.offset` is set, the integer offset is added to the resolved year.
 ///
@@ -427,12 +444,14 @@ pub(crate) fn eval_claim_expr(
                 Some("day") => tp.day.map(|_| tp)?,
                 Some("hour") => tp.hour.map(|_| tp)?,
                 Some("minute") => tp.minute.map(|_| tp)?,
+                Some("second") => tp.second.map(|_| tp)?,
                 Some("year") | None => TimePoint {
                     year: tp.year,
                     month: None,
                     day: None,
                     hour: None,
                     minute: None,
+                    second: None,
                     precision: tp.precision,
                 },
                 _ => return None,
@@ -604,10 +623,14 @@ pub(crate) fn merge_items_by_field_priority(
                 start_day: ex_sd,
                 start_hour: ex_sh,
                 start_minute: ex_smin,
+                start_second: ex_ssec,
+                start_offset_minutes: ex_soff,
                 end_month: ex_em,
                 end_day: ex_ed,
                 end_hour: ex_eh,
                 end_minute: ex_emin,
+                end_second: ex_esec,
+                end_offset_minutes: ex_eoff,
                 end_open: ex_end_open,
                 source_span,
             },
@@ -620,10 +643,14 @@ pub(crate) fn merge_items_by_field_priority(
                 start_day: in_sd,
                 start_hour: in_sh,
                 start_minute: in_smin,
+                start_second: in_ssec,
+                start_offset_minutes: in_soff,
                 end_month: in_em,
                 end_day: in_ed,
                 end_hour: in_eh,
                 end_minute: in_emin,
+                end_second: in_esec,
+                end_offset_minutes: in_eoff,
                 ..
             },
         ) => Item::Span {
@@ -642,10 +669,15 @@ pub(crate) fn merge_items_by_field_priority(
             start_day: in_sd.or(ex_sd),
             start_hour: in_sh.or(ex_sh),
             start_minute: in_smin.or(ex_smin),
+            // Wikidata (incoming) は常に None なので実質既存値を保持する（ADR 0003 D5）。
+            start_second: in_ssec.or(ex_ssec),
+            start_offset_minutes: in_soff.or(ex_soff),
             end_month: in_em.or(ex_em),
             end_day: in_ed.or(ex_ed),
             end_hour: in_eh.or(ex_eh),
             end_minute: in_emin.or(ex_emin),
+            end_second: in_esec.or(ex_esec),
+            end_offset_minutes: in_eoff.or(ex_eoff),
             // Field-priority merges only ever combine an existing (possibly
             // manual, possibly open-ended) item with an imported (Wikidata)
             // one; imported items never carry `now` semantics (#550 is
@@ -669,6 +701,8 @@ pub(crate) fn merge_items_by_field_priority(
                 time_day: ex_td,
                 time_hour: ex_th,
                 time_minute: ex_tmin,
+                time_second: ex_tsec,
+                time_offset_minutes: ex_toff,
                 source_span,
             },
             Item::Event {
@@ -679,6 +713,8 @@ pub(crate) fn merge_items_by_field_priority(
                 time_day: in_td,
                 time_hour: in_th,
                 time_minute: in_tmin,
+                time_second: in_tsec,
+                time_offset_minutes: in_toff,
                 ..
             },
         ) => Item::Event {
@@ -696,6 +732,8 @@ pub(crate) fn merge_items_by_field_priority(
             time_day: in_td.or(ex_td),
             time_hour: in_th.or(ex_th),
             time_minute: in_tmin.or(ex_tmin),
+            time_second: in_tsec.or(ex_tsec),
+            time_offset_minutes: in_toff.or(ex_toff),
             source_span,
         },
         (
@@ -715,10 +753,14 @@ pub(crate) fn merge_items_by_field_priority(
                 start_day: ex_sd,
                 start_hour: ex_sh,
                 start_minute: ex_smin,
+                start_second: ex_ssec,
+                start_offset_minutes: ex_soff,
                 end_month: ex_em,
                 end_day: ex_ed,
                 end_hour: ex_eh,
                 end_minute: ex_emin,
+                end_second: ex_esec,
+                end_offset_minutes: ex_eoff,
                 end_open: ex_end_open,
                 source_span,
             },
@@ -731,10 +773,14 @@ pub(crate) fn merge_items_by_field_priority(
                 start_day: in_sd,
                 start_hour: in_sh,
                 start_minute: in_smin,
+                start_second: in_ssec,
+                start_offset_minutes: in_soff,
                 end_month: in_em,
                 end_day: in_ed,
                 end_hour: in_eh,
                 end_minute: in_emin,
+                end_second: in_esec,
+                end_offset_minutes: in_eoff,
                 ..
             },
         ) => Item::EventRange {
@@ -753,10 +799,14 @@ pub(crate) fn merge_items_by_field_priority(
             start_day: in_sd.or(ex_sd),
             start_hour: in_sh.or(ex_sh),
             start_minute: in_smin.or(ex_smin),
+            start_second: in_ssec.or(ex_ssec),
+            start_offset_minutes: in_soff.or(ex_soff),
             end_month: in_em.or(ex_em),
             end_day: in_ed.or(ex_ed),
             end_hour: in_eh.or(ex_eh),
             end_minute: in_emin.or(ex_emin),
+            end_second: in_esec.or(ex_esec),
+            end_offset_minutes: in_eoff.or(ex_eoff),
             end_open: ex_end_open,
             source_span,
         },
