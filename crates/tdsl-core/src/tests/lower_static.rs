@@ -1111,6 +1111,39 @@ fn lower_event_with_offset_is_preserved_in_ir() {
 }
 
 #[test]
+fn lower_event_with_second_and_offset_json_contains_expected_fields() {
+    // #613 reviewer指摘: second/offsetフィールをフィールドレベルだけでなく
+    // 実際の JSON シリアライズ結果でも確認する（IR snapshot 相当）。
+    let src = r#"
+        timeline "T" { unit year; range 0..2000; }
+        lane "A" as a {}
+        event a 2024-01-01T10:00:30+09:00 "E" {};
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let json = serde_json::to_value(&ir).unwrap();
+    let item = &json["items"][0];
+    assert_eq!(item["time_second"], serde_json::json!(30));
+    assert_eq!(item["time_offset_minutes"], serde_json::json!(540));
+}
+
+#[test]
+fn lower_timeline_range_with_second_and_offset_json_contains_expected_fields() {
+    let src = r#"
+        timeline "T" { unit year; range 2024-01-01T00:00:00+09:00..2024-01-02T00:00:00+09:00; }
+        lane "A" as a {}
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let json = serde_json::to_value(&ir).unwrap();
+    let meta = &json["meta"];
+    assert_eq!(meta["range_start_second"], serde_json::json!(0));
+    assert_eq!(meta["range_start_offset_minutes"], serde_json::json!(540));
+    assert_eq!(meta["range_end_second"], serde_json::json!(0));
+    assert_eq!(meta["range_end_offset_minutes"], serde_json::json!(540));
+}
+
+#[test]
 fn lower_span_mixing_offset_and_no_offset_endpoints_is_explicit_error() {
     // ADR 0003 D2: offset付きとoffsetなしの比較は曖昧なので明示エラーとする
     // (silent にUTCとみなさない)。

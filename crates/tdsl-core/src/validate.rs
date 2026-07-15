@@ -1,38 +1,113 @@
 use crate::ir::{LaneKind, SourceSpan, TimelineIr, known_lane_kinds};
 use tdsl_parser::ast;
 
-/// `(year, month_or_0, day_or_0, hour_or_0, minute_or_0)` を返す。
-/// 精度が `None` の場合はソート上は最小値扱い。
+/// `(year, month_or_0, day_or_0, hour_or_0, minute_or_0, second_or_0)` を返す。
+/// 精度が `None` の場合はソート上は最小値扱い。offset は含まない
+/// （offset付き/なしの比較は `compare_ir_time` で ADR 0003 D2 に従い明示的に扱う）。
 fn sortable_tuple(
     year: i64,
     month: Option<u8>,
     day: Option<u8>,
     hour: Option<u8>,
     minute: Option<u8>,
-) -> (i64, u8, u8, u8, u8) {
+    second: Option<u8>,
+) -> (i64, u8, u8, u8, u8, u8) {
     (
         year,
         month.unwrap_or(0),
         day.unwrap_or(0),
         hour.unwrap_or(0),
         minute.unwrap_or(0),
+        second.unwrap_or(0),
     )
 }
 
+/// UTC からのオフセット（分単位）を差し引いた civil time を UTC 秒相当の整数に正規化する。
+/// `lower::days_from_civil` の civil-date-to-days 変換を再利用し（DRY）、時刻部分を加算する。
+fn normalize_ir_time_utc(
+    year: i64,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+    second: Option<u8>,
+    offset_minutes: i16,
+) -> i128 {
+    let days =
+        crate::lower::days_from_civil(year, month.unwrap_or(1).max(1), day.unwrap_or(1).max(1));
+    let seconds = i128::from(hour.unwrap_or(0)) * 3600
+        + i128::from(minute.unwrap_or(0)) * 60
+        + i128::from(second.unwrap_or(0))
+        - i128::from(offset_minutes) * 60;
+    days * 86_400 + seconds
+}
+
+/// ADR 0003 D2 に準拠した、IR プリミティブフィールドからの時刻比較。
+///
+/// - offset 付き同士は UTC相当に正規化して比較する。
+/// - offset なし同士は、従来どおり暦時刻の値そのもので比較する。
+/// - 片方のみ offset 付きの場合は曖昧な比較として `None` を返す
+///   （`validate.rs` は警告のみを扱うため、lowering の `MixedOffsetComparison`
+///   エラーとは異なり、呼び出し側が専用の警告メッセージを生成する）。
+#[allow(clippy::too_many_arguments)]
+fn compare_ir_time(
+    a_year: i64,
+    a_month: Option<u8>,
+    a_day: Option<u8>,
+    a_hour: Option<u8>,
+    a_minute: Option<u8>,
+    a_second: Option<u8>,
+    a_offset: Option<i16>,
+    b_year: i64,
+    b_month: Option<u8>,
+    b_day: Option<u8>,
+    b_hour: Option<u8>,
+    b_minute: Option<u8>,
+    b_second: Option<u8>,
+    b_offset: Option<i16>,
+) -> Option<std::cmp::Ordering> {
+    match (a_offset, b_offset) {
+        (Some(off_a), Some(off_b)) => {
+            let norm_a =
+                normalize_ir_time_utc(a_year, a_month, a_day, a_hour, a_minute, a_second, off_a);
+            let norm_b =
+                normalize_ir_time_utc(b_year, b_month, b_day, b_hour, b_minute, b_second, off_b);
+            Some(norm_a.cmp(&norm_b))
+        }
+        (None, None) => Some(
+            sortable_tuple(a_year, a_month, a_day, a_hour, a_minute, a_second).cmp(
+                &sortable_tuple(b_year, b_month, b_day, b_hour, b_minute, b_second),
+            ),
+        ),
+        _ => None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn format_time(
     year: i64,
     month: Option<u8>,
     day: Option<u8>,
     hour: Option<u8>,
     minute: Option<u8>,
+    second: Option<u8>,
+    offset_minutes: Option<i16>,
 ) -> String {
-    match (month, day, hour, minute) {
+    let base = match (month, day, hour, minute) {
         (Some(m), Some(d), Some(h), Some(min)) => {
             format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}")
         }
-        (Some(m), Some(d), _, _) => format!("{year:04}-{m:02}-{d:02}"),
-        (Some(m), _, _, _) => format!("{year:04}-{m:02}"),
-        _ => year.to_string(),
+        (Some(m), Some(d), _, _) => return format!("{year:04}-{m:02}-{d:02}"),
+        (Some(m), _, _, _) => return format!("{year:04}-{m:02}"),
+        _ => return year.to_string(),
+    };
+    let with_second = match second {
+        Some(s) => format!("{base}:{s:02}"),
+        None => base,
+    };
+    match offset_minutes {
+        Some(off) => format!("{with_second}{}", crate::lower::format_offset_suffix(off)),
+        None => with_second,
     }
 }
 
@@ -183,7 +258,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
         }
     }
 
-    // Check start > end for span and event_range items（月日精度を考慮）
+    // Check start > end for span and event_range items（月日・秒・offset精度を考慮、ADR 0003 D2）
     for item in &ir.items {
         match item {
             crate::ir::Item::Span {
@@ -194,26 +269,68 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                 start_day,
                 start_hour,
                 start_minute,
+                start_second,
+                start_offset_minutes,
                 end_month,
                 end_day,
                 end_hour,
                 end_minute,
+                end_second,
+                end_offset_minutes,
                 source_span,
                 ..
             } => {
-                let s =
-                    sortable_tuple(*start, *start_month, *start_day, *start_hour, *start_minute);
-                let e = sortable_tuple(*end, *end_month, *end_day, *end_hour, *end_minute);
-                if s > e {
-                    let start_text =
-                        format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
-                    let end_text = format_time(*end, *end_month, *end_day, *end_hour, *end_minute);
-                    diags.push(ValidationDiagnostic {
-                        message: format!(
-                            "Span \"{id}\" has start ({start_text}) > end ({end_text})"
-                        ),
-                        span: source_span.clone(),
-                    });
+                match compare_ir_time(
+                    *start,
+                    *start_month,
+                    *start_day,
+                    *start_hour,
+                    *start_minute,
+                    *start_second,
+                    *start_offset_minutes,
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_second,
+                    *end_offset_minutes,
+                ) {
+                    Some(std::cmp::Ordering::Greater) => {
+                        let start_text = format_time(
+                            *start,
+                            *start_month,
+                            *start_day,
+                            *start_hour,
+                            *start_minute,
+                            *start_second,
+                            *start_offset_minutes,
+                        );
+                        let end_text = format_time(
+                            *end,
+                            *end_month,
+                            *end_day,
+                            *end_hour,
+                            *end_minute,
+                            *end_second,
+                            *end_offset_minutes,
+                        );
+                        diags.push(ValidationDiagnostic {
+                            message: format!(
+                                "Span \"{id}\" has start ({start_text}) > end ({end_text})"
+                            ),
+                            span: source_span.clone(),
+                        });
+                    }
+                    Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal) => {}
+                    None => {
+                        diags.push(ValidationDiagnostic {
+                            message: format!(
+                                "Span \"{id}\" mixes a UTC-offset time value with a value that has no offset; cannot determine start/end order (ADR 0003 D2, make both sides consistent)"
+                            ),
+                            span: source_span.clone(),
+                        });
+                    }
                 }
             }
             crate::ir::Item::EventRange {
@@ -224,154 +341,372 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                 start_day,
                 start_hour,
                 start_minute,
+                start_second,
+                start_offset_minutes,
                 end_month,
                 end_day,
                 end_hour,
                 end_minute,
+                end_second,
+                end_offset_minutes,
                 source_span,
                 ..
             } => {
-                let s =
-                    sortable_tuple(*start, *start_month, *start_day, *start_hour, *start_minute);
-                let e = sortable_tuple(*end, *end_month, *end_day, *end_hour, *end_minute);
-                if s > e {
-                    let start_text =
-                        format_time(*start, *start_month, *start_day, *start_hour, *start_minute);
-                    let end_text = format_time(*end, *end_month, *end_day, *end_hour, *end_minute);
-                    diags.push(ValidationDiagnostic {
-                        message: format!(
-                            "EventRange \"{id}\" has start ({start_text}) > end ({end_text})"
-                        ),
-                        span: source_span.clone(),
-                    });
+                match compare_ir_time(
+                    *start,
+                    *start_month,
+                    *start_day,
+                    *start_hour,
+                    *start_minute,
+                    *start_second,
+                    *start_offset_minutes,
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_second,
+                    *end_offset_minutes,
+                ) {
+                    Some(std::cmp::Ordering::Greater) => {
+                        let start_text = format_time(
+                            *start,
+                            *start_month,
+                            *start_day,
+                            *start_hour,
+                            *start_minute,
+                            *start_second,
+                            *start_offset_minutes,
+                        );
+                        let end_text = format_time(
+                            *end,
+                            *end_month,
+                            *end_day,
+                            *end_hour,
+                            *end_minute,
+                            *end_second,
+                            *end_offset_minutes,
+                        );
+                        diags.push(ValidationDiagnostic {
+                            message: format!(
+                                "EventRange \"{id}\" has start ({start_text}) > end ({end_text})"
+                            ),
+                            span: source_span.clone(),
+                        });
+                    }
+                    Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal) => {}
+                    None => {
+                        diags.push(ValidationDiagnostic {
+                            message: format!(
+                                "EventRange \"{id}\" mixes a UTC-offset time value with a value that has no offset; cannot determine start/end order (ADR 0003 D2, make both sides consistent)"
+                            ),
+                            span: source_span.clone(),
+                        });
+                    }
                 }
             }
             crate::ir::Item::Event { .. } => {}
         }
     }
 
-    // Check range coherence（月日精度を考慮）— アイテムに紐付かないため span: None
+    // Check range coherence（月日・秒・offset精度を考慮、ADR 0003 D2）— アイテムに紐付かないため span: None
     let (range_start, range_end) = ir.meta.range;
-    let r_start = sortable_tuple(
+    let range_coherence = compare_ir_time(
         range_start,
         ir.meta.range_start_month,
         ir.meta.range_start_day,
         ir.meta.range_start_hour,
         ir.meta.range_start_minute,
-    );
-    let r_end = sortable_tuple(
+        ir.meta.range_start_second,
+        ir.meta.range_start_offset_minutes,
         range_end,
         ir.meta.range_end_month,
         ir.meta.range_end_day,
         ir.meta.range_end_hour,
         ir.meta.range_end_minute,
+        ir.meta.range_end_second,
+        ir.meta.range_end_offset_minutes,
     );
-    if r_start >= r_end {
-        let range_start_text = format_time(
-            range_start,
-            ir.meta.range_start_month,
-            ir.meta.range_start_day,
-            ir.meta.range_start_hour,
-            ir.meta.range_start_minute,
-        );
-        let range_end_text = format_time(
-            range_end,
-            ir.meta.range_end_month,
-            ir.meta.range_end_day,
-            ir.meta.range_end_hour,
-            ir.meta.range_end_minute,
-        );
-        diags.push(ValidationDiagnostic {
-            message: format!("Timeline range is invalid: {range_start_text}..{range_end_text}"),
-            span: None,
-        });
-    } else {
-        // #553: items entirely or partially outside `timeline.range` are
-        // silently dropped (Event) or rendered off-canvas (Span/EventRange)
-        // by the renderer. Warn here so authors can trace "written but not
-        // shown" issues instead of hitting a silent fallback.
-        for item in &ir.items {
-            match item {
-                crate::ir::Item::Event {
-                    id,
-                    time,
-                    time_month,
-                    time_day,
-                    time_hour,
-                    time_minute,
-                    source_span,
-                    ..
-                } => {
-                    let t = sortable_tuple(*time, *time_month, *time_day, *time_hour, *time_minute);
-                    if t < r_start || t > r_end {
-                        let time_text =
-                            format_time(*time, *time_month, *time_day, *time_hour, *time_minute);
+    let range_start_text = format_time(
+        range_start,
+        ir.meta.range_start_month,
+        ir.meta.range_start_day,
+        ir.meta.range_start_hour,
+        ir.meta.range_start_minute,
+        ir.meta.range_start_second,
+        ir.meta.range_start_offset_minutes,
+    );
+    let range_end_text = format_time(
+        range_end,
+        ir.meta.range_end_month,
+        ir.meta.range_end_day,
+        ir.meta.range_end_hour,
+        ir.meta.range_end_minute,
+        ir.meta.range_end_second,
+        ir.meta.range_end_offset_minutes,
+    );
+    match range_coherence {
+        Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal) => {
+            diags.push(ValidationDiagnostic {
+                message: format!("Timeline range is invalid: {range_start_text}..{range_end_text}"),
+                span: None,
+            });
+            // Range itself is incoherent; skip per-item containment checks below
+            // (they would be meaningless against an invalid range).
+            return diags;
+        }
+        Some(std::cmp::Ordering::Less) => {}
+        None => {
+            diags.push(ValidationDiagnostic {
+                message: "Timeline range mixes a UTC-offset time value with a value that has no offset; cannot determine range coherence (ADR 0003 D2, make both sides consistent)".to_string(),
+                span: None,
+            });
+            return diags;
+        }
+    }
+
+    // #553: items entirely or partially outside `timeline.range` are
+    // silently dropped (Event) or rendered off-canvas (Span/EventRange)
+    // by the renderer. Warn here so authors can trace "written but not
+    // shown" issues instead of hitting a silent fallback.
+    for item in &ir.items {
+        match item {
+            crate::ir::Item::Event {
+                id,
+                time,
+                time_month,
+                time_day,
+                time_hour,
+                time_minute,
+                time_second,
+                time_offset_minutes,
+                source_span,
+                ..
+            } => {
+                let after_start = compare_ir_time(
+                    *time,
+                    *time_month,
+                    *time_day,
+                    *time_hour,
+                    *time_minute,
+                    *time_second,
+                    *time_offset_minutes,
+                    range_start,
+                    ir.meta.range_start_month,
+                    ir.meta.range_start_day,
+                    ir.meta.range_start_hour,
+                    ir.meta.range_start_minute,
+                    ir.meta.range_start_second,
+                    ir.meta.range_start_offset_minutes,
+                );
+                let before_end = compare_ir_time(
+                    *time,
+                    *time_month,
+                    *time_day,
+                    *time_hour,
+                    *time_minute,
+                    *time_second,
+                    *time_offset_minutes,
+                    range_end,
+                    ir.meta.range_end_month,
+                    ir.meta.range_end_day,
+                    ir.meta.range_end_hour,
+                    ir.meta.range_end_minute,
+                    ir.meta.range_end_second,
+                    ir.meta.range_end_offset_minutes,
+                );
+                match (after_start, before_end) {
+                    (Some(a), Some(b)) => {
+                        if a == std::cmp::Ordering::Less || b == std::cmp::Ordering::Greater {
+                            let time_text = format_time(
+                                *time,
+                                *time_month,
+                                *time_day,
+                                *time_hour,
+                                *time_minute,
+                                *time_second,
+                                *time_offset_minutes,
+                            );
+                            diags.push(ValidationDiagnostic {
+                                message: format!(
+                                    "Event \"{id}\" at {time_text} is outside timeline.range and will not be rendered"
+                                ),
+                                span: source_span.clone(),
+                            });
+                        }
+                    }
+                    _ => {
                         diags.push(ValidationDiagnostic {
                             message: format!(
-                                "Event \"{id}\" at {time_text} is outside timeline.range and will not be rendered"
+                                "Event \"{id}\" mixes a UTC-offset time value with a value that has no offset when compared against timeline.range; cannot determine containment (ADR 0003 D2, make both sides consistent)"
                             ),
                             span: source_span.clone(),
                         });
                     }
                 }
-                crate::ir::Item::Span {
-                    id,
-                    start,
-                    end,
-                    start_month,
-                    start_day,
-                    start_hour,
-                    start_minute,
-                    end_month,
-                    end_day,
-                    end_hour,
-                    end_minute,
-                    source_span,
-                    ..
+            }
+            crate::ir::Item::Span {
+                id,
+                start,
+                end,
+                start_month,
+                start_day,
+                start_hour,
+                start_minute,
+                start_second,
+                start_offset_minutes,
+                end_month,
+                end_day,
+                end_hour,
+                end_minute,
+                end_second,
+                end_offset_minutes,
+                source_span,
+                ..
+            }
+            | crate::ir::Item::EventRange {
+                id,
+                start,
+                end,
+                start_month,
+                start_day,
+                start_hour,
+                start_minute,
+                start_second,
+                start_offset_minutes,
+                end_month,
+                end_day,
+                end_hour,
+                end_minute,
+                end_second,
+                end_offset_minutes,
+                source_span,
+                ..
+            } => {
+                let kind = if matches!(item, crate::ir::Item::Span { .. }) {
+                    "Span"
+                } else {
+                    "EventRange"
+                };
+                let start_end_order = compare_ir_time(
+                    *start,
+                    *start_month,
+                    *start_day,
+                    *start_hour,
+                    *start_minute,
+                    *start_second,
+                    *start_offset_minutes,
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_second,
+                    *end_offset_minutes,
+                );
+                if start_end_order.is_none() {
+                    // Already reported (as a mixed-offset warning) by the start > end check above.
+                    continue;
                 }
-                | crate::ir::Item::EventRange {
-                    id,
-                    start,
-                    end,
-                    start_month,
-                    start_day,
-                    start_hour,
-                    start_minute,
-                    end_month,
-                    end_day,
-                    end_hour,
-                    end_minute,
-                    source_span,
-                    ..
-                } => {
-                    let kind = if matches!(item, crate::ir::Item::Span { .. }) {
-                        "Span"
-                    } else {
-                        "EventRange"
-                    };
-                    let s = sortable_tuple(
-                        *start,
-                        *start_month,
-                        *start_day,
-                        *start_hour,
-                        *start_minute,
-                    );
-                    let e = sortable_tuple(*end, *end_month, *end_day, *end_hour, *end_minute);
-                    if s > e {
-                        // Already reported by the start > end check above.
-                        continue;
+                if start_end_order == Some(std::cmp::Ordering::Greater) {
+                    // Already reported by the start > end check above.
+                    continue;
+                }
+                let end_after_range_start = compare_ir_time(
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_second,
+                    *end_offset_minutes,
+                    range_start,
+                    ir.meta.range_start_month,
+                    ir.meta.range_start_day,
+                    ir.meta.range_start_hour,
+                    ir.meta.range_start_minute,
+                    ir.meta.range_start_second,
+                    ir.meta.range_start_offset_minutes,
+                );
+                let start_before_range_end = compare_ir_time(
+                    *start,
+                    *start_month,
+                    *start_day,
+                    *start_hour,
+                    *start_minute,
+                    *start_second,
+                    *start_offset_minutes,
+                    range_end,
+                    ir.meta.range_end_month,
+                    ir.meta.range_end_day,
+                    ir.meta.range_end_hour,
+                    ir.meta.range_end_minute,
+                    ir.meta.range_end_second,
+                    ir.meta.range_end_offset_minutes,
+                );
+                let start_after_range_start = compare_ir_time(
+                    *start,
+                    *start_month,
+                    *start_day,
+                    *start_hour,
+                    *start_minute,
+                    *start_second,
+                    *start_offset_minutes,
+                    range_start,
+                    ir.meta.range_start_month,
+                    ir.meta.range_start_day,
+                    ir.meta.range_start_hour,
+                    ir.meta.range_start_minute,
+                    ir.meta.range_start_second,
+                    ir.meta.range_start_offset_minutes,
+                );
+                let end_before_range_end = compare_ir_time(
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_second,
+                    *end_offset_minutes,
+                    range_end,
+                    ir.meta.range_end_month,
+                    ir.meta.range_end_day,
+                    ir.meta.range_end_hour,
+                    ir.meta.range_end_minute,
+                    ir.meta.range_end_second,
+                    ir.meta.range_end_offset_minutes,
+                );
+                match (
+                    end_after_range_start,
+                    start_before_range_end,
+                    start_after_range_start,
+                    end_before_range_end,
+                ) {
+                    (Some(e_vs_rs), Some(s_vs_re), Some(s_vs_rs), Some(e_vs_re)) => {
+                        let entirely_outside = e_vs_rs == std::cmp::Ordering::Less
+                            || s_vs_re == std::cmp::Ordering::Greater;
+                        let partially_outside = s_vs_rs == std::cmp::Ordering::Less
+                            || e_vs_re == std::cmp::Ordering::Greater;
+                        if entirely_outside {
+                            diags.push(ValidationDiagnostic {
+                                message: format!(
+                                    "{kind} \"{id}\" is entirely outside timeline.range and will not be rendered"
+                                ),
+                                span: source_span.clone(),
+                            });
+                        } else if partially_outside {
+                            diags.push(ValidationDiagnostic {
+                                message: format!(
+                                    "{kind} \"{id}\" is partially outside timeline.range and will be clipped"
+                                ),
+                                span: source_span.clone(),
+                            });
+                        }
                     }
-                    if e < r_start || s > r_end {
+                    _ => {
                         diags.push(ValidationDiagnostic {
                             message: format!(
-                                "{kind} \"{id}\" is entirely outside timeline.range and will not be rendered"
-                            ),
-                            span: source_span.clone(),
-                        });
-                    } else if s < r_start || e > r_end {
-                        diags.push(ValidationDiagnostic {
-                            message: format!(
-                                "{kind} \"{id}\" is partially outside timeline.range and will be clipped"
+                                "{kind} \"{id}\" mixes a UTC-offset time value with a value that has no offset when compared against timeline.range; cannot determine containment (ADR 0003 D2, make both sides consistent)"
                             ),
                             span: source_span.clone(),
                         });

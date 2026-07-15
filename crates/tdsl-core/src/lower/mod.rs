@@ -172,7 +172,8 @@ fn normalize_sortable_utc(t: &ast::TimeValue, offset_minutes: i16) -> i128 {
 }
 
 /// Howard Hinnant の civil-date-to-days 変換を i128/BCE対応に移植したもの。
-fn days_from_civil(year: i64, month: u8, day: u8) -> i128 {
+/// `validate.rs` も（IRプリミティブ値から）同じ正規化を行うためこの関数を共有する（DRY）。
+pub(crate) fn days_from_civil(year: i64, month: u8, day: u8) -> i128 {
     let year = i128::from(year) - i128::from((month <= 2) as u8);
     let era = if year >= 0 { year } else { year - 399 } / 400;
     let yoe = year - era * 400;
