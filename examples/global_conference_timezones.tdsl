@@ -1,0 +1,67 @@
+// タイムゾーンオフセットの例（#612〜#616, ADR 0003）: 複数拠点の国際イベントを
+// それぞれの現地オフセット付きで記録する。
+//
+// - 各 lane（拠点）内では offset 付き時刻値のみで統一している（ADR 0003 D2:
+//   offset 付き値同士は UTC 正規化して比較されるため、拠点をまたいだ
+//   前後関係も自動的に UTC 基準で正しく解決される）。
+// - `+09:00`（日本標準時）・`-05:00`（米国東部標準時）・`Z`（UTC/協定世界時）の
+//   3種類のオフセット表記を使用。
+// - 分単位精度（秒なし）でも offset 付き構文は使用できる（`YYYY-MM-DDTHH:MM±HH:MM`）。
+timeline "国際カンファレンス タイムゾーン別進行" {
+  title "Global Conference — Multi-Timezone Schedule";
+  unit hour;
+  range 2024-06-10T00:00Z..2024-06-11T00:00Z;
+  calendar proleptic_gregorian;
+}
+
+lane "東京会場" as tokyo {
+  kind custom;
+  order 1;
+}
+
+lane "ニューヨーク会場" as new_york {
+  kind custom;
+  order 2;
+}
+
+lane "UTC基準スケジュール" as utc_schedule {
+  kind custom;
+  order 3;
+}
+
+// 東京会場: 日本標準時（UTC+9）で記述
+event tokyo 2024-06-10T10:00+09:00 "東京会場: 開会式" {
+  tags ["opening"];
+  id "event:tokyo:opening";
+};
+
+span tokyo 2024-06-10T10:00+09:00..2024-06-10T18:00+09:00 "東京会場: セッション" {
+  tags ["session"];
+  id "span:tokyo:sessions";
+};
+
+// ニューヨーク会場: 米国東部標準時（UTC-5）で記述
+event new_york 2024-06-10T09:00-05:00 "NY会場: 開会式（中継）" {
+  tags ["opening"];
+  id "event:ny:opening";
+};
+
+span new_york 2024-06-10T09:00-05:00..2024-06-10T17:00-05:00 "NY会場: セッション" {
+  tags ["session"];
+  id "span:ny:sessions";
+};
+
+// UTC基準スケジュール: 運営本部はUTCで一元管理
+span utc_schedule 2024-06-10T00:00Z..2024-06-11T00:00Z "運営本部 稼働時間（UTC）" {
+  tags ["ops"];
+  id "span:ops:utc-window";
+};
+
+// 注意（移行ルール, ADR 0003 D2）:
+// 上記のように offset 付き値同士（+09:00 / -05:00 / Z）は自動的に UTC 正規化されて
+// 比較されるため、拠点間の前後関係チェックは常に正しく解決される。
+// 一方、Wikidata からインポートしたアイテム（常に offset なし）と、この
+// ファイルのような offset 付き静的アイテムを「同一 span の start/end」や
+// 「同一の比較コンテキスト」で混在させると MixedOffsetComparison エラーになる。
+// 混在させたい場合は、静的アイテム側からも offset を外して統一すること
+// （詳細: docs/migration-second-precision.md）。

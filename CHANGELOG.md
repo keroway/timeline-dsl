@@ -9,9 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **秒精度・UTCオフセット（ADR-0003）: parser/AST対応**（#612）: `crates/tdsl-parser` の時刻リテラル構文に秒（`HH:MM:SS`）と UTC オフセット（`Z` / `±HH:MM`、-14:00～+14:00、範囲外・書式不正はパースエラー）を追加。`TimeValue` に `DateTimeSecond` / `DateTimeOffset` / `DateTimeSecondOffset` の新 variantを追加し、既存 variant（`Year`〜`DateTime`）は無変更（非破壊）。IR未対応の段階ではこれらの新 variant を使うと lowering が明示エラーを返す（silent fallbackしない）
+
+- **秒精度・UTCオフセット（ADR-0003）: IR/schema/lowering/Wikidata対応**（#613）: IR（`ir.rs`）に `*_second` / `*_offset_minutes` フィールドを追加し、JSON schema も更新。lowering は offset 付き値同士を UTC 正規化して比較し、offset の有無が混在した比較は `MixedOffsetComparison` エラーとして拒否する（ADR 0003 D2、AGENTS.md §4.1）。Wikidata インポートは precision 14（秒）を `DateTimeSecond` にマッピングし、常に offset なしで格納する
+
 - **`unit second` の軸ティック/ラベル生成 + decompile/fmt/CSV の秒・UTCオフセット対応**（ADR-0003 / #614）: `crates/tdsl-render` に `unit second` の軸ティック・ラベル生成（1s→5s→15s→30s の密度制御、`hour`/`minute` と同様のパターン）を追加し、Span/Event/EventRange の座標計算にも秒精度を反映した。`tdsl decompile` と `export-csv` は秒・UTCオフセット（`Z` / `±HH:MM`）を round-trip 可能な形式で出力するように修正（従来は無声で破棄していた）。`tdsl fmt` は `TimeValue::Display` 経由で既に秒・offsetを保持できていたことを round-trip テストで確認。`TimelineUnit` に `Second` variant、DSL/VS Code/LSP のキーワード一覧に `second` を追加
 
 - **`--pdf-pagination`: PDF出力でアイテムテーブルを複数ページに分割するオプションを追加**（ADR-0004 / #618, #619）: `tdsl render --format pdf --show-table --pdf-pagination` で、タイムライン本体（1ページ目、従来どおり単一ページ）とアイテムテーブル（2ページ目以降、用紙サイズ・余白・縦横向きから計算した行数ごとに分割）に分けて出力できるようになった。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する。PDF ドキュメントタイトルメタデータはページ分割の有無に関係なく単一。`--pdf-pagination` は opt-in（デフォルト無効）で、既存の `--format pdf` 単体・`--show-table` 単体の出力は完全に不変。`--show-table` なしで `--pdf-pagination` を指定するとエラー（silent no-op にしない、AGENTS.md §4.1）。タイムライン本体（チャート部分）のページ分割は本機能のスコープ外（ADR-0004 D1）
+
+- **PDF pagination と既存レイアウト機能（show-legend/group-bands/gantt/zigzag/open-ended）の整合検証を拡充**（ADR-0004 / #620）: A4/A3/Letter × 縦横向きのマトリクステスト、CJK長文ラベル、テーマ切り替えなど、`render_pdf()` の実分岐を通る決定的構造検証テストを追加（ゴールデン画像比較は使用しない方針、ADR-0004 D7）。`crates/tdsl-render/README.md` にテスト戦略をドキュメント化
+
+- **LSP hover/range の秒・offset対応 + WASMバンドルサイズ影響計測**（ADR-0003 / #615）: `crates/tdsl-lsp` の hover が時刻リテラル（span/event/event_range/timeline range）の精度（year〜second）と offset を表示し、リテラル全体（offsetサフィックス含む）をカバーする range を返すようになった。WASMバンドルサイズへの影響を実測（+3.43%、軽微）し結果を ADR 0003 に追記
+
+- **秒・UTCオフセットのドキュメント整備 + minute-level既存ファイルの互換・移行ルール確定**（ADR-0003 / #616）: `docs/dsl-spec.md` に秒・UTCオフセットの正式仕様と比較セマンティクス（UTC正規化・MixedOffsetComparison）を追記。`examples/iss_docking_second_precision.tdsl`（秒精度 + UTC `Z`）と `examples/global_conference_timezones.tdsl`（複数タイムゾーンオフセット）を新規追加し、両方とも `crates/tdsl-core/src/tests/golden.rs` のスナップショットテストで回帰保護。既存 minute-level（秒・offsetなし）`.tdsl` サンプルが引き続きパース・buildできることを保証する回帰テストを追加。新規 `docs/migration-second-precision.md` で Wikidata インポート（常にoffsetなし）と静的offset付きデータの混在時の対処方法を明記。`docs/error-catalog.md` に E006～E008（秒/月日/オフセットのパースエラー）と E113（`MixedOffsetComparison`）を追記
 
 ### Fixed
 

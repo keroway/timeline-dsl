@@ -1,0 +1,140 @@
+---
+source: crates/tdsl-core/src/tests/golden.rs
+expression: ir
+---
+{
+  "meta": {
+    "title": "Global Conference — Multi-Timezone Schedule",
+    "unit": "hour",
+    "range": [
+      2024,
+      2024
+    ],
+    "range_start_month": 6,
+    "range_start_day": 10,
+    "range_start_hour": 0,
+    "range_start_minute": 0,
+    "range_end_month": 6,
+    "range_end_day": 11,
+    "range_end_hour": 0,
+    "range_end_minute": 0,
+    "range_start_offset_minutes": 0,
+    "range_end_offset_minutes": 0,
+    "calendar": "proleptic_gregorian"
+  },
+  "lanes": [
+    {
+      "id": "tokyo",
+      "label": "東京会場",
+      "kind": "custom",
+      "order": 1
+    },
+    {
+      "id": "new_york",
+      "label": "ニューヨーク会場",
+      "kind": "custom",
+      "order": 2
+    },
+    {
+      "id": "utc_schedule",
+      "label": "UTC基準スケジュール",
+      "kind": "custom",
+      "order": 3
+    }
+  ],
+  "items": [
+    {
+      "type": "event",
+      "id": "event:tokyo:opening",
+      "lane": "tokyo",
+      "time": 2024,
+      "label": "東京会場: 開会式",
+      "tags": [
+        "opening"
+      ],
+      "time_month": 6,
+      "time_day": 10,
+      "time_hour": 10,
+      "time_minute": 0,
+      "time_offset_minutes": 540
+    },
+    {
+      "type": "span",
+      "id": "span:tokyo:sessions",
+      "lane": "tokyo",
+      "start": 2024,
+      "end": 2024,
+      "label": "東京会場: セッション",
+      "tags": [
+        "session"
+      ],
+      "start_month": 6,
+      "start_day": 10,
+      "start_hour": 10,
+      "start_minute": 0,
+      "start_offset_minutes": 540,
+      "end_month": 6,
+      "end_day": 10,
+      "end_hour": 18,
+      "end_minute": 0,
+      "end_offset_minutes": 540
+    },
+    {
+      "type": "event",
+      "id": "event:ny:opening",
+      "lane": "new_york",
+      "time": 2024,
+      "label": "NY会場: 開会式（中継）",
+      "tags": [
+        "opening"
+      ],
+      "time_month": 6,
+      "time_day": 10,
+      "time_hour": 9,
+      "time_minute": 0,
+      "time_offset_minutes": -300
+    },
+    {
+      "type": "span",
+      "id": "span:ny:sessions",
+      "lane": "new_york",
+      "start": 2024,
+      "end": 2024,
+      "label": "NY会場: セッション",
+      "tags": [
+        "session"
+      ],
+      "start_month": 6,
+      "start_day": 10,
+      "start_hour": 9,
+      "start_minute": 0,
+      "start_offset_minutes": -300,
+      "end_month": 6,
+      "end_day": 10,
+      "end_hour": 17,
+      "end_minute": 0,
+      "end_offset_minutes": -300
+    },
+    {
+      "type": "span",
+      "id": "span:ops:utc-window",
+      "lane": "utc_schedule",
+      "start": 2024,
+      "end": 2024,
+      "label": "運営本部 稼働時間（UTC）",
+      "tags": [
+        "ops"
+      ],
+      "start_month": 6,
+      "start_day": 10,
+      "start_hour": 0,
+      "start_minute": 0,
+      "start_offset_minutes": 0,
+      "end_month": 6,
+      "end_day": 11,
+      "end_hour": 0,
+      "end_minute": 0,
+      "end_offset_minutes": 0
+    }
+  ]
+}

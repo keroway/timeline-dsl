@@ -1,0 +1,53 @@
+// 秒精度・UTCオフセットの例（#612〜#616, ADR 0003）: 国際宇宙ステーション(ISS)への
+// クルー宇宙船ドッキングの主要イベントを秒単位・タイムゾーン注記付きで記録する。
+//
+// - `unit second` により `YYYY-MM-DDTHH:MM:SS` 精度のタイムライン軸になる（#614）。
+// - 時刻値はすべて `Z`（UTC）のオフセット注記付きで統一している。
+//   同一 span/event_range 内、および同一比較コンテキストで offset 付き値と
+//   offset なし値を混在させると `MixedOffsetComparison` エラーになるため
+//   （ADR 0003 D2）、本ファイルでは一貫して `Z` を付与している。
+// - `+HH:MM` 形式のオフセット例は examples/iss_docking_second_precision.tdsl の
+//   コメント内に記載（管制ローカルタイムでの記述例）。実データは常に UTC 基準。
+timeline "ISS ドッキングタイムライン" {
+  title "ISS Crew Dragon Docking — Key Events (UTC)";
+  unit second;
+  range 2024-03-04T12:00:00Z..2024-03-04T14:00:00Z;
+  calendar proleptic_gregorian;
+}
+
+lane "ドッキング作業" as docking {
+  kind custom;
+  order 1;
+}
+
+lane "通信" as comms {
+  kind custom;
+  order 2;
+}
+
+event docking 2024-03-04T12:00:00Z "自動ドッキングシーケンス開始" {
+  tags ["milestone"];
+  id "event:docking:sequence-start";
+};
+
+event_range docking 2024-03-04T12:00:00Z..2024-03-04T13:39:15Z "最終接近フェーズ" {
+  tags ["phase"];
+  id "event_range:docking:final-approach";
+};
+
+// 秒精度が必須な例: ドッキング「捕捉」("soft capture")の瞬間を秒単位で記録。
+event docking 2024-03-04T13:39:15Z "ソフトキャプチャ確立" {
+  tags ["milestone", "highlight"];
+  note "秒精度が必要な瞬間の例（分精度では丸められてしまう）";
+  id "event:docking:soft-capture";
+};
+
+event docking 2024-03-04T13:41:02Z "ハードドッキング完了" {
+  tags ["milestone", "highlight"];
+  id "event:docking:hard-dock";
+};
+
+span comms 2024-03-04T12:00:00Z..2024-03-04T13:41:02Z "地上管制との通信ウィンドウ" {
+  tags ["comms"];
+  id "span:comms:window";
+};

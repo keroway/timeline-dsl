@@ -107,7 +107,11 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <year>         ::= /"-"? [0-9]+/
 <year_month>   ::= /"-"? [0-9]{1,4} "-" [0-9]{2}/
 <date>         ::= /"-"? [0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2}/
-<date_time>    ::= /"-"? [0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2} "T" [0-9]{2} ":" [0-9]{2}/
+// 秒・UTCオフセットは ADR 0003 D4 で追加（#612）。<second> と <tz_offset> は
+// いずれも省略可能で独立に組み合わせられる（例: 秒のみ、offsetのみ、両方、両方省略）。
+<date_time>    ::= /"-"? [0-9]{1,4} "-" [0-9]{2} "-" [0-9]{2} "T" [0-9]{2} ":" [0-9]{2}/ [<second>] [<tz_offset>]
+<second>       ::= /":" [0-9]{2}/
+<tz_offset>    ::= "Z" | /("+" | "-") [0-9]{2} ":" [0-9]{2}/
 ```
 
 ## 構文要素の詳細
@@ -507,10 +511,22 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 | `YYYY-MM` | `1969-07` | 月 |
 | `YYYY-MM-DD` | `1969-07-20` | 日 |
 | `YYYY-MM-DDTHH:MM` | `1969-07-20T20:17` | 分 |
+| `YYYY-MM-DDTHH:MM:SS` | `1969-07-20T20:17:40` | 秒（#612〜#616、ADR 0003） |
+| `YYYY-MM-DDTHH:MM[:SS]Z` | `1969-07-20T20:17:40Z` | 分/秒 + UTCオフセット（#612〜#616、ADR 0003） |
+| `YYYY-MM-DDTHH:MM[:SS]±HH:MM` | `1969-07-20T20:17:40+09:00` | 分/秒 + タイムゾーンオフセット（#612〜#616、ADR 0003） |
 
-- 範囲: `開始..終了`（例: `-0206-01-15..-0206-02-20`, `1939-09-01..1945-09-02`, `1969-07-20T20:17..1969-07-20T21:00`）
+- 範囲: `開始..終了`（例: `-0206-01-15..-0206-02-20`, `1939-09-01..1945-09-02`, `1969-07-20T20:17..1969-07-20T21:00`, `1969-07-20T20:17:00Z..1969-07-20T20:18:40Z`）
 - 紀元前（負の年）の月日・時分精度は、符号付き4桁年（例: `-0206-01-15`）で表す
-- Wikidataの時刻値は `.year` / `.month` / `.day` / `.hour` / `.minute` 関数で各精度の値を取得可能
+- Wikidataの時刻値は `.year` / `.month` / `.day` / `.hour` / `.minute` 関数で各精度の値を取得可能（Wikidata precision 14「秒」は `.year`〜`.minute` の既存関数のみでは秒を取得できないが、IRの `*_second` フィールドには反映される）
+
+### 秒・UTCオフセットの詳細仕様（ADR 0003）
+
+- **秒**: `HH:MM` の後ろに `:SS`（0〜59）を任意で追加できる。うるう秒（leap second, `60`）はサポートしない（常にパースエラー）
+- **オフセット**: `Z`（UTC）または `[+-]HH:MM`（例: `+09:00`, `-05:00`, `+05:45` のような15分単位も許容）を、秒の有無にかかわらず `HH:MM` の後ろに任意で追加できる。許容範囲は `-14:00`〜`+14:00`（実在するUTCオフセットの範囲）。範囲外・書式不正はパースエラー（[error-catalog の E007/E008](./error-catalog.md#e007-不正な秒)）
+- **比較セマンティクス（D2）**: offset付き値同士はUTCに正規化してより比較し、offsetなし値同士は暦時刻の値そのままで比較する。**offset付き値とoffsetなし値を同一の比較コンテキスト（同一 `span`/`event_range` の `start..end` 等）で混在させると、`MixedOffsetComparison` エラーになる**（silent fallbackしない。[error-catalog の E113](./error-catalog.md#e113-utcオフセット付き値となし値の比較) 参照）
+- **Wikidataインポート**: 常にoffsetなし（`DateTime` / `DateTimeSecond`）として格納される。静的データにoffsetを付けた場合、Wikidataデータと同一比較コンテキストで混在させると上記エラーになりうる（意図した挙動。移行手順は [docs/migration-second-precision.md](./migration-second-precision.md) を参照）
+- **既存 minute-level ファイルとの後方互換**: 秒・offsetはいずれも既存構文（`YYYY-MM-DDTHH:MM`）の後ろに任意で追加されるオプション部なので、既存の minute-level（秒・offsetなし）`.tdsl` ファイルは一切変更なく引き続きパース・buildできる（非破壊変更）。移行の必要はない
+- 使用例: [`examples/iss_docking_second_precision.tdsl`](../examples/iss_docking_second_precision.tdsl)（秒精度 + UTC `Z`）、[`examples/global_conference_timezones.tdsl`](../examples/global_conference_timezones.tdsl)（複数タイムゾーンオフセット）
 
 ## CLI
 
@@ -617,6 +633,8 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `color_map { ... }` | `examples/fictional_empire.tdsl` |
 | 月・日精度の日付 | `examples/world_wars.tdsl`, `examples/apollo_11.tdsl` |
 | 時刻精度・sub-day 軸 | `examples/apollo_11_hourly.tdsl` |
+| 秒精度・UTCオフセット（ADR 0003） | `examples/iss_docking_second_precision.tdsl` |
+| 複数タイムゾーンオフセット（ADR 0003 D2） | `examples/global_conference_timezones.tdsl` |
 | `policy field_priority { ... }` | `examples/template_apply_example.tdsl` |
 | `claim(P39).qualifier(P580/P582)` | `examples/officeholder_wikidata.tdsl` |
 | CSV 取り込み導線 | `examples/fictional_empire.tdsl`, `examples/fictional_empire_items.csv` |
