@@ -744,7 +744,8 @@ fn parse_int(pair: &Pair<'_, Rule>) -> Result<i64> {
 /// `time_value` ノードを [`TimeValue`] に変換する。
 ///
 /// PEG ルールは `date_time_lit | date_lit | year_month_lit | year_lit` の順に試行され、
-/// 月は 1〜12、日は 1〜31、時は 0〜23、分は 0〜59 の範囲を builder 側で検証する。
+/// 月は 1〜12、日は 1〜31、時は 0〜23、分・秒は 0〜59、UTC offset は
+/// `Z` または -14:00〜+14:00 の範囲を builder 側で検証する。
 /// カレンダー妥当性（2月30日など）は lowering 側の責務。
 /// `open_ended_time_value = { now_kw | time_value }` を解析する（#550）。
 /// `now` の場合はビルド時点の現在年（UTC）で補完し、`end_open = true` を返す。
@@ -807,38 +808,119 @@ pub(crate) fn parse_time_value(pair: Pair<'_, Rule>) -> Result<TimeValue> {
                 rule: format!("date_time_lit malformed: {s}"),
                 location: location.clone(),
             })?;
-            let (hour, minute) =
-                clock
-                    .split_once(':')
-                    .ok_or_else(|| ParseError::UnexpectedRule {
-                        rule: format!("date_time_lit malformed: {s}"),
-                        location: location.clone(),
-                    })?;
-            let hour: u32 = hour.parse().map_err(|_| ParseError::InvalidInt {
-                value: hour.to_string(),
-                location: location.clone(),
-            })?;
-            let minute: u32 = minute.parse().map_err(|_| ParseError::InvalidInt {
-                value: minute.to_string(),
-                location: location.clone(),
-            })?;
+            let (clock, offset_minutes) = parse_clock_offset(clock, &location)?;
+            let mut clock_parts = clock.split(':');
+            let hour = parse_time_component(clock_parts.next(), "hour", &location)?;
+            let minute = parse_time_component(clock_parts.next(), "minute", &location)?;
+            let second = clock_parts
+                .next()
+                .map(|value| parse_time_component(Some(value), "second", &location))
+                .transpose()?;
+            if clock_parts.next().is_some() {
+                return Err(ParseError::UnexpectedRule {
+                    rule: format!("date_time_lit malformed: {s}"),
+                    location,
+                });
+            }
+
             check_month(month, &location)?;
             check_day(day, &location)?;
             check_hour(hour, &location)?;
             check_minute(minute, &location)?;
-            Ok(TimeValue::DateTime(
-                year,
-                month as u8,
-                day as u8,
-                hour as u8,
-                minute as u8,
-            ))
+            if let Some(second) = second {
+                check_second(second, &location)?;
+            }
+
+            let (month, day, hour, minute) = (month as u8, day as u8, hour as u8, minute as u8);
+            match (second, offset_minutes) {
+                (None, None) => Ok(TimeValue::DateTime(year, month, day, hour, minute)),
+                (Some(second), None) => Ok(TimeValue::DateTimeSecond(
+                    year,
+                    month,
+                    day,
+                    hour,
+                    minute,
+                    second as u8,
+                )),
+                (None, Some(offset)) => Ok(TimeValue::DateTimeOffset(
+                    year, month, day, hour, minute, offset,
+                )),
+                (Some(second), Some(offset)) => Ok(TimeValue::DateTimeSecondOffset(
+                    year,
+                    month,
+                    day,
+                    hour,
+                    minute,
+                    second as u8,
+                    offset,
+                )),
+            }
         }
         other => Err(ParseError::UnexpectedRule {
             rule: format!("time_value: {other:?}"),
             location,
         }),
     }
+}
+
+/// 分解済みの時刻部から数値を読む。文法が桁数を検証済みだが、AST builder では
+/// `ParseError` を返し、決してデフォルト値へフォールバックしない。
+fn parse_time_component(value: Option<&str>, name: &str, location: &str) -> Result<u32> {
+    let value = value.ok_or_else(|| ParseError::UnexpectedRule {
+        rule: format!("date_time_lit missing {name}"),
+        location: location.to_string(),
+    })?;
+    value.parse::<u32>().map_err(|_| ParseError::InvalidInt {
+        value: value.to_string(),
+        location: location.to_string(),
+    })
+}
+
+/// `HH:MM[:SS][Z|±HH:MM]` を、時計部分とオフセット（分単位）に分解する。
+fn parse_clock_offset<'a>(clock: &'a str, location: &str) -> Result<(&'a str, Option<i16>)> {
+    if let Some(clock) = clock.strip_suffix('Z') {
+        return Ok((clock, Some(0)));
+    }
+
+    let offset_start = clock
+        .char_indices()
+        .find_map(|(index, character)| matches!(character, '+' | '-').then_some(index));
+    let Some(offset_start) = offset_start else {
+        return Ok((clock, None));
+    };
+
+    let (clock, offset) = clock.split_at(offset_start);
+    let offset_minutes = parse_offset(offset, location)?;
+    Ok((clock, Some(offset_minutes)))
+}
+
+/// `±HH:MM` を分単位の offset に変換し、ADR 0003 D4 の実在レンジを厳密に検証する。
+fn parse_offset(value: &str, location: &str) -> Result<i16> {
+    let invalid = || ParseError::InvalidOffset {
+        value: value.to_string(),
+        location: location.to_string(),
+    };
+
+    let sign = match value.as_bytes().first() {
+        Some(b'+') => 1_i16,
+        Some(b'-') => -1_i16,
+        _ => return Err(invalid()),
+    };
+    let Some((hours, minutes)) = value[1..].split_once(':') else {
+        return Err(invalid());
+    };
+    if hours.len() != 2 || minutes.len() != 2 || value[1..].matches(':').count() != 1 {
+        return Err(invalid());
+    }
+
+    let hours = hours.parse::<u16>().map_err(|_| invalid())?;
+    let minutes = minutes.parse::<u16>().map_err(|_| invalid())?;
+    if minutes > 59 || hours > 14 || (hours == 14 && minutes != 0) {
+        return Err(invalid());
+    }
+
+    let total = i16::try_from(hours * 60 + minutes).map_err(|_| invalid())?;
+    Ok(sign * total)
 }
 
 fn parse_date_parts(s: &str, location: &str) -> Result<(i64, u32, Option<u32>)> {
@@ -911,6 +993,17 @@ fn check_minute(minute: u32, location: &str) -> Result<()> {
     } else {
         Err(ParseError::InvalidInt {
             value: minute.to_string(),
+            location: location.to_string(),
+        })
+    }
+}
+
+fn check_second(second: u32, location: &str) -> Result<()> {
+    if second <= 59 {
+        Ok(())
+    } else {
+        Err(ParseError::InvalidSecond {
+            value: second,
             location: location.to_string(),
         })
     }

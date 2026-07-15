@@ -174,7 +174,16 @@ year_signed    = @{ "-"? ~ ASCII_DIGIT{1,4} }
 year_lit       = @{ "-"? ~ ASCII_DIGIT+ }
 year_month_lit = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ !("-" ~ ASCII_DIGIT) }
 date_lit       = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ !("T" ~ ASCII_DIGIT) }
-date_time_lit  = ${ year_signed ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ "T" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} }
+// 秒（ADR 0003 D4）: `:SS` は `HH:MM` の後ろに続くオプション部として拡張する。
+// オフセット（ADR 0003 D4）: `Z`（UTC）または `[+-]HH:MM`（15分単位を含め全て受理し、
+// 実在レンジ -14:00〜+14:00 の妥当性チェックは builder 側で行う。`HH:MM` の固定幅を
+// 文法で要求するため、桁不足（+9:00）等も明示的なパースエラーになる）。
+tz_offset      = @{ "Z" | (("+" | "-") ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2}) }
+date_time_lit  = ${
+    year_signed ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2}
+    ~ "T" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} ~ (":" ~ ASCII_DIGIT{2})?
+    ~ tz_offset?
+}
 time_value     = { date_time_lit | date_lit | year_month_lit | year_lit }
 // `now` は span / event_range の end 位置専用（#550）。`now_kw` を先に試すことで
 // `ident` としての誤マッチを避ける（`time_value` の数値リテラルとは非交差なので順序は影響しない）。
