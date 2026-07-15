@@ -223,6 +223,102 @@ fn render_table(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
     Ok(())
 }
 
+/// Render one table-only SVG page for paginated PDF output.
+///
+/// The dimensions are expressed in PDF points so [`crate::pdf`] can place this
+/// SVG into the printable area without scaling. `rows` must contain only whole
+/// table rows; callers determine pagination boundaries before invoking this
+/// function.
+pub(crate) fn render_table_page_svg(
+    rows: &[crate::layout::TableRow],
+    width: f32,
+    height: f32,
+) -> Result<String, std::fmt::Error> {
+    let mut s = String::new();
+    let width = f64::from(width);
+    let height = f64::from(height);
+    let left = 8.0;
+    let content_width = (width - left * 2.0).max(0.0);
+    let col_widths = [
+        content_width * 0.20,
+        content_width * 0.40,
+        content_width * 0.15,
+        content_width * 0.25,
+    ];
+    let col_x = [
+        left,
+        left + col_widths[0],
+        left + col_widths[0] + col_widths[1],
+        left + col_widths[0] + col_widths[1] + col_widths[2],
+    ];
+
+    writeln!(
+        s,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}">"#,
+        width = fmt_f(width),
+        height = fmt_f(height),
+    )?;
+    writeln!(
+        s,
+        r#"  <style>text {{ font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; }}</style>"#,
+    )?;
+    writeln!(
+        s,
+        r#"  <g class="tdsl-table" role="table" aria-label="item list">"#
+    )?;
+    writeln!(
+        s,
+        r##"    <rect class="tdsl-table-header-bg" x="{x}" y="0" width="{w}" height="{h}" fill="#e8e8e8"></rect>"##,
+        x = fmt_f(left),
+        w = fmt_f(content_width),
+        h = fmt_f(TABLE_ROW_HEIGHT),
+    )?;
+    for (i, col) in [
+        TABLE_COL_TIME,
+        TABLE_COL_LABEL,
+        TABLE_COL_LANE,
+        TABLE_COL_TAGS,
+    ]
+    .iter()
+    .enumerate()
+    {
+        writeln!(
+            s,
+            r#"    <text class="tdsl-table-header" x="{x}" y="{y}" dominant-baseline="middle" font-weight="bold" font-size="11">{label}</text>"#,
+            x = fmt_f(col_x[i] + 4.0),
+            y = fmt_f(TABLE_ROW_HEIGHT / 2.0),
+            label = escape_xml(col),
+        )?;
+    }
+    for (row_idx, row) in rows.iter().enumerate() {
+        let row_y = (row_idx as f64 + 1.0) * TABLE_ROW_HEIGHT;
+        if row_idx % 2 == 1 {
+            writeln!(
+                s,
+                r##"    <rect class="tdsl-table-row-alt" x="{x}" y="{y}" width="{w}" height="{h}" fill="#f5f5f5"></rect>"##,
+                x = fmt_f(left),
+                y = fmt_f(row_y),
+                w = fmt_f(content_width),
+                h = fmt_f(TABLE_ROW_HEIGHT),
+            )?;
+        }
+        let cells = [&row.time_str, &row.label, &row.lane_label, &row.tags];
+        for (i, cell) in cells.iter().enumerate() {
+            let text = truncate_with_ellipsis(cell, 11.0, (col_widths[i] - 8.0).max(0.0));
+            writeln!(
+                s,
+                r#"    <text class="tdsl-table-cell" x="{x}" y="{y}" dominant-baseline="middle" font-size="11">{label}</text>"#,
+                x = fmt_f(col_x[i] + 4.0),
+                y = fmt_f(row_y + TABLE_ROW_HEIGHT / 2.0),
+                label = escape_xml(&text),
+            )?;
+        }
+    }
+    writeln!(s, "  </g>")?;
+    writeln!(s, "</svg>")?;
+    Ok(s)
+}
+
 /// Render background bands (#543) spanning contiguous lane groups/eras.
 /// Purely decorative (`role="presentation"`); empty (no-op) unless
 /// `RenderOptions.layout_style == LayoutStyle::GroupBands`.

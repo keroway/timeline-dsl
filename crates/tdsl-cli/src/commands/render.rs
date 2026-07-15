@@ -217,6 +217,8 @@ fn do_render(
                 // When --pdf-title is not given, render_pdf fills in ir.meta.title.
                 title: pdf_cli.title,
                 creation_date: today_pdf_date(),
+                // CLI wiring for --pdf-pagination is added in #619.
+                pagination: false,
             };
             let bytes = tdsl_render::render_pdf(&ir, opts, pdf_opts)
                 .map_err(|e| format!("PDF rendering failed: {e}"))?;
