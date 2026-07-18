@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-07-19
+
+### Added
+
+- Add `second` syntax highlighting in sync with timeline-dsl v1.27.0
+
+### Changed
+
+- Sync extension version with timeline-dsl v1.27.0 release
+
 ## [1.26.0] - 2026-07-15
 
 ### Changed
