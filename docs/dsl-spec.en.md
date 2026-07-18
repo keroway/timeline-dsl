@@ -459,10 +459,14 @@ Both line comments and block comments are supported.
 | `YYYY-MM` | `1969-07` | Month |
 | `YYYY-MM-DD` | `1969-07-20` | Day |
 | `YYYY-MM-DDTHH:MM` | `1969-07-20T20:17` | Minute |
+| `YYYY-MM-DDTHH:MM:SS` | `1969-07-20T20:17:40` | Second |
+| `YYYY-MM-DDTHH:MM[:SS]Z` | `1969-07-20T20:17:40Z` | Minute/second + UTC offset |
+| `YYYY-MM-DDTHH:MM[:SS]±HH:MM` | `1969-07-20T20:17:40+09:00` | Minute/second + UTC offset |
 
 - Range: `start..end` (e.g., `-0206-01-15..-0206-02-20`, `1939-09-01..1945-09-02`, `1969-07-20T20:17..1969-07-20T21:00`)
 - BCE dates with month/day or time-of-day precision use a signed 4-digit year (e.g., `-0206-01-15`)
-- Wikidata time values can be accessed at any precision using `.year`, `.month`, `.day`, `.hour`, or `.minute`
+- Wikidata time values can be accessed using `.year`, `.month`, `.day`, `.hour`, `.minute`, or `.second`. For example, `claim(P585).second` resolves only values with Wikidata precision 14 and preserves the second. If the source value lacks the requested precision, the expression is unresolved and the next `??` fallback is evaluated. If a required field remains unresolved, the item is omitted and a warning is reported; no silent fallback is applied.
+- Offset-bearing values are normalized to UTC for comparison. Comparing an offset-bearing value with an offset-free value in the same comparison context is an explicit `MixedOffsetComparison` error. Wikidata imports remain offset-free.
 
 ## CLI
 

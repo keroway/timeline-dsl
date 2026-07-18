@@ -1274,3 +1274,75 @@ async fn lower_with_wikidata_precision_14_second_propagates_to_ir_time_second() 
         other => panic!("expected event, got: {other:?}"),
     }
 }
+
+/// A `.second` accessor must not invent a second for lower-precision Wikidata values.
+/// It remains unresolved and evaluates the explicit `??` fallback instead.
+#[tokio::test]
+async fn lower_with_wikidata_second_accessor_uses_fallback_below_precision_14() {
+    let src = r#"
+        timeline "T" { unit year; range 1900..2100; }
+        lane "Launch" as launch { kind event; order 1; }
+
+        import wikidata as wd {
+            entity Q1 as launch;
+        }
+
+        map wd.launch to event {
+            lane launch;
+            time claim(P571).second ?? 2000;
+            label label@en;
+        }
+    "#;
+    let file = tdsl_parser::parse(src).unwrap();
+
+    let mut labels = HashMap::new();
+    labels.insert(
+        "en".to_string(),
+        LabelValue {
+            language: "en".to_string(),
+            value: "Launch".to_string(),
+        },
+    );
+    let mut claims = HashMap::new();
+    claims.insert(
+        "P571".to_string(),
+        vec![Statement {
+            mainsnak: Snak {
+                snaktype: "value".to_string(),
+                property: "P571".to_string(),
+                datavalue: Some(DataValue::Time {
+                    value: TimeValue {
+                        time: "+2024-01-01T10:00:00Z".to_string(),
+                        precision: 13,
+                        calendarmodel: "http://www.wikidata.org/entity/Q1985727".to_string(),
+                    },
+                }),
+            },
+            rank: "normal".to_string(),
+            qualifiers: HashMap::new(),
+        }],
+    );
+    let entity = WikidataEntity {
+        id: "Q1".to_string(),
+        labels,
+        claims,
+    };
+    let mut entities = HashMap::new();
+    entities.insert("Q1".to_string(), entity);
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+    assert_eq!(ir.items.len(), 1);
+    match &ir.items[0] {
+        ir::Item::Event {
+            time, time_second, ..
+        } => {
+            assert_eq!(*time, 2000, "explicit fallback should be used");
+            assert_eq!(*time_second, None, "fallback must not invent seconds");
+        }
+        other => panic!("expected event, got: {other:?}"),
+    }
+}

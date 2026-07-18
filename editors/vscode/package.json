@@ -2,7 +2,7 @@
   "name": "timeline-dsl",
   "displayName": "Timeline DSL",
   "description": "Syntax highlighting for Timeline DSL (.tdsl) files — a DSL for building timelines with Wikidata integration",
-  "version": "1.26.0",
+  "version": "1.27.0",
   "publisher": "keroway",
   "license": "MIT",
   "engines": {

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-07-19
+
 ### Added
 
 - **秒精度・UTCオフセット（ADR-0003）: parser/AST対応**（#612）: `crates/tdsl-parser` の時刻リテラル構文に秒（`HH:MM:SS`）と UTC オフセット（`Z` / `±HH:MM`、-14:00～+14:00、範囲外・書式不正はパースエラー）を追加。`TimeValue` に `DateTimeSecond` / `DateTimeOffset` / `DateTimeSecondOffset` の新 variantを追加し、既存 variant（`Year`〜`DateTime`）は無変更（非破壊）。IR未対応の段階ではこれらの新 variant を使うと lowering が明示エラーを返す（silent fallbackしない）
@@ -22,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **LSP hover/range の秒・offset対応 + WASMバンドルサイズ影響計測**（ADR-0003 / #615）: `crates/tdsl-lsp` の hover が時刻リテラル（span/event/event_range/timeline range）の精度（year〜second）と offset を表示し、リテラル全体（offsetサフィックス含む）をカバーする range を返すようになった。WASMバンドルサイズへの影響を実測（+3.43%、軽微）し結果を ADR 0003 に追記
 
 - **秒・UTCオフセットのドキュメント整備 + minute-level既存ファイルの互換・移行ルール確定**（ADR-0003 / #616）: `docs/dsl-spec.md` に秒・UTCオフセットの正式仕様と比較セマンティクス（UTC正規化・MixedOffsetComparison）を追記。`examples/iss_docking_second_precision.tdsl`（秒精度 + UTC `Z`）と `examples/global_conference_timezones.tdsl`（複数タイムゾーンオフセット）を新規追加し、両方とも `crates/tdsl-core/src/tests/golden.rs` のスナップショットテストで回帰保護。既存 minute-level（秒・offsetなし）`.tdsl` サンプルが引き続きパース・buildできることを保証する回帰テストを追加。新規 `docs/migration-second-precision.md` で Wikidata インポート（常にoffsetなし）と静的offset付きデータの混在時の対処方法を明記。`docs/error-catalog.md` に E006～E008（秒/月日/オフセットのパースエラー）と E113（`MixedOffsetComparison`）を追記
+
+### Changed
+
+- **IR JSON schema を後方互換な追加形式で拡張**: 秒精度・UTCオフセット用の `*_second` / `*_offset_minutes` は省略可能フィールドとして追加した。既存の minute-level DSL と通常の serde consumer は無変更で利用できるが、未知フィールドを拒否する厳格な外部 consumer は schema 更新が必要（移行上の注意は `docs/migration-second-precision.md` を参照）
 
 ### Fixed
 
