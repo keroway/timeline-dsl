@@ -120,11 +120,17 @@ You MUST update:
 > already implemented and tested — do NOT treat them as unimplemented. See
 > `CLAUDE.md` for the authoritative implementation-status list.
 
+Second precision (`DateTimeSecond`) and UTC offset (`DateTimeOffset` /
+`DateTimeSecondOffset`) were implemented in #612–#616 (ADR-0003) — do NOT
+treat them as unimplemented.
+
 Still intentionally NOT implemented:
 
 - `map source` — a `source:` property inside a `map` block (`MapProp` has no
   `Source` variant; only item-level `source wd:<QID>` exists)
-- Sub-year precision beyond minute (e.g. seconds / time zones)
+- Sub-second (millisecond) precision
+- IANA time zone names (e.g. `Asia/Tokyo`) with automatic DST resolution —
+  see ADR-0003 未決定事項
 
 If encountered:
 
