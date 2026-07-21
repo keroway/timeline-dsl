@@ -1,8 +1,8 @@
 # ADR 0005: タイムライン本体（チャート部分）の複数ページ化
 
-- **Status**: Proposed（設計検討・issue #649 のスコープ内。実装 GO/NO-GO は本 ADR のレビュー後に別途判断する）
+- **Status**: Accepted（設計方針として承認。実装方式の最終決定は Spike プロトタイプ issue の結果を待つ）
 - **Date**: 2026-07-21
-- **Deciders**: keroway（レビュー待ち）
+- **Deciders**: keroway（承認済み、2026-07-21）
 - **Related issues**: #649（本 ADR）, #609（親: paginated PDF export, ADR 0004 が分岐元）
 - **Supersedes**: なし。ADR 0004「PDF ページ分割戦略（テーブルのみを対象とする縮小スコープ）」の D1・未決定事項で「将来必要になった時点で別ADRとして再評価する」とされた項目への回答として位置づける。ADR 0004 の D2〜D7（テーブルページ分割の仕様）は変更しない。
 
