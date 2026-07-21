@@ -661,9 +661,9 @@ CI measures code coverage using [`cargo-llvm-cov`](https://github.com/taiki-e/ca
 
 **Known uncovered paths** (areas to improve in future issues):
 
-- `tdsl-wikidata`: HTTP error handling branches (rate-limit / 5xx retry logic) — requires live network or mock HTTP server
-- `tdsl-render`: PDF rendering path (`svg2pdf` conversion) — depends on external binary, skipped in unit tests
-- `tdsl-cli`: offline fallback and `--offline` flag branches in `build` / `merge` subcommands
+- `tdsl-wikidata`: HTTP 429 / 5xx retry logic (including `Retry-After` handling) is covered by wiremock-based tests in `crates/tdsl-wikidata/src/client.rs`. The one branch that remains untested is the low-level connect-error retry path (`e.is_connect()` in `client.rs`), which needs a way to simulate a TCP-level connection failure rather than an HTTP error response.
+- `tdsl-render`: PDF rendering (`svg2pdf`/`usvg`, in-process pure-Rust conversion — no external binary; see ADR-0002 and `crates/tdsl-render/src/pdf.rs`) already has unit tests, including `--pdf-pagination` validation-error cases. Remaining gaps are narrower: exotic font-fallback edge cases and very large page-count matrices are not exhaustively tested.
+- `tdsl-cli`: `--offline` is exercised for `build`/`export-csv` both by unit tests in `crates/tdsl-cli/src/commands/build.rs` and by black-box integration tests in `tests/cli_integration_test.rs`. The `merge` subcommand delegates to the same `cmd_build()` internally, so it is indirectly covered at the function level, but there is no integration test that invokes `tdsl merge ... --offline` through the actual binary (i.e. through clap's subcommand dispatch).
 
 To run coverage locally (requires `cargo-llvm-cov`):
 
