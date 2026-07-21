@@ -12,6 +12,8 @@ pub mod pdf;
 #[cfg(feature = "png")]
 pub mod png;
 pub mod svg;
+#[cfg(test)]
+mod svg_pagination_spike;
 
 pub use layout::{
     GridStyle, LayoutModel, LayoutStyle, Orientation, RenderOptions, Theme, ZIGZAG_MAX_LANES,

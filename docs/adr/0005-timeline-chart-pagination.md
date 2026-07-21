@@ -96,6 +96,36 @@ ADR 0004 D7 は「ページ数アサーション」「構造的アサーショ�
 - 本 ADR は「実装しない」判断ではなく「今は決めない」判断であり、issue #649 は `needs-refinement` のまま残る。次サイクルで優先度が上がらない限り着手されない可能性がある。
 - lane グループ分割を先行プロトタイプする推奨（D2）は、時間範囲分割こそが本来のニーズ（長期タイムラインの分割）である可能性を考慮すると、優先順位が逆かもしれない。プロトタイプ着手時に再検討すべき。
 
+## Spike 実施結果（issue #651, lane グループ分割プロトタイプ）
+
+D2 の推奨に従い、lane グループ単位でのチャート分割を先行プロトタイプした（`crates/tdsl-render/src/svg_pagination_spike.rs`、`#[cfg(test)]` 限定・本番配線なし）。
+
+### 実装アプローチ
+
+`LayoutModel::compute` / `render_svg` は一切変更していない。既存パイプラインをそのまま再利用し、以下の手順のみを追加した:
+
+1. `TimelineIr.lanes` を `LayoutModel::compute` と同じ順序（`(order, id)`）でソート。
+2. `lanes_per_page` 件ずつチャンク分割。
+3. チャンクごとに「同じ `meta`（時間軸を共通に保つ）+ そのチャンクの lane のみ + それらの lane に属する item のみ」を持つ `TimelineIr` を複製生成。
+4. チャンクごとの `TimelineIr` を通常どおり `LayoutModel::compute` → `render_svg` に通し、ページ数分の SVG 文字列を得る。
+
+### 検証できたこと
+
+- **span/event_range のクリッピングは原理上発生しない**: `Item::lane` は単一の lane ID を持つフィールドであり、lane 軸でページを分割する限り、どの item も必ずちょうど1つのページ（1つの lane チャンク）に完全に属する。これはテスト `every_item_appears_on_exactly_one_page` で構造的に検証済み（4 item を 2 ページに分割し、各 item のラベルがちょうど1ページの SVG にのみ出現することを確認）。
+- **実装コストは見積もりどおり最小**: 新規 lowering / レイアウトエンジン変更は不要で、既存 `TimelineIr` を lane 部分集合でフィルタして複製し、既存関数を複数回呼ぶだけで動いた。差分はおよそ 200 行（大半はテスト）。
+- **group band はページ境界をまたぐと分断される（既知の課題）**: `group_bands` は `LayoutModel::compute` 内部で「現在渡された lane 集合」からその場で再計算されるため、ページ分割によって同じ `Lane::group` の lane が複数チャンクにまたがると、各ページは自分に見えている lane だけから独立に（切り詰められた）group band を再構築する。バンドが「1つの連続した帯」として复元されることはなく、エラーにもならず、単に静かに切り詰められた帯が各ページに描かれる。テスト `group_band_split_across_page_boundary_is_detected`（境界をまたぐケースの検出）と `split_group_band_still_renders_a_truncated_band_on_each_page`（クラッシュせず切り詰められた帯が各ページに描画されることの確認）で構造的に記録した。
+
+### 想定外だった点
+
+- group band の切り詰めは「クラッシュ」でも「情報欠落エラー」でもなく、見た目としては「1つのグループが複数の異なる帯に分かれて見える」という *サイレントな視覚的劣化* に近い。implementation-strict.md の "no silent fallback" 原則に照らすと、本番導入時はこの検出結果（`group_bands_split_across_pages` 相当の情報）をユーザーに警告として表示する仕組みが必須になる（現在の CLI/WebUI の `zigzag_fallback` 警告パターンと同様の扱いが妥当）。
+- `Meta.range` を全ページ共通に保つ設計は素直に機能したが、`show_table` / `show_legend` はページ非対応のまま（今回のプロトタイプでは検証していない）。テーブル・凡例をページごとに複製すべきか、末尾ページにのみ出すべきかは次 issue の検討事項として残る。
+
+### 次 issue への申し送り事項
+
+- 本番統合する場合、`group_bands_split_across_pages` に相当する情報を CLI/WebUI が検出し、`zigzag_fallback` と同様の「サイレントにしない」警告経路を設計すること。
+- `--pdf-pagination` との統合方針（D4 で未決定のまま）は本 Spike でも決定しなかった。今回の SVG 分割はまだ PDF 生成パイプライン（`crates/tdsl-render/src/pdf.rs`）とは接続していない。
+- D2 の次ステップである「時間範囲分割（span クリッピング必須）」は本 Spike のスコープ外のまま。lane グループ分割で得られた「既存パイプラインの再利用が容易」という知見は時間範囲分割には直接適用できない（span を実際にクリップする新規ロジックが必要になる）ため、着手時は改めて Effort/Risk を見積もり直すこと。
+
 ## 未決定事項（本 ADR の範囲外）
 
 - ページ分割軸の最終決定（時間範囲 / lane グループ / 両方）。
