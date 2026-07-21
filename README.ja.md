@@ -657,7 +657,7 @@ CI はプッシュおよびプルリクエスト時に [`cargo-llvm-cov`](https:
 
 - `tdsl-wikidata`: HTTP 429 / 5xx リトライロジック（`Retry-After` ヘッダ対応含む）は `crates/tdsl-wikidata/src/client.rs` の wiremock ベーステストでカバー済み。未カバーなのは低レベルの接続エラー時リトライ分岐（`client.rs` の `e.is_connect()`）のみで、HTTP エラーレスポンスではなく TCP レベルの接続失敗を模擬する手段が必要。
 - `tdsl-render`: PDF レンダリング（`svg2pdf`/`usvg`、外部バイナリ非依存の in-process 純 Rust 変換。ADR-0002 および `crates/tdsl-render/src/pdf.rs` 参照）は `--pdf-pagination` のバリデーションエラーケースを含めユニットテスト済み。残るギャップはフォントフォールバックの特殊ケースや大規模ページ数マトリクスの網羅性など、より限定的なもの。
-- `tdsl-cli`: `--offline` は `crates/tdsl-cli/src/commands/build.rs` のユニットテストと `tests/cli_integration_test.rs` のブラックボックス統合テスト（`build`/`export-csv`、`cmd_build` に委譲する `merge` を含む）の両方でカバー済み。既知のギャップはなく、この行はテストの所在を示すポインタとして残している。
+- `tdsl-cli`: `--offline` は `build`/`export-csv` については `crates/tdsl-cli/src/commands/build.rs` のユニットテストと `tests/cli_integration_test.rs` のブラックボックス統合テストの両方でカバー済み。`merge` サブコマンドは内部で同じ `cmd_build()` に委譲しており関数レベルでは間接的にカバーされているが、`tdsl merge ... --offline` を実バイナリ経由（clap のサブコマンド配線込み）で叩く統合テストはまだ存在しない。
 
 ローカルでカバレッジを計測するには（`cargo-llvm-cov` が必要）:
 

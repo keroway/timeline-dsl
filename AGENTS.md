@@ -132,10 +132,11 @@ Still intentionally NOT implemented:
 - IANA time zone names (e.g. `Asia/Tokyo`) with automatic DST resolution —
   see ADR-0003 未決定事項
 
-If encountered:
-
-- reject in parser OR
-- mark clearly as "not implemented"
+If encountered, these MUST be rejected with a hard parser/lowering error —
+never a warning or silent fallback (see `implementation-strict.md` §2 NO-GO:
+"silent fallback"). `map source` already fails this way today: `MapProp` has
+no `Source` variant, so the pest grammar (`map_prop` in `grammar.pest`) simply
+does not accept a `source:` line inside a `map` block.
 
 ---
 

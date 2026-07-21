@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **AGENTS.md §5 の秒精度/UTCオフセット関連記述を実装状況に合わせて修正**（#645）: 「Sub-year precision beyond minute (e.g. seconds / time zones)」が未実装であるかのように記載されていたが、秒精度（`DateTimeSecond`）と UTC オフセット（`DateTimeOffset` / `DateTimeSecondOffset`）は #612〜#616（ADR-0003）で実装済み。実際に未実装のサブ秒精度と IANA タイムゾーン名（DST自動解決）のみを Deferred として記載するよう修正した
-- **README.md / README.ja.md の「Known uncovered paths」を実カバレッジに照らして更新**（#646）: Wikidata クライアントの 429/5xx リトライは wiremock テストでカバー済み、PDF レンダリング（`svg2pdf`/`usvg`、in-process 純Rust・外部バイナリ非依存）はパジネーションのバリデーションエラーケースを含めユニットテスト済み、CLI の `--offline` は `build`/`export-csv`（`merge` も含む）の単体テスト + ブラックボックス統合テストでカバー済みであることを確認し、実態に合わせて記述を更新した。真に未カバーなのは Wikidata クライアントの低レベル接続エラー（`e.is_connect()`）リトライ分岐のみ
+- **README.md / README.ja.md の「Known uncovered paths」を実カバレッジに照らして更新**（#646）: Wikidata クライアントの 429/5xx リトライは wiremock テストでカバー済み、PDF レンダリング（`svg2pdf`/`usvg`、in-process 純Rust・外部バイナリ非依存）はパジネーションのバリデーションエラーケースを含めユニットテスト済み、CLI の `--offline` は `build`/`export-csv` について単体テスト + ブラックボックス統合テストでカバー済みであることを確認し、実態に合わせて記述を更新した。真に未カバーなのは (1) Wikidata クライアントの低レベル接続エラー（`e.is_connect()`）リトライ分岐、(2) `tdsl-render` のフォントフォールバック特殊ケース・大規模ページ数マトリクスの網羅性、(3) `merge` サブコマンド自体を実バイナリ経由（clap dispatch込み）で叩く `--offline` 統合テスト（`cmd_build()` への委譲により関数レベルでは間接カバーされているのみ）の3点
 
 ## [1.27.0] - 2026-07-19
 
