@@ -57,6 +57,9 @@ pub fn render_svg_only(ir: &TimelineIr, opts: RenderOptions) -> Result<String, s
 }
 
 #[cfg(test)]
+mod svg_pagination_spike;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
