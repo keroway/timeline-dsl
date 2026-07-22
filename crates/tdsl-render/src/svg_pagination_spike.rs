@@ -65,6 +65,14 @@ pub(crate) struct PaginationResult {
 #[derive(Debug)]
 pub(crate) enum PaginationSpikeError {
     InvalidChunkSize,
+    /// An item referenced a `lane` ID that has no corresponding `Lane`
+    /// declaration in `ir.lanes`. Rather than silently dropping the item
+    /// from every page (as a plain filter would), this is treated as a hard
+    /// error (implementation-strict.md: "Explicit error over silent
+    /// fallback").
+    UnknownLane {
+        lane: String,
+    },
     Render(std::fmt::Error),
 }
 
@@ -72,6 +80,9 @@ impl std::fmt::Display for PaginationSpikeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidChunkSize => write!(f, "lanes_per_page must be >= 1"),
+            Self::UnknownLane { lane } => {
+                write!(f, "item references unknown lane {lane:?}")
+            }
             Self::Render(e) => write!(f, "SVG rendering failed: {e}"),
         }
     }
@@ -107,6 +118,17 @@ pub(crate) fn paginate_by_lane_groups(
         .collect();
 
     let group_bands_split_across_pages = find_groups_split_across_chunks(&lanes_ordered, &chunks);
+
+    let defined_lane_ids: HashSet<&str> = ir.lanes.iter().map(|lane| lane.id.as_str()).collect();
+    if let Some(item) = ir
+        .items
+        .iter()
+        .find(|item| !defined_lane_ids.contains(item_lane_id(item)))
+    {
+        return Err(PaginationSpikeError::UnknownLane {
+            lane: item_lane_id(item).to_owned(),
+        });
+    }
 
     let mut pages = Vec::with_capacity(chunks.len());
     for chunk in &chunks {
@@ -362,6 +384,20 @@ mod tests {
         let err = paginate_by_lane_groups(&ir, &RenderOptions::default(), 0)
             .expect_err("lanes_per_page=0 must be a hard error, not a silent no-op");
         assert!(matches!(err, PaginationSpikeError::InvalidChunkSize));
+    }
+
+    /// An item referencing a lane ID absent from `ir.lanes` must fail loudly
+    /// rather than being silently dropped from every page's filter.
+    #[test]
+    fn item_with_unknown_lane_is_rejected_explicitly() {
+        let mut ir = four_lane_ir();
+        ir.items.push(span("s-ghost", "no-such-lane", 400, 500));
+        let err = paginate_by_lane_groups(&ir, &RenderOptions::default(), 2)
+            .expect_err("item referencing an undeclared lane must be a hard error");
+        assert!(matches!(
+            err,
+            PaginationSpikeError::UnknownLane { lane } if lane == "no-such-lane"
+        ));
     }
 
     /// group band boundary check (issue #651 acceptance criterion): a
