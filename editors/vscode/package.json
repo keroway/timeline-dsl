@@ -48,7 +48,7 @@
     "@types/node": "^18.19.0",
     "@types/vscode": "^1.125.0",
     "esbuild": "^0.28.1",
-    "typescript": "^5.4.0"
+    "typescript": "^7.0.2"
   },
   "contributes": {
     "languages": [
