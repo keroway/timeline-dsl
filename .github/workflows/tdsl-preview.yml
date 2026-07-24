@@ -14,13 +14,15 @@ jobs:
     name: Render SVG Preview
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: dtolnay/rust-toolchain@1.94
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master (SHA ピン。toolchain は with: で指定)
+        with:
+          toolchain: "1.94"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: tdsl-preview
 
@@ -71,14 +73,14 @@ jobs:
           echo "Summary written to preview/summary.json"
           cat preview/summary.json
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tdsl-preview-svg
           path: preview/
           if-no-files-found: warn
 
       - name: Post preview comment to PR
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const fs = require('fs');
