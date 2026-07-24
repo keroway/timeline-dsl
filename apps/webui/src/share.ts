@@ -1,4 +1,4 @@
-import pako from 'pako'
+import * as pako from 'pako'
 
 const HASH_KEY = 'src'
 
@@ -35,7 +35,7 @@ export function encodeSource(source: string): string {
 
 export function decodeSource(encoded: string): string {
   const bytes = base64ToBytes(urlToBase64(encoded))
-  return pako.inflate(bytes, { to: 'string' })
+  return pako.inflate(bytes, { toText: true })
 }
 
 export function buildShareUrl(source: string, origin: string = location.origin + location.pathname): string {
