@@ -1,0 +1,69 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    ":semanticCommitTypeAll(chore)",
+  ],
+  // dependabot.yml の schedule.interval: weekly を踏襲
+  schedule: ["before 6am on monday"],
+  timezone: "Asia/Tokyo",
+  labels: ["dependencies"],
+  // dependabot.yml は生態系ごとに open-pull-requests-limit: 5 だったが、
+  // Renovate の prConcurrentLimit はリポジトリ全体に対する上限のため合算した値を設定
+  prConcurrentLimit: 15,
+  // rust-toolchain.toml は CONTRIBUTING.md の方針により手動更新（最新 stable の
+  // 1 マイナー前を目安に、CI の dtolnay/rust-toolchain と合わせて人が更新する）。
+  // Renovate の自動更新対象から外す。
+  "rust-toolchain": {
+    enabled: false,
+  },
+  packageRules: [
+    {
+      description: "Cargo: マイナー / パッチはまとめて 1 PR にしてノイズを抑える（major は個別 PR）",
+      matchManagers: ["cargo"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "cargo-minor-patch",
+    },
+    {
+      // svg2pdf ↔ pdf-writer は lockstep で更新する必要がある。
+      // pdf.rs は svg2pdf::to_chunk() が返す Chunk の Ref と自前 alloc の Ref を
+      // 混在させるため、両者の pdf-writer が一致しないと二重リンクで型不一致になり
+      // ビルドが落ちる（PR #415）。svg2pdf は現状 pdf-writer ^0.12 を要求し、新しい
+      // pdf-writer 対応版が未リリース。片側だけ Renovate に bump させると逆向きの
+      // 不整合が起きるため、両者の minor/major 更新を抑止し互換確認のうえ手動で
+      // まとめて引き上げる。patch は許可。
+      //
+      // 注: resvg（PNG 用）と svg2pdf（PDF 用）はそれぞれ自身の usvg を介して
+      // 完結しており Tree を受け渡さないため、usvg 世代を揃える必要はなく、
+      // resvg は独立して更新してよい（ここでは抑止しない）。
+      description: "pdf-writer / svg2pdf は lockstep のため minor/major 更新を抑止（patch のみ許可、PR #415）",
+      matchManagers: ["cargo"],
+      matchPackageNames: ["pdf-writer", "svg2pdf"],
+      matchUpdateTypes: ["minor", "major"],
+      enabled: false,
+    },
+    {
+      description: "npm (apps/webui, editors/vscode): マイナー / パッチはまとめて 1 PR にしてノイズを抑える（major は個別 PR）",
+      matchManagers: ["npm"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "npm-minor-patch",
+    },
+    {
+      description: "GitHub Actions: マイナー / パッチはまとめて 1 PR にしてノイズを抑える（major は個別 PR）",
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "github-actions",
+    },
+    {
+      // dtolnay/rust-toolchain@... の with.toolchain（ci.yml / release.yml / tdsl-preview.yml
+      // の `toolchain: "1.94"`）は Renovate の github-actions manager が
+      // datasource: rust-version として自動検出・更新する組み込み対象。
+      // rust-toolchain.toml と同じく CONTRIBUTING.md の方針により手動更新（かつ
+      // rust-toolchain.toml と値を一致させる lockstep）とするため、対象から外す。
+      description: "dtolnay/rust-toolchain の with.toolchain は rust-toolchain.toml と lockstep のため手動更新（自動更新を無効化）",
+      matchManagers: ["github-actions"],
+      matchDatasources: ["rust-version"],
+      enabled: false,
+    },
+  ],
+}

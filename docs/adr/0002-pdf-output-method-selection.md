@@ -120,7 +120,7 @@ D2 および当初の「既知リスク」は依存結合の相手を **`usvg` �
 - **顕在化**: Dependabot PR #415 が `pdf-writer` を 0.12 → 0.15 に単独 bump したところ、svg2pdf 0.13（`pdf-writer ^0.12` 要求）との間で pdf-writer が二重リンクされ、`expected pdf_writer::Ref, found pdf_writer::object::Ref` の型不一致でビルドが失敗した。
 - **正しい結合**: `svg2pdf` と `pdf-writer` は同一 pdf-writer バージョンに解決される必要があり、**両側を lockstep** で更新する。一方だけ bump させると逆向きにも同じ破綻が起きる。
 - **`usvg` について**: `usvg` は `svg2pdf::usvg`（re-export）経由でのみ利用し、`usvg::Tree` を resvg と svg2pdf の間で受け渡さない（`png.rs` は `resvg::usvg`→`resvg::render`、`pdf.rs` は `svg2pdf::usvg`→`svg2pdf::to_chunk` で各々完結）。したがって usvg 世代を resvg と揃える必要はなく、`resvg` は独立して更新してよい。
-- **運用への反映**: `.github/dependabot.yml` で `svg2pdf` / `pdf-writer` の minor/major 更新を ignore し（patch は許可）、上流が新版を出した時点で両者をまとめて手動更新する。`resvg` は抑止対象に含めない。
+- **運用への反映**: `.github/renovate.json5`（旧 `.github/dependabot.yml`、2026-07-24 に Renovate へ移行）の packageRules で `svg2pdf` / `pdf-writer` の minor/major 更新を無効化し（patch は許可）、上流が新版を出した時点で両者をまとめて手動更新する。`resvg` は抑止対象に含めない。
 
 ## 補遺: WebUI の PDF 出力（2026-06-03, #364）
 
