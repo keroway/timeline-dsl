@@ -1,0 +1,23 @@
+# keroway 標準 lefthook 設定（Rust workspace + apps/webui）。
+# https://lefthook.dev/configuration/
+#
+# 導入: `lefthook install` を一度実行する（git hooks が登録される）。
+# WebUI は Biome を意図的に無効化し ESLint で lint する方針のため
+# （apps/webui/biome.json のコメント参照）、ここでも `npm run lint` に委譲する。
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: cargo fmt (check)
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+
+    - name: webui lint (eslint)
+      glob: "apps/webui/**/*.{ts,tsx,js,mjs}"
+      run: npm --prefix apps/webui run lint
+
+pre-push:
+  jobs:
+    # 重いテストは pre-push でのみ実行する。
+    - name: cargo test
+      run: cargo test --workspace --all-targets
