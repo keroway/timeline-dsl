@@ -46,11 +46,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.94
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master (SHA ピン。toolchain は with: で指定)
         with:
+          toolchain: "1.94"
           targets: ${{ matrix.target }}
 
       # rust-toolchain.toml の存在下では dtolnay/rust-toolchain の `targets:` が
@@ -63,7 +64,7 @@ jobs:
         run: rustup target add "$TARGET"
 
       - name: Cache Cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: ${{ matrix.target }}
 
@@ -90,11 +91,12 @@ jobs:
 
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
           Compress-Archive -Path target\${{ matrix.target }}\release\tdsl.exe -DestinationPath ${{ matrix.archive }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.archive }}
           path: ${{ matrix.archive }}
@@ -111,23 +113,25 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.94
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master (SHA ピン。toolchain は with: で指定)
+        with:
+          toolchain: "1.94"
 
       - name: Cache Cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: wasm
 
       - name: Install wasm-pack
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7 # v2.85.0
         with:
           tool: wasm-pack@0.14.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
@@ -188,7 +192,7 @@ jobs:
             LICENSE
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tdsl-wasm-${{ steps.version.outputs.tag }}.tar.gz
           path: tdsl-wasm-${{ steps.version.outputs.tag }}.tar.gz
@@ -224,13 +228,15 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.94
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master (SHA ピン。toolchain は with: で指定)
+        with:
+          toolchain: "1.94"
 
       - name: Cache Cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: publish-crates
 
@@ -248,7 +254,7 @@ jobs:
           fi
 
       - name: Authenticate to crates.io (Trusted Publishing / OIDC)
-        uses: rust-lang/crates-io-auth-action@v1
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
         id: auth
 
       # cargo 1.90+ の multi-package publish は依存順（parser/wikidata → core → render）を
@@ -265,12 +271,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           merge-multiple: true
 
       - name: Publish release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: |
             tdsl-linux-x86_64.tar.gz
@@ -282,31 +288,52 @@ jobs:
           generate_release_notes: true
 
   update-homebrew-formula:
-    name: Update Homebrew Formula
+    name: Update Homebrew Formula (tap bump PR)
     needs: release
     runs-on: ubuntu-latest
     steps:
+      # keroway/homebrew-tap へのクロスリポジトリ操作には PAT（TAP_BUMP_TOKEN）が必要。
+      # secrets は `if:` で直接評価できないため、いったん env に載せてから
+      # 有無を step output に落とし、後続ステップを条件付きにして graceful に skip する。
+      - name: Check tap bump token
+        id: token
+        env:
+          TAP_BUMP_TOKEN: ${{ secrets.TAP_BUMP_TOKEN }}
+        run: |
+          if [ -n "$TAP_BUMP_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::TAP_BUMP_TOKEN secret is not set; skipping Homebrew tap bump."
+          fi
+
       - name: Download artifacts
-        uses: actions/download-artifact@v8
+        if: steps.token.outputs.available == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           merge-multiple: true
 
       - name: Compute SHA256 hashes
+        if: steps.token.outputs.available == 'true'
         id: sha256
         run: |
-          echo "linux_x86_64=$(sha256sum tdsl-linux-x86_64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-          echo "linux_aarch64=$(sha256sum tdsl-linux-aarch64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-          echo "macos_x86_64=$(sha256sum tdsl-macos-x86_64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-          echo "macos_aarch64=$(sha256sum tdsl-macos-aarch64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          {
+            echo "linux_x86_64=$(sha256sum tdsl-linux-x86_64.tar.gz | awk '{print $1}')"
+            echo "linux_aarch64=$(sha256sum tdsl-linux-aarch64.tar.gz | awk '{print $1}')"
+            echo "macos_x86_64=$(sha256sum tdsl-macos-x86_64.tar.gz | awk '{print $1}')"
+            echo "macos_aarch64=$(sha256sum tdsl-macos-aarch64.tar.gz | awk '{print $1}')"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Checkout formula repo
-        uses: actions/checkout@v7
+        if: steps.token.outputs.available == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: keroway/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ secrets.TAP_BUMP_TOKEN }}
           path: homebrew-tap
 
       - name: Regenerate formula
+        if: steps.token.outputs.available == 'true'
         env:
           VERSION: ${{ github.ref_name }}
           SHA_LINUX: ${{ steps.sha256.outputs.linux_x86_64 }}
@@ -364,11 +391,30 @@ jobs:
           end
           FORMULA
 
-      - name: Commit and push formula update
+      # 直 push ではなく PR を作成する（tap 側の CI / レビューを経由できるように）。
+      # バージョン文字列は injection 対策として必ず env 経由で渡す。
+      - name: Create tap bump PR
+        if: steps.token.outputs.available == 'true'
         working-directory: homebrew-tap
+        env:
+          GH_TOKEN: ${{ secrets.TAP_BUMP_TOKEN }}
+          VERSION: ${{ github.ref_name }}
         run: |
+          TAG="${VERSION#v}"
+          BRANCH="bump-tdsl-${TAG}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
           git add Formula/tdsl.rb
-          git commit -m "chore: update tdsl formula to ${{ github.ref_name }}"
-          git push
+          if git diff --cached --quiet; then
+            echo "::notice::Formula is already up to date; skipping PR creation."
+            exit 0
+          fi
+          git commit -m "chore: update tdsl formula to ${VERSION}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --repo keroway/homebrew-tap \
+            --head "$BRANCH" \
+            --title "chore: update tdsl formula to ${VERSION}" \
+            --body "Automated bump from keroway/timeline-dsl release ${VERSION}. Regenerates Formula/tdsl.rb with the new version and sha256 hashes for all platforms." \
+            || echo "::warning::gh pr create failed (a PR for ${BRANCH} may already exist)."
