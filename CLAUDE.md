@@ -152,7 +152,7 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.json` をミラー�
 - Criterion ベンチマーク（パーサ・lowering・レンダリング）
 - `tdsl merge`（複数 `.tdsl` ファイルのIRマージ）
 - GitHub Actions composite action（`action.yml`）: `uses: keroway/timeline-dsl@v1` で `.tdsl` → SVG/HTML レンダリングを CI から呼び出せる（詳細: `docs/ci-integration.md`）
-- `tdsl render --format svg --chart-pagination <N>`: タイムライン本体（チャート部分）を lane グループ単位で複数の SVG ページ（`<stem>.pageN.svg`）に分割出力（ADR-0005 D2 / #660）。`--show-table` 併用時は IR 全体の item を一覧する専用テーブルページを末尾に追加
+- `tdsl render --chart-pagination <N>`: タイムライン本体（チャート部分）を lane グループ単位で複数ページに分割出力（ADR-0005 D2 / #660, #661）。`--format svg` では `<stem>.pageN.svg` の複数ファイル、`--format pdf` では単一 PDF 内の複数ページ（チャートページ群 → テーブルページ群の順、`--pdf-pagination` 併用時はテーブルページ番号がテーブルページ数のみを数える）として出力される。`--show-table` 併用時は IR 全体の item を一覧する専用テーブルページを末尾に追加
 
 ## サンプルファイル
 

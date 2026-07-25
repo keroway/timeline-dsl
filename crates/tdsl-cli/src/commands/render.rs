@@ -145,10 +145,9 @@ fn do_render(
         if lanes_per_page == 0 {
             return Err("--chart-pagination must be >= 1".to_string());
         }
-        if !matches!(format, RenderFormat::Svg) {
+        if !matches!(format, RenderFormat::Svg | RenderFormat::Pdf) {
             return Err(
-                "--chart-pagination only supports --format svg (PDF integration is planned for #661)"
-                    .to_string(),
+                "--chart-pagination only supports --format svg or --format pdf".to_string(),
             );
         }
         if output.is_none() {
@@ -271,9 +270,19 @@ fn do_render(
                 title: pdf_cli.title,
                 creation_date: today_pdf_date(),
                 pagination: pdf_cli.pagination,
+                chart_pagination,
             };
-            let bytes = tdsl_render::render_pdf(&ir, opts, pdf_opts)
+            // #661: render_pdf_with_warnings surfaces the same "group band
+            // split across chart pages" diagnostic as the --format svg path
+            // (implementation-strict.md §1: explicit warning, never a silent
+            // drop). When --chart-pagination is not set this is always empty.
+            let (bytes, warnings) = tdsl_render::render_pdf_with_warnings(&ir, opts, pdf_opts)
                 .map_err(|e| format!("PDF rendering failed: {e}"))?;
+            for group in &warnings {
+                eprintln!(
+                    "Warning: group band {group:?} is split across chart pages; each page redraws a truncated band. Increase --chart-pagination or reorder lanes to keep the group on one page."
+                );
+            }
             write_render_binary(&bytes, output)
         }
     }

@@ -264,19 +264,24 @@ enum Commands {
         #[arg(long)]
         pdf_title: Option<String>,
 
-        /// Split the item table onto separate PDF pages, keeping the timeline
-        /// chart on a single page (ADR-0004). Requires --show-table; only
-        /// applied with --format pdf. Default: disabled (existing single-page
+        /// Split the item table onto separate PDF pages (ADR-0004). Requires
+        /// --show-table; only applied with --format pdf. Without
+        /// --chart-pagination the timeline chart stays on a single page
+        /// (ADR-0004 D1); with --chart-pagination the chart is instead split
+        /// per --chart-pagination and the table pages always follow all
+        /// chart pages (issue #661). Default: disabled (existing single-page
         /// table behavior is unchanged).
         #[arg(long, default_value_t = false)]
         pdf_pagination: bool,
 
-        /// Split the chart into multiple SVG pages by lane group, N lanes per
-        /// page (issue #660, ADR-0005 D2). Only applied with --format svg;
-        /// requires --output (the base path for `<stem>.pageN.svg` files,
-        /// zero-padded to the total page count's digit width). Not
-        /// compatible with --watch. Default: disabled (single-page output
-        /// unchanged).
+        /// Split the chart into multiple pages by lane group, N lanes per
+        /// page (issue #660/#661, ADR-0005 D2). Applies to --format svg
+        /// (separate `<stem>.pageN.svg` files, zero-padded to the total page
+        /// count's digit width) and --format pdf (separate PDF pages: all
+        /// chart pages first, then any --show-table table page(s); when
+        /// combined with --pdf-pagination, table page footers count only the
+        /// table pages). Requires --output. Not compatible with --watch.
+        /// Default: disabled (single-page output unchanged).
         #[arg(long)]
         chart_pagination: Option<usize>,
     },

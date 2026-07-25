@@ -48,3 +48,12 @@ ADR 0004 の「未決定事項」に記載のとおり、視覚的なゴール�
 ## チャート（タイムライン本体）の lane グループ分割のテスト方針（ADR 0005 D2 / #660）
 
 `--chart-pagination`（`crates/tdsl-render/src/pagination.rs`）は PDF pagination と同じ「構造検証中心・ゴールデン画像比較なし」の方針を踏襲する。`LayoutModel::compute` / `svg::render_svg` 自体は無変更のまま再利用しているため、追加で検証すべきなのは「lane の分割・item の割り当て・group band 分断検出・テーブルページの内容」という分割ロジック固有の不変条件のみである。`every_item_appears_on_exactly_one_page` のように、各ページの SVG 文字列にラベルが含まれるかを文字列一致で確認する構造テストを中心に据え、`group_bands_split_across_pages` が非空になるケース・空のままのケースの両方を明示的にテストすること（silent fallback を防ぐための不変条件）。
+
+## PDF へのチャートページ分割統合（issue #661）
+
+`PdfOptions::chart_pagination`（`pdf.rs`）は `pagination::paginate_svg_by_lane_groups` をそのまま呼び出して再利用しており、lane 分割・group band 分断検出のロジックを二重実装していない。PDF 固有で追加検証すべきなのは以下の点のみ:
+
+1. **ページ順序**: `render_pdf_svg_pages()` が返すページ列が「チャートページ群 → テーブルページ群」の順であること（`chart_pagination_combined_with_pdf_pagination_orders_chart_pages_before_table_pages`）。
+2. **テーブルページ番号の独立性**: `--pdf-pagination` 併用時、テーブルページの `i / N` フッタがテーブルページ数のみを数え、先行するチャートページ数を含めないこと。
+3. **後方互換**: `chart_pagination: None` のときの `render_pdf_svg_pages()` の分岐が #661 以前と完全に同一コードパスであること（`chart_pagination_none_does_not_change_default_pdf_options`、および既存の pagination 関連テスト群がそのまま unmodified で通ること自体が回帰保証になる）。
+4. **警告伝播**: group band 分断警告は `render_pdf()` の戻り値では表現できない（既存シグネチャを変更しないため）ので、`render_pdf_with_warnings()` という別APIで返す。テストはこの新APIを通して警告が伝わることを確認する（`chart_pagination_group_band_split_warning_propagates_through_render_pdf_with_warnings`）。

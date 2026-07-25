@@ -590,8 +590,8 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `--layout-style` | 高レベルな視覚レイアウト。`timeline`（デフォルト）/ `group-bands`（連続する lane group の背景帯） |
 | `--dpi` | PNG 出力の DPI（デフォルト 96）。`--format png` のみ有効 |
 | `--offline` | Wikidata fetch を省略 |
-| `--pdf-pagination` | `--show-table` のアイテムテーブルを用紙サイズ・余白に収まる行数ごとに複数ページへ分割する（ADR-0004）。デフォルトは無効（既存の単一ページ縮小描画のまま）。`--show-table` なしで指定するとエラー。`--format pdf` のみ有効 |
-| `--chart-pagination <N>` | タイムライン本体（チャート）を lane グループ単位（1 ページ N レーン）で複数の SVG ページに分割する（issue #660, ADR-0005 D2）。`--output` 必須（`<stem>.pageN.<ext>`）。`--format svg` のみ有効 |
+| `--pdf-pagination` | `--show-table` のアイテムテーブルを用紙サイズ・余白に収まる行数ごとに複数ページへ分割する（ADR-0004）。デフォルトは無効（既存の単一ページ縮小描画のまま）。`--show-table` なしで指定するとエラー。`--format pdf` のみ有効。`--chart-pagination` 併用時のページ構成は下記参照 |
+| `--chart-pagination <N>` | タイムライン本体（チャート）を lane グループ単位（1 ページ N レーン）で複数ページに分割する（issue #660/#661, ADR-0005 D2）。`--output` 必須。`--format svg`（`<stem>.pageN.<ext>` の複数ファイル）と `--format pdf`（単一 PDF 内の複数ページ）の両方で有効 |
 
 ### 出力仕様
 
@@ -615,10 +615,13 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 - **全 item 一覧表（`--show-table`）**：有効にすると、全 item（時期・ラベル・レーン・タグ）を時系列順に一覧する表がタイムライン本体の下に追加される（#536）。
   - `html`: リチ HTML `<table>` 要素（CSS で自由にカスタマイズ可能）。
   - `svg` / `png` / `pdf`: 同じ列構成（時期/ラベル/レーン/タグ）を SVG `<rect>`/`<text>` で描画し、タイムライン本体の高さ（`viewBox`/`height`）に自動で含める。
-  - `pdf` はデフォルト（`--pdf-pagination` 未指定）では従来と同じ単一ページベクトル方式のままであり、表を含めた全体をページに収まるように拡大縮小する。
-  - `--pdf-pagination` を指定すると、`pdf` 出力はタイムライン本体（1ページ目、既存どおり単一ページ）とアイテムテーブル（2ページ目以降、用紙サイズ・余白から計算した行数ごとに分割）に分かれる（ADR-0004）。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する（`N` はテーブルページ数のみを数えたもので、タイムラインチャートページは含まない）。タイムライン本体（チャート部分）自体のページ分割は `--pdf-pagination` のスコープ外（ADR-0004 D1）。
+  - `pdf` はデフォルト（`--pdf-pagination` / `--chart-pagination` いずれも未指定）では従来と同じ単一ページベクトル方式のままであり、表を含めた全体をページに収まるように拡大縮小する。
+  - `--pdf-pagination` を指定すると、`pdf` 出力はタイムライン本体（1ページ目、既存どおり単一ページ）とアイテムテーブル（2ページ目以降、用紙サイズ・余白から計算した行数ごとに分割）に分かれる（ADR-0004）。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する（`N` はテーブルページ数のみを数えたもので、タイムラインチャートページは含まない）。タイムライン本体（チャート部分）自体のページ分割は `--pdf-pagination` 単体のスコープ外（ADR-0004 D1）。`--chart-pagination` と併用した場合のページ構成は次項参照（issue #661）。
   - `--show-table` のデフォルトは `false`（非表示）で、従来の出力には影響しない。
-- **タイムライン本体（チャート）の複数ページ分割（`--chart-pagination`）**：`--format svg` で `--chart-pagination <N>`（1 ページあたりの lane 数）を指定すると、lane グループ単位でチャートを複数の SVG ページに分割する（issue #660, ADR-0005 D2）。時間軸（`meta.range`）は全ページ共通で、`Item::lane` が単一 lane を持つため span/event_range のページ境界クリッピングは発生しない。`--show-legend` は各チャートページに個別描画される。`--show-table` を併用すると、チャートページ群の後ろに専用のテーブルページを 1 枚追加し、IR 全体（最後のチャートページの lane に限らない）の item を一覧表示する。`--output` は必須で `<stem>.pageN.<ext>` ごとにファイルが分割出力される（stdout 非対応）。lane の `group` がページ境界をまたいで分断される場合は stderr に警告を出す（silent no-op にはしない）。`--format pdf` との併用はエラー（PDF 統合は #661 のスコープ）。
+- **タイムライン本体（チャート）の複数ページ分割（`--chart-pagination`）**：`--chart-pagination <N>`（1 ページあたりの lane 数）を指定すると、lane グループ単位でチャートを複数ページに分割する（issue #660/#661, ADR-0005 D2）。時間軸（`meta.range`）は全ページ共通で、`Item::lane` が単一 lane を持つため span/event_range のページ境界クリッピングは発生しない。`--show-legend` は各チャートページに個別描画される。lane の `group` がページ境界をまたいで分断される場合は stderr に警告を出す（silent no-op にはしない）。`--output` は必須。
+  - `--format svg`: `<stem>.pageN.<ext>` ごとに別ファイルとして分割出力される（stdout 非対応）。`--show-table` を併用すると、チャートページ群の後ろに専用のテーブルページを 1 枚追加し、IR 全体（最後のチャートページの lane に限らない）の item を一覧表示する（このテーブルページは常に `1 / 1`、複数ページへの分割は未対応）。
+  - `--format pdf`（issue #661）: 別ファイルには分割されず、単一の PDF ファイル内で「チャートページ群（lane グループ順）→ テーブルページ群」の順に複数ページとして出力される。`--show-table` なしならテーブルページなし。`--show-table` のみ（`--pdf-pagination` なし）なら IR 全体を 1 枚の未分割テーブルページとして末尾に追加する。`--show-table --pdf-pagination` を併用すると `--pdf-pagination` の行分割ロジックでテーブルページ群を生成し、その `i / N` フッタはテーブルページ数のみを数える（先行するチャートページ数は含めない）。`--chart-pagination` を指定しない既存の `--format pdf` 出力は本機能の追加後も完全に不変（ADR-0004 D3）。
+  - `--format html` / `--format png` との併用はエラー。
 - **静的凡例（`--show-legend`）**：有効にすると、レーンごとのパレット色と `timeline.color_map` のタグ色を凡例パネルとして表示する（#544）。
   - `html`: インライン SVG 内の凡例パネルとして表示されるため、JavaScript 非依存の静的HTMLでも色対応を確認できる。
   - `svg` / `png` / `pdf`: SVG `<rect>`/`<text>` で描画し、タイムライン本体の高さ（`viewBox`/`height`）に自動で含める。

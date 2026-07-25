@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`--chart-pagination`: タイムライン本体（チャート部分）を lane グループ単位で複数の SVG ページに分割するオプションを追加**（ADR-0005 / #660）: `tdsl render --format svg --chart-pagination <N>` で、1 ページあたり `N` レーンずつチャートを分割し、`<stem>.pageN.svg` として出力できるようになった。時間軸は全ページ共通のため、`Item::lane` が単一 lane を持つ構造上、span/event_range のページ境界クリッピングは発生しない（issue #651 Spike で構造検証済み）。`--show-legend` は各チャートページに個別描画され、`--show-table` を併用するとチャートページ群の後ろに IR 全体の item を一覧する専用テーブルページを 1 枚追加する。lane の `group` がページ境界をまたいで分断される場合は stderr に警告を出力する（silent no-op にしない、implementation-strict.md §1）。`--output` が必須で、`--format pdf`（PDF 統合は #661 で対応予定）・`--watch` との併用は明示エラー。既存の `--pdf-pagination`（テーブル専用）とは独立したフラグで、意味変更や後方互換への影響はない
+- **`--chart-pagination`: タイムライン本体（チャート部分）を lane グループ単位で複数の SVG ページに分割するオプションを追加**（ADR-0005 / #660）: `tdsl render --format svg --chart-pagination <N>` で、1 ページあたり `N` レーンずつチャートを分割し、`<stem>.pageN.svg` として出力できるようになった。時間軸は全ページ共通のため、`Item::lane` が単一 lane を持つ構造上、span/event_range のページ境界クリッピングは発生しない（issue #651 Spike で構造検証済み）。`--show-legend` は各チャートページに個別描画され、`--show-table` を併用するとチャートページ群の後ろに IR 全体の item を一覧する専用テーブルページを 1 枚追加する。lane の `group` がページ境界をまたいで分断される場合は stderr に警告を出力する（silent no-op にしない、implementation-strict.md §1）。`--output` が必須で、`--watch` との併用は明示エラー。既存の `--pdf-pagination`（テーブル専用）とは独立したフラグで、意味変更や後方互換への影響はない
+
+- **`--chart-pagination` を PDF 出力に統合**（ADR-0005 申し送り事項 / #661）: `tdsl render --format pdf --chart-pagination <N>` で、チャートを lane グループ単位で複数の PDF ページ（別ファイルではなく単一 PDF 内の複数ページ）に分割できるようになった。ページ構成は「チャートページ群（lane グループ順）→ テーブルページ群」の順で固定。`--show-table` のみ（`--pdf-pagination` なし）の場合は IR 全体を 1 枚の未分割テーブルページとして末尾に追加し、`--show-table --pdf-pagination` を併用した場合は既存の行分割ロジックでテーブルページ群を生成する。いずれの場合もテーブルページの `i / N` フッタはテーブルページ数のみを数え、先行するチャートページ数を含めない。`crates/tdsl-render` に `PdfOptions::chart_pagination: Option<usize>`（デフォルト `None`）と `render_pdf_with_warnings()`（group band 分断警告を返す新API、`render_pdf()` はラッパーのまま不変）を追加。ADR-0004 D3 の後方互換制約により、`--chart-pagination` を指定しない既存の `--format pdf` 出力（単体 / `--show-table` / `--pdf-pagination` のいずれも）は完全に不変（回帰テストで保証）。A4/A3/Letter × 縦横向きの決定的テストマトリクス（ADR-0004 D7 パターン）にチャート分割ケースを追加した
 
 ### Fixed
 
