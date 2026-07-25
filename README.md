@@ -415,7 +415,7 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 
 Highlighted elements:
 
-- Keywords: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`, `color_map`
+- Keywords — full list at [`apps/webui/src/lang-tdsl/keywords.json`](apps/webui/src/lang-tdsl/keywords.json) (single source of truth for syntax highlighting)
 - String literals (double-quoted)
 - Comments (`//` and `/* */`)
 - Wikidata QIDs (`Q123`), property IDs (`P569`), references (`wd:Q123`)

@@ -14,7 +14,7 @@ Timeline DSL is a domain-specific language for building historical timelines wit
 
 ### Syntax Highlighting
 
-- Keywords: `timeline`, `lane`, `group`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`, `color_map`
+- Keywords — the full, up-to-date list is generated from the single source of truth [`apps/webui/src/lang-tdsl/keywords.json`](https://github.com/keroway/timeline-dsl/blob/main/apps/webui/src/lang-tdsl/keywords.json) (see `BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS`); this extension's grammar (`syntaxes/tdsl.tmLanguage.json`) is regenerated from it via `npm run prebuild` in `apps/webui`
 - String literals, comments (`//` and `/* */`)
 - Wikidata entity IDs (`Q123`), property IDs (`P569`), and references (`wd:Q123`)
 - Wikidata expressions: `claim(P571).year`, `label@ja`
