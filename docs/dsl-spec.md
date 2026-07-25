@@ -643,6 +643,8 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `policy field_priority { ... }` | `examples/template_apply_example.tdsl` |
 | `claim(P39).qualifier(P580/P582)` | `examples/officeholder_wikidata.tdsl` |
 | CSV 取り込み導線 | `examples/fictional_empire.tdsl`, `examples/fictional_empire_items.csv` |
+| `note` / `link` / `color`（block_options）・open-ended `now` | `examples/feature_showcase.tdsl` |
+| `filter` 式（map ブロック） | `examples/china_dynasties_filtered.tdsl` |
 
 Wikidata を必要とするサンプルは WebUI では「CLI 専用・構文リファレンス」として表示する。ブラウザ/WASM 実行では `import wikidata` を解決しないため、オンライン取得は `tdsl build` / `tdsl render` を CLI で実行する。
 

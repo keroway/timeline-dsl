@@ -1,0 +1,92 @@
+---
+source: crates/tdsl-core/src/tests/golden.rs
+assertion_line: 106
+expression: ir
+---
+{
+  "meta": {
+    "title": "note / link / color / now の使用例",
+    "unit": "year",
+    "range": [
+      2000,
+      2030
+    ],
+    "calendar": "proleptic_gregorian"
+  },
+  "lanes": [
+    {
+      "id": "project",
+      "label": "プロジェクト",
+      "kind": "custom",
+      "order": 1
+    },
+    {
+      "id": "org",
+      "label": "組織",
+      "kind": "custom",
+      "order": 2
+    }
+  ],
+  "items": [
+    {
+      "type": "event",
+      "id": "event:project:kickoff",
+      "lane": "project",
+      "time": 2010,
+      "label": "プロジェクト発足",
+      "tags": [
+        "milestone"
+      ],
+      "note": "社内ハッカソンから生まれた企画。詳細は議事録を参照。"
+    },
+    {
+      "type": "event",
+      "id": "event:project:v1",
+      "lane": "project",
+      "time": 2015,
+      "label": "v1.0リリース",
+      "tags": [
+        "milestone"
+      ],
+      "link": "https://example.com/releases/v1.0"
+    },
+    {
+      "type": "event_range",
+      "id": "event_range:project:refactor",
+      "lane": "project",
+      "start": 2018,
+      "end": 2020,
+      "label": "大規模リファクタリング",
+      "tags": [
+        "refactor"
+      ],
+      "color": "#e07b39"
+    },
+    {
+      "type": "event",
+      "id": "event:project:v2",
+      "lane": "project",
+      "time": 2022,
+      "label": "v2.0リリース",
+      "tags": [
+        "milestone"
+      ],
+      "note": "破壊的変更を含むメジャーアップデート。移行ガイドあり。",
+      "link": "https://example.com/releases/v2.0",
+      "color": "#3366cc"
+    },
+    {
+      "type": "span",
+      "id": "span:org:current",
+      "lane": "org",
+      "start": 2019,
+      "end": "[resolved-now-year]",
+      "label": "現行組織体制",
+      "tags": [
+        "org"
+      ],
+      "note": "現在も継続中の体制。終了年は未定。",
+      "end_open": true
+    }
+  ]
+}
