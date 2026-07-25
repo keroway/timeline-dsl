@@ -106,6 +106,8 @@ VS Code 拡張の `editors/vscode/syntaxes/tdsl.tmLanguage.json` は `npm run bu
 
 Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.json` をミラーし、ドリフト防止テストで同期を保証する。
 
+`README.md` / `README.ja.md` / `editors/vscode/README.md` の「Syntax Highlighting」節では、キーワードをハードコード列挙**しない**（列挙すると `keywords.json` 更新時にドリフトする。実例: #665）。代わりに `apps/webui/src/lang-tdsl/keywords.json` へのリンクで済ませる。
+
 ## Wikidataプロパティ（頻用）
 
 | プロパティ | 意味 | DSL式 |

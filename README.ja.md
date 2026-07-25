@@ -409,7 +409,7 @@ cp -r editors/vscode ~/.vscode/extensions/timeline-dsl
 
 ハイライト対象:
 
-- キーワード: `timeline`, `lane`, `span`, `event`, `event_range`, `import`, `map`, `template`, `apply`, `color_map`
+- キーワード — 全リストは [`apps/webui/src/lang-tdsl/keywords.json`](apps/webui/src/lang-tdsl/keywords.json)（シンタックスハイライトの単一真実源）を参照
 - 文字列リテラル（ダブルクォート）
 - コメント（`//` と `/* */`）
 - Wikidata QID（`Q123`）・プロパティID（`P569`）・参照（`wd:Q123`）
