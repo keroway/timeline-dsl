@@ -41,7 +41,7 @@ jobs:
 | `interactive` | — | `false` | インタラクティブ HTML 出力（`format: html` 時のみ有効） |
 | `theme` | — | （CLI デフォルト） | テーマ: `default` / `dark` / `print` / `pastel` |
 | `scale` | — | （CLI デフォルト） | 水平軸のピクセル/年レート |
-| `version` | — | `latest` | 使用する tdsl バージョン（例: `v1.5.0`） |
+| `version` | — | `latest` | 使用する tdsl バージョン（例: `v1.27.0`） |
 
 ## アウトプット
 
@@ -146,7 +146,7 @@ jobs:
 - uses: keroway/timeline-dsl@v1
   with:
     file: timeline.tdsl
-    version: v1.5.0   # バージョンを固定
+    version: v1.27.0   # バージョンを固定
 ```
 
 ## 対応プラットフォーム

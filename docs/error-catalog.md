@@ -491,7 +491,7 @@ Wikidata APIとの通信・データ解析で発生するエラーです。
 **修正方法**: ネットワーク接続を確認してください。開発中は `--offline` フラグでWikidataアクセスをスキップできます。
 
 ```bash
-tdsl build examples/my.tdsl --offline
+tdsl build examples/china_with_import.tdsl --offline
 ```
 
 ---

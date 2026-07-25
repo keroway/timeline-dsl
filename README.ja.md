@@ -104,6 +104,9 @@ tdsl render examples/china_dynasties.tdsl --format pdf --output china.pdf
 # A3 横向き・マージン 15mm で PDF を出力
 tdsl render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-landscape --pdf-margin 15 --output china_a3.pdf
 
+# アイテムテーブルを複数ページに分割（--show-table 必須）
+tdsl render examples/china_dynasties.tdsl --format pdf --show-table --pdf-pagination --output china_paginated.pdf
+
 # 縦方向レイアウト（時間軸を上から下に描画）
 tdsl render examples/china_dynasties.tdsl --orientation vertical --output china_vertical.html
 
