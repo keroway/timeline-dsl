@@ -591,6 +591,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `--dpi` | PNG 出力の DPI（デフォルト 96）。`--format png` のみ有効 |
 | `--offline` | Wikidata fetch を省略 |
 | `--pdf-pagination` | `--show-table` のアイテムテーブルを用紙サイズ・余白に収まる行数ごとに複数ページへ分割する（ADR-0004）。デフォルトは無効（既存の単一ページ縮小描画のまま）。`--show-table` なしで指定するとエラー。`--format pdf` のみ有効 |
+| `--chart-pagination <N>` | タイムライン本体（チャート）を lane グループ単位（1 ページ N レーン）で複数の SVG ページに分割する（issue #660, ADR-0005 D2）。`--output` 必須（`<stem>.pageN.<ext>`）。`--format svg` のみ有効 |
 
 ### 出力仕様
 
@@ -615,8 +616,9 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
   - `html`: リチ HTML `<table>` 要素（CSS で自由にカスタマイズ可能）。
   - `svg` / `png` / `pdf`: 同じ列構成（時期/ラベル/レーン/タグ）を SVG `<rect>`/`<text>` で描画し、タイムライン本体の高さ（`viewBox`/`height`）に自動で含める。
   - `pdf` はデフォルト（`--pdf-pagination` 未指定）では従来と同じ単一ページベクトル方式のままであり、表を含めた全体をページに収まるように拡大縮小する。
-  - `--pdf-pagination` を指定すると、`pdf` 出力はタイムライン本体（1ページ目、既存どおり単一ページ）とアイテムテーブル（2ページ目以降、用紙サイズ・余白から計算した行数ごとに分割）に分かれる（ADR-0004）。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する（`N` はテーブルページ数のみを数えたもので、タイムラインチャートページは含まない）。タイムライン本体（チャート部分）自体のページ分割は本機能のスコープ外（ADR-0004 D1）。
+  - `--pdf-pagination` を指定すると、`pdf` 出力はタイムライン本体（1ページ目、既存どおり単一ページ）とアイテムテーブル（2ページ目以降、用紙サイズ・余白から計算した行数ごとに分割）に分かれる（ADR-0004）。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する（`N` はテーブルページ数のみを数えたもので、タイムラインチャートページは含まない）。タイムライン本体（チャート部分）自体のページ分割は `--pdf-pagination` のスコープ外（ADR-0004 D1）。
   - `--show-table` のデフォルトは `false`（非表示）で、従来の出力には影響しない。
+- **タイムライン本体（チャート）の複数ページ分割（`--chart-pagination`）**：`--format svg` で `--chart-pagination <N>`（1 ページあたりの lane 数）を指定すると、lane グループ単位でチャートを複数の SVG ページに分割する（issue #660, ADR-0005 D2）。時間軸（`meta.range`）は全ページ共通で、`Item::lane` が単一 lane を持つため span/event_range のページ境界クリッピングは発生しない。`--show-legend` は各チャートページに個別描画される。`--show-table` を併用すると、チャートページ群の後ろに専用のテーブルページを 1 枚追加し、IR 全体（最後のチャートページの lane に限らない）の item を一覧表示する。`--output` は必須で `<stem>.pageN.<ext>` ごとにファイルが分割出力される（stdout 非対応）。lane の `group` がページ境界をまたいで分断される場合は stderr に警告を出す（silent no-op にはしない）。`--format pdf` との併用はエラー（PDF 統合は #661 のスコープ）。
 - **静的凡例（`--show-legend`）**：有効にすると、レーンごとのパレット色と `timeline.color_map` のタグ色を凡例パネルとして表示する（#544）。
   - `html`: インライン SVG 内の凡例パネルとして表示されるため、JavaScript 非依存の静的HTMLでも色対応を確認できる。
   - `svg` / `png` / `pdf`: SVG `<rect>`/`<text>` で描画し、タイムライン本体の高さ（`viewBox`/`height`）に自動で含める。

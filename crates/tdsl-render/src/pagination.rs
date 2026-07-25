@@ -1,112 +1,99 @@
-//! Spike prototype for issue #651 (ADR 0005 D2): lane-group-based pagination
-//! of the SVG chart body.
+//! Lane-group-based pagination of the SVG chart body (issue #660, ADR 0005 D2).
 //!
-//! This module is intentionally **not** wired into `tdsl-cli` or the WebUI.
-//! It exists to validate the ADR 0005 D2 recommendation ("prototype lane
-//! group pagination first, since it needs no span/event_range clipping")
-//! before any CLI flag / production integration is designed. See
-//! `docs/adr/0005-timeline-chart-pagination.md` for the write-up of what was
-//! learned here.
+//! Promoted from the `#[cfg(test)]`-only spike (`svg_pagination_spike.rs`,
+//! issue #651) into a production API. See
+//! `docs/adr/0005-timeline-chart-pagination.md` for the design history and
+//! `docs/adr/0005-timeline-chart-pagination.md`'s "実装時の決定（issue #660）"
+//! section for the finalized CLI/behavior decisions.
 //!
 //! ## Approach
 //!
-//! The time axis (`Meta::range` and friends) stays common across all pages
-//! (ADR 0005 §1 "lane グループで分割" row). Lanes are sorted the same way
-//! [`crate::layout::LayoutModel::compute`] orders them (`(order, id)`), then
-//! chunked into groups of `lanes_per_page` lanes. For each chunk a filtered
-//! `TimelineIr` is built (same `meta`, only the chunk's lanes, only items
-//! whose lane belongs to the chunk) and rendered through the existing
-//! `LayoutModel::compute` + `render_svg` pipeline unmodified.
+//! The time axis (`Meta::range` and friends) stays common across all chart
+//! pages. Lanes are sorted the same way [`crate::layout::LayoutModel::compute`]
+//! orders them (`(order, id)`), then chunked into groups of `lanes_per_page`
+//! lanes. For each chunk a filtered `TimelineIr` is built (same `meta`, only
+//! the chunk's lanes, only items whose lane belongs to the chunk) and
+//! rendered through the existing `LayoutModel::compute` + `render_svg`
+//! pipeline unmodified.
 //!
 //! Because every `Item` belongs to exactly one lane (`Item::lane` is a single
 //! `String`, not a range of lanes), and pages are a partition of lanes, this
 //! approach never needs to clip a `Span`/`EventRange` bar — every item is
-//! wholly contained in exactly one page by construction. This is the
-//! structural claim the accompanying tests verify.
+//! wholly contained in exactly one page by construction.
+//!
+//! If `opts.show_table` is set, one additional table page (covering the
+//! *entire* IR's items, not just the last chart page's lanes) is appended
+//! after all chart pages.
 
 use std::collections::HashSet;
 
 use tdsl_core::ir::{Item, Lane, TimelineIr};
 
-use crate::layout::{LayoutModel, RenderOptions};
-use crate::svg::render_svg;
+use crate::layout::{LayoutModel, RenderOptions, TABLE_ROW_HEIGHT, collect_table_rows};
+use crate::svg::{render_svg, render_table_page_svg};
 
-/// One rendered page of a lane-group-paginated chart.
+/// Kind of a rendered [`ChartPage`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageKind {
+    /// A page showing a subset of lanes (and their items) as a chart.
+    Chart,
+    /// The single trailing page listing every IR item as a table (only
+    /// produced when `RenderOptions::show_table` is true).
+    Table,
+}
+
+/// One rendered page produced by [`paginate_svg_by_lane_groups`].
 #[derive(Debug)]
-pub(crate) struct PaginatedPage {
+pub struct ChartPage {
     /// Lane IDs assigned to this page, in the same order used for layout.
-    pub(crate) lane_ids: Vec<String>,
-    /// Rendered standalone SVG for this page's lane subset.
-    pub(crate) svg: String,
+    /// Empty for [`PageKind::Table`] pages.
+    pub lane_ids: Vec<String>,
+    /// Rendered standalone SVG for this page.
+    pub svg: String,
+    pub kind: PageKind,
 }
 
 /// Result of a full lane-group pagination pass.
 #[derive(Debug)]
-pub(crate) struct PaginationResult {
-    pub(crate) pages: Vec<PaginatedPage>,
+pub struct ChartPagination {
+    pub pages: Vec<ChartPage>,
     /// Group labels (from `Lane::group`) whose contiguous lane run was split
-    /// across two or more pages by this chunking. Known limitation (ADR 0005
-    /// Spike write-up): a `group_band` (`LayoutStyle::GroupBands`) that
-    /// crosses a page boundary is *not* reconstructed as a single visual
-    /// band across pages — each page independently recomputes its own
-    /// `group_bands` from only the lanes visible on that page, so the band
-    /// is truncated (or, if only one lane of the group lands on a page,
-    /// rendered as if it were a group of one).
-    pub(crate) group_bands_split_across_pages: Vec<String>,
+    /// across two or more chart pages by this chunking. Callers MUST warn
+    /// (not silently ignore) when this is non-empty (implementation-strict.md
+    /// §1 "Explicit error over silent fallback").
+    pub group_bands_split_across_pages: Vec<String>,
 }
 
-/// Error returned by [`paginate_by_lane_groups`].
-///
-/// `thiserror` is not used here because this module is compiled only under
-/// `#[cfg(test)]` (see module docs), and `tdsl-render`'s `thiserror`
-/// dependency is gated behind the optional `pdf`/`png` features; pulling it
-/// in unconditionally for a test-only spike would widen the crate's default
-/// dependency footprint for no production benefit.
-#[derive(Debug)]
-pub(crate) enum PaginationSpikeError {
-    InvalidChunkSize,
+/// Error returned by [`paginate_svg_by_lane_groups`].
+#[derive(Debug, thiserror::Error)]
+pub enum PaginationError {
+    #[error("lanes_per_page must be >= 1")]
+    InvalidLanesPerPage,
     /// An item referenced a `lane` ID that has no corresponding `Lane`
-    /// declaration in `ir.lanes`. Rather than silently dropping the item
-    /// from every page (as a plain filter would), this is treated as a hard
-    /// error (implementation-strict.md: "Explicit error over silent
-    /// fallback").
-    UnknownLane {
-        lane: String,
-    },
-    Render(std::fmt::Error),
-}
-
-impl std::fmt::Display for PaginationSpikeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidChunkSize => write!(f, "lanes_per_page must be >= 1"),
-            Self::UnknownLane { lane } => {
-                write!(f, "item references unknown lane {lane:?}")
-            }
-            Self::Render(e) => write!(f, "SVG rendering failed: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for PaginationSpikeError {}
-
-impl From<std::fmt::Error> for PaginationSpikeError {
-    fn from(e: std::fmt::Error) -> Self {
-        Self::Render(e)
-    }
+    /// declaration in `ir.lanes`. Rather than silently dropping the item from
+    /// every page (as a plain filter would), this is a hard error
+    /// (implementation-strict.md: "Explicit error over silent fallback").
+    #[error("item references unknown lane {lane:?}")]
+    UnknownLane { lane: String },
+    #[error("SVG rendering failed: {0}")]
+    Render(#[from] std::fmt::Error),
 }
 
 /// Split `ir`'s lanes into groups of `lanes_per_page` (ordered the same way
-/// `LayoutModel` orders lanes: `(order, id)`), and render one SVG chart per
-/// group. The time axis (`meta.range` and precision fields) is shared across
-/// all pages unchanged.
-pub(crate) fn paginate_by_lane_groups(
+/// `LayoutModel` orders lanes: `(order, id)`), and render one SVG chart page
+/// per group. The time axis (`meta.range` and precision fields) is shared
+/// across all pages unchanged.
+///
+/// If `opts.show_table` is true, a single trailing [`PageKind::Table`] page
+/// listing every item in `ir` (not limited to the last chart page's lanes)
+/// is appended.
+pub fn paginate_svg_by_lane_groups(
     ir: &TimelineIr,
     opts: &RenderOptions,
     lanes_per_page: usize,
-) -> Result<PaginationResult, PaginationSpikeError> {
+) -> Result<ChartPagination, PaginationError> {
     if lanes_per_page == 0 {
-        return Err(PaginationSpikeError::InvalidChunkSize);
+        return Err(PaginationError::InvalidLanesPerPage);
     }
 
     let mut lanes_ordered: Vec<&Lane> = ir.lanes.iter().collect();
@@ -125,12 +112,16 @@ pub(crate) fn paginate_by_lane_groups(
         .iter()
         .find(|item| !defined_lane_ids.contains(item_lane_id(item)))
     {
-        return Err(PaginationSpikeError::UnknownLane {
+        return Err(PaginationError::UnknownLane {
             lane: item_lane_id(item).to_owned(),
         });
     }
 
     let mut pages = Vec::with_capacity(chunks.len());
+    // Tracks the chart page width so the trailing table page (if any) can
+    // share the same page width; all chart pages have the same width because
+    // it derives from `meta.range`/`scale`, not from item content.
+    let mut chart_width: f64 = 0.0;
     for chunk in &chunks {
         let lane_ids: HashSet<&str> = chunk.iter().map(|l| l.id.as_str()).collect();
         let page_ir = TimelineIr {
@@ -145,15 +136,43 @@ pub(crate) fn paginate_by_lane_groups(
             imports: ir.imports.clone(),
             sources: ir.sources.clone(),
         };
-        let layout = LayoutModel::compute(&page_ir, opts.clone());
+        let chart_opts = RenderOptions {
+            show_table: false,
+            ..opts.clone()
+        };
+        let layout = LayoutModel::compute(&page_ir, chart_opts);
+        chart_width = layout.total_width;
         let svg = render_svg(&layout)?;
-        pages.push(PaginatedPage {
+        pages.push(ChartPage {
             lane_ids: chunk.iter().map(|l| l.id.clone()).collect(),
             svg,
+            kind: PageKind::Chart,
         });
     }
 
-    Ok(PaginationResult {
+    if opts.show_table {
+        let lane_label_lookup = |lane_id: &str| -> String {
+            ir.lanes
+                .iter()
+                .find(|lane| lane.id == lane_id)
+                .map(|lane| lane.label.clone())
+                .unwrap_or_else(|| lane_id.to_string())
+        };
+        let table_rows = collect_table_rows(ir, lane_label_lookup);
+        // Single table page (multi-page table splitting is #661 scope);
+        // height simply grows to fit every row plus the header row and a
+        // footer margin so the "1 / 1" footer never overlaps the last row.
+        let table_height = TABLE_ROW_HEIGHT * (table_rows.len() as f64 + 1.0) + 24.0;
+        let table_svg =
+            render_table_page_svg(&table_rows, chart_width as f32, table_height as f32, 1, 1)?;
+        pages.push(ChartPage {
+            lane_ids: vec![],
+            svg: table_svg,
+            kind: PageKind::Table,
+        });
+    }
+
+    Ok(ChartPagination {
         pages,
         group_bands_split_across_pages,
     })
@@ -292,7 +311,7 @@ mod tests {
 
     fn base_meta() -> Meta {
         Meta {
-            title: "pagination spike".into(),
+            title: "pagination test".into(),
             unit: "year".into(),
             range: (0, 1000),
             calendar: "proleptic_gregorian".into(),
@@ -326,7 +345,7 @@ mod tests {
     #[test]
     fn splits_into_expected_page_count() {
         let ir = four_lane_ir();
-        let result = paginate_by_lane_groups(&ir, &RenderOptions::default(), 2)
+        let result = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 2)
             .expect("pagination should succeed");
         assert_eq!(result.pages.len(), 2, "4 lanes / 2 per page = 2 pages");
         assert_eq!(result.pages[0].lane_ids, vec!["a", "b"]);
@@ -336,10 +355,11 @@ mod tests {
     #[test]
     fn each_lane_height_page_covers_only_its_assigned_lanes() {
         let ir = four_lane_ir();
-        let result = paginate_by_lane_groups(&ir, &RenderOptions::default(), 2)
+        let result = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 2)
             .expect("pagination should succeed");
         for page in &result.pages {
             assert_eq!(page.lane_ids.len(), 2, "each page should hold 2 lanes");
+            assert_eq!(page.kind, PageKind::Chart);
         }
     }
 
@@ -349,7 +369,7 @@ mod tests {
     #[test]
     fn every_item_appears_on_exactly_one_page() {
         let ir = four_lane_ir();
-        let result = paginate_by_lane_groups(&ir, &RenderOptions::default(), 2)
+        let result = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 2)
             .expect("pagination should succeed");
 
         let item_labels = ["Span s-a", "Span s-b", "EventRange er-c", "Span s-d"];
@@ -372,7 +392,7 @@ mod tests {
     #[test]
     fn single_page_when_lanes_per_page_covers_all_lanes() {
         let ir = four_lane_ir();
-        let result = paginate_by_lane_groups(&ir, &RenderOptions::default(), 10)
+        let result = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 10)
             .expect("pagination should succeed");
         assert_eq!(result.pages.len(), 1);
         assert_eq!(result.pages[0].lane_ids, vec!["a", "b", "c", "d"]);
@@ -381,9 +401,9 @@ mod tests {
     #[test]
     fn zero_lanes_per_page_is_rejected_explicitly() {
         let ir = four_lane_ir();
-        let err = paginate_by_lane_groups(&ir, &RenderOptions::default(), 0)
+        let err = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 0)
             .expect_err("lanes_per_page=0 must be a hard error, not a silent no-op");
-        assert!(matches!(err, PaginationSpikeError::InvalidChunkSize));
+        assert!(matches!(err, PaginationError::InvalidLanesPerPage));
     }
 
     /// An item referencing a lane ID absent from `ir.lanes` must fail loudly
@@ -392,11 +412,11 @@ mod tests {
     fn item_with_unknown_lane_is_rejected_explicitly() {
         let mut ir = four_lane_ir();
         ir.items.push(span("s-ghost", "no-such-lane", 400, 500));
-        let err = paginate_by_lane_groups(&ir, &RenderOptions::default(), 2)
+        let err = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 2)
             .expect_err("item referencing an undeclared lane must be a hard error");
         assert!(matches!(
             err,
-            PaginationSpikeError::UnknownLane { lane } if lane == "no-such-lane"
+            PaginationError::UnknownLane { lane } if lane == "no-such-lane"
         ));
     }
 
@@ -429,7 +449,7 @@ mod tests {
         // "王朝" group spans lanes a,b,c; with 2 lanes/page that group's run
         // (a,b,c) crosses the page boundary between chunk 0 (a,b) and chunk 1 (c,d).
         let ir = grouped_ir();
-        let result = paginate_by_lane_groups(&ir, &RenderOptions::default(), 2)
+        let result = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 2)
             .expect("pagination should succeed");
         assert_eq!(
             result.group_bands_split_across_pages,
@@ -442,7 +462,7 @@ mod tests {
     fn group_band_fully_contained_in_one_page_is_not_reported() {
         // All group lanes fit within a single page (3 lanes/page), so no split occurs.
         let ir = grouped_ir();
-        let result = paginate_by_lane_groups(&ir, &RenderOptions::default(), 3)
+        let result = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 3)
             .expect("pagination should succeed");
         assert!(
             result.group_bands_split_across_pages.is_empty(),
@@ -461,13 +481,76 @@ mod tests {
             layout_style: LayoutStyle::GroupBands,
             ..RenderOptions::default()
         };
-        let result = paginate_by_lane_groups(&ir, &opts, 2).expect("pagination should succeed");
+        let result = paginate_svg_by_lane_groups(&ir, &opts, 2).expect("pagination should succeed");
         assert!(!result.group_bands_split_across_pages.is_empty());
         for page in &result.pages {
             assert!(
                 page.svg.contains("tdsl-group-band-even")
                     || page.svg.contains("tdsl-group-band-odd"),
                 "each page should still render *a* group band, even if truncated: {}",
+                page.svg
+            );
+        }
+    }
+
+    // ─── show_table (#660) ──────────────────────────────────────────────────
+
+    #[test]
+    fn show_table_true_appends_single_table_page_at_end() {
+        let ir = four_lane_ir();
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let result = paginate_svg_by_lane_groups(&ir, &opts, 2).expect("pagination should succeed");
+        assert_eq!(result.pages.len(), 3, "2 chart pages + 1 table page");
+        assert_eq!(result.pages[0].kind, PageKind::Chart);
+        assert_eq!(result.pages[1].kind, PageKind::Chart);
+        assert_eq!(result.pages[2].kind, PageKind::Table);
+    }
+
+    #[test]
+    fn show_table_table_page_contains_all_ir_items_not_just_last_chart_page() {
+        let ir = four_lane_ir();
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let result = paginate_svg_by_lane_groups(&ir, &opts, 2).expect("pagination should succeed");
+        let table_svg = &result.pages.last().expect("table page exists").svg;
+        // Lanes a,b are on the *first* chart page (not the last), so their
+        // items must still appear in the table page's full-IR listing.
+        assert!(table_svg.contains("Span s-a"));
+        assert!(table_svg.contains("Span s-b"));
+        assert!(table_svg.contains("EventRange er-c"));
+        assert!(table_svg.contains("Span s-d"));
+    }
+
+    #[test]
+    fn show_table_false_has_no_table_page() {
+        let ir = four_lane_ir();
+        let result = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 2)
+            .expect("pagination should succeed");
+        assert!(
+            result.pages.iter().all(|p| p.kind == PageKind::Chart),
+            "show_table=false must not produce a Table page"
+        );
+    }
+
+    #[test]
+    fn show_legend_true_includes_legend_on_each_chart_page() {
+        let mut ir = four_lane_ir();
+        ir.meta.color_map.insert("dynasty".into(), "#3366cc".into());
+        let opts = RenderOptions {
+            color_map: ir.meta.color_map.clone(),
+            show_legend: true,
+            ..RenderOptions::default()
+        };
+        let result = paginate_svg_by_lane_groups(&ir, &opts, 2).expect("pagination should succeed");
+        for page in result.pages.iter().filter(|p| p.kind == PageKind::Chart) {
+            assert!(
+                page.svg.contains("tdsl-static-legend"),
+                "show_legend=true must render the static legend on every chart page: {}",
                 page.svg
             );
         }

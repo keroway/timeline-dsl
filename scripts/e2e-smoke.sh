@@ -162,6 +162,14 @@ test -s "$TMP_DIR/no_table.html"
 ! grep -Fq "<table" "$TMP_DIR/no_table.html" \
   || { echo "FAIL: HTML without --show-table must not contain an item table"; exit 1; }
 
+# ---- tdsl render --chart-pagination (lane group chart pagination, #660) ----
+echo "[e2e] render: --chart-pagination 2 splits a 4-lane chart into 2 SVG page files"
+cargo run -q -p tdsl-cli -- render examples/sci_tech_timeline.tdsl --format svg --chart-pagination 2 --output "$TMP_DIR/sci_tech.svg"
+test -s "$TMP_DIR/sci_tech.page1.svg"
+test -s "$TMP_DIR/sci_tech.page2.svg"
+grep -Fq "<svg" "$TMP_DIR/sci_tech.page1.svg"
+grep -Fq "<svg" "$TMP_DIR/sci_tech.page2.svg"
+
 # ---- tdsl build --json-schema -------------------------------------------------
 echo "[e2e] build: --json-schema outputs TimelineIr JSON Schema without input file"
 cargo run -q -p tdsl-cli -- build --json-schema >"$TMP_DIR/schema.json"

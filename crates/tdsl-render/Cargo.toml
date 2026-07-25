@@ -12,7 +12,7 @@ categories = ["rendering", "visualization"]
 default = []
 # Enables PNG rasterization via resvg. Off by default to keep the WASM build
 # slim (tdsl-wasm consumes tdsl-render without this feature).
-png = ["dep:resvg", "dep:thiserror"]
+png = ["dep:resvg"]
 # Enables vector PDF output via svg2pdf. Off by default to keep the WASM build
 # slim. `svg2pdf` and `pdf-writer` must move in lockstep: pdf.rs mixes the `Ref`
 # from svg2pdf's `Chunk` (svg2pdf's own pdf-writer) with our own `pdf-writer`
@@ -21,14 +21,18 @@ png = ["dep:resvg", "dep:thiserror"]
 # (see PR #415 and ADR-0002 の補遺「svg2pdf / pdf-writer のバージョン結合」).
 # `usvg` is consumed only via `svg2pdf::usvg` (re-export), so it follows svg2pdf
 # automatically and needs no separate pinning.
-pdf = ["dep:svg2pdf", "dep:pdf-writer", "dep:thiserror"]
+pdf = ["dep:svg2pdf", "dep:pdf-writer"]
 
 [dependencies]
 tdsl-core = { path = "../tdsl-core", default-features = false, version = "1.27.0" }
 resvg = { version = "0.47", optional = true }
 svg2pdf = { version = "0.13", optional = true }
 pdf-writer = { version = "0.12", optional = true }
-thiserror = { workspace = true, optional = true }
+# `thiserror` is derive-only (no runtime codegen beyond an equivalent hand-written
+# `Display`/`Error` impl), so making it non-optional (used by `pagination.rs`,
+# issue #660) has no measurable WASM size impact — verified via `apps/webui`
+# build size before/after (see PR description / CHANGELOG for the measurement).
+thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

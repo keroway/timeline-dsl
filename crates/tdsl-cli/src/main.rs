@@ -270,6 +270,15 @@ enum Commands {
         /// table behavior is unchanged).
         #[arg(long, default_value_t = false)]
         pdf_pagination: bool,
+
+        /// Split the chart into multiple SVG pages by lane group, N lanes per
+        /// page (issue #660, ADR-0005 D2). Only applied with --format svg;
+        /// requires --output (the base path for `<stem>.pageN.svg` files,
+        /// zero-padded to the total page count's digit width). Not
+        /// compatible with --watch. Default: disabled (single-page output
+        /// unchanged).
+        #[arg(long)]
+        chart_pagination: Option<usize>,
     },
 
     /// Generate a minimal .tdsl template for manual authoring
@@ -703,6 +712,7 @@ fn main() {
             pdf_margin,
             pdf_title,
             pdf_pagination,
+            chart_pagination,
         } => commands::render::cmd_render(
             &input,
             output.as_deref(),
@@ -737,6 +747,7 @@ fn main() {
                 title: pdf_title,
                 pagination: pdf_pagination,
             },
+            chart_pagination,
         ),
         Commands::Init {
             output,

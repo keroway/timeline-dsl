@@ -44,3 +44,7 @@ rows_per_page  = complete_rows - 1   // 先頭の列見出し行の分を1行差
 ### ゴールデン画像比較を将来導入する場合
 
 ADR 0004 の「未決定事項」に記載のとおり、視覚的なゴールデン画像比較の導入自体は本ADRのスコープ外として棚上げされている。将来導入する場合は、OS/フォントバージョン依存を避けるためにDockerなどで固定されたレンダリング環境を用意し、新しいADRとして別途設計判断を行うこと。既存の構造検証テストは、画像比較を導入した後も「軽量な決定的リグレッションガード」として維持する想定である。
+
+## チャート（タイムライン本体）の lane グループ分割のテスト方針（ADR 0005 D2 / #660）
+
+`--chart-pagination`（`crates/tdsl-render/src/pagination.rs`）は PDF pagination と同じ「構造検証中心・ゴールデン画像比較なし」の方針を踏襲する。`LayoutModel::compute` / `svg::render_svg` 自体は無変更のまま再利用しているため、追加で検証すべきなのは「lane の分割・item の割り当て・group band 分断検出・テーブルページの内容」という分割ロジック固有の不変条件のみである。`every_item_appears_on_exactly_one_page` のように、各ページの SVG 文字列にラベルが含まれるかを文字列一致で確認する構造テストを中心に据え、`group_bands_split_across_pages` が非空になるケース・空のままのケースの両方を明示的にテストすること（silent fallback を防ぐための不変条件）。
