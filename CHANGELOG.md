@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`--chart-pagination`: タイムライン本体（チャート部分）を lane グループ単位で複数の SVG ページに分割するオプションを追加**（ADR-0005 / #660）: `tdsl render --format svg --chart-pagination <N>` で、1 ページあたり `N` レーンずつチャートを分割し、`<stem>.pageN.svg` として出力できるようになった。時間軸は全ページ共通のため、`Item::lane` が単一 lane を持つ構造上、span/event_range のページ境界クリッピングは発生しない（issue #651 Spike で構造検証済み）。`--show-legend` は各チャートページに個別描画され、`--show-table` を併用するとチャートページ群の後ろに IR 全体の item を一覧する専用テーブルページを 1 枚追加する。lane の `group` がページ境界をまたいで分断される場合は stderr に警告を出力する（silent no-op にしない、implementation-strict.md §1）。`--output` が必須で、`--format pdf`（PDF 統合は #661 で対応予定）・`--watch` との併用は明示エラー。既存の `--pdf-pagination`（テーブル専用）とは独立したフラグで、意味変更や後方互換への影響はない
+
 ### Fixed
 
 - **AGENTS.md §5 の秒精度/UTCオフセット関連記述を実装状況に合わせて修正**（#645）: 「Sub-year precision beyond minute (e.g. seconds / time zones)」が未実装であるかのように記載されていたが、秒精度（`DateTimeSecond`）と UTC オフセット（`DateTimeOffset` / `DateTimeSecondOffset`）は #612〜#616（ADR-0003）で実装済み。実際に未実装のサブ秒精度と IANA タイムゾーン名（DST自動解決）のみを Deferred として記載するよう修正した

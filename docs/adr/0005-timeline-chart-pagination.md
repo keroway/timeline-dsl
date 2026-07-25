@@ -98,7 +98,7 @@ ADR 0004 D7 は「ページ数アサーション」「構造的アサーショ�
 
 ## Spike 実施結果（issue #651, lane グループ分割プロトタイプ）
 
-D2 の推奨に従い、lane グループ単位でのチャート分割を先行プロトタイプした（`crates/tdsl-render/src/svg_pagination_spike.rs`、`#[cfg(test)]` 限定・本番配線なし）。
+D2 の推奨に従い、lane グループ単位でのチャート分割を先行プロトタイプした（`crates/tdsl-render/src/svg_pagination_spike.rs`、`#[cfg(test)]` 限定・本番配線なし。issue #660 で `crates/tdsl-render/src/pagination.rs` へ本番昇格済み、spike ファイルは削除済み）。
 
 ### 実装アプローチ
 
@@ -126,10 +126,22 @@ D2 の推奨に従い、lane グループ単位でのチャート分割を先行
 - `--pdf-pagination` との統合方針（第4節「既存 `--pdf-pagination` との関係」で未決定のまま）は本 Spike でも決定しなかった。今回の SVG 分割はまだ PDF 生成パイプライン（`crates/tdsl-render/src/pdf.rs`）とは接続していない。
 - D2 の次ステップである「時間範囲分割（span クリッピング必須）」は本 Spike のスコープ外のまま。lane グループ分割で得られた「既存パイプラインの再利用が容易」という知見は時間範囲分割には直接適用できない（span を実際にクリップする新規ロジックが必要になる）ため、着手時は改めて Effort/Risk を見積もり直すこと。
 
+## 実装時の決定（issue #660）
+
+Spike（issue #651）で得られた知見をもとに、lane グループ単位のチャート分割を本番配線した（`crates/tdsl-render/src/pagination.rs`、`crates/tdsl-cli`）。第4節「既存 `--pdf-pagination` との関係」と「次 issue への申し送り事項」で残されていた論点は以下のとおり確定した。
+
+- **CLI フラグ**: 既存 `--pdf-pagination`（bool、テーブル分割専用）の意味は変更せず、新規フラグ `--chart-pagination <N>`（1 ページあたりの lane 数）を追加した。両フラグは独立しており、`--chart-pagination` は `--format svg` のみで有効（`--format pdf` との併用は明示エラー。PDF 統合は #661 で改めて設計する）。
+- **出力方式**: `--output china.svg` を渡すと `china.page1.svg` / `china.page2.svg` … に分割出力する（連番幅は総ページ数の桁数に合わせて0埋め）。`--output` 省略時は明示エラー（stdout は複数ファイルを表現できないため）。
+- **`--show-legend` の扱い**: 各チャートページに個別描画する（そのページの item に対応した凡例が、既存の `LayoutModel::compute` → `render_svg` パイプラインでそのまま生成される）。ページごとに異なる凡例内容になり得るのは意図した挙動。
+- **`--show-table` の扱い**: 「最終チャートページに載せる」のではなく、チャートページ群の**後ろに専用のテーブルページを 1 枚**追加し、**IR 全体**の行を載せる方式を採用した。理由: 各チャートページの IR はそのページの lane の item しか持たないため、最終チャートページに表を描くと「最後の lane の item だけの表」になり索引として誤解を招く。既存の `svg::render_table_page_svg` / `layout::collect_table_rows`（ADR-0004 実装済み）をそのまま再利用しており、複数テーブルページへの分割（テーブル自体が用紙に収まらない場合）は #661 のスコープとして残した。
+- **group band 分断の警告経路**: Spike で識別された「サイレントな視覚的劣化」（想定外だった点）に対し、`ChartPagination.group_bands_split_across_pages` を CLI 層で必ず `eprintln!("Warning: ...")` として警告する経路を実装した（`--layout-style zigzag` の `zigzag_fallback` 警告パターンを踏襲）。出力そのものは生成する（エラーにはしない）。
+- **span/event_range クリッピング**: Spike の構造的な結論（lane 軸分割では原理上不要）どおり、本実装でも `LayoutModel::compute` / `render_svg` は無変更のまま再利用しており、クリッピングロジックの新規実装は発生しなかった。
+- **スコープ外として残したもの**: 時間範囲分割（span クリッピングが必要、issue #662・`needs-refinement`）、PDF 統合（issue #661）、WebUI/WASM への配線（別途起票が必要な場合のみ）。
+
 ## 未決定事項（本 ADR の範囲外）
 
-- ページ分割軸の最終決定（時間範囲 / lane グループ / 両方）。
-- span/event_range のページ境界クリッピング・継続表示の具体的な描画仕様。
-- CLI フラグの最終的な名前・構文。
-- group band / gantt / zigzag / open-ended range の分割時の詳細な振る舞い。
+- ページ分割軸の最終決定（時間範囲 / lane グループ / 両方）。lane グループ軸は issue #660 で実装済み。時間範囲軸は未着手（#662, `needs-refinement`）。
+- span/event_range のページ境界クリッピング・継続表示の具体的な描画仕様（lane グループ軸では原理上不要と判明済み。時間範囲軸では依然未解決）。
+- CLI フラグの最終的な名前・構文。lane グループ軸は `--chart-pagination <N>` として issue #660 で確定済み。
+- group band / gantt / zigzag / open-ended range の分割時の詳細な振る舞い。lane グループ軸の group band は issue #660 で「警告して分割続行」に確定済み。gantt / zigzag / open-ended range は未検証のまま。
 - HTML/SVG インタラクティブレンダリング（`tdsl render --interactive`）への同様のページ分割ニーズの適用可否（本 ADR は PDF 出力のみを対象とする）。

@@ -38,8 +38,12 @@ pub(crate) fn cmd_render(
     show_legend: bool,
     show_event_labels: bool,
     pdf_cli: PdfCliOptions,
+    chart_pagination: Option<usize>,
 ) -> Result<(), String> {
     if watch {
+        if chart_pagination.is_some() {
+            return Err("--chart-pagination is not supported with --watch".to_string());
+        }
         let out_path = output.ok_or(
             "--watch requires --output <file>; stdout is not supported in watch mode".to_string(),
         )?;
@@ -103,6 +107,7 @@ pub(crate) fn cmd_render(
         show_legend,
         show_event_labels,
         pdf_cli,
+        chart_pagination,
     )
 }
 
@@ -131,7 +136,29 @@ fn do_render(
     show_legend: bool,
     show_event_labels: bool,
     pdf_cli: PdfCliOptions,
+    chart_pagination: Option<usize>,
 ) -> Result<(), String> {
+    // #660 (ADR-0005 D2): --chart-pagination is validated before any rendering
+    // work happens, mirroring the --pdf-pagination "explicit error, not a
+    // silent no-op" pattern (implementation-strict.md §1).
+    if let Some(lanes_per_page) = chart_pagination {
+        if lanes_per_page == 0 {
+            return Err("--chart-pagination must be >= 1".to_string());
+        }
+        if !matches!(format, RenderFormat::Svg) {
+            return Err(
+                "--chart-pagination only supports --format svg (PDF integration is planned for #661)"
+                    .to_string(),
+            );
+        }
+        if output.is_none() {
+            return Err(
+                "--chart-pagination requires --output <file> (stdout cannot hold multiple pages)"
+                    .to_string(),
+            );
+        }
+    }
+
     let ir = super::build::load_ir(input, offline, cache_opts, wikidata_timeout)?;
 
     let custom_css = match custom_css_path {
@@ -194,9 +221,26 @@ fn do_render(
             write_render_text(&html, output)
         }
         RenderFormat::Svg => {
-            let svg = tdsl_render::render_svg_only(&ir, opts)
-                .map_err(|e| format!("SVG rendering failed: {e}"))?;
-            write_render_text(&svg, output)
+            if let Some(lanes_per_page) = chart_pagination {
+                // Validated above: chart_pagination.is_some() implies output.is_some().
+                let out_path = output
+                    .ok_or_else(|| "--chart-pagination requires --output <file>".to_string())?;
+                let pagination =
+                    tdsl_render::paginate_svg_by_lane_groups(&ir, &opts, lanes_per_page)
+                        .map_err(|e| format!("Chart pagination failed: {e}"))?;
+                if !pagination.group_bands_split_across_pages.is_empty() {
+                    for group in &pagination.group_bands_split_across_pages {
+                        eprintln!(
+                            "Warning: group band {group:?} is split across chart pages; each page redraws a truncated band. Increase --chart-pagination or reorder lanes to keep the group on one page."
+                        );
+                    }
+                }
+                write_render_pages(&pagination.pages, out_path)
+            } else {
+                let svg = tdsl_render::render_svg_only(&ir, opts)
+                    .map_err(|e| format!("SVG rendering failed: {e}"))?;
+                write_render_text(&svg, output)
+            }
         }
         RenderFormat::Png => {
             let png_opts = tdsl_render::PngOptions {
@@ -323,6 +367,9 @@ fn cmd_render_watch(
                 title: None,
                 pagination: false,
             },
+            // --chart-pagination is rejected together with --watch before
+            // cmd_render_watch is ever called (see cmd_render).
+            None,
         )
     };
 
@@ -399,6 +446,34 @@ pub(crate) fn write_render_text(
         eprintln!("Written to {}", out_path.display());
     } else {
         println!("{body}");
+    }
+    Ok(())
+}
+
+/// Write each paginated chart/table page to `<output stem>.pageN<ext>`, where
+/// `N` is 1-based and zero-padded to the digit width of the total page count
+/// (e.g. `page01`..`page10` for 10 pages). Mirrors `write_render_text`'s
+/// stdout-vs-file split, except `--chart-pagination` always requires an
+/// `output` path (validated by the caller before this is reached).
+pub(crate) fn write_render_pages(
+    pages: &[tdsl_render::ChartPage],
+    output: &std::path::Path,
+) -> Result<(), String> {
+    let stem = output
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    let ext = output.extension().and_then(|s| s.to_str()).unwrap_or("svg");
+    let parent = output.parent().unwrap_or_else(|| std::path::Path::new(""));
+
+    let digits = pages.len().to_string().len();
+    for (index, page) in pages.iter().enumerate() {
+        let page_number = index + 1;
+        let file_name = format!("{stem}.page{page_number:0digits$}.{ext}");
+        let page_path = parent.join(file_name);
+        std::fs::write(&page_path, &page.svg)
+            .map_err(|e| format!("Failed to write {}: {e}", page_path.display()))?;
+        eprintln!("Written to {}", page_path.display());
     }
     Ok(())
 }

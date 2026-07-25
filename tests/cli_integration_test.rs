@@ -297,6 +297,181 @@ fn render_pdf_show_table_without_pagination_is_still_single_page() {
 }
 
 // ---------------------------------------------------------------------------
+// render: --chart-pagination (#660, ADR-0005 D2)
+// ---------------------------------------------------------------------------
+
+/// `tdsl render --help` output contains the `--chart-pagination` flag.
+#[test]
+fn render_help_includes_chart_pagination_flag() {
+    let out = tdsl_bin()
+        .args(["render", "--help"])
+        .output()
+        .expect("failed to run tdsl");
+
+    let stdout = String::from_utf8(out.stdout).expect("non-UTF-8 stdout");
+    assert!(
+        stdout.contains("--chart-pagination"),
+        "--chart-pagination should appear in render --help output"
+    );
+}
+
+/// `--chart-pagination 2` against a 4-lane example writes exactly 2 SVG page
+/// files (`<stem>.page1.svg` / `<stem>.page2.svg`) and no extra files.
+#[test]
+fn render_chart_pagination_writes_one_file_per_page() {
+    let out_path = unique_temp("chart_pagination.svg");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/sci_tech_timeline.tdsl")
+                .to_str()
+                .unwrap(),
+            "--format",
+            "svg",
+            "--chart-pagination",
+            "2",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        out.status.success(),
+        "render --chart-pagination 2 should succeed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let stem = out_path.file_stem().unwrap().to_str().unwrap();
+    let parent = out_path.parent().unwrap();
+    let page1 = parent.join(format!("{stem}.page1.svg"));
+    let page2 = parent.join(format!("{stem}.page2.svg"));
+    let page3 = parent.join(format!("{stem}.page3.svg"));
+
+    assert!(page1.exists(), "page1 should be written");
+    assert!(page2.exists(), "page2 should be written");
+    assert!(
+        !page3.exists(),
+        "no page3 should exist for a 4-lane/2-per-page split"
+    );
+    assert!(
+        !out_path.exists(),
+        "the un-suffixed base path should not be written"
+    );
+
+    let page1_svg = std::fs::read_to_string(&page1).expect("page1 should be readable");
+    assert!(
+        page1_svg.contains("<svg"),
+        "page1 should contain an <svg> root"
+    );
+
+    let _ = std::fs::remove_file(&page1);
+    let _ = std::fs::remove_file(&page2);
+}
+
+/// `--chart-pagination` without `--output` is an explicit error (stdout
+/// cannot hold multiple pages), not a silent single-page fallback.
+#[test]
+fn render_chart_pagination_without_output_fails() {
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/sci_tech_timeline.tdsl")
+                .to_str()
+                .unwrap(),
+            "--format",
+            "svg",
+            "--chart-pagination",
+            "2",
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        !out.status.success(),
+        "--chart-pagination without --output should exit non-zero"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--chart-pagination requires --output"),
+        "stderr must explain the missing --output requirement: {stderr}"
+    );
+}
+
+/// `--chart-pagination` with a non-SVG format is an explicit error (PDF
+/// integration is #661, not yet implemented).
+#[test]
+fn render_chart_pagination_non_svg_format_fails() {
+    let out_path = unique_temp("chart_pagination_pdf.pdf");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/sci_tech_timeline.tdsl")
+                .to_str()
+                .unwrap(),
+            "--format",
+            "pdf",
+            "--chart-pagination",
+            "2",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        !out.status.success(),
+        "--chart-pagination --format pdf should exit non-zero"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--chart-pagination only supports --format svg"),
+        "stderr must explain the format restriction: {stderr}"
+    );
+    assert!(
+        !out_path.exists(),
+        "no output file should be written when validation fails"
+    );
+}
+
+/// Regression: without `--chart-pagination`, `--format svg` output is
+/// completely unchanged (single file at the given `--output` path).
+#[test]
+fn render_svg_without_chart_pagination_is_unchanged() {
+    let out_path = unique_temp("no_chart_pagination.svg");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/china_dynasties.tdsl").to_str().unwrap(),
+            "--format",
+            "svg",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(out_path.exists(), "single SVG output file should exist");
+    let svg = std::fs::read_to_string(&out_path).expect("output SVG should be readable");
+    assert!(svg.starts_with("<svg"), "SVG output should start with <svg");
+
+    let stem = out_path.file_stem().unwrap().to_str().unwrap();
+    let parent = out_path.parent().unwrap();
+    let page1 = parent.join(format!("{stem}.page1.svg"));
+    assert!(
+        !page1.exists(),
+        "no paginated page files should be produced without --chart-pagination"
+    );
+
+    let _ = std::fs::remove_file(&out_path);
+}
+
+// ---------------------------------------------------------------------------
 // build: static (offline) compilation to IR JSON
 // ---------------------------------------------------------------------------
 

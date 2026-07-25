@@ -408,6 +408,7 @@ tdsl render [OPTIONS] <FILE>
 | `--pdf-margin <MM>` | PDF の用紙マージン（mm）。`--format pdf` のみ有効 | `10` |
 | `--pdf-title <TITLE>` | PDF ドキュメントの Title メタデータを上書きする（未指定時は年表タイトルを使用）。`--format pdf` のみ有効 | — |
 | `--pdf-pagination` | アイテムテーブルを用紙サイズ・余白に収まる行数ごとに複数ページへ分割する（ADR-0004）。1 ページ目は従来どおりタイムライン本体（縮小描画）のみで、2 ページ目以降にテーブルを分割描画する。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する（`N` はテーブルページ数のみを数えたもので、1 ページ目のタイムラインチャートは含まない）。opt-in（デフォルト無効）で、既存の単一ページ出力は変更されない。`--show-table` が指定されていない場合はエラー（分割対象のテーブルが存在しないため、silent no-op にはしない）。`--format pdf` のみ有効。既存のタイムライン描画オプションとの相互作用（ADR-0004 D5）: `--show-legend` はタイムラインページ（1ページ目）のみに描画されテーブルページには影響しない。`--layout-style group-bands` / `gantt` / `zigzag`、および open-ended range（`now` 終了）はいずれもタイムライン本体（1ページ目）の描画にのみ関わり、本フラグの有効/無効によってタイムラインページの描画内容が変わることはない（ページ分割はテーブルのみが対象） | — |
+| `--chart-pagination <N>` | タイムライン本体（チャート部分）を lane グループ単位で複数の SVG ページに分割する（issue #660, ADR-0005 D2）。`N` は 1 ページあたりの lane 数。時間軸（`meta.range`）は全ページ共通のため、`Item::lane` が単一 lane を持つ構造上、span/event_range のページ境界クリッピングは発生しない。`--show-legend` は各チャートページに個別描画される。`--show-table` を指定した場合、チャートページ群の**後ろに専用のテーブルページを 1 枚**追加し、**IR 全体**（最後のチャートページの lane に限らない）の item を一覧表示する（このテーブルページの `i / N` フッタは全ページ通し番号ではなく `1 / 1` 固定。複数テーブルページへの分割は #661 のスコープ）。`--output <path>` は必須で、`<stem>.pageN.<ext>`（`N` は総ページ数の桁数に0埋め、例: 10ページ以上なら `page01`）ごとにファイルが書き出される（stdout 出力は非対応、明示エラー）。`0` はエラー。`--format svg` のみ有効（`html`/`png`/`pdf` との併用は明示エラー。PDF 統合は #661 で対応予定）。`--watch` との併用も明示エラー。lane の `group` がページ境界をまたいで分断される場合は `stderr` に `Warning: group band "..." is split across chart pages; ...` を出力し、出力自体は生成する（silent no-op にはしない） | 無効（単一ページ） |
 
 ### 実行例
 
@@ -438,6 +439,10 @@ tdsl render examples/china_dynasties.tdsl --format pdf --pdf-title "中国王朝
 
 # アイテムテーブルを複数ページに分割（ADR-0004、--show-table 必須。1ページ目はタイムライン本体のみ）
 tdsl render examples/china_dynasties.tdsl --format pdf --show-table --pdf-pagination --output china_paginated.pdf
+
+# タイムライン本体を lane グループ単位で複数の SVG ページに分割（issue #660, ADR-0005 D2）
+# china.page1.svg / china.page2.svg ... が生成される
+tdsl render examples/china_dynasties.tdsl --format svg --chart-pagination 2 --output china.svg
 
 # インタラクティブモードで HTML を生成
 tdsl render examples/china_dynasties.tdsl --interactive --output china_interactive.html

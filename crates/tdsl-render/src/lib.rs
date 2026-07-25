@@ -7,6 +7,7 @@
 
 pub mod html;
 pub mod layout;
+pub mod pagination;
 #[cfg(feature = "pdf")]
 pub mod pdf;
 #[cfg(feature = "png")]
@@ -15,6 +16,9 @@ pub mod svg;
 
 pub use layout::{
     GridStyle, LayoutModel, LayoutStyle, Orientation, RenderOptions, Theme, ZIGZAG_MAX_LANES,
+};
+pub use pagination::{
+    ChartPage, ChartPagination, PageKind, PaginationError, paginate_svg_by_lane_groups,
 };
 #[cfg(feature = "pdf")]
 pub use pdf::{PdfDate, PdfError, PdfOptions, PdfPageSize, render_pdf, svg_to_pdf};
@@ -55,9 +59,6 @@ pub fn render_svg_only(ir: &TimelineIr, opts: RenderOptions) -> Result<String, s
     let layout = LayoutModel::compute(ir, opts);
     svg::render_svg(&layout)
 }
-
-#[cfg(test)]
-mod svg_pagination_spike;
 
 #[cfg(test)]
 mod tests {
