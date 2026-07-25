@@ -398,11 +398,11 @@ fn render_chart_pagination_without_output_fails() {
     );
 }
 
-/// `--chart-pagination` with a non-SVG format is an explicit error (PDF
-/// integration is #661, not yet implemented).
+/// `--chart-pagination` with a format that supports neither multi-file SVG
+/// pages nor multi-page PDF (e.g. PNG) is an explicit error.
 #[test]
-fn render_chart_pagination_non_svg_format_fails() {
-    let out_path = unique_temp("chart_pagination_pdf.pdf");
+fn render_chart_pagination_unsupported_format_fails() {
+    let out_path = unique_temp("chart_pagination_png.png");
     let out = tdsl_bin()
         .args([
             "render",
@@ -410,7 +410,7 @@ fn render_chart_pagination_non_svg_format_fails() {
                 .to_str()
                 .unwrap(),
             "--format",
-            "pdf",
+            "png",
             "--chart-pagination",
             "2",
             "--output",
@@ -421,11 +421,11 @@ fn render_chart_pagination_non_svg_format_fails() {
 
     assert!(
         !out.status.success(),
-        "--chart-pagination --format pdf should exit non-zero"
+        "--chart-pagination --format png should exit non-zero"
     );
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        stderr.contains("--chart-pagination only supports --format svg"),
+        stderr.contains("--chart-pagination only supports --format svg or --format pdf"),
         "stderr must explain the format restriction: {stderr}"
     );
     assert!(
@@ -468,6 +468,138 @@ fn render_svg_without_chart_pagination_is_unchanged() {
         "no paginated page files should be produced without --chart-pagination"
     );
 
+    let _ = std::fs::remove_file(&out_path);
+}
+
+// ---------------------------------------------------------------------------
+// render: --chart-pagination + --format pdf (#661)
+// ---------------------------------------------------------------------------
+
+/// `--format pdf --chart-pagination 2` against a 4-lane example produces a
+/// single multi-page PDF at `--output` (not multiple `.pageN.pdf` files —
+/// unlike SVG, PDF pagination stays within one file).
+#[test]
+fn render_pdf_chart_pagination_writes_single_multi_page_pdf() {
+    let out_path = unique_temp("chart_pagination.pdf");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/sci_tech_timeline.tdsl")
+                .to_str()
+                .unwrap(),
+            "--format",
+            "pdf",
+            "--chart-pagination",
+            "2",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        out.status.success(),
+        "render --format pdf --chart-pagination 2 should succeed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let bytes = std::fs::read(&out_path).expect("output PDF should exist");
+    assert!(bytes.starts_with(b"%PDF-"), "output must be a valid PDF");
+    let text = String::from_utf8_lossy(&bytes);
+    let page_objects = text.matches("/Type/Page").count() + text.matches("/Type /Page").count();
+    let page_trees = text.matches("/Type/Pages").count() + text.matches("/Type /Pages").count();
+    assert_eq!(
+        page_objects - page_trees,
+        2,
+        "4 lanes / 2 per page = 2 chart pages, no table page since --show-table is not given"
+    );
+
+    let stem = out_path.file_stem().unwrap().to_str().unwrap();
+    let parent = out_path.parent().unwrap();
+    let page1 = parent.join(format!("{stem}.page1.pdf"));
+    assert!(
+        !page1.exists(),
+        "PDF chart pagination must not write separate .pageN.pdf files (single PDF, multiple internal pages)"
+    );
+
+    let _ = std::fs::remove_file(&out_path);
+}
+
+/// `--format pdf --chart-pagination 2 --show-table` (no `--pdf-pagination`)
+/// appends exactly one unsplit trailing table page after the chart pages.
+#[test]
+fn render_pdf_chart_pagination_with_show_table_appends_one_table_page() {
+    let out_path = unique_temp("chart_pagination_table.pdf");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/sci_tech_timeline.tdsl")
+                .to_str()
+                .unwrap(),
+            "--format",
+            "pdf",
+            "--chart-pagination",
+            "2",
+            "--show-table",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        out.status.success(),
+        "render --format pdf --chart-pagination 2 --show-table should succeed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let bytes = std::fs::read(&out_path).expect("output PDF should exist");
+    let text = String::from_utf8_lossy(&bytes);
+    let page_objects = text.matches("/Type/Page").count() + text.matches("/Type /Page").count();
+    let page_trees = text.matches("/Type/Pages").count() + text.matches("/Type /Pages").count();
+    assert_eq!(
+        page_objects - page_trees,
+        3,
+        "2 chart pages + 1 unsplit table page"
+    );
+    let _ = std::fs::remove_file(&out_path);
+}
+
+/// `--format pdf --chart-pagination 2 --show-table --pdf-pagination` combines
+/// both pagination axes: chart pages first, then row-chunked table pages.
+#[test]
+fn render_pdf_chart_pagination_combined_with_pdf_pagination_succeeds_and_is_multi_page() {
+    let out_path = unique_temp("chart_and_table_pagination.pdf");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/sci_tech_timeline.tdsl")
+                .to_str()
+                .unwrap(),
+            "--format",
+            "pdf",
+            "--chart-pagination",
+            "2",
+            "--show-table",
+            "--pdf-pagination",
+            "--output",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to run tdsl");
+
+    assert!(
+        out.status.success(),
+        "render --format pdf --chart-pagination 2 --show-table --pdf-pagination should succeed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let bytes = std::fs::read(&out_path).expect("output PDF should exist");
+    let text = String::from_utf8_lossy(&bytes);
+    let page_objects = text.matches("/Type/Page").count() + text.matches("/Type /Page").count();
+    let page_trees = text.matches("/Type/Pages").count() + text.matches("/Type /Pages").count();
+    assert!(
+        page_objects - page_trees >= 3,
+        "chart pages (>=2) plus at least one table page expected, got {}",
+        page_objects - page_trees
+    );
     let _ = std::fs::remove_file(&out_path);
 }
 

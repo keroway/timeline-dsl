@@ -20,6 +20,7 @@ use tdsl_core::ir::TimelineIr;
 use thiserror::Error;
 
 use crate::layout::{LayoutModel, RenderOptions, TABLE_ROW_HEIGHT, collect_table_rows};
+use crate::pagination::{self, PaginationError};
 use crate::svg;
 
 /// Errors that can occur while converting the timeline SVG to a PDF.
@@ -35,6 +36,8 @@ pub enum PdfError {
     InvalidMargin(String),
     #[error("PDF pagination requires RenderOptions::show_table to be enabled")]
     PaginationRequiresTable,
+    #[error("chart pagination failed: {0}")]
+    ChartPagination(#[from] PaginationError),
 }
 
 /// Standard page sizes for PDF output.
@@ -104,6 +107,27 @@ pub struct PdfOptions {
     /// Split the item table onto separate PDF pages. This is opt-in; when
     /// disabled the historical single-page SVG-to-PDF path is retained.
     pub pagination: bool,
+    /// Split the timeline chart into multiple PDF pages by lane group, `N`
+    /// lanes per page (issue #661, following #660's SVG-only implementation
+    /// in [`crate::pagination`]). `None` (the default) retains the historical
+    /// single-chart-page behavior byte-for-byte, regardless of `pagination`.
+    ///
+    /// ## Page ordering when combined with `pagination`
+    ///
+    /// When both `chart_pagination` and `pagination` are set, the resulting
+    /// PDF pages are ordered as: all chart pages (in lane-group order) first,
+    /// followed by all table pages (in row-chunk order). Table page footers
+    /// (`i / N`) count only the table pages, not the chart pages that precede
+    /// them — this mirrors the pre-existing table-only pagination footer
+    /// numbering and keeps it independent of how many chart pages exist.
+    ///
+    /// When `chart_pagination` is set but `pagination` is not, and
+    /// `RenderOptions::show_table` is enabled, a single trailing table page
+    /// (covering every IR item, unsplit) is appended after the chart pages —
+    /// the chart can no longer share one SVG with the table once it is split
+    /// into multiple pages, so this single table page takes over the role the
+    /// combined chart+table SVG played in the non-chart-paginated case.
+    pub chart_pagination: Option<usize>,
 }
 
 impl Default for PdfOptions {
@@ -115,6 +139,7 @@ impl Default for PdfOptions {
             title: None,
             creation_date: None,
             pagination: false,
+            chart_pagination: None,
         }
     }
 }
@@ -129,64 +154,166 @@ impl Default for PdfOptions {
 pub fn render_pdf(
     ir: &TimelineIr,
     opts: RenderOptions,
-    mut pdf_opts: PdfOptions,
+    pdf_opts: PdfOptions,
 ) -> Result<Vec<u8>, PdfError> {
+    let (bytes, _warnings) = render_pdf_with_warnings(ir, opts, pdf_opts)?;
+    Ok(bytes)
+}
+
+/// Same as [`render_pdf`], but also returns diagnostic warnings that must not
+/// be silently dropped (implementation-strict.md §1 "Explicit error over
+/// silent fallback").
+///
+/// Currently the only warnings produced are `Lane::group` labels whose
+/// contiguous lane run was split across chart pages by `pdf_opts.chart_pagination`
+/// — the same diagnostic [`crate::pagination::paginate_svg_by_lane_groups`]
+/// returns for the SVG-only pagination path (issue #660). When
+/// `pdf_opts.chart_pagination` is `None` this always returns an empty `Vec`.
+pub fn render_pdf_with_warnings(
+    ir: &TimelineIr,
+    opts: RenderOptions,
+    mut pdf_opts: PdfOptions,
+) -> Result<(Vec<u8>, Vec<String>), PdfError> {
     // Supplement title from IR metadata when the caller did not override it.
     if pdf_opts.title.is_none() && !ir.meta.title.is_empty() {
         pdf_opts.title = Some(ir.meta.title.clone());
     }
 
-    let pages = render_pdf_svg_pages(ir, opts, &pdf_opts)?;
-    if pages.len() == 1 {
-        svg_to_pdf(&pages[0], pdf_opts)
+    let (pages, warnings) = render_pdf_svg_pages(ir, opts, &pdf_opts)?;
+    let bytes = if pages.len() == 1 {
+        svg_to_pdf(&pages[0], pdf_opts)?
     } else {
-        svg_pages_to_pdf(&pages, pdf_opts)
-    }
+        svg_pages_to_pdf(&pages, pdf_opts)?
+    };
+    Ok((bytes, warnings))
 }
 
 /// Compute the raw per-page SVG strings that [`render_pdf`] would convert to a
-/// PDF, without performing the SVG→PDF conversion itself.
+/// PDF, without performing the SVG→PDF conversion itself, plus any chart
+/// group-band split warnings (see [`render_pdf_with_warnings`]).
 ///
-/// This is the single source of truth for the pagination branch (ADR-0004
-/// D1/D2): non-paginated output is always exactly one page (the combined
-/// timeline+table SVG); paginated output is `[timeline_page, table_page_1,
-/// ..., table_page_N]`, where the timeline page is computed identically to
-/// the non-paginated single page (`show_table` forced to `false`, everything
-/// else unchanged) so that pagination cannot alter the timeline chart
-/// (ADR-0004 D5). Exposed at `pub(crate)` so tests can assert on the exact
-/// timeline-page SVG through the real code path instead of re-implementing it.
+/// This is the single source of truth for the pagination branches (ADR-0004
+/// D1/D2, ADR-0005/#661):
+///
+/// - `chart_pagination: None`, `pagination: false` — exactly one page (the
+///   combined timeline+table SVG), byte-for-byte identical to the pre-#661
+///   behavior (regression-tested).
+/// - `chart_pagination: None`, `pagination: true` — `[timeline_page,
+///   table_page_1, ..., table_page_N]`, where the timeline page is computed
+///   identically to the non-paginated single page (`show_table` forced to
+///   `false`, everything else unchanged) so that table pagination cannot
+///   alter the timeline chart (ADR-0004 D5). Unchanged by #661.
+/// - `chart_pagination: Some(n)` — `[chart_page_1, ..., chart_page_M,
+///   table_page_1, ..., table_page_N]` (chart pages always precede table
+///   pages). `N` is `0` when `RenderOptions::show_table` is disabled, `1`
+///   when it is enabled but `pagination` is not, or the row-chunked count
+///   from `pagination: true` otherwise. Table page footers count only the
+///   table pages, matching the `chart_pagination: None` + `pagination: true`
+///   numbering.
+///
+/// Exposed at `pub(crate)` so tests can assert on the exact page SVGs through
+/// the real code path instead of re-implementing it.
 fn render_pdf_svg_pages(
     ir: &TimelineIr,
     mut opts: RenderOptions,
     pdf_opts: &PdfOptions,
-) -> Result<Vec<String>, PdfError> {
+) -> Result<(Vec<String>, Vec<String>), PdfError> {
     // usvg does not support CSS custom properties; force plain hex lane colours.
     opts.use_css_vars = false;
 
-    if !pdf_opts.pagination {
-        let layout = LayoutModel::compute(ir, opts);
-        let svg_str = svg::render_svg(&layout)?;
-        return Ok(vec![svg_str]);
-    }
-    if !opts.show_table {
+    let Some(lanes_per_page) = pdf_opts.chart_pagination else {
+        // ── No chart pagination: preserve the pre-#661 behavior verbatim ──
+        if !pdf_opts.pagination {
+            let layout = LayoutModel::compute(ir, opts);
+            let svg_str = svg::render_svg(&layout)?;
+            return Ok((vec![svg_str], vec![]));
+        }
+        if !opts.show_table {
+            return Err(PdfError::PaginationRequiresTable);
+        }
+
+        // The chart remains a single, unmodified timeline page. Only the item
+        // table is paginated, per ADR-0004 D1/D2.
+        let lane_label_lookup = lane_label_lookup(ir);
+        let table_rows = collect_table_rows(ir, lane_label_lookup);
+        opts.show_table = false;
+        let timeline_layout = LayoutModel::compute(ir, opts);
+        let timeline_svg = svg::render_svg(&timeline_layout)?;
+
+        let (_, _, _, content_w, content_h) = pdf_page_geometry(pdf_opts)?;
+        let table_pages = table_pages_by_row_chunks(&table_rows, content_w, content_h)?;
+        let mut pages = vec![timeline_svg];
+        pages.extend(table_pages);
+        return Ok((pages, vec![]));
+    };
+
+    // ── Chart pagination (#661): the chart is always split, never combined
+    // with the table into one SVG. ──────────────────────────────────────
+    if pdf_opts.pagination && !opts.show_table {
         return Err(PdfError::PaginationRequiresTable);
     }
 
-    // The chart remains a single, unmodified timeline page. Only the item table
-    // is paginated, per ADR-0004 D1/D2.
-    let lane_label_lookup = |lane_id: &str| -> String {
+    let chart_opts = RenderOptions {
+        show_table: false,
+        ..opts.clone()
+    };
+    let chart_pagination =
+        pagination::paginate_svg_by_lane_groups(ir, &chart_opts, lanes_per_page)?;
+    let warnings = chart_pagination.group_bands_split_across_pages;
+    let mut pages: Vec<String> = chart_pagination
+        .pages
+        .into_iter()
+        .map(|page| page.svg)
+        .collect();
+
+    if opts.show_table {
+        let lane_label_lookup = lane_label_lookup(ir);
+        let table_rows = collect_table_rows(ir, lane_label_lookup);
+        let (_, _, _, content_w, content_h) = pdf_page_geometry(pdf_opts)?;
+        if pdf_opts.pagination {
+            pages.extend(table_pages_by_row_chunks(
+                &table_rows,
+                content_w,
+                content_h,
+            )?);
+        } else {
+            // Single, unsplit table page: this takes over the role the
+            // combined chart+table SVG played when the chart was not split
+            // (see the `PdfOptions::chart_pagination` doc comment).
+            let table_height = TABLE_ROW_HEIGHT * (table_rows.len() as f64 + 1.0) + 24.0;
+            pages.push(svg::render_table_page_svg(
+                &table_rows,
+                content_w,
+                table_height as f32,
+                1,
+                1,
+            )?);
+        }
+    }
+
+    Ok((pages, warnings))
+}
+
+/// Build a lane-id → lane-label lookup closure shared by every table
+/// rendering path in this module.
+fn lane_label_lookup(ir: &TimelineIr) -> impl Fn(&str) -> String + '_ {
+    move |lane_id: &str| -> String {
         ir.lanes
             .iter()
             .find(|lane| lane.id == lane_id)
             .map(|lane| lane.label.clone())
             .unwrap_or_else(|| lane_id.to_string())
-    };
-    let table_rows = collect_table_rows(ir, lane_label_lookup);
-    opts.show_table = false;
-    let timeline_layout = LayoutModel::compute(ir, opts);
-    let timeline_svg = svg::render_svg(&timeline_layout)?;
+    }
+}
 
-    let (_, _, _, content_w, content_h) = pdf_page_geometry(pdf_opts)?;
+/// Split `table_rows` across as many table pages as fit `content_h` per page
+/// (see [`table_rows_per_page`]), rendering each with a `i / N` footer that
+/// counts only table pages.
+fn table_pages_by_row_chunks(
+    table_rows: &[crate::layout::TableRow],
+    content_w: f32,
+    content_h: f32,
+) -> Result<Vec<String>, PdfError> {
     let rows_per_page = table_rows_per_page(content_h)?;
     let row_chunks: Vec<&[crate::layout::TableRow]> = if table_rows.is_empty() {
         vec![&[]]
@@ -194,17 +321,14 @@ fn render_pdf_svg_pages(
         table_rows.chunks(rows_per_page).collect()
     };
     let total_table_pages = row_chunks.len();
-    let mut pages = vec![timeline_svg];
-    for (index, rows) in row_chunks.into_iter().enumerate() {
-        pages.push(svg::render_table_page_svg(
-            rows,
-            content_w,
-            content_h,
-            index + 1,
-            total_table_pages,
-        )?);
-    }
-    Ok(pages)
+    row_chunks
+        .into_iter()
+        .enumerate()
+        .map(|(index, rows)| {
+            svg::render_table_page_svg(rows, content_w, content_h, index + 1, total_table_pages)
+                .map_err(PdfError::from)
+        })
+        .collect()
 }
 
 /// Convert a pre-rendered SVG string to a vector PDF byte buffer.
@@ -1009,7 +1133,7 @@ mod tests {
             pagination,
             ..PdfOptions::default()
         };
-        let pages = render_pdf_svg_pages(ir, opts, &pdf_opts)
+        let (pages, _warnings) = render_pdf_svg_pages(ir, opts, &pdf_opts)
             .expect("render_pdf_svg_pages must succeed for a valid IR");
         pages[0].clone()
     }
@@ -1160,7 +1284,7 @@ mod tests {
             pagination: true,
             ..PdfOptions::default()
         };
-        let pages = render_pdf_svg_pages(&ir, opts, &pdf_opts)
+        let (pages, _warnings) = render_pdf_svg_pages(&ir, opts, &pdf_opts)
             .expect("render_pdf_svg_pages with show_legend + pagination succeeds");
         assert!(
             pages.len() > 2,
@@ -1340,7 +1464,7 @@ mod tests {
             pagination: true,
             ..PdfOptions::default()
         };
-        let pages = render_pdf_svg_pages(&ir, opts, &pdf_opts)
+        let (pages, _warnings) = render_pdf_svg_pages(&ir, opts, &pdf_opts)
             .expect("render_pdf_svg_pages with CJK rows succeeds");
         assert_eq!(
             pages.len(),
@@ -1395,10 +1519,10 @@ mod tests {
             pagination: true,
             ..PdfOptions::default()
         };
-        let with_theme = render_pdf_svg_pages(&ir, opts, &pdf_opts)
+        let (with_theme, _warnings) = render_pdf_svg_pages(&ir, opts, &pdf_opts)
             .expect("render_pdf_svg_pages with color_map theme succeeds");
 
-        let without_theme = render_pdf_svg_pages(
+        let (without_theme, _warnings) = render_pdf_svg_pages(
             &ir,
             RenderOptions {
                 show_table: true,
@@ -1433,6 +1557,295 @@ mod tests {
                 plain,
                 "table page {} must be identical regardless of color_map theme",
                 index + 1
+            );
+        }
+    }
+
+    // ─── #661: chart pagination integrated into PDF output ──────────────────
+
+    /// `lane_count` lanes, each with exactly one 1-year span in its own lane,
+    /// ordered `lane0, lane1, ...` so chunking by `lanes_per_page` is
+    /// deterministic.
+    fn ir_with_lanes(lane_count: usize) -> TimelineIr {
+        let mut ir = sample_ir();
+        ir.lanes = (0..lane_count)
+            .map(|i| Lane {
+                id: format!("lane{i}"),
+                label: format!("Lane {i}"),
+                kind: "custom".into(),
+                order: i as i64,
+                group: None,
+                source_span: None,
+            })
+            .collect();
+        ir.items = (0..lane_count)
+            .map(|i| Item::Span {
+                id: format!("span:{i}"),
+                lane: format!("lane{i}"),
+                start: i as i64,
+                end: i as i64 + 1,
+                label: format!("Span {i}"),
+                tags: vec![],
+                source: None,
+                origin: None,
+                note: None,
+                link: None,
+                color: None,
+                start_month: None,
+                start_day: None,
+                start_hour: None,
+                start_minute: None,
+                start_second: None,
+                start_offset_minutes: None,
+                end_month: None,
+                end_day: None,
+                end_hour: None,
+                end_minute: None,
+                end_second: None,
+                end_offset_minutes: None,
+                end_open: false,
+                source_span: None,
+            })
+            .collect();
+        ir
+    }
+
+    /// Same lane layout as [`ir_with_lanes`] but with `row_count` table rows,
+    /// all placed in `lane0` so lane-group chart pagination (which only cares
+    /// about `ir.lanes`) still has 4 lanes to split while the table has many
+    /// rows to paginate.
+    fn ir_with_lanes_and_table_rows(lane_count: usize, row_count: usize) -> TimelineIr {
+        let mut ir = ir_with_lanes(lane_count);
+        let template = ir.items[0].clone();
+        ir.items = (0..row_count)
+            .map(|index| {
+                let mut item = template.clone();
+                if let Item::Span {
+                    id,
+                    lane,
+                    label,
+                    start,
+                    end,
+                    ..
+                } = &mut item
+                {
+                    *id = format!("span:{index}");
+                    *lane = "lane0".into();
+                    *label = format!("Item {index}");
+                    *start = index as i64;
+                    *end = index as i64 + 1;
+                }
+                item
+            })
+            .collect();
+        ir
+    }
+
+    #[test]
+    fn chart_pagination_none_does_not_change_default_pdf_options() {
+        // Regression: the new field defaults to `None`, so `PdfOptions::default()`
+        // must still describe "no chart pagination" exactly as before #661.
+        assert_eq!(PdfOptions::default().chart_pagination, None);
+    }
+
+    #[test]
+    fn chart_pagination_splits_into_multiple_chart_pages_without_table() {
+        let ir = ir_with_lanes(4);
+        let bytes = render_pdf(
+            &ir,
+            RenderOptions::default(),
+            PdfOptions {
+                chart_pagination: Some(2),
+                ..PdfOptions::default()
+            },
+        )
+        .expect("chart-paginated PDF without a table renders");
+        assert!(bytes.starts_with(PDF_SIGNATURE));
+        assert_eq!(
+            page_object_count(&bytes),
+            2,
+            "4 lanes / 2 per page = 2 chart pages; show_table is false so no table page"
+        );
+    }
+
+    #[test]
+    fn chart_pagination_with_show_table_appends_single_unsplit_table_page() {
+        let ir = ir_with_lanes(4);
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let bytes = render_pdf(
+            &ir,
+            opts,
+            PdfOptions {
+                chart_pagination: Some(2),
+                ..PdfOptions::default()
+            },
+        )
+        .expect("chart-paginated PDF with show_table renders");
+        assert_eq!(
+            page_object_count(&bytes),
+            3,
+            "2 chart pages + 1 unsplit table page (pdf_pagination not requested)"
+        );
+    }
+
+    #[test]
+    fn chart_pagination_combined_with_pdf_pagination_orders_chart_pages_before_table_pages() {
+        // 4 lanes / 2 per page = 2 chart pages. 70 rows at the default A4
+        // portrait geometry (34 rows/page, see the table-only matrix test
+        // above) split into 3 table pages, so total = 5 pages.
+        let ir = ir_with_lanes_and_table_rows(4, 70);
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let (pages, _warnings) = render_pdf_svg_pages(
+            &ir,
+            opts,
+            &PdfOptions {
+                chart_pagination: Some(2),
+                pagination: true,
+                ..PdfOptions::default()
+            },
+        )
+        .expect("combined chart + table pagination succeeds");
+        assert_eq!(pages.len(), 2 + 3, "2 chart pages then 3 table pages");
+        // Table footers must count only the table pages (1/3..3/3), never
+        // including the 2 preceding chart pages in the denominator or offset.
+        assert!(
+            pages[2].contains("1 / 3"),
+            "first table page footer must be '1 / 3', got: {}",
+            pages[2]
+        );
+        assert!(
+            pages[3].contains("2 / 3"),
+            "second table page footer must be '2 / 3', got: {}",
+            pages[3]
+        );
+        assert!(
+            pages[4].contains("3 / 3"),
+            "third table page footer must be '3 / 3', got: {}",
+            pages[4]
+        );
+    }
+
+    #[test]
+    fn chart_pagination_zero_lanes_per_page_is_explicit_error() {
+        let ir = ir_with_lanes(2);
+        let err = render_pdf(
+            &ir,
+            RenderOptions::default(),
+            PdfOptions {
+                chart_pagination: Some(0),
+                ..PdfOptions::default()
+            },
+        )
+        .expect_err("lanes_per_page=0 must be a hard error, not a silent no-op");
+        assert!(
+            matches!(
+                err,
+                PdfError::ChartPagination(PaginationError::InvalidLanesPerPage)
+            ),
+            "expected PdfError::ChartPagination(InvalidLanesPerPage), got: {err}"
+        );
+    }
+
+    #[test]
+    fn chart_pagination_and_pdf_pagination_without_show_table_is_explicit_error() {
+        let ir = ir_with_lanes(4);
+        let err = render_pdf(
+            &ir,
+            RenderOptions::default(),
+            PdfOptions {
+                chart_pagination: Some(2),
+                pagination: true,
+                ..PdfOptions::default()
+            },
+        )
+        .expect_err(
+            "pdf table pagination without show_table must fail even with chart_pagination set",
+        );
+        assert!(matches!(err, PdfError::PaginationRequiresTable));
+    }
+
+    #[test]
+    fn chart_pagination_group_band_split_warning_propagates_through_render_pdf_with_warnings() {
+        let mut ir = ir_with_lanes(4);
+        ir.lanes[0].group = Some("グループ".to_string());
+        ir.lanes[1].group = Some("グループ".to_string());
+        ir.lanes[2].group = Some("グループ".to_string());
+        // "グループ" spans lanes 0,1,2; with 2 lanes/page its run crosses the
+        // boundary between chunk 0 (lanes 0,1) and chunk 1 (lanes 2,3).
+        let (bytes, warnings) = render_pdf_with_warnings(
+            &ir,
+            RenderOptions::default(),
+            PdfOptions {
+                chart_pagination: Some(2),
+                ..PdfOptions::default()
+            },
+        )
+        .expect("chart-paginated PDF with a split group band still renders");
+        assert!(bytes.starts_with(PDF_SIGNATURE));
+        assert_eq!(
+            warnings,
+            vec!["グループ".to_string()],
+            "group band split across chart pages must be reported, not silently dropped"
+        );
+    }
+
+    #[test]
+    fn chart_pagination_none_warnings_are_always_empty() {
+        let ir = sample_ir();
+        let (bytes, warnings) =
+            render_pdf_with_warnings(&ir, RenderOptions::default(), PdfOptions::default())
+                .expect("default PDF render succeeds");
+        assert!(bytes.starts_with(PDF_SIGNATURE));
+        assert!(
+            warnings.is_empty(),
+            "chart_pagination: None must never produce warnings"
+        );
+    }
+
+    // Deterministic layout test matrix (ADR-0004 D7 pattern), extended with a
+    // chart-pagination case: 4 lanes / 2 per page always yields 2 chart pages
+    // (chart pagination is lane-count driven, independent of PDF page
+    // geometry), while the table-page count still follows the same
+    // per-page-size row capacity as the table-only matrix test above.
+    #[test]
+    fn chart_pagination_page_count_matrix_across_page_size_and_orientation() {
+        let cases: &[(PdfPageSize, bool, usize)] = &[
+            (PdfPageSize::A4, false, 2 + 3),
+            (PdfPageSize::A4, true, 2 + 4),
+            (PdfPageSize::A3, false, 2 + 2),
+            (PdfPageSize::A3, true, 2 + 3),
+            (PdfPageSize::Letter, false, 2 + 3),
+            (PdfPageSize::Letter, true, 2 + 3),
+        ];
+        let ir = ir_with_lanes_and_table_rows(4, 70);
+        for (page_size, landscape, expected_total_pages) in cases.iter().copied() {
+            let bytes = render_pdf(
+                &ir,
+                RenderOptions {
+                    show_table: true,
+                    ..RenderOptions::default()
+                },
+                PdfOptions {
+                    chart_pagination: Some(2),
+                    pagination: true,
+                    page_size,
+                    landscape,
+                    ..PdfOptions::default()
+                },
+            )
+            .unwrap_or_else(|e| {
+                panic!("render_pdf must succeed for {page_size:?} landscape={landscape}: {e}")
+            });
+            assert_eq!(
+                page_object_count(&bytes),
+                expected_total_pages,
+                "{page_size:?} landscape={landscape}: expected {expected_total_pages} total pages (2 chart + table pages)"
             );
         }
     }

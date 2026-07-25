@@ -407,8 +407,8 @@ tdsl render [OPTIONS] <FILE>
 | `--pdf-landscape` | PDF を横向き（landscape）で出力する。`--format pdf` のみ有効 | — |
 | `--pdf-margin <MM>` | PDF の用紙マージン（mm）。`--format pdf` のみ有効 | `10` |
 | `--pdf-title <TITLE>` | PDF ドキュメントの Title メタデータを上書きする（未指定時は年表タイトルを使用）。`--format pdf` のみ有効 | — |
-| `--pdf-pagination` | アイテムテーブルを用紙サイズ・余白に収まる行数ごとに複数ページへ分割する（ADR-0004）。1 ページ目は従来どおりタイムライン本体（縮小描画）のみで、2 ページ目以降にテーブルを分割描画する。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する（`N` はテーブルページ数のみを数えたもので、1 ページ目のタイムラインチャートは含まない）。opt-in（デフォルト無効）で、既存の単一ページ出力は変更されない。`--show-table` が指定されていない場合はエラー（分割対象のテーブルが存在しないため、silent no-op にはしない）。`--format pdf` のみ有効。既存のタイムライン描画オプションとの相互作用（ADR-0004 D5）: `--show-legend` はタイムラインページ（1ページ目）のみに描画されテーブルページには影響しない。`--layout-style group-bands` / `gantt` / `zigzag`、および open-ended range（`now` 終了）はいずれもタイムライン本体（1ページ目）の描画にのみ関わり、本フラグの有効/無効によってタイムラインページの描画内容が変わることはない（ページ分割はテーブルのみが対象） | — |
-| `--chart-pagination <N>` | タイムライン本体（チャート部分）を lane グループ単位で複数の SVG ページに分割する（issue #660, ADR-0005 D2）。`N` は 1 ページあたりの lane 数。時間軸（`meta.range`）は全ページ共通のため、`Item::lane` が単一 lane を持つ構造上、span/event_range のページ境界クリッピングは発生しない。`--show-legend` は各チャートページに個別描画される。`--show-table` を指定した場合、チャートページ群の**後ろに専用のテーブルページを 1 枚**追加し、**IR 全体**（最後のチャートページの lane に限らない）の item を一覧表示する（このテーブルページの `i / N` フッタは全ページ通し番号ではなく `1 / 1` 固定。複数テーブルページへの分割は #661 のスコープ）。`--output <path>` は必須で、`<stem>.pageN.<ext>`（`N` は総ページ数の桁数に0埋め、例: 10ページ以上なら `page01`）ごとにファイルが書き出される（stdout 出力は非対応、明示エラー）。`0` はエラー。`--format svg` のみ有効（`html`/`png`/`pdf` との併用は明示エラー。PDF 統合は #661 で対応予定）。`--watch` との併用も明示エラー。lane の `group` がページ境界をまたいで分断される場合は `stderr` に `Warning: group band "..." is split across chart pages; ...` を出力し、出力自体は生成する（silent no-op にはしない） | 無効（単一ページ） |
+| `--pdf-pagination` | アイテムテーブルを用紙サイズ・余白に収まる行数ごとに複数ページへ分割する（ADR-0004）。`--chart-pagination` 未指定時は 1 ページ目が従来どおりタイムライン本体（縮小描画）のみで、2 ページ目以降にテーブルを分割描画する。`--chart-pagination` 併用時のページ構成は `--chart-pagination` の説明を参照（issue #661）。各テーブルページの先頭に列見出しを再描画し、フッタに `i / N` 形式のページ番号を付与する（`N` はテーブルページ数のみを数えたもので、先行するチャートページは含まない）。opt-in（デフォルト無効）で、既存の単一ページ出力は変更されない。`--show-table` が指定されていない場合はエラー（分割対象のテーブルが存在しないため、silent no-op にはしない）。`--format pdf` のみ有効。既存のタイムライン描画オプションとの相互作用（ADR-0004 D5）: `--show-legend` はタイムラインページのみに描画されテーブルページには影響しない。`--layout-style group-bands` / `gantt` / `zigzag`、および open-ended range（`now` 終了）はいずれもタイムライン本体の描画にのみ関わり、本フラグの有効/無効によってタイムラインページの描画内容が変わることはない（`--chart-pagination` 未指定時はページ分割はテーブルのみが対象） | — |
+| `--chart-pagination <N>` | タイムライン本体（チャート部分）を lane グループ単位で複数ページに分割する（issue #660/#661, ADR-0005 D2）。`N` は 1 ページあたりの lane 数。時間軸（`meta.range`）は全ページ共通のため、`Item::lane` が単一 lane を持つ構造上、span/event_range のページ境界クリッピングは発生しない。`--show-legend` は各チャートページに個別描画される。`--format svg` と `--format pdf` の両方で有効（`html`/`png` との併用は明示エラー）。`--output <path>` は必須。`0` はエラー。`--watch` との併用も明示エラー。lane の `group` がページ境界をまたいで分断される場合は `stderr` に `Warning: group band "..." is split across chart pages; ...` を出力し、出力自体は生成する（silent no-op にはしない）。<br>**`--format svg` の場合**: `<stem>.pageN.<ext>`（`N` は総ページ数の桁数に0埋め、例: 10ページ以上なら `page01`）ごとに別ファイルとして書き出される。`--show-table` を指定した場合、チャートページ群の**後ろに専用のテーブルページを 1 枚**追加し、**IR 全体**（最後のチャートページの lane に限らない）の item を一覧表示する（このテーブルページの `i / N` フッタは `1 / 1` 固定。複数テーブルページへの分割は SVG では未対応）。<br>**`--format pdf` の場合**（issue #661）: `<stem>.pageN.svg` のような複数ファイルには分割されず、1 つの PDF ファイル内に複数ページとして出力される。ページ構成は「チャートページ群（lane グループ順）→ テーブルページ群」の順で固定。`--show-table` を指定しない場合はテーブルページなし。`--show-table` のみ指定（`--pdf-pagination` なし）の場合は IR 全体を 1 枚の未分割テーブルページとしてチャートページ群の末尾に追加する。`--show-table --pdf-pagination` を併用した場合は `--pdf-pagination` の行分割ロジックでテーブルページ群を生成し、その `i / N` フッタはテーブルページ数のみを数える（先行するチャートページ数を含めない）。ADR-0004 D3 の後方互換制約により、`--chart-pagination` を指定しない既存の `--format pdf` 出力（単体 / `--show-table` / `--pdf-pagination` のいずれも）は本フラグ追加後も完全に不変 | 無効（単一ページ） |
 
 ### 実行例
 
@@ -443,6 +443,13 @@ tdsl render examples/china_dynasties.tdsl --format pdf --show-table --pdf-pagina
 # タイムライン本体を lane グループ単位で複数の SVG ページに分割（issue #660, ADR-0005 D2）
 # china.page1.svg / china.page2.svg ... が生成される
 tdsl render examples/china_dynasties.tdsl --format svg --chart-pagination 2 --output china.svg
+
+# タイムライン本体を lane グループ単位で複数の PDF ページに分割（issue #661）
+# 単一の china_chart.pdf 内に複数ページとして出力される（テーブルなし）
+tdsl render examples/china_dynasties.tdsl --format pdf --chart-pagination 2 --output china_chart.pdf
+
+# チャートページ分割 + テーブルページ分割を併用（チャートページ群 → テーブルページ群の順）
+tdsl render examples/china_dynasties.tdsl --format pdf --chart-pagination 2 --show-table --pdf-pagination --output china_full_paginated.pdf
 
 # インタラクティブモードで HTML を生成
 tdsl render examples/china_dynasties.tdsl --interactive --output china_interactive.html

@@ -21,7 +21,9 @@ pub use pagination::{
     ChartPage, ChartPagination, PageKind, PaginationError, paginate_svg_by_lane_groups,
 };
 #[cfg(feature = "pdf")]
-pub use pdf::{PdfDate, PdfError, PdfOptions, PdfPageSize, render_pdf, svg_to_pdf};
+pub use pdf::{
+    PdfDate, PdfError, PdfOptions, PdfPageSize, render_pdf, render_pdf_with_warnings, svg_to_pdf,
+};
 #[cfg(feature = "png")]
 pub use png::{PngError, PngOptions, render_png, svg_to_png};
 
