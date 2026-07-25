@@ -107,6 +107,9 @@ tdsl render examples/china_dynasties.tdsl --format pdf --output china.pdf
 # Output as A3 landscape PDF with 15 mm margins
 tdsl render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-landscape --pdf-margin 15 --output china_a3.pdf
 
+# Split the item table across multiple PDF pages (requires --show-table)
+tdsl render examples/china_dynasties.tdsl --format pdf --show-table --pdf-pagination --output china_paginated.pdf
+
 # Vertical layout (time axis runs top to bottom)
 tdsl render examples/china_dynasties.tdsl --orientation vertical --output china_vertical.html
 
