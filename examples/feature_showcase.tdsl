@@ -1,0 +1,60 @@
+// block_options（note / link / color）と open-ended `now` を実演するサンプル（#663）。
+// Wikidata インポートは使わず、静的定義のみで完結する。
+//
+// - `note`: アイテム説明文。ツールチップ等に表示される
+// - `link`: 参照URL。`http://` / `https://` のみ許可される
+// - `color`: アイテム個別色。`color_map` や lane 色より優先される
+// - `now`: `終了..now` で open-ended（継続中）の期間を表現する（#550）
+timeline "機能ショーケース" {
+  title "note / link / color / now の使用例";
+  unit year;
+  range 2000..2030;
+  calendar proleptic_gregorian;
+}
+
+lane "プロジェクト" as project {
+  kind custom;
+  order 1;
+}
+
+lane "組織" as org {
+  kind custom;
+  order 2;
+}
+
+// note: アイテムに補足説明を付与する例
+event project 2010 "プロジェクト発足" {
+  tags ["milestone"];
+  note "社内ハッカソンから生まれた企画。詳細は議事録を参照。";
+  id "event:project:kickoff";
+};
+
+// link: 参照URLを付与する例（http:// / https:// のみ許可）
+event project 2015 "v1.0リリース" {
+  tags ["milestone"];
+  link "https://example.com/releases/v1.0";
+  id "event:project:v1";
+};
+
+// color: アイテム個別色を指定する例（color_map やレーン色より優先）
+event_range project 2018..2020 "大規模リファクタリング" {
+  tags ["refactor"];
+  color "#e07b39";
+  id "event_range:project:refactor";
+};
+
+// note / link / color を組み合わせた例
+event project 2022 "v2.0リリース" {
+  tags ["milestone"];
+  note "破壊的変更を含むメジャーアップデート。移行ガイドあり。";
+  link "https://example.com/releases/v2.0";
+  color "#3366cc";
+  id "event:project:v2";
+};
+
+// now（open-ended）: 現在も継続中の期間を表す例
+span org 2019..now "現行組織体制" {
+  tags ["org"];
+  note "現在も継続中の体制。終了年は未定。";
+  id "span:org:current";
+};

@@ -23,7 +23,7 @@ miette.workspace = true
 tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
-insta = { version = "1", features = ["yaml", "json"] }
+insta = { version = "1", features = ["yaml", "json", "redactions"] }
 async-trait = "0.1"
 criterion = { version = "0.8", features = ["html_reports"] }
 

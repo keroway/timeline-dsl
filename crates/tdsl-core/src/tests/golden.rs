@@ -95,6 +95,19 @@ fn snapshot_global_conference_timezones_ir() {
     insta::assert_json_snapshot!(ir);
 }
 
+/// #663: `note` / `link` / `color` / open-ended `now` を実演する新規サンプル。
+/// `now` はビルド時点の現在年（UTC）に解決されるため（#550）、該当フィールドのみ
+/// insta redaction で正規化し、年をまたいでもスナップショットが安定するようにする。
+#[test]
+fn snapshot_feature_showcase_ir() {
+    let src = read_example("feature_showcase.tdsl");
+    let file = tdsl_parser::parse(&src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    insta::assert_json_snapshot!(ir, {
+        ".items[4].end" => "[resolved-now-year]",
+    });
+}
+
 /// 既存の minute-level（秒・offsetなし）サンプルが、秒/offset対応実装後も
 /// 引き続き変更なくパース・lowerできることを保証する回帰テスト（#616受け入れ条件）。
 /// 対象は分精度の時刻構文を使う既存サンプル全件。
