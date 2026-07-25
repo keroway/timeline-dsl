@@ -130,7 +130,8 @@ Still intentionally NOT implemented:
   `Source` variant; only item-level `source wd:<QID>` exists)
 - Sub-second (millisecond) precision
 - IANA time zone names (e.g. `Asia/Tokyo`) with automatic DST resolution —
-  see ADR-0003 未決定事項
+  intentionally not supported (ADR-0007, decided 2026-07-26); fixed numeric
+  UTC offsets only
 
 If encountered, these MUST be rejected with a hard parser/lowering error —
 never a warning or silent fallback (see `implementation-strict.md` §2 NO-GO:
