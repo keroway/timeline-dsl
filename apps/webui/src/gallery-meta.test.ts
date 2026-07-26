@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { GALLERY_EXAMPLES } from './gallery-meta'
 
 const examplesDir = new URL('../../../examples/', `file://${process.cwd()}/src/gallery-meta.test.ts`)
@@ -10,6 +11,18 @@ describe('GALLERY_EXAMPLES', () => {
       const diskSource = readFileSync(new URL(example.filename, examplesDir), 'utf8')
       expect(example.source).toBe(diskSource)
     }
+  })
+
+  // ドリフト防止: examples/*.tdsl を新規追加したのに GALLERY_EXAMPLES への登録を
+  // 忘れると、上の「disk と一致するか」テストだけでは検出できない
+  // （登録されていないファイルはそもそも比較対象にならないため）。
+  // examples ディレクトリの全 .tdsl ファイルが登録されていることを保証する。
+  it('registers every examples/*.tdsl file (no silently-dropped additions)', () => {
+    const onDisk = readdirSync(fileURLToPath(examplesDir))
+      .filter((name) => name.endsWith('.tdsl'))
+      .sort()
+    const registered = GALLERY_EXAMPLES.map((example) => example.filename).sort()
+    expect(registered).toEqual(onDisk)
   })
 
   it('marks network-required templates as CLI-only references in descriptions', () => {

@@ -107,6 +107,12 @@ tdsl render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-lands
 # アイテムテーブルを複数ページに分割（--show-table 必須）
 tdsl render examples/china_dynasties.tdsl --format pdf --show-table --pdf-pagination --output china_paginated.pdf
 
+# チャート本体を lane グループ単位で複数の SVG ページに分割（1 ページあたり N グループ）
+tdsl render examples/china_dynasties.tdsl --format svg --chart-pagination 2 --output china_chart.svg
+
+# 同様に単一 PDF 内の複数ページとして出力（チャートページ群 → テーブルページ群の順）
+tdsl render examples/china_dynasties.tdsl --format pdf --chart-pagination 2 --show-table --pdf-pagination --output china_chart.pdf
+
 # 縦方向レイアウト（時間軸を上から下に描画）
 tdsl render examples/china_dynasties.tdsl --orientation vertical --output china_vertical.html
 
@@ -353,6 +359,11 @@ apply dynasty_span to wd {
 | `examples/sci_tech_timeline.tdsl` | 科学技術の発明・発見年表。event 中心の年表 |
 | `examples/apollo_11.tdsl` | アポロ11号ミッション。月日精度の例 |
 | `examples/apollo_11_hourly.tdsl` | アポロ11号の月面着陸日。`unit hour` による sub-day 軸目盛りの例 |
+| `examples/internet_history.tdsl` | インターネット/Web史。span と event の混在例 |
+| `examples/iss_docking_second_precision.tdsl` | 秒精度 + UTC(`Z`)オフセットの使用例（ADR 0003） |
+| `examples/global_conference_timezones.tdsl` | 複数タイムゾーン（`+09:00`/`-05:00`/`Z`）の使用例とoffset付き値同士のUTC正規化比較（ADR 0003 D2） |
+| `examples/feature_showcase.tdsl` | `note` / `link` / `color`（block_options）・open-ended `now` の使用例 |
+| `examples/china_dynasties_filtered.tdsl` | `filter` 句によるインポートエンティティの絞り込み例 |
 
 ## GitHub Actions 連携
 
