@@ -6,7 +6,7 @@
 
 ### Changed
 
-- **BREAKING: `engines.vscode` の最低対応バージョンを `^1.82.0` から `^1.91.0` に引き上げ**（#685）: `vscode-languageclient` を 9.0.1 → 10.1.0（major）に更新した際（#676）、`engines.vscode` の宣言が実依存要件（VS Code 1.91+ を要求）に追随していなかった。この不整合を放置すると、VS Code 1.82〜1.90 のユーザーに LSP 機能が壊れた状態の拡張が配布されるため修正した
+- **BREAKING: `engines.vscode` の最低対応バージョンを `^1.82.0` から `^1.125.0` に引き上げ**（#685）: `vscode-languageclient` を 9.0.1 → 10.1.0（major）に更新した際（#676）、`engines.vscode` の宣言が実依存要件（`vscode-languageclient@10.1.0` は VS Code 1.91+ を要求）に追随していなかった。当初 `^1.91.0` へ修正したが、`@types/vscode` が既に `^1.125.0` に更新されていた（#672）ため、Marketplace publish 時に `vsce` の検証（`engines.vscode` は `@types/vscode` 以上でなければならない）に失敗した（v1.28.0 タグの初回 publish 失敗）。`@types/vscode` の実要求に合わせて `^1.125.0` に修正した
 - **`tsconfig.json` に `types: ["node"]` を明示指定**: TypeScript 7.0.2 で TS2591 エラーが発生していたのを修正 (#684)
 
 ## [1.27.0] - 2026-07-19
