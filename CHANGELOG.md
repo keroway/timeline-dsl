@@ -7,16 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-07-26
+
 ### Added
 
 - **`--chart-pagination`: タイムライン本体（チャート部分）を lane グループ単位で複数の SVG ページに分割するオプションを追加**（ADR-0005 / #660）: `tdsl render --format svg --chart-pagination <N>` で、1 ページあたり `N` レーンずつチャートを分割し、`<stem>.pageN.svg` として出力できるようになった。時間軸は全ページ共通のため、`Item::lane` が単一 lane を持つ構造上、span/event_range のページ境界クリッピングは発生しない（issue #651 Spike で構造検証済み）。`--show-legend` は各チャートページに個別描画され、`--show-table` を併用するとチャートページ群の後ろに IR 全体の item を一覧する専用テーブルページを 1 枚追加する。lane の `group` がページ境界をまたいで分断される場合は stderr に警告を出力する（silent no-op にしない、implementation-strict.md §1）。`--output` が必須で、`--watch` との併用は明示エラー。既存の `--pdf-pagination`（テーブル専用）とは独立したフラグで、意味変更や後方互換への影響はない
 
 - **`--chart-pagination` を PDF 出力に統合**（ADR-0005 申し送り事項 / #661）: `tdsl render --format pdf --chart-pagination <N>` で、チャートを lane グループ単位で複数の PDF ページ（別ファイルではなく単一 PDF 内の複数ページ）に分割できるようになった。ページ構成は「チャートページ群（lane グループ順）→ テーブルページ群」の順で固定。`--show-table` のみ（`--pdf-pagination` なし）の場合は IR 全体を 1 枚の未分割テーブルページとして末尾に追加し、`--show-table --pdf-pagination` を併用した場合は既存の行分割ロジックでテーブルページ群を生成する。いずれの場合もテーブルページの `i / N` フッタはテーブルページ数のみを数え、先行するチャートページ数を含めない。`crates/tdsl-render` に `PdfOptions::chart_pagination: Option<usize>`（デフォルト `None`）と `render_pdf_with_warnings()`（group band 分断警告を返す新API、`render_pdf()` はラッパーのまま不変）を追加。ADR-0004 D3 の後方互換制約により、`--chart-pagination` を指定しない既存の `--format pdf` 出力（単体 / `--show-table` / `--pdf-pagination` のいずれも）は完全に不変（回帰テストで保証）。A4/A3/Letter × 縦横向きの決定的テストマトリクス（ADR-0004 D7 パターン）にチャート分割ケースを追加した
 
+### Changed
+
+- **BREAKING: VS Code 拡張の `engines.vscode` を `^1.82.0` から `^1.91.0` に引き上げ**（#685）: `vscode-languageclient` を 9.0.1 → 10.1.0（major）に更新した際（#676）、`engines.vscode` の宣言が実依存要件（VS Code 1.91+ を要求）に追随していなかった。放置すると VS Code 1.82〜1.90 のユーザーに LSP 機能が壊れた状態の拡張が配布されるため修正した (#688)
+- **依存更新（cargo/npm のマイナー・パッチ）をグループ化 PR でまとめて反映**: clap / tokio / thiserror / serde_json / async-trait / fast-uri / quinn-proto 等の cargo 更新、および apps/webui・editors/vscode の npm マイナー・パッチ更新19件を含む (#652–#658, #667, #670, #672, #673)
+- **依存更新管理を Dependabot から Renovate に移行**: `.github/dependabot.yml` を削除し `.github/renovate.json5` を追加。cargo / npm（apps/webui, editors/vscode）/ github-actions の3エコシステムを移植し、minor/patch はグループ化して1PRに、major は個別PRのまま既存方針を踏襲。`pdf-writer`/`svg2pdf` の lockstep 制約（PR #415）と `rust-toolchain.toml` の手動更新方針は Renovate 側の抑止ルールとして維持 (#674)
+- **apps/webui の TypeScript major 更新を Renovate で一時抑止**: `typescript-eslint@8.65.0` の peerDependencies が `typescript: ">=4.8.4 <6.1.0"` であり、TypeScript 7.x では `npm install` が ERESOLVE で失敗するため（TS7 対応版は現状 alpha のみ）。孤児化した Dependabot PR をクローズし、typescript-eslint が TS7 を安定版でサポートするまで Renovate の major 更新を抑止するルールを追加した。`editors/vscode` は eslint 非依存のため対象外で TS 7.0.2 のまま (#669, #689)
+- **CI: GitHub Actions をコミット SHA ピン化し Node を 24 に更新**: サプライチェーン耐性向上のため、タグ参照の Actions をコミット SHA 参照に置き換えた
+- **CI: Homebrew tap 更新を `TAP_BUMP_TOKEN` による自動 PR 作成方式に変更**: 陳腐化していたリポジトリ内 `Formula/` ディレクトリを削除し、`keroway/homebrew-tap` へ bump PR を自動作成する方式に統一した
+- **CI: gitleaks / remove-in-progress-on-close を reusable workflow 呼び出しに置換**
+- **ワークスペース標準ツールとして `justfile` / `lefthook.yml` / `.editorconfig` を追加**（#666）
+
 ### Fixed
 
 - **AGENTS.md §5 の秒精度/UTCオフセット関連記述を実装状況に合わせて修正**（#645）: 「Sub-year precision beyond minute (e.g. seconds / time zones)」が未実装であるかのように記載されていたが、秒精度（`DateTimeSecond`）と UTC オフセット（`DateTimeOffset` / `DateTimeSecondOffset`）は #612〜#616（ADR-0003）で実装済み。実際に未実装のサブ秒精度と IANA タイムゾーン名（DST自動解決）のみを Deferred として記載するよう修正した
 - **README.md / README.ja.md の「Known uncovered paths」を実カバレッジに照らして更新**（#646）: Wikidata クライアントの 429/5xx リトライは wiremock テストでカバー済み、PDF レンダリング（`svg2pdf`/`usvg`、in-process 純Rust・外部バイナリ非依存）はパジネーションのバリデーションエラーケースを含めユニットテスト済み、CLI の `--offline` は `build`/`export-csv` について単体テスト + ブラックボックス統合テストでカバー済みであることを確認し、実態に合わせて記述を更新した。真に未カバーなのは (1) Wikidata クライアントの低レベル接続エラー（`e.is_connect()`）リトライ分岐、(2) `tdsl-render` のフォントフォールバック特殊ケース・大規模ページ数マトリクスの網羅性、(3) `merge` サブコマンド自体を実バイナリ経由（clap dispatch込み）で叩く `--offline` 統合テスト（`cmd_build()` への委譲により関数レベルでは間接カバーされているのみ）の3点
+- **VS Code 拡張: `tsconfig.json` に `types: ["node"]` を明示指定**: TypeScript 7.0.2 で TS2591 エラーが発生していたのを修正 (#684)
+- **WebUI: pako 3.x の破壊的変更に追随**: `pako` を 2.1.0 → 3.0.1 に更新した際の API 変更に追随した (#671)
+
+### Security
+
+- **シークレット ignore パターンを統一**（#683）: `.gitignore` を整備し、gitleaks ワークフローが `pull-requests: write` 権限不足で startup_failure により**一度も実行されていなかった**問題を修正した
+- **brace-expansion の高深刻度脆弱性を解消**（Dependabot #10, #11, #13）(#659)
+- **brace-expansion の追加脆弱性を解消**（`editors/vscode` の間接依存。`vscode-languageclient` 9.0.1 → 10.1.0 major 更新に付随） (#676)
+- **quinn-proto を 0.11.14 → 0.11.16 に更新** (#677)
+
+### Docs
+
+- **`--chart-pagination` の使用例を README.md / README.ja.md に追加し、examples ギャラリー表（README・WebUI 双方）の欠落4〜5件を補完**: `feature_showcase.tdsl` / `china_dynasties_filtered.tdsl` / `iss_docking_second_precision.tdsl` / `global_conference_timezones.tdsl`（README.ja.md はさらに `internet_history.tdsl`）。WebUI ギャラリーには `examples/*.tdsl` の全数網羅を検証するドリフト防止テストを追加した (#690)
+- **`docs/dsl-spec.en.md` に `--pdf-pagination`（v1.27.0）と `--chart-pagination`（v1.28.0）を反映**し、1リリース分の英日ドリフトを解消 (#690)
+- **ADR-0005 の Status を実装完了状況に更新し、issue #661（PDF統合）の実装結果セクションを追記**（従来 #660 のみ記載されており追記漏れだった）(#690)
+- **ADR-0005 を Accepted に更新**、**ADR-0007（IANAタイムゾーン名対応）を Accepted に確定**: D1「対応しない」を正式決定。IANA タイムゾーン名は引き続き未サポート、固定数値 UTC オフセットのみ対応 (#687)
+- **参照切れの修正と README への `--pdf-pagination` 追記** (#678)
+- **VS Code README 等のキーワード列挙を `keywords.json` への参照に置換**し、ドリフトを防止 (#680)
+- **note/link/color/now を実演する example を追加しギャラリー表を更新** (#681)
+- **リリース手順（`docs/release.md` / `CONTRIBUTING.md`）に内部依存 version ピン5箇所と Homebrew tap 更新フローを追記**: バンプ対象表に `crates/tdsl-core` / `crates/tdsl-render` の内部依存 version ピンが抜けており、揃え忘れると crates.io publish が失敗する状態だったのを是正 (#691)
 
 ## [1.27.0] - 2026-07-19
 
@@ -573,6 +606,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[1.28.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.27.0...v1.28.0
+[1.27.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.26.0...v1.27.0
+[1.26.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.25.0...v1.26.0
+[1.25.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.24.0...v1.25.0
+[1.24.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.23.0...v1.24.0
+[1.23.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.22.0...v1.23.0
+[1.22.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.21.0...v1.22.0
+[1.21.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.20.0...v1.21.0
+[1.20.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.16.0...v1.17.0
