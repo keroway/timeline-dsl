@@ -11,12 +11,21 @@
 | ファイル | 更新箇所 |
 |----------|---------|
 | `Cargo.toml` | `[workspace.package].version` |
+| `crates/tdsl-core/Cargo.toml` | `tdsl-parser` / `tdsl-wikidata` の内部依存 `version = "X.Y.Z"` 要求（2箇所） |
+| `crates/tdsl-render/Cargo.toml` | `tdsl-core` / `tdsl-parser` の内部依存 `version = "X.Y.Z"` 要求（dev-deps 含め3箇所） |
 | `editors/vscode/package.json` | `"version"` フィールド |
 | `editors/vscode/CHANGELOG.md` | `## [Unreleased]` の直下に `## [X.Y.Z] - YYYY-MM-DD` セクションを追加 |
-| `CHANGELOG.md`（本体） | `## [Unreleased]` の直下に `## [X.Y.Z] - YYYY-MM-DD` セクションを追加 |
+| `CHANGELOG.md`（本体） | `## [Unreleased]` の直下に `## [X.Y.Z] - YYYY-MM-DD` セクションを追加。末尾の compare リンク一覧にも `[X.Y.Z]: .../compare/v<前バージョン>...vX.Y.Z` を追加すること |
 
 > **注意**: `editors/vscode/package.json` の version と git tag の version が一致していないと、
 > `.github/workflows/vscode-publish.yml` の整合性チェックが失敗して Marketplace への publish がブロックされます。
+>
+> **注意**: `crates/tdsl-core/Cargo.toml` / `crates/tdsl-render/Cargo.toml` の内部依存 version を
+> 揃え忘れると、`publish-crates` ジョブが「`tdsl-core X.Y.Z` が `tdsl-parser =古い版` を要求している」
+> 不整合で失敗します（後述「Cargo.toml の一括バンプ方法」参照。`cargo set-version --workspace` を使えば
+> この表の全バージョン値がまとめて揃うため、手動編集より強く推奨）。
+>
+> `apps/webui/package.json` は `"private": true` の非公開パッケージのため version バンプは不要です。
 
 ---
 
@@ -24,18 +33,39 @@
 
 ### 1. バージョンバンプ PR を作る
 
+**まず CHANGELOG の突合を行う**（過去に何度も漏らしている作業。飛ばさないこと）:
+
+```bash
+# 前回タグ以降の全コミットを、CHANGELOG.md の [Unreleased] と1行ずつ突き合わせる。
+# feature/fix PR だけでなく、chore/ci/security/deps の PR も CHANGELOG 記載対象になり得る
+# （dependabot/renovate の細かい依存更新はまとめて1行に要約してよい）。
+git log v<前バージョン>..HEAD --oneline
+```
+
+続けてバンプ本体:
+
 ```bash
 # ブランチを切る
 git checkout -b chore/release-vX.Y.Z
 
-# Cargo.toml workspace.package.version を更新
+# workspace 全体のバージョンを一括更新（内部依存の version も自動で揃う。後述）
+cargo set-version X.Y.Z --workspace
+
 # editors/vscode/package.json の version を更新
 # editors/vscode/CHANGELOG.md に新セクションを追加
-# CHANGELOG.md に新セクションを追加
+# CHANGELOG.md に新セクションを追加 + 末尾の compare リンクを追加
 
-git add Cargo.toml editors/vscode/package.json editors/vscode/CHANGELOG.md CHANGELOG.md
+# バンプ後は Cargo.lock を更新し、同一コミットに含める
+# （更新を忘れると Stop hook が "lockfile stale" で失敗する）
+cargo check --workspace
+
+git add Cargo.toml Cargo.lock crates/tdsl-core/Cargo.toml crates/tdsl-render/Cargo.toml \
+  editors/vscode/package.json editors/vscode/CHANGELOG.md CHANGELOG.md
 git commit -m "chore: release vX.Y.Z"
 ```
+
+> PR マージ後は追加 PR を挟まず即タグを打つこと（間に別 PR が入ると tag 時点の内容と
+> CHANGELOG の突合内容がずれる）。
 
 ### 2. PR をマージし、git tag を打つ
 
@@ -53,6 +83,22 @@ tag の push により `.github/workflows/vscode-publish.yml` が起動します
 - Actions タブでワークフローが成功していることを確認
 - GitHub Releases に `.vsix` が添付されていることを確認
 - [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=keroway.timeline-dsl) に新バージョンが反映されていることを確認
+
+---
+
+## Homebrew tap への反映
+
+`.github/workflows/release.yml` の `update-homebrew-formula` ジョブ（`release` ジョブの後続、
+`needs: release`）が、`keroway/homebrew-tap` へ Formula 更新の bump PR を自動作成します。
+
+- 認証は `TAP_BUMP_TOKEN` シークレット（`keroway/homebrew-tap` への書き込み権限を持つ PAT）。
+  **リリース前に、このシークレットが `timeline-dsl` リポジトリに設定されていることを確認すること**
+- `TAP_BUMP_TOKEN` が未設定の場合、ジョブは失敗せず `::notice` を出して**静かにスキップ**する
+  （他のリリース成果物をブロックしないための意図的な設計。逆に言うと、見落とすと
+  Homebrew 側だけが更新されないまま気付かれない）
+- 確認手順: Actions タブで `update-homebrew-formula` ジョブのログを確認し、
+  「スキップされた」旨の notice が出ていないこと、および
+  `keroway/homebrew-tap` に bump PR が実際に作成されていることを確認する
 
 ---
 
