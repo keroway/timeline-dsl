@@ -175,11 +175,14 @@ chore: dependabot の設定を更新
 | ファイル | 更新箇所 |
 |----------|---------|
 | `Cargo.toml` | `[workspace.package].version` |
+| `crates/tdsl-core/Cargo.toml` / `crates/tdsl-render/Cargo.toml` | 内部依存の `version = "X.Y.Z"` 要求（`cargo set-version --workspace` を使えば自動で揃う） |
 | `editors/vscode/package.json` | `"version"` フィールド |
 | `editors/vscode/CHANGELOG.md` | `## [Unreleased]` の直下に新バージョンセクションを追加 |
-| `CHANGELOG.md`（本体） | `## [Unreleased]` の直下に新バージョンセクションを追加 |
+| `CHANGELOG.md`（本体） | `## [Unreleased]` の直下に新バージョンセクションを追加。末尾の compare リンクも追加 |
 
 `editors/vscode/package.json` の version と git tag が一致していない場合、VS Code Marketplace への自動 publish がブロックされます。
+`crates/tdsl-core` / `crates/tdsl-render` の内部依存 version を揃え忘れると、crates.io への
+`publish-crates` ジョブが失敗します。
 
 詳細な手順は [docs/release.md](./docs/release.md) を参照してください。
 
