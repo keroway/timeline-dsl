@@ -1,10 +1,14 @@
 import apollo11Source from '../../../examples/apollo_11.tdsl?raw'
+import apollo11HourlySource from '../../../examples/apollo_11_hourly.tdsl?raw'
 import chinaDynastiesFilteredSource from '../../../examples/china_dynasties_filtered.tdsl?raw'
 import chinaDynastiesSource from '../../../examples/china_dynasties.tdsl?raw'
 import chinaWithImportSource from '../../../examples/china_with_import.tdsl?raw'
+import featureShowcaseSource from '../../../examples/feature_showcase.tdsl?raw'
 import fictionalEmpireSource from '../../../examples/fictional_empire.tdsl?raw'
+import globalConferenceTimezonesSource from '../../../examples/global_conference_timezones.tdsl?raw'
 import groupedDynastiesSource from '../../../examples/grouped_dynasties.tdsl?raw'
 import internetHistorySource from '../../../examples/internet_history.tdsl?raw'
+import issDockingSecondPrecisionSource from '../../../examples/iss_docking_second_precision.tdsl?raw'
 import japaneseHistorySource from '../../../examples/japanese_history.tdsl?raw'
 import officeholderWikidataSource from '../../../examples/officeholder_wikidata.tdsl?raw'
 import samuraiWikidataSource from '../../../examples/samurai_wikidata.tdsl?raw'
@@ -111,5 +115,33 @@ export const GALLERY_EXAMPLES: GalleryExample[] = [
     filename: 'officeholder_wikidata.tdsl',
     requiresNetwork: true,
     source: officeholderWikidataSource,
+  },
+  {
+    label: '機能ショーケース（note / link / color / now）',
+    description: 'block_options（note / link / color）と open-ended `now` の使用例を静的定義で例示',
+    filename: 'feature_showcase.tdsl',
+    requiresNetwork: false,
+    source: featureShowcaseSource,
+  },
+  {
+    label: 'アポロ11号 月面着陸日（時精度）',
+    description: 'unit hour による日単位より細かい時刻軸目盛りを例示',
+    filename: 'apollo_11_hourly.tdsl',
+    requiresNetwork: false,
+    source: apollo11HourlySource,
+  },
+  {
+    label: 'ISS ドッキング（秒精度・UTCオフセット）',
+    description: 'unit second と UTC(`Z`)オフセット付き時刻値による秒精度タイムラインを例示',
+    filename: 'iss_docking_second_precision.tdsl',
+    requiresNetwork: false,
+    source: issDockingSecondPrecisionSource,
+  },
+  {
+    label: '国際カンファレンス（複数タイムゾーン）',
+    description: '複数タイムゾーン（+09:00 / -05:00 / Z）を使ったoffset付き値同士のUTC正規化比較を例示',
+    filename: 'global_conference_timezones.tdsl',
+    requiresNetwork: false,
+    source: globalConferenceTimezonesSource,
   },
 ]

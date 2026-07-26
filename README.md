@@ -110,6 +110,12 @@ tdsl render examples/china_dynasties.tdsl --format pdf --pdf-size a3 --pdf-lands
 # Split the item table across multiple PDF pages (requires --show-table)
 tdsl render examples/china_dynasties.tdsl --format pdf --show-table --pdf-pagination --output china_paginated.pdf
 
+# Split the chart itself into multiple SVG pages, N lane groups per page
+tdsl render examples/china_dynasties.tdsl --format svg --chart-pagination 2 --output china_chart.svg
+
+# Same, but as a single multi-page PDF (chart pages, then table pages)
+tdsl render examples/china_dynasties.tdsl --format pdf --chart-pagination 2 --show-table --pdf-pagination --output china_chart.pdf
+
 # Vertical layout (time axis runs top to bottom)
 tdsl render examples/china_dynasties.tdsl --orientation vertical --output china_vertical.html
 
@@ -359,6 +365,10 @@ apply dynasty_span to wd {
 | `examples/apollo_11.tdsl` | Apollo 11 mission timeline with month/day precision dates |
 | `examples/apollo_11_hourly.tdsl` | Apollo 11 landing-day timeline showcasing `unit hour` sub-day axis ticks |
 | `examples/internet_history.tdsl` | Internet/Web history with mixed `span` and `event` items |
+| `examples/iss_docking_second_precision.tdsl` | Second precision + UTC (`Z`) offset time values (ADR-0003) |
+| `examples/global_conference_timezones.tdsl` | Multiple UTC offsets (`+09:00`/`-05:00`/`Z`) and UTC-normalized comparison between offset values (ADR-0003 D2) |
+| `examples/feature_showcase.tdsl` | Sample usage of `note` / `link` / `color` (block options) and open-ended `now` |
+| `examples/china_dynasties_filtered.tdsl` | Sample usage of a `filter` clause to narrow down imported entities |
 
 ## GitHub Actions Integration
 

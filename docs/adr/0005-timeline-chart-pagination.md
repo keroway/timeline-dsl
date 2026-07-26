@@ -1,6 +1,6 @@
 # ADR 0005: タイムライン本体（チャート部分）の複数ページ化
 
-- **Status**: Accepted（設計方針として承認。実装方式の最終決定は Spike プロトタイプ issue の結果を待つ）
+- **Status**: Accepted（設計方針として承認。lane グループ軸は Spike #651 → 本実装 #660 → PDF 統合 #661 で完了。時間範囲軸の分割は #662（spike, needs-refinement）として継続検討中）
 - **Date**: 2026-07-21
 - **Deciders**: keroway（承認済み、2026-07-21）
 - **Related issues**: #649（本 ADR）, #609（親: paginated PDF export, ADR 0004 が分岐元）
@@ -137,6 +137,16 @@ Spike（issue #651）で得られた知見をもとに、lane グループ単位
 - **group band 分断の警告経路**: Spike で識別された「サイレントな視覚的劣化」（想定外だった点）に対し、`ChartPagination.group_bands_split_across_pages` を CLI 層で必ず `eprintln!("Warning: ...")` として警告する経路を実装した（`--layout-style zigzag` の `zigzag_fallback` 警告パターンを踏襲）。出力そのものは生成する（エラーにはしない）。
 - **span/event_range クリッピング**: Spike の構造的な結論（lane 軸分割では原理上不要）どおり、本実装でも `LayoutModel::compute` / `render_svg` は無変更のまま再利用しており、クリッピングロジックの新規実装は発生しなかった。
 - **スコープ外として残したもの**: 時間範囲分割（span クリッピングが必要、issue #662・`needs-refinement`）、PDF 統合（issue #661）、WebUI/WASM への配線（別途起票が必要な場合のみ）。
+
+## 実装時の決定（issue #661: PDF 統合）
+
+issue #660 で `--format svg` 限定だった `--chart-pagination` を `--format pdf` にも統合した（`crates/tdsl-render/src/pdf.rs`）。issue #660 の「スコープ外として残したもの」に挙げた PDF 統合はこれで解消した。
+
+- **ページ構成**: 「チャートページ群（lane グループ順）→ テーブルページ群」の順で単一 PDF ファイル内に固定。SVG 版のように別ファイルには分割しない。
+- **`--show-table` の扱い**: `--pdf-pagination` なしなら IR 全体を 1 枚の未分割テーブルページとして末尾に追加。`--pdf-pagination` を併用すると、既存の行分割ロジック（ADR-0004）でテーブルページ群を生成する。いずれの場合もテーブルページの `i / N` フッタはテーブルページ数のみを数え、先行するチャートページ数は含めない。
+- **後方互換**: `--chart-pagination` を指定しない既存の `--format pdf` 出力（単体 / `--show-table` / `--pdf-pagination` のいずれも）は完全に不変（ADR-0004 D3 の制約を維持、回帰テストで保証）。
+- **API**: `crates/tdsl-render` に `PdfOptions::chart_pagination: Option<usize>`（デフォルト `None`）と、group band 分断警告を返す新 API `render_pdf_with_warnings()` を追加した（既存の `render_pdf()` はラッパーのまま不変）。
+- **テスト**: A4/A3/Letter × 縦横向きの決定的テストマトリクス（ADR-0004 D7 パターン）にチャート分割ケースを追加。
 
 ## 未決定事項（本 ADR の範囲外）
 
