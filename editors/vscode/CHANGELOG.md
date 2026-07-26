@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING: `engines.vscode` の最低対応バージョンを `^1.82.0` から `^1.91.0` に引き上げ**（#685）: `vscode-languageclient` を 9.0.1 → 10.1.0（major）に更新した際（#676）、`engines.vscode` の宣言が実依存要件（VS Code 1.91+ を要求）に追随していなかった。この不整合を放置すると、VS Code 1.82〜1.90 のユーザーに LSP 機能が壊れた状態の拡張が配布されるため修正した
+
 ## [1.27.0] - 2026-07-19
 
 ### Added
