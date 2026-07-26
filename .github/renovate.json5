@@ -65,5 +65,18 @@
       matchDatasources: ["rust-version"],
       enabled: false,
     },
+    {
+      // typescript-eslint@8.65.0（apps/webui の @typescript-eslint/* が依存）の peerDependencies は
+      // "typescript": ">=4.8.4 <6.1.0" であり、TypeScript 7.x では npm install が ERESOLVE で失敗する
+      // （PR #669、CI "Build WebUI" で実際に fail することを確認）。TS7 対応版は現状 alpha のみ。
+      // typescript-eslint が TS7 を安定版でサポートするまで major 更新を抑止する。
+      // editors/vscode は eslint 非依存のため対象外（#673 で TS 7.0.2 に更新済み・問題なし）。
+      description: "apps/webui: typescript-eslint の peer 制約（<6.1.0）のため typescript の major 更新を抑止",
+      matchManagers: ["npm"],
+      matchFileNames: ["apps/webui/**"],
+      matchPackageNames: ["typescript"],
+      matchUpdateTypes: ["major"],
+      enabled: false,
+    },
   ],
 }
