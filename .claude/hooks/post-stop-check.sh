@@ -23,7 +23,13 @@ INPUT="$(cat || true)"
 if command -v jq >/dev/null 2>&1; then
   STOP_HOOK_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
 else
-  STOP_HOOK_ACTIVE="false"
+  # jq 非依存フォールバック: 空白を除いた生 JSON を直接照合する
+  # （jq が無い環境ではここで "false" 固定にすると下の無限ループ防止が丸ごと無効になる）。
+  COMPACT_INPUT="$(printf '%s' "$INPUT" | tr -d ' \t\n\r')"
+  case "$COMPACT_INPUT" in
+    *'"stop_hook_active":true'*) STOP_HOOK_ACTIVE="true" ;;
+    *) STOP_HOOK_ACTIVE="false" ;;
+  esac
 fi
 
 if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
@@ -59,16 +65,16 @@ fi
 
 # 変更ファイル一覧（unstaged + staged + untracked + 未 push の commit）
 # 未 push commit を含めるのは、Claude がコミット済みの変更も検証対象に含めるため。
-# 上流ブランチが未設定の場合は、直近 5 commit を fallback として参照する。
+# 未 push 範囲は上流ブランチ → origin/main → 空、の順に degrade する
+# （直近 N commit を見る fallback は、そのターンで触っていない main の変更まで
+#   拾ってしまい、毎ターン全ステップが走る原因になるため使わない）。
 UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
 if [ -n "$UPSTREAM" ]; then
   UNPUSHED_RANGE="${UPSTREAM}..HEAD"
+elif git rev-parse --verify origin/main >/dev/null 2>&1; then
+  UNPUSHED_RANGE="origin/main..HEAD"
 else
-  if git rev-parse --verify HEAD~4 >/dev/null 2>&1; then
-    UNPUSHED_RANGE="HEAD~5..HEAD"
-  else
-    UNPUSHED_RANGE=""
-  fi
+  UNPUSHED_RANGE=""
 fi
 
 CHANGED_FILES="$(
