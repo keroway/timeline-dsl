@@ -5,6 +5,7 @@
 !.claude/commands/
 !.claude/hooks/
 !.claude/rules/
+!.claude/README.md
 .serena/
 .pi/
 CLAUDE.md.bak
