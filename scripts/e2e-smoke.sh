@@ -174,6 +174,7 @@ grep -Fq "<svg" "$TMP_DIR/sci_tech.page2.svg"
 echo "[e2e] build: --json-schema outputs TimelineIr JSON Schema without input file"
 cargo run -q -p tdsl-cli -- build --json-schema >"$TMP_DIR/schema.json"
 test -s "$TMP_DIR/schema.json"
+# shellcheck disable=SC2016 # JSON Schema の "$schema" キーをリテラル検索（展開は不要）
 grep -Fq '"$schema"' "$TMP_DIR/schema.json"
 grep -Fq '"TimelineIr"' "$TMP_DIR/schema.json"
 

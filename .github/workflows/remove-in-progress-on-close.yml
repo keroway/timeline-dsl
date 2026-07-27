@@ -19,6 +19,6 @@ permissions:
 
 jobs:
   remove-label:
-    uses: keroway/.github/.github/workflows/reusable-remove-in-progress-on-close.yml@main
+    uses: keroway/.github/.github/workflows/reusable-remove-in-progress-on-close.yml@main # zizmor: ignore[unpinned-uses] — 同一アカウント内の自前 reusable workflow。SHA ピン化は Phase 2 で検討
     with:
       issue_number: ${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.issue_number) || 0 }}

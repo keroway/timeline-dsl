@@ -11,15 +11,13 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   build:
     name: Build ${{ matrix.target }}
     if: github.event_name == 'push'
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
@@ -47,6 +45,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master (SHA ピン。toolchain は with: で指定)
@@ -64,6 +64,7 @@ jobs:
         run: rustup target add "$TARGET"
 
       - name: Cache Cargo
+        # zizmor: ignore[cache-poisoning] — push:tags のみでトリガーされ pull_request トリガーは無い
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: ${{ matrix.target }}
@@ -114,6 +115,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master (SHA ピン。toolchain は with: で指定)
@@ -121,6 +124,7 @@ jobs:
           toolchain: "1.94"
 
       - name: Cache Cargo
+        # zizmor: ignore[cache-poisoning] — push:tags のみでトリガーされ pull_request トリガーは無い
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: wasm
@@ -131,6 +135,7 @@ jobs:
           tool: wasm-pack@0.14.0
 
       - name: Setup Node.js
+        # zizmor: ignore[cache-poisoning] — push:tags のみでトリガーされ pull_request トリガーは無い
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
@@ -164,9 +169,10 @@ jobs:
           fi
 
       - name: Package WASM bundle
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.value }}
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          VERSION="${{ steps.version.outputs.value }}"
           cd crates/tdsl-wasm/pkg
           # npm パッケージページ用の README とライセンスを同梱する。
           # README はクレート直下のものを wasm-pack が pkg/ にコピーするが、
@@ -204,6 +210,8 @@ jobs:
         # npm 更新・Trusted Publisher 未設定・npm 障害のいずれの失敗でも GitHub Release /
         # Homebrew 更新をブロックしないよう、更新と publish を 1 ステップにまとめて
         # continue-on-error にする（失敗時はこのステップが赤くなり気付ける）。
+        # zizmor: ignore[adhoc-packages] — 上記コメントの通り、Trusted Publishing 要件を
+        # 満たすため意図的に常に最新の npm へ更新する。バージョン固定は本来の目的に反する
         continue-on-error: true
         run: |
           npm install -g npm@latest
@@ -229,6 +237,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master (SHA ピン。toolchain は with: で指定)
@@ -236,6 +246,7 @@ jobs:
           toolchain: "1.94"
 
       - name: Cache Cargo
+        # zizmor: ignore[cache-poisoning] — push:tags のみでトリガーされ pull_request トリガーは無い
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: publish-crates
@@ -269,6 +280,8 @@ jobs:
     needs: [build, build-wasm]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -276,21 +289,25 @@ jobs:
           merge-multiple: true
 
       - name: Publish release
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
-        with:
-          files: |
-            tdsl-linux-x86_64.tar.gz
-            tdsl-linux-aarch64.tar.gz
-            tdsl-macos-x86_64.tar.gz
-            tdsl-macos-aarch64.tar.gz
-            tdsl-windows-x86_64.zip
-            tdsl-wasm-${{ github.ref_name }}.tar.gz
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            --generate-notes \
+            tdsl-linux-x86_64.tar.gz \
+            tdsl-linux-aarch64.tar.gz \
+            tdsl-macos-x86_64.tar.gz \
+            tdsl-macos-aarch64.tar.gz \
+            tdsl-windows-x86_64.zip \
+            "tdsl-wasm-${TAG}.tar.gz"
 
   update-homebrew-formula:
     name: Update Homebrew Formula (tap bump PR)
     needs: release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       # keroway/homebrew-tap へのクロスリポジトリ操作には PAT（TAP_BUMP_TOKEN）が必要。
       # secrets は `if:` で直接評価できないため、いったん env に載せてから
@@ -326,6 +343,8 @@ jobs:
 
       - name: Checkout formula repo
         if: steps.token.outputs.available == 'true'
+        # zizmor: ignore[artipacked] — 後続の `git push` が checkout の persist された
+        # 認証情報（TAP_BUMP_TOKEN）に依存しているため意図的に persist-credentials を残す
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: keroway/homebrew-tap
