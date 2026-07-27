@@ -1,0 +1,5 @@
+# typos (https://github.com/crate-ci/typos) の誤検知除外。
+
+[default.extend-words]
+# "unparsable" の異形（英語として正しい綴りの一つ）
+unparseable = "unparseable"

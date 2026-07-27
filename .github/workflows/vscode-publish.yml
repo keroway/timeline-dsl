@@ -15,8 +15,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
+        # zizmor: ignore[cache-poisoning] — push:tags のみでトリガーされ pull_request トリガーは無い
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
@@ -24,7 +27,9 @@ jobs:
           cache-dependency-path: editors/vscode/package-lock.json
 
       - name: Install vsce
-        run: npm install -g @vscode/vsce
+        # zizmor: ignore[adhoc-packages] — CLI ツールのグローバルインストール。
+        # editors/vscode/package.json の devDependency バージョンとバージョンを揃えて固定済み
+        run: npm install -g @vscode/vsce@3.9.2
 
       - name: Install extension dependencies
         working-directory: editors/vscode
@@ -50,6 +55,10 @@ jobs:
         run: vsce package
 
       - name: Upload VSIX to GitHub Release
+        # release.yml と別ワークフローのため release 有無が不定。softprops は
+        # 「無ければ作成・あれば追記」を単一ステップで担うため `gh release` script に
+        # 単純置換しない（同等の分岐を書くと複雑化する）。
+        # zizmor: ignore[superfluous-actions] — 上記理由により意図的に維持
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: editors/vscode/*.vsix
