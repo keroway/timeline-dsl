@@ -1,36 +1,85 @@
-import { snippetCompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
+import {
+  type CompletionContext,
+  type CompletionResult,
+  snippetCompletion,
+} from '@codemirror/autocomplete'
 import type { Translator } from '../lib/i18n'
 
 // ─── TDSL keyword completions & snippets ─────────────────────────────────────
 
 function makeTdslSnippets(t: Translator) {
   return [
-    snippetCompletion('timeline "${1:タイトル}" {\n  unit year;\n  range ${2:1900}..${3:2000};\n\n  ${0}\n}', {
-      label: 'timeline', detail: t('completionTimelineDetail'), type: 'keyword', boost: 10,
-    }),
-    snippetCompletion('lane "${1:レーン名}" as ${2:id} {\n  kind ${3:dynasty};\n  order ${4:10};\n}', {
-      label: 'lane', detail: t('completionLaneDetail'), type: 'keyword', boost: 9,
-    }),
-    snippetCompletion('span ${1:lane_id} ${2:1900}..${3:1950} "${4:ラベル}" {};', {
-      label: 'span', detail: t('completionSpanDetail'), type: 'keyword', boost: 8,
-    }),
+    snippetCompletion(
+      'timeline "${1:タイトル}" {\n  unit year;\n  range ${2:1900}..${3:2000};\n\n  ${0}\n}',
+      {
+        label: 'timeline',
+        detail: t('completionTimelineDetail'),
+        type: 'keyword',
+        boost: 10,
+      }
+    ),
+    snippetCompletion(
+      'lane "${1:レーン名}" as ${2:id} {\n  kind ${3:dynasty};\n  order ${4:10};\n}',
+      {
+        label: 'lane',
+        detail: t('completionLaneDetail'),
+        type: 'keyword',
+        boost: 9,
+      }
+    ),
+    snippetCompletion(
+      'span ${1:lane_id} ${2:1900}..${3:1950} "${4:ラベル}" {};',
+      {
+        label: 'span',
+        detail: t('completionSpanDetail'),
+        type: 'keyword',
+        boost: 8,
+      }
+    ),
     snippetCompletion('event ${1:lane_id} ${2:1900} "${3:ラベル}" {};', {
-      label: 'event', detail: t('completionEventDetail'), type: 'keyword', boost: 8,
+      label: 'event',
+      detail: t('completionEventDetail'),
+      type: 'keyword',
+      boost: 8,
     }),
-    snippetCompletion('event_range ${1:lane_id} ${2:1900}..${3:1950} "${4:ラベル}" {};', {
-      label: 'event_range', detail: t('completionEventRangeDetail'), type: 'keyword', boost: 7,
-    }),
-    snippetCompletion('import wikidata as ${1:wd} {\n  entity Q${2:12345} as ${3:alias};\n}', {
-      label: 'import', detail: t('completionImportDetail'), type: 'keyword', boost: 7,
-    }),
-    snippetCompletion('map ${1:wd}.${2:alias} to span {\n  lane ${3:lane_id};\n  start claim(P${4:571}).year;\n  end claim(P${5:576}).year;\n  label label@ja ?? label@en;\n}', {
-      label: 'map', detail: t('completionMapDetail'), type: 'keyword', boost: 6,
-    }),
+    snippetCompletion(
+      'event_range ${1:lane_id} ${2:1900}..${3:1950} "${4:ラベル}" {};',
+      {
+        label: 'event_range',
+        detail: t('completionEventRangeDetail'),
+        type: 'keyword',
+        boost: 7,
+      }
+    ),
+    snippetCompletion(
+      'import wikidata as ${1:wd} {\n  entity Q${2:12345} as ${3:alias};\n}',
+      {
+        label: 'import',
+        detail: t('completionImportDetail'),
+        type: 'keyword',
+        boost: 7,
+      }
+    ),
+    snippetCompletion(
+      'map ${1:wd}.${2:alias} to span {\n  lane ${3:lane_id};\n  start claim(P${4:571}).year;\n  end claim(P${5:576}).year;\n  label label@ja ?? label@en;\n}',
+      {
+        label: 'map',
+        detail: t('completionMapDetail'),
+        type: 'keyword',
+        boost: 6,
+      }
+    ),
     snippetCompletion('query "${1:SPARQL}" as ${2:alias};', {
-      label: 'query', detail: t('completionQueryDetail'), type: 'keyword', boost: 5,
+      label: 'query',
+      detail: t('completionQueryDetail'),
+      type: 'keyword',
+      boost: 5,
     }),
     snippetCompletion('color_map {\n  ${1:tag}: "${2:#4682B4}";\n}', {
-      label: 'color_map', detail: t('completionColorMapDetail'), type: 'keyword', boost: 5,
+      label: 'color_map',
+      detail: t('completionColorMapDetail'),
+      type: 'keyword',
+      boost: 5,
     }),
   ]
 }
@@ -56,9 +105,14 @@ const STATIC_KEYWORDS = [
   { label: 'lane', type: 'property' as const },
 ]
 
-export function makeTdslCompletionSource(getSource: () => string, t: Translator) {
+export function makeTdslCompletionSource(
+  getSource: () => string,
+  t: Translator
+) {
   const TDSL_SNIPPETS = makeTdslSnippets(t)
-  return function tdslCompletions(context: CompletionContext): CompletionResult | null {
+  return function tdslCompletions(
+    context: CompletionContext
+  ): CompletionResult | null {
     const src = getSource()
     // entity / query エイリアスは map ブロックで `wd.<alias>` の形（import 元.別名）で
     // しか参照されない。ドットを含むトークンでは**ドット以降だけ**を補完対象にし、
@@ -67,11 +121,19 @@ export function makeTdslCompletionSource(getSource: () => string, t: Translator)
     // TDSL ident はハイフンを含みうる（grammar.pest: [A-Za-z_][\w-]*）。
     const dotted = context.matchBefore(/[\w-]+\.[\w-]*/)
     if (dotted) {
-      const entityAliases = [...src.matchAll(/\bentity\s+Q\d+\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
-        label: m[1], type: 'variable' as const, detail: 'entity alias',
+      const entityAliases = [
+        ...src.matchAll(/\bentity\s+Q\d+\s+as\s+([A-Za-z_][\w-]*)/g),
+      ].map((m) => ({
+        label: m[1],
+        type: 'variable' as const,
+        detail: 'entity alias',
       }))
-      const queryAliases = [...src.matchAll(/\bquery\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
-        label: m[1], type: 'variable' as const, detail: 'query alias',
+      const queryAliases = [
+        ...src.matchAll(/\bquery\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g),
+      ].map((m) => ({
+        label: m[1],
+        type: 'variable' as const,
+        detail: 'query alias',
       }))
       return {
         from: dotted.from + dotted.text.indexOf('.') + 1,
@@ -84,15 +146,30 @@ export function makeTdslCompletionSource(getSource: () => string, t: Translator)
     // ident 先頭は英字/アンダースコア限定（数値リテラル `-206` 等を拾わない）。
     const word = context.matchBefore(/[A-Za-z_][\w-]*/)
     if (!word || (word.from === word.to && !context.explicit)) return null
-    const laneIds = [...src.matchAll(/\blane\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g)].map((m) => ({
-      label: m[1], type: 'variable' as const, detail: 'lane id',
+    const laneIds = [
+      ...src.matchAll(/\blane\s+"[^"]*"\s+as\s+([A-Za-z_][\w-]*)/g),
+    ].map((m) => ({
+      label: m[1],
+      type: 'variable' as const,
+      detail: 'lane id',
     }))
-    const importSources = [...src.matchAll(/\bimport\s+[A-Za-z_][\w-]*\s+as\s+([A-Za-z_][\w-]*)\s*\{/g)].map((m) => ({
-      label: m[1], type: 'variable' as const, detail: 'import source',
+    const importSources = [
+      ...src.matchAll(
+        /\bimport\s+[A-Za-z_][\w-]*\s+as\s+([A-Za-z_][\w-]*)\s*\{/g
+      ),
+    ].map((m) => ({
+      label: m[1],
+      type: 'variable' as const,
+      detail: 'import source',
     }))
     return {
       from: word.from,
-      options: [...TDSL_SNIPPETS, ...STATIC_KEYWORDS, ...laneIds, ...importSources],
+      options: [
+        ...TDSL_SNIPPETS,
+        ...STATIC_KEYWORDS,
+        ...laneIds,
+        ...importSources,
+      ],
     }
   }
 }

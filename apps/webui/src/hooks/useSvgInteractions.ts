@@ -1,26 +1,26 @@
+import { EditorView } from '@codemirror/view'
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
   type Dispatch,
   type KeyboardEvent,
   type MouseEvent,
   type RefObject,
   type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from 'react'
-import { EditorView } from '@codemirror/view'
+import { makeCursorLineExtension, setLineHighlight } from '../editor/extensions'
 import {
-  type FilterState,
-  type LegendItem,
-  type SelectedItem,
-  FILTER_STATE_KEY,
   extractLegend,
   extractTags,
+  FILTER_STATE_KEY,
+  type FilterState,
+  type LegendItem,
   loadFilterState,
+  type SelectedItem,
 } from '../lib/svgDom'
-import { makeCursorLineExtension, setLineHighlight } from '../editor/extensions'
 
 export type SvgInteractionsApi = {
   previewRef: RefObject<HTMLDivElement | null>
@@ -54,16 +54,25 @@ export type SvgInteractionsApi = {
 // アイテム選択・双方向カーソルジャンプ（プレビュー↔エディタ）。
 export function useSvgInteractions(
   svgContent: string,
-  editorViewRef: RefObject<EditorView | null>,
+  editorViewRef: RefObject<EditorView | null>
 ): SvgInteractionsApi {
   const previewRef = useRef<HTMLDivElement>(null)
   const svgContainerRef = useRef<HTMLDivElement>(null)
-  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [tooltip, setTooltip] = useState<{
+    text: string
+    x: number
+    y: number
+  } | null>(null)
 
   // Pan/zoom (direct DOM manipulation avoids React re-renders during drag)
   const panZoomRef = useRef({ x: 0, y: 0, s: 1 })
   const [cursorGrab, setCursorGrab] = useState(false)
-  const dragRef = useRef<{ mx: number; my: number; px: number; py: number } | null>(null)
+  const dragRef = useRef<{
+    mx: number
+    my: number
+    px: number
+    py: number
+  } | null>(null)
   const didDragRef = useRef(false)
 
   // Legend, filter & detail panel
@@ -103,7 +112,11 @@ export function useSvgInteractions(
       const pz = panZoomRef.current
       const newS = Math.max(0.1, Math.min(10, pz.s * factor))
       const ratio = newS / pz.s
-      applyTransform({ s: newS, x: cx - (cx - pz.x) * ratio, y: cy - (cy - pz.y) * ratio })
+      applyTransform({
+        s: newS,
+        x: cx - (cx - pz.x) * ratio,
+        y: cy - (cy - pz.y) * ratio,
+      })
     }
     preview.addEventListener('wheel', onWheel, { passive: false })
     return () => preview.removeEventListener('wheel', onWheel)
@@ -112,7 +125,10 @@ export function useSvgInteractions(
   // Extract legend and tags after SVG renders into DOM; also restore cursor highlight
   useEffect(() => {
     if (!svgContent) {
-      requestAnimationFrame(() => { setLegendItems([]); setAllTags([]) })
+      requestAnimationFrame(() => {
+        setLegendItems([])
+        setAllTags([])
+      })
       return
     }
     requestAnimationFrame(() => {
@@ -123,14 +139,18 @@ export function useSvgInteractions(
         // SVG再描画後にカーソル行ハイライトを復元（直接DOM操作）
         const currentLine = cursorLineRef.current
         if (currentLine > 0) {
-          container.querySelectorAll<Element>('.tdsl-item-cursor-highlight').forEach((el) => {
-            el.classList.remove('tdsl-item-cursor-highlight')
-          })
-          container.querySelectorAll<HTMLElement>('[data-line]').forEach((el) => {
-            if (parseInt(el.dataset.line || '0', 10) === currentLine) {
-              el.classList.add('tdsl-item-cursor-highlight')
-            }
-          })
+          container
+            .querySelectorAll<Element>('.tdsl-item-cursor-highlight')
+            .forEach((el) => {
+              el.classList.remove('tdsl-item-cursor-highlight')
+            })
+          container
+            .querySelectorAll<HTMLElement>('[data-line]')
+            .forEach((el) => {
+              if (parseInt(el.dataset.line || '0', 10) === currentLine) {
+                el.classList.add('tdsl-item-cursor-highlight')
+              }
+            })
         }
       }
     })
@@ -146,23 +166,32 @@ export function useSvgInteractions(
       const rawTags = el.getAttribute('data-tags') ?? ''
       const tags = rawTags ? rawTags.split(',').map((t) => t.trim()) : []
       const laneHidden = filterState.hiddenLanes.has(lane)
-      const tagNoMatch = tagFilter !== '' && !tags.some((t) => t.toLowerCase().includes(tagFilter))
+      const tagNoMatch =
+        tagFilter !== '' &&
+        !tags.some((t) => t.toLowerCase().includes(tagFilter))
       el.style.opacity = laneHidden || tagNoMatch ? '0.12' : ''
     })
-    container.querySelectorAll<HTMLElement>('.tdsl-lane-label[data-lane]').forEach((el) => {
-      const lane = el.getAttribute('data-lane') ?? ''
-      el.style.opacity = filterState.hiddenLanes.has(lane) ? '0.3' : ''
-    })
+    container
+      .querySelectorAll<HTMLElement>('.tdsl-lane-label[data-lane]')
+      .forEach((el) => {
+        const lane = el.getAttribute('data-lane') ?? ''
+        el.style.opacity = filterState.hiddenLanes.has(lane) ? '0.3' : ''
+      })
   }, [filterState, svgContent])
 
   // Persist filter state to sessionStorage
   useEffect(() => {
     try {
-      sessionStorage.setItem(FILTER_STATE_KEY, JSON.stringify({
-        hiddenLanes: [...filterState.hiddenLanes],
-        tagSearch: filterState.tagSearch,
-      }))
-    } catch { /* ignore */ }
+      sessionStorage.setItem(
+        FILTER_STATE_KEY,
+        JSON.stringify({
+          hiddenLanes: [...filterState.hiddenLanes],
+          tagSearch: filterState.tagSearch,
+        })
+      )
+    } catch {
+      /* ignore */
+    }
   }, [filterState])
 
   // Preview mouse handlers (drag pan + tooltip + item selection)
@@ -180,11 +209,17 @@ export function useSvgInteractions(
       const dy = e.clientY - dragRef.current.my
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDragRef.current = true
       const pz = panZoomRef.current
-      applyTransform({ s: pz.s, x: dragRef.current.px + dx, y: dragRef.current.py + dy })
+      applyTransform({
+        s: pz.s,
+        x: dragRef.current.px + dx,
+        y: dragRef.current.py + dy,
+      })
       setTooltip(null)
       return
     }
-    const target = (e.target as Element).closest<HTMLElement>('[data-tdsl-tooltip]')
+    const target = (e.target as Element).closest<HTMLElement>(
+      '[data-tdsl-tooltip]'
+    )
     if (target) {
       const text = target.dataset.tdslTooltip ?? ''
       setTooltip({ text, x: e.clientX, y: e.clientY })
@@ -239,7 +274,8 @@ export function useSvgInteractions(
           })
           view.focus()
           // 500ms 後にハイライトをフェードアウト
-          if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current)
+          if (highlightTimerRef.current !== null)
+            clearTimeout(highlightTimerRef.current)
           highlightTimerRef.current = setTimeout(() => {
             view.dispatch({ effects: setLineHighlight.of(null) })
             highlightTimerRef.current = null
@@ -252,7 +288,10 @@ export function useSvgInteractions(
   }
 
   function handlePreviewClick(e: MouseEvent<HTMLDivElement>) {
-    if (didDragRef.current) { didDragRef.current = false; return }
+    if (didDragRef.current) {
+      didDragRef.current = false
+      return
+    }
     const target = (e.target as Element).closest<HTMLElement>('[data-label]')
     activatePreviewTarget(target)
   }
@@ -275,9 +314,11 @@ export function useSvgInteractions(
     const container = svgContainerRef.current
     if (!container) return
     // 既存の強調をすべて解除
-    container.querySelectorAll<Element>('.tdsl-item-cursor-highlight').forEach((el) => {
-      el.classList.remove('tdsl-item-cursor-highlight')
-    })
+    container
+      .querySelectorAll<Element>('.tdsl-item-cursor-highlight')
+      .forEach((el) => {
+        el.classList.remove('tdsl-item-cursor-highlight')
+      })
     // カーソル行に対応するアイテムを強調
     container.querySelectorAll<HTMLElement>('[data-line]').forEach((el) => {
       const elLine = parseInt(el.dataset.line || '0', 10)
@@ -291,7 +332,10 @@ export function useSvgInteractions(
   // makeCursorLineExtension は handleCursorLine を ViewPlugin の update 内でのみ呼び出し、
   // 生成（render）中には呼ばないため、ref 読み取りの警告は誤検知。
   // eslint-disable-next-line react-hooks/refs
-  const cursorLineExtension = useMemo(() => makeCursorLineExtension(handleCursorLine), [handleCursorLine])
+  const cursorLineExtension = useMemo(
+    () => makeCursorLineExtension(handleCursorLine),
+    [handleCursorLine]
+  )
 
   return {
     previewRef,

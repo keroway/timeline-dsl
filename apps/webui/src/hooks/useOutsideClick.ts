@@ -1,10 +1,15 @@
-import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import {
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useEffect,
+} from 'react'
 
 // メニューが開いている間、外側クリックで閉じる。
 export function useOutsideClick(
   ref: RefObject<HTMLElement | null>,
   isOpen: boolean,
-  setOpen: Dispatch<SetStateAction<boolean>>,
+  setOpen: Dispatch<SetStateAction<boolean>>
 ): void {
   useEffect(() => {
     if (!isOpen) return

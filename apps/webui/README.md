@@ -54,6 +54,26 @@ npm run build
 
 ビルド成果物には `manifest.webmanifest` と Service Worker が含まれます。Service Worker は JS/CSS/WASM などのアプリシェルを事前キャッシュし、初回ロード後のオフライン起動に対応します。新バージョンが利用可能になった場合は画面上部の更新通知から再読み込みできます。Wikidata インポートはブラウザでは実行されないため、オフライン時も UI 通知と診断で明示し、CLI での利用を案内します。
 
+### Lint / フォーマット
+
+Biome を使用（`biome.json`）。ESLint + 手書きフォーマットからの移行（旧 `eslint.config.js` は削除済み）。
+
+```bash
+npm run lint          # biome lint .
+npm run format        # biome format --write .
+npm run format:check  # biome format .（CI 相当）
+```
+
+`biome.json` で無効化しているルールと理由（Biome の config は JSON コメント非対応のため、理由はここに記載する）:
+
+- `style.noNonNullAssertion` — 既存コードの `!` は主にテストコード・ref/初期化保証済みアクセスで使われており、Biome の unsafe fix（`?.` への機械置換）はランタイム挙動を変える（例外を投げず握りつぶす）ため、1 件ずつのレビューが必要。フォローアップ課題として個別対応する。
+- `correctness.useExhaustiveDependencies` — 既存 `useEffect`/`useMemo` の依存配列は再レンダリング・無限ループ回避のため意図的に絞られているものが多く、unsafe fix で機械的に外すと挙動が変わる。フックごとのレビューが必要なためフォローアップとする。
+- `complexity.noImportantStyles` — `App.css` の `!important` はモバイル/レスポンシブ時のレイアウト強制上書きに意図的に使われており、削除（Biome の唯一の fix）は実際のレイアウト崩れにつながる。
+- `a11y.useKeyWithClickEvents` / `a11y.noStaticElementInteractions` / `a11y.useSemanticElements` / `a11y.useAriaPropsSupportedByRole` / `a11y.noSvgWithoutTitle` — モーダルのオーバーレイクリック閉じる処理、`role="separator"` のドラッグハンドル、汎用 `<div>` への `aria-label`、アイコンスプライト SVG など、既存 UI パターンに対する指摘。正しく直すには role 付与・キーボードハンドラ追加・セマンティック要素への置き換えなど実際のマークアップ/UX変更が必要で、lint ツール移行のスコープを超えるためアクセシビリティ改善のフォローアップ課題とする。
+- `src/editor/completions.ts` のみ `suspicious.noTemplateCurlyInString` を無効化（`overrides` 参照）— CodeMirror のスニペット構文 `${1:placeholder}` はプレーン文字列であり JS のテンプレートリテラルではないため誤検知。
+
+上記以外の指摘は本移行で修正済み（`type="button"` の付与、`forEach` コールバックの戻り値除去、文字列結合 → テンプレートリテラル化、`dangerouslySetInnerHTML`/`autoFocus`/配列 index key への `biome-ignore` コメント付与など）。
+
 ### PWA 手動チェックリスト
 
 - Chrome DevTools / Lighthouse の PWA 監査で installable であることを確認する

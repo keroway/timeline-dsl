@@ -22,6 +22,8 @@ export function readInitialSource(): InitialSourceResult {
   try {
     const saved = localStorage.getItem(EDITOR_SOURCE_KEY)
     if (saved) return { source: saved, hashError: null }
-  } catch {/* private browsing or quota */}
+  } catch {
+    /* private browsing or quota */
+  }
   return { source: EXAMPLES[0].source, hashError: null }
 }

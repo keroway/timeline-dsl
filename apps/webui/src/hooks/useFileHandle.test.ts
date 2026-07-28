@@ -1,11 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isFileSystemAccessSupported, openTdslFile, saveTdslFile } from './useFileHandle'
+import {
+  isFileSystemAccessSupported,
+  openTdslFile,
+  saveTdslFile,
+} from './useFileHandle'
 
-function createMockWritable(onClose: (value: string) => void): FileSystemWritableFileStream {
+function createMockWritable(
+  onClose: (value: string) => void
+): FileSystemWritableFileStream {
   let value = ''
   const writable = {
     write: vi.fn(async (chunk: FileSystemWriteChunkType) => {
-      value += typeof chunk === 'string' ? chunk : await new Blob([chunk as BlobPart]).text()
+      value +=
+        typeof chunk === 'string'
+          ? chunk
+          : await new Blob([chunk as BlobPart]).text()
     }),
     seek: vi.fn(async () => undefined),
     truncate: vi.fn(async () => undefined),
@@ -14,13 +23,20 @@ function createMockWritable(onClose: (value: string) => void): FileSystemWritabl
   return writable as unknown as FileSystemWritableFileStream
 }
 
-function createMockFileHandle(name: string, initialText: string): FileSystemFileHandle {
+function createMockFileHandle(
+  name: string,
+  initialText: string
+): FileSystemFileHandle {
   let text = initialText
   const handle = {
     kind: 'file' as const,
     name,
     getFile: vi.fn(async () => new File([text], name, { type: 'text/plain' })),
-    createWritable: vi.fn(async () => createMockWritable((value) => { text = value })),
+    createWritable: vi.fn(async () =>
+      createMockWritable((value) => {
+        text = value
+      })
+    ),
     isSameEntry: vi.fn(async () => false),
   }
   return handle as unknown as FileSystemFileHandle
@@ -44,21 +60,32 @@ describe('File System Access helpers', () => {
       },
     })
 
-    expect(result).toMatchObject({ status: 'saved', mode: 'download', name: 'timeline.tdsl' })
+    expect(result).toMatchObject({
+      status: 'saved',
+      mode: 'download',
+      name: 'timeline.tdsl',
+    })
     expect(downloads).toEqual([
       { filename: 'timeline.tdsl', text: 'timeline { title "Fallback"; }' },
     ])
   })
 
   it('opens, overwrites, and re-opens the same mocked file handle', async () => {
-    const handle = createMockFileHandle('project.tdsl', 'timeline { title "Before"; }')
+    const handle = createMockFileHandle(
+      'project.tdsl',
+      'timeline { title "Before"; }'
+    )
     const host: PickerHost = {
       showOpenFilePicker: vi.fn(async () => [handle]),
       showSaveFilePicker: vi.fn(),
     }
 
     const opened = await openTdslFile(host)
-    expect(opened).toMatchObject({ status: 'opened', name: 'project.tdsl', text: 'timeline { title "Before"; }' })
+    expect(opened).toMatchObject({
+      status: 'opened',
+      name: 'project.tdsl',
+      text: 'timeline { title "Before"; }',
+    })
     if (opened.status !== 'opened') throw new Error('expected opened result')
 
     const saved = await saveTdslFile({
@@ -66,10 +93,18 @@ describe('File System Access helpers', () => {
       handle: opened.handle,
       host,
     })
-    expect(saved).toMatchObject({ status: 'saved', mode: 'overwrite', name: 'project.tdsl' })
+    expect(saved).toMatchObject({
+      status: 'saved',
+      mode: 'overwrite',
+      name: 'project.tdsl',
+    })
 
     const reopened = await openTdslFile(host)
-    expect(reopened).toMatchObject({ status: 'opened', name: 'project.tdsl', text: 'timeline { title "After"; }' })
+    expect(reopened).toMatchObject({
+      status: 'opened',
+      name: 'project.tdsl',
+      text: 'timeline { title "After"; }',
+    })
     expect(host.showSaveFilePicker).not.toHaveBeenCalled()
   })
 
@@ -87,7 +122,11 @@ describe('File System Access helpers', () => {
       host,
     })
 
-    expect(saved).toMatchObject({ status: 'saved', mode: 'save-as', name: 'new-project.tdsl' })
+    expect(saved).toMatchObject({
+      status: 'saved',
+      mode: 'save-as',
+      name: 'new-project.tdsl',
+    })
     const reopenedHost: PickerHost = {
       showOpenFilePicker: vi.fn(async () => [handle]),
       showSaveFilePicker: vi.fn(),

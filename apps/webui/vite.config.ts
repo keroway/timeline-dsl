@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import wasm from 'vite-plugin-wasm'
+import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import wasm from 'vite-plugin-wasm'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
@@ -24,7 +24,8 @@ export default defineConfig({
       manifest: {
         name: 'Timeline DSL WebUI',
         short_name: 'TDSL WebUI',
-        description: 'Offline-capable editor and previewer for Timeline DSL files.',
+        description:
+          'Offline-capable editor and previewer for Timeline DSL files.',
         theme_color: '#13131f',
         background_color: '#13131f',
         display: 'standalone',

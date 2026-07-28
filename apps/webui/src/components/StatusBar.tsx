@@ -9,19 +9,37 @@ type StatusBarProps = {
   locale: Locale
 }
 
-export function StatusBar({ wasmReady, wasmError, errorCount, warnCount, locale }: StatusBarProps) {
+export function StatusBar({
+  wasmReady,
+  wasmError,
+  errorCount,
+  warnCount,
+  locale,
+}: StatusBarProps) {
   const t = useMemo(() => createTranslator(locale), [locale])
 
   if (!wasmReady && !wasmError) {
     return <div className="status-bar loading">{t('statusInitializing')}</div>
   }
   if (wasmError) {
-    return <div className="status-bar status-error">{t.fmt('statusWasmInitError', { msg: wasmError })}</div>
+    return (
+      <div className="status-bar status-error">
+        {t.fmt('statusWasmInitError', { msg: wasmError })}
+      </div>
+    )
   }
   return (
     <div className="status-bar ready">
-      {errorCount > 0 && <span className="badge badge-error">{t.fmt('statusErrors', { count: errorCount })}</span>}
-      {warnCount > 0 && <span className="badge badge-warn">{t.fmt('statusWarnings', { count: warnCount })}</span>}
+      {errorCount > 0 && (
+        <span className="badge badge-error">
+          {t.fmt('statusErrors', { count: errorCount })}
+        </span>
+      )}
+      {warnCount > 0 && (
+        <span className="badge badge-warn">
+          {t.fmt('statusWarnings', { count: warnCount })}
+        </span>
+      )}
       {errorCount === 0 && warnCount === 0 && (
         <span className="badge badge-ok">{t('statusOk')}</span>
       )}

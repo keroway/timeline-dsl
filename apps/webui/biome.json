@@ -1,11 +1,75 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.1/schema.json",
-  "//": "The WebUI is hand-formatted (2-space, single quotes, no semicolons, no line-width wrapping) and linted by ESLint only. This config exists so that Biome-based tooling (e.g. the pi-lens edit hook) does NOT reformat these files to its own defaults (tabs / double quotes / semicolons / line wrapping), which would conflict with the established style and break inline eslint-disable directives. Formatting/linting stay disabled here on purpose; run `npm run lint` (ESLint) for the project's checks.",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": {
-    "includes": ["**", "!dist"]
+  "$schema": "https://biomejs.dev/schemas/2.5.5/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
   },
-  "formatter": { "enabled": false },
-  "linter": { "enabled": false },
-  "assist": { "enabled": false }
+  "files": {
+    "includes": [
+      "**",
+      "!dist",
+      "!node_modules",
+      "!coverage",
+      "!src/wasm/*.d.ts",
+      "!.claude"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noNonNullAssertion": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "off"
+      },
+      "complexity": {
+        "noImportantStyles": "off"
+      },
+      "a11y": {
+        "useKeyWithClickEvents": "off",
+        "noStaticElementInteractions": "off",
+        "useSemanticElements": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "noSvgWithoutTitle": "off"
+      }
+    },
+    "domains": {
+      "react": "recommended"
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/editor/completions.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
+    }
+  ],
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
+      "trailingCommas": "es5"
+    }
+  }
 }

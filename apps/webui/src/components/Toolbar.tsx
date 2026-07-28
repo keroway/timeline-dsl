@@ -1,7 +1,13 @@
-import { useMemo, type ChangeEvent, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import {
+  type ChangeEvent,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useMemo,
+} from 'react'
 import type { ExportApi } from '../hooks/useExport'
-import type { Settings } from '../lib/settings'
 import { createTranslator } from '../lib/i18n'
+import type { Settings } from '../lib/settings'
 
 type ToolbarProps = {
   fileMenuRef: RefObject<HTMLDivElement | null>
@@ -68,6 +74,7 @@ export function Toolbar(props: ToolbarProps) {
         {/* File menu */}
         <div className="export-menu-wrapper" ref={fileMenuRef}>
           <button
+            type="button"
             className="btn"
             onClick={() => setFileMenuOpen((v) => !v)}
             title={t('toolbarFileMenuTitle')}
@@ -76,11 +83,20 @@ export function Toolbar(props: ToolbarProps) {
           </button>
           {fileMenuOpen && (
             <div className="export-menu export-menu-left">
-              <button className="export-menu-item" onClick={() => { onOpenFile(); setFileMenuOpen(false) }}>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  onOpenFile()
+                  setFileMenuOpen(false)
+                }}
+              >
                 {t('toolbarOpen')}
               </button>
               <div className="export-menu-section">
-                {currentFileName ? t.fmt('toolbarCurrentFile', { name: currentFileName }) : t('toolbarNoWritableFile')}
+                {currentFileName
+                  ? t.fmt('toolbarCurrentFile', { name: currentFileName })
+                  : t('toolbarNoWritableFile')}
               </div>
               {!fileAccessSupported && (
                 <div className="export-menu-section" role="note">
@@ -97,6 +113,7 @@ export function Toolbar(props: ToolbarProps) {
         </div>
         {/* Template gallery */}
         <button
+          type="button"
           className="btn"
           onClick={onShowGallery}
           title={t('toolbarGalleryTitle')}
@@ -106,6 +123,7 @@ export function Toolbar(props: ToolbarProps) {
         {historyEnabled && (
           <>
             <button
+              type="button"
               className="btn"
               onClick={onSaveToHistory}
               title={t('toolbarSaveHistory')}
@@ -113,15 +131,18 @@ export function Toolbar(props: ToolbarProps) {
               {t('toolbarSaveHistory')}
             </button>
             <button
+              type="button"
               className={`btn${historyCount > 0 ? ' btn-history-badge' : ''}`}
               onClick={onShowHistory}
               title={t('toolbarHistory')}
             >
-              {t('toolbarHistory')} {historyCount > 0 ? `(${historyCount})` : ''}
+              {t('toolbarHistory')}{' '}
+              {historyCount > 0 ? `(${historyCount})` : ''}
             </button>
           </>
         )}
         <button
+          type="button"
           className="btn"
           onClick={onFormat}
           disabled={!wasmReady}
@@ -130,6 +151,7 @@ export function Toolbar(props: ToolbarProps) {
           {t('toolbarFormat')}
         </button>
         <button
+          type="button"
           className="btn"
           onClick={onLintFix}
           disabled={!wasmReady}
@@ -142,6 +164,7 @@ export function Toolbar(props: ToolbarProps) {
         {/* Export menu */}
         <div className="export-menu-wrapper" ref={exportMenuRef}>
           <button
+            type="button"
             className="btn"
             onClick={() => setExportMenuOpen((v) => !v)}
             title={t('toolbarExportMenu')}
@@ -150,39 +173,127 @@ export function Toolbar(props: ToolbarProps) {
           </button>
           {exportMenuOpen && (
             <div className="export-menu">
-              <div className="export-menu-section">{t('toolbarExportDownloadSection')}</div>
-              <button className="export-menu-item" onClick={() => { exportApi.downloadTdsl(); setExportMenuOpen(false) }}>
+              <div className="export-menu-section">
+                {t('toolbarExportDownloadSection')}
+              </div>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.downloadTdsl()
+                  setExportMenuOpen(false)
+                }}
+              >
                 {t('toolbarExportTdsl')}
               </button>
-              <button className="export-menu-item" onClick={() => { exportApi.downloadJsonIr(); setExportMenuOpen(false) }}>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.downloadJsonIr()
+                  setExportMenuOpen(false)
+                }}
+              >
                 {t('toolbarExportJsonIr')}
               </button>
-              <button className="export-menu-item" onClick={() => { exportApi.downloadSvg(); setExportMenuOpen(false) }} disabled={!svgContent}>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.downloadSvg()
+                  setExportMenuOpen(false)
+                }}
+                disabled={!svgContent}
+              >
                 {t('toolbarExportSvg')}
               </button>
-              <button className="export-menu-item" onClick={() => { exportApi.downloadHtml(); setExportMenuOpen(false) }} disabled={!svgContent}>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.downloadHtml()
+                  setExportMenuOpen(false)
+                }}
+                disabled={!svgContent}
+              >
                 {t('toolbarExportHtml')}
               </button>
-              <button className="export-menu-item" onClick={() => { exportApi.exportPdf(); setExportMenuOpen(false) }} disabled={!svgContent}>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.exportPdf()
+                  setExportMenuOpen(false)
+                }}
+                disabled={!svgContent}
+              >
                 {t('toolbarExportPdf')}
               </button>
-              <button className="export-menu-item" onClick={() => { exportApi.downloadPng(true); setExportMenuOpen(false) }} disabled={!svgContent}>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.downloadPng(true)
+                  setExportMenuOpen(false)
+                }}
+                disabled={!svgContent}
+              >
                 {t('toolbarExportPngWhite')}
               </button>
-              <button className="export-menu-item" onClick={() => { exportApi.downloadPng(false); setExportMenuOpen(false) }} disabled={!svgContent}>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.downloadPng(false)
+                  setExportMenuOpen(false)
+                }}
+                disabled={!svgContent}
+              >
                 {t('toolbarExportPngTransparent')}
               </button>
-              <div className="export-menu-section">{t('toolbarExportClipboardSection')}</div>
-              <button className="export-menu-item" onClick={() => { exportApi.copySvg(); setExportMenuOpen(false) }} disabled={!svgContent}>
+              <div className="export-menu-section">
+                {t('toolbarExportClipboardSection')}
+              </div>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.copySvg()
+                  setExportMenuOpen(false)
+                }}
+                disabled={!svgContent}
+              >
                 {t('toolbarCopySvg')}
               </button>
-              <button className="export-menu-item" onClick={() => { exportApi.copyPng(); setExportMenuOpen(false) }} disabled={!svgContent}>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.copyPng()
+                  setExportMenuOpen(false)
+                }}
+                disabled={!svgContent}
+              >
                 {t('toolbarCopyPng')}
               </button>
-              <button className="export-menu-item" onClick={() => { exportApi.copyMarkdown(); setExportMenuOpen(false) }}>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.copyMarkdown()
+                  setExportMenuOpen(false)
+                }}
+              >
                 {t('toolbarCopyMarkdown')}
               </button>
-              <button className="export-menu-item" onClick={() => { exportApi.copyShareLink(); setExportMenuOpen(false) }}>
+              <button
+                type="button"
+                className="export-menu-item"
+                onClick={() => {
+                  exportApi.copyShareLink()
+                  setExportMenuOpen(false)
+                }}
+              >
                 {t('toolbarCopyShareLink')}
               </button>
             </div>
@@ -190,6 +301,7 @@ export function Toolbar(props: ToolbarProps) {
         </div>
         {/* Settings */}
         <button
+          type="button"
           className="btn"
           onClick={onShowSettings}
           title={t('toolbarSettings')}
@@ -200,7 +312,13 @@ export function Toolbar(props: ToolbarProps) {
         <button
           type="button"
           className="btn"
-          onClick={() => window.open('https://timeline-dsl-lp.pages.dev/', '_blank', 'noopener,noreferrer')}
+          onClick={() =>
+            window.open(
+              'https://timeline-dsl-lp.pages.dev/',
+              '_blank',
+              'noopener,noreferrer'
+            )
+          }
           title={t('toolbarAboutTitle')}
         >
           {t('toolbarAbout')}

@@ -121,7 +121,7 @@ export type Dictionary = {
   historyTitle: string
   historyClose: string
   historyManualSection: string
-  historyAutoSection: string  // {count} and {max} placeholders
+  historyAutoSection: string // {count} and {max} placeholders
   historyRestoreTitle: string
   historyRenameTitle: string
   historyDeleteTitle: string
@@ -136,7 +136,7 @@ export type Dictionary = {
   galleryCliNoteItem: string
 
   // Status bar
-  statusErrors: string   // {count} placeholder
+  statusErrors: string // {count} placeholder
   statusWarnings: string // {count} placeholder
   statusOk: string
   statusStale: string
@@ -146,7 +146,7 @@ export type Dictionary = {
   diagnosticsHeader: string
 
   // Export (hooks/useExport.ts)
-  exportJsonIrFailed: string       // {msg}
+  exportJsonIrFailed: string // {msg}
   exportJsonIrIncompleteConfirm: string
   confirmJsonIrIncompleteTitle: string
   exportPngGenerateFailed: string
@@ -167,14 +167,14 @@ export type Dictionary = {
   historySnapshotBeforeFileOpen: string
   historyAutoSnapshotLabel: string
   historyManualSnapshotPrefix: string
-  historyManualSnapshotLabel: string  // {datetime}
-  historySavedToHistory: string       // {label}
+  historyManualSnapshotLabel: string // {datetime}
+  historySavedToHistory: string // {label}
   historyClearedAll: string
   historyEmpty: string
   historyClearAll: string
 
   // App shell
-  appFileOpenFailed: string  // {msg}
+  appFileOpenFailed: string // {msg}
 
   // Toolbar — export menu
   toolbarExportDownloadSection: string
@@ -206,7 +206,7 @@ export type Dictionary = {
   previewEmptyValue: string
 
   // Settings modal — extra strings
-  settingsThemeAutoTitle: string  // {scheme}
+  settingsThemeAutoTitle: string // {scheme}
   settingsThemeDarkLabel: string
   settingsThemeLightLabel: string
   settingsSvgPreviewSection: string
@@ -223,7 +223,7 @@ export type Dictionary = {
 
   // Status bar
   statusInitializing: string
-  statusWasmInitError: string  // {msg}
+  statusWasmInitError: string // {msg}
 
   // Mobile tab bar
   mobileTabEditor: string
@@ -276,17 +276,22 @@ const ja: Dictionary = {
   appLintFixNoIssues: '自動修正可能な lint 問題はありません',
   appLintFixCommentConfirm:
     'lint --fix を適用します。コメントとフォーマットは保持されません。続行しますか？',
-  appLintFixConfirm: 'lint --fix を適用します。フォーマットも再整形されます。続行しますか？',
+  appLintFixConfirm:
+    'lint --fix を適用します。フォーマットも再整形されます。続行しますか？',
   appLintFixed: 'lint --fix を適用しました',
-  appLintFixedCommentWarning: 'lint --fix を適用しました（コメントは保持されません）',
-  fileAccessUnsupported: 'このブラウザは直接オープン/上書き保存に非対応です。従来のファイル選択とダウンロード保存を使用します。',
-  fileAccessDownloadFallback: '直接保存に非対応のため .tdsl をダウンロードしました',
+  appLintFixedCommentWarning:
+    'lint --fix を適用しました（コメントは保持されません）',
+  fileAccessUnsupported:
+    'このブラウザは直接オープン/上書き保存に非対応です。従来のファイル選択とダウンロード保存を使用します。',
+  fileAccessDownloadFallback:
+    '直接保存に非対応のため .tdsl をダウンロードしました',
   fileAccessSaved: '{name} に保存しました',
   fileAccessSavedAs: '{name} として保存しました',
   fileAccessSaveFailed: '保存に失敗しました: {msg}',
   pwaOfflineReady: 'オフライン起動の準備が完了しました',
   pwaUpdateAvailable: '新しいバージョンを利用できます',
-  pwaUpdateMessage: '新しいバージョンを利用できます。再読み込みして更新してください。',
+  pwaUpdateMessage:
+    '新しいバージョンを利用できます。再読み込みして更新してください。',
   pwaReload: '再読み込み',
   pwaRegistrationFailed: 'Service Worker の登録に失敗しました: {msg}',
   pwaNetworkOffline:
@@ -472,10 +477,12 @@ const ja: Dictionary = {
   settingsSvgPreviewSection: 'SVG プレビュー設定',
   settingsShowEventLabelsTitle:
     'Event / event_range のラベルをドット・バー近傍に常時描画します（一覧表示・印刷向け）',
-  settingsAutoSaveTitle: '編集内容をブラウザに自動保存します（リロード後も復元）',
+  settingsAutoSaveTitle:
+    '編集内容をブラウザに自動保存します（リロード後も復元）',
   settingsAutoSaveOnHint: 'リロード後に復元されます',
   settingsAutoSaveOffHint: '保存しません（オフ時は既存の保存を削除）',
-  settingsHistoryTitle: 'テンプレートロード・ファイルオープン・5分毎に自動スナップショットを保存',
+  settingsHistoryTitle:
+    'テンプレートロード・ファイルオープン・5分毎に自動スナップショットを保存',
   settingsHistoryOnHint: '自動スナップショット有効（最大5件）',
   settingsHistoryOffHint: '無効（既存履歴は保持）',
   settingsLocaleJa: '日本語',
@@ -537,11 +544,14 @@ const en: Dictionary = {
   appLintFixNoIssues: 'No auto-fixable lint issues',
   appLintFixCommentConfirm:
     'Apply lint --fix? Comments and formatting will not be preserved. Continue?',
-  appLintFixConfirm: 'Apply lint --fix? Formatting will also be re-applied. Continue?',
+  appLintFixConfirm:
+    'Apply lint --fix? Formatting will also be re-applied. Continue?',
   appLintFixed: 'Lint --fix applied',
   appLintFixedCommentWarning: 'Lint --fix applied (comments are not preserved)',
-  fileAccessUnsupported: 'This browser does not support direct open/overwrite save. Falling back to file input and downloads.',
-  fileAccessDownloadFallback: 'Direct save is unsupported, so the .tdsl file was downloaded.',
+  fileAccessUnsupported:
+    'This browser does not support direct open/overwrite save. Falling back to file input and downloads.',
+  fileAccessDownloadFallback:
+    'Direct save is unsupported, so the .tdsl file was downloaded.',
   fileAccessSaved: 'Saved to {name}',
   fileAccessSavedAs: 'Saved as {name}',
   fileAccessSaveFailed: 'Save failed: {msg}',
@@ -561,7 +571,8 @@ const en: Dictionary = {
   toolbarFileMenu: 'File',
   toolbarNew: 'New',
   toolbarOpen: 'Open',
-  toolbarFileUnsupported: 'Direct open/overwrite save is not supported by this browser',
+  toolbarFileUnsupported:
+    'Direct open/overwrite save is not supported by this browser',
   toolbarCurrentFile: 'Current file: {name}',
   toolbarNoWritableFile: 'No writable file is selected',
   toolbarGallery: 'Gallery',
@@ -668,7 +679,7 @@ const en: Dictionary = {
   // Export
   exportJsonIrFailed: 'Failed to generate JSON IR: {msg}',
   exportJsonIrIncompleteConfirm:
-    'import / map blocks are not resolved in WebUI, so imported items will not be included in this JSON IR. The complete IR is available via the CLI\'s tdsl build.\n\nSave the JSON IR with static items only?',
+    "import / map blocks are not resolved in WebUI, so imported items will not be included in this JSON IR. The complete IR is available via the CLI's tdsl build.\n\nSave the JSON IR with static items only?",
   confirmJsonIrIncompleteTitle: 'Incomplete JSON IR',
   exportPngGenerateFailed: 'Failed to generate PNG',
   exportSvgCopied: 'Copied SVG',
@@ -733,10 +744,12 @@ const en: Dictionary = {
   settingsSvgPreviewSection: 'SVG preview settings',
   settingsShowEventLabelsTitle:
     'Always render Event / event_range labels near the dot/bar (useful for lists/printing)',
-  settingsAutoSaveTitle: 'Automatically save edits to the browser (restored after reload)',
+  settingsAutoSaveTitle:
+    'Automatically save edits to the browser (restored after reload)',
   settingsAutoSaveOnHint: 'Restored after reload',
   settingsAutoSaveOffHint: 'Not saved (turning off deletes any existing save)',
-  settingsHistoryTitle: 'Auto-snapshot on template load, file open, and every 5 minutes',
+  settingsHistoryTitle:
+    'Auto-snapshot on template load, file open, and every 5 minutes',
   settingsHistoryOnHint: 'Auto snapshots enabled (5 max)',
   settingsHistoryOffHint: 'Disabled (existing history is kept)',
   settingsLocaleJa: '日本語',
@@ -802,7 +815,10 @@ export function createTranslator(locale: Locale): Translator {
     return dict[key]
   }
 
-  t.fmt = (key: keyof Dictionary, vars: Record<string, string | number>): string => {
+  t.fmt = (
+    key: keyof Dictionary,
+    vars: Record<string, string | number>
+  ): string => {
     let s = dict[key]
     for (const [k, v] of Object.entries(vars)) {
       s = s.replaceAll(`{${k}}`, String(v))

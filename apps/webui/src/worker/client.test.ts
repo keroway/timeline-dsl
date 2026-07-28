@@ -9,7 +9,10 @@ import type { WorkerRequest } from './protocol'
 // ordering matches the eventual UI-visible "freshest wins" contract; that
 // policy lives in `useCompiler`, but the client itself must still deliver
 // each response to the right caller regardless of resolution order).
-function createFakeWorker(): { worker: WorkerLike; postMessages: WorkerRequest[] } {
+function createFakeWorker(): {
+  worker: WorkerLike
+  postMessages: WorkerRequest[]
+} {
   const postMessages: WorkerRequest[] = []
   const worker: WorkerLike = {
     onmessage: null,
@@ -48,17 +51,32 @@ describe('createWorkerClient', () => {
 
     // Resolve the *second* (newest) request first, then the first (oldest).
     worker.onmessage!({
-      data: { id: secondReq.id, ok: true, result: [{ severity: 'warning', message: 'b', line: 2, col: 1 }] },
+      data: {
+        id: secondReq.id,
+        ok: true,
+        result: [{ severity: 'warning', message: 'b', line: 2, col: 1 }],
+      },
     } as MessageEvent)
     worker.onmessage!({
-      data: { id: firstReq.id, ok: true, result: [{ severity: 'error', message: 'a', line: 1, col: 1 }] },
+      data: {
+        id: firstReq.id,
+        ok: true,
+        result: [{ severity: 'error', message: 'a', line: 1, col: 1 }],
+      },
     } as MessageEvent)
 
-    const [firstResult, secondResult] = await Promise.all([firstPromise, secondPromise])
+    const [firstResult, secondResult] = await Promise.all([
+      firstPromise,
+      secondPromise,
+    ])
 
     // Each caller gets its own matching response regardless of delivery order...
-    expect(firstResult).toEqual([{ severity: 'error', message: 'a', line: 1, col: 1 }])
-    expect(secondResult).toEqual([{ severity: 'warning', message: 'b', line: 2, col: 1 }])
+    expect(firstResult).toEqual([
+      { severity: 'error', message: 'a', line: 1, col: 1 },
+    ])
+    expect(secondResult).toEqual([
+      { severity: 'warning', message: 'b', line: 2, col: 1 },
+    ])
 
     // ...which is what allows a "latest-wins" consumer (useCompiler) to safely
     // ignore `firstResult` once it knows `secondPromise` (the newer request)
@@ -90,12 +108,18 @@ describe('createWorkerClient', () => {
     const client = createWorkerClient(() => worker, onFatalError)
 
     const readyPromise = client.ready()
-    worker.onmessage!({ data: { type: 'error', error: 'wasm init failed' } } as MessageEvent)
+    worker.onmessage!({
+      data: { type: 'error', error: 'wasm init failed' },
+    } as MessageEvent)
 
     await expect(readyPromise).rejects.toThrow('wasm init failed')
-    await expect(client.checkSourceAsync('x')).rejects.toThrow('wasm init failed')
+    await expect(client.checkSourceAsync('x')).rejects.toThrow(
+      'wasm init failed'
+    )
     expect(onFatalError).toHaveBeenCalledTimes(1)
-    expect(onFatalError).toHaveBeenCalledWith(expect.objectContaining({ message: 'wasm init failed' }))
+    expect(onFatalError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'wasm init failed' })
+    )
   })
 })
 

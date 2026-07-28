@@ -1,11 +1,11 @@
 import {
   createContext,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from 'react'
 import { createTranslator } from '../lib/i18n'
 import { readSettings } from '../lib/settings'
@@ -81,19 +81,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   function handleMouseEnter() {
     hoveredRef.current = true
-    timersRef.current.forEach((tm) => clearTimeout(tm))
+    timersRef.current.forEach((tm) => {
+      clearTimeout(tm)
+    })
     timersRef.current.clear()
   }
 
   function handleMouseLeave() {
     hoveredRef.current = false
-    toasts.forEach((t) => scheduleDismiss(t.id))
+    toasts.forEach((t) => {
+      scheduleDismiss(t.id)
+    })
   }
 
   useEffect(() => {
     const timers = timersRef.current
     return () => {
-      timers.forEach((tm) => clearTimeout(tm))
+      timers.forEach((tm) => {
+        clearTimeout(tm)
+      })
       timers.clear()
     }
   }, [])

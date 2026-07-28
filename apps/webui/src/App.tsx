@@ -1,36 +1,43 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
-import { EditorView } from '@codemirror/view'
 import { forceLinting } from '@codemirror/lint'
-import { getWorkerClient, type Diagnostic } from './wasmLoader'
+import type { EditorView } from '@codemirror/view'
+import {
+  type ChangeEvent,
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { ConfirmModal } from './components/ConfirmModal'
+import { DiagnosticsPanel } from './components/DiagnosticsPanel'
+import { EditorPane } from './components/EditorPane'
+import { GalleryModal } from './components/GalleryModal'
+import { HistoryModal } from './components/HistoryModal'
+import { type MobileTab, MobileTabBar } from './components/MobileTabBar'
+import { PreviewPanel } from './components/PreviewPanel'
+import { SettingsModal } from './components/SettingsModal'
+import { StatusBar } from './components/StatusBar'
+import { Toolbar } from './components/Toolbar'
+import { Tooltip } from './components/Tooltip'
 import { useToast } from './components/useToast'
-import { readInitialSource } from './lib/initialSource'
 import { makeTdslLinter } from './editor/extensions'
-import { useWasm } from './hooks/useWasm'
-import { useSettings } from './hooks/useSettings'
 import { useCompiler } from './hooks/useCompiler'
-import { useSvgInteractions } from './hooks/useSvgInteractions'
-import { useSplitPane } from './hooks/useSplitPane'
-import { useExport } from './hooks/useExport'
 import { useConfirm } from './hooks/useConfirm'
-import { useHistorySnapshots } from './hooks/useHistorySnapshots'
-import { useSourcePersistence } from './hooks/useSourcePersistence'
+import { useDocumentMeta } from './hooks/useDocumentMeta'
+import { useExport } from './hooks/useExport'
 import { useFileHandle } from './hooks/useFileHandle'
+import { useHistorySnapshots } from './hooks/useHistorySnapshots'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useOutsideClick } from './hooks/useOutsideClick'
 import { usePwaLifecycle } from './hooks/usePwaLifecycle'
-import { useDocumentMeta } from './hooks/useDocumentMeta'
-import { Toolbar } from './components/Toolbar'
-import { StatusBar } from './components/StatusBar'
-import { MobileTabBar, type MobileTab } from './components/MobileTabBar'
-import { EditorPane } from './components/EditorPane'
-import { PreviewPanel } from './components/PreviewPanel'
-import { DiagnosticsPanel } from './components/DiagnosticsPanel'
-import { Tooltip } from './components/Tooltip'
-import { SettingsModal } from './components/SettingsModal'
-import { GalleryModal } from './components/GalleryModal'
-import { HistoryModal } from './components/HistoryModal'
-import { ConfirmModal } from './components/ConfirmModal'
+import { useSettings } from './hooks/useSettings'
+import { useSourcePersistence } from './hooks/useSourcePersistence'
+import { useSplitPane } from './hooks/useSplitPane'
+import { useSvgInteractions } from './hooks/useSvgInteractions'
+import { useWasm } from './hooks/useWasm'
 import { createTranslator } from './lib/i18n'
+import { readInitialSource } from './lib/initialSource'
+import { type Diagnostic, getWorkerClient } from './wasmLoader'
 import './App.css'
 
 function App() {
@@ -52,8 +59,8 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showGallery, setShowGallery] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
-  const [previewFullscreen, setPreviewFullscreen] = useState<boolean>(() =>
-    new URLSearchParams(location.search).get('preview') === '1'
+  const [previewFullscreen, setPreviewFullscreen] = useState<boolean>(
+    () => new URLSearchParams(location.search).get('preview') === '1'
   )
 
   const { wasmReady, wasmError } = useWasm()
@@ -68,9 +75,15 @@ function App() {
       theme: settings.svgTheme,
       showEventLabels: settings.svgShowEventLabels,
     }),
-    [settings.svgOrientation, settings.svgGrid, settings.svgTheme, settings.svgShowEventLabels]
+    [
+      settings.svgOrientation,
+      settings.svgGrid,
+      settings.svgTheme,
+      settings.svgShowEventLabels,
+    ]
   )
-  const { svgContent, diagnostics, diagnosticsRef, isStalePreview } = useCompiler(source, wasmReady, settings.scale, renderOpts)
+  const { svgContent, diagnostics, diagnosticsRef, isStalePreview } =
+    useCompiler(source, wasmReady, settings.scale, renderOpts)
   const fileHandle = useFileHandle(showToast, t)
   const svg = useSvgInteractions(svgContent, editorViewRef)
   const {
@@ -82,7 +95,16 @@ function App() {
     handleDividerKeyDown,
   } = useSplitPane()
   const { confirm, confirmState } = useConfirm()
-  const exportApi = useExport(source, svgContent, settings.pngWhiteBg, renderOpts, showToast, fileHandle, t, confirm)
+  const exportApi = useExport(
+    source,
+    svgContent,
+    settings.pngWhiteBg,
+    renderOpts,
+    showToast,
+    fileHandle,
+    t,
+    confirm
+  )
   const history = useHistorySnapshots({
     source,
     historyEnabled: settings.historyEnabled,
@@ -94,7 +116,10 @@ function App() {
   })
 
   // インライン linter extension（ref 経由で最新 diagnostics を参照する）
-  const tdslLinterExtension = useMemo(() => makeTdslLinter(diagnosticsRef), [diagnosticsRef])
+  const tdslLinterExtension = useMemo(
+    () => makeTdslLinter(diagnosticsRef),
+    [diagnosticsRef]
+  )
 
   useSourcePersistence(source, settings.autoSaveEnabled, skipAutoSaveRef)
   useOutsideClick(exportMenuRef, exportMenuOpen, setExportMenuOpen)
@@ -128,7 +153,8 @@ function App() {
       showToast(t('appAlreadyFormatted'), 'info')
       return
     }
-    const hadComment = currentSource.includes('//') || currentSource.includes('/*')
+    const hadComment =
+      currentSource.includes('//') || currentSource.includes('/*')
     view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: formatted },
     })
@@ -161,7 +187,8 @@ function App() {
       showToast(t('appLintFixNoIssues'), 'info')
       return
     }
-    const hadComment = currentSource.includes('//') || currentSource.includes('/*')
+    const hadComment =
+      currentSource.includes('//') || currentSource.includes('/*')
     const warning = hadComment
       ? t('appLintFixCommentConfirm')
       : t('appLintFixConfirm')
@@ -262,7 +289,9 @@ function App() {
       {pwaUpdate.needRefresh && (
         <div className="pwa-update-banner" role="status" aria-live="polite">
           <span>{t('pwaUpdateMessage')}</span>
-          <button type="button" onClick={handlePwaReload}>{t('pwaReload')}</button>
+          <button type="button" onClick={handlePwaReload}>
+            {t('pwaReload')}
+          </button>
         </div>
       )}
 
@@ -293,9 +322,19 @@ function App() {
         locale={settings.locale}
       />
 
-      <StatusBar wasmReady={wasmReady} wasmError={wasmError} errorCount={errorCount} warnCount={warnCount} locale={settings.locale} />
+      <StatusBar
+        wasmReady={wasmReady}
+        wasmError={wasmError}
+        errorCount={errorCount}
+        warnCount={warnCount}
+        locale={settings.locale}
+      />
 
-      <MobileTabBar mobileTab={mobileTab} setMobileTab={setMobileTab} locale={settings.locale} />
+      <MobileTabBar
+        mobileTab={mobileTab}
+        setMobileTab={setMobileTab}
+        locale={settings.locale}
+      />
 
       <main className="main" ref={mainRef}>
         <EditorPane
@@ -308,7 +347,9 @@ function App() {
           cursorLineExtension={svg.cursorLineExtension}
           tdslLinterExtension={tdslLinterExtension}
           onChange={handleEditorChange}
-          onCreateEditor={(view) => { editorViewRef.current = view }}
+          onCreateEditor={(view) => {
+            editorViewRef.current = view
+          }}
           locale={settings.locale}
         />
         <div
@@ -358,7 +399,11 @@ function App() {
         />
       </main>
 
-      <DiagnosticsPanel diagnostics={diagnostics} onDiagClick={handleDiagClick} locale={settings.locale} />
+      <DiagnosticsPanel
+        diagnostics={diagnostics}
+        onDiagClick={handleDiagClick}
+        locale={settings.locale}
+      />
 
       <Tooltip tooltip={svg.tooltip} />
 
@@ -371,7 +416,11 @@ function App() {
         />
       )}
       {showGallery && (
-        <GalleryModal onClose={() => setShowGallery(false)} onSelect={handleGallerySelect} locale={settings.locale} />
+        <GalleryModal
+          onClose={() => setShowGallery(false)}
+          onSelect={handleGallerySelect}
+          locale={settings.locale}
+        />
       )}
       {showHistory && (
         <HistoryModal

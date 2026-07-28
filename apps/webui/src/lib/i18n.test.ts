@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_LOCALE,
-  SUPPORTED_LOCALES,
   createTranslator,
+  DEFAULT_LOCALE,
   type Dictionary,
   type Locale,
+  SUPPORTED_LOCALES,
 } from './i18n'
 
 // ─── Key parity ───────────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ describe('i18n key parity', () => {
         const value = t(key)
         expect(
           typeof value === 'string' && value.length > 0,
-          `[${locale}] key "${key}" must return a non-empty string`,
+          `[${locale}] key "${key}" must return a non-empty string`
         ).toBe(true)
       }
     }
@@ -248,24 +248,26 @@ describe('i18n interpolation', () => {
   it('replaces {msg} placeholder', () => {
     const t = createTranslator('ja')
     expect(t.fmt('appFormatFailed', { msg: 'parse error' })).toBe(
-      '整形に失敗しました: parse error',
+      '整形に失敗しました: parse error'
     )
     expect(t.fmt('pwaRegistrationFailed', { msg: 'denied' })).toBe(
-      'Service Worker の登録に失敗しました: denied',
+      'Service Worker の登録に失敗しました: denied'
     )
   })
 
   it('replaces {count} and {max} placeholders', () => {
     const t = createTranslator('ja')
     expect(t.fmt('historyAutoSection', { count: 3, max: 5 })).toBe(
-      '自動スナップショット（最大 3/5 件）',
+      '自動スナップショット（最大 3/5 件）'
     )
   })
 
   it('replaces {count} in English', () => {
     const t = createTranslator('en')
     expect(t.fmt('statusErrors', { count: 2 })).toBe('2 error(s)')
-    expect(t.fmt('historyAutoSection', { count: 1, max: 5 })).toBe('Auto snapshots (1/5 max)')
+    expect(t.fmt('historyAutoSection', { count: 1, max: 5 })).toBe(
+      'Auto snapshots (1/5 max)'
+    )
   })
 
   it('leaves unknown placeholders untouched', () => {
@@ -277,11 +279,11 @@ describe('i18n interpolation', () => {
   it('replaces {name} in file access messages', () => {
     const ja = createTranslator('ja')
     expect(ja.fmt('fileAccessSaved', { name: 'timeline.tdsl' })).toBe(
-      'timeline.tdsl に保存しました',
+      'timeline.tdsl に保存しました'
     )
     const en = createTranslator('en')
     expect(en.fmt('toolbarCurrentFile', { name: 'timeline.tdsl' })).toBe(
-      'Current file: timeline.tdsl',
+      'Current file: timeline.tdsl'
     )
   })
 })
@@ -308,7 +310,9 @@ describe('i18n batch 2 migration coverage', () => {
       'shortcutSave',
     ]
     for (const key of representativeKeys) {
-      expect(ja(key), `key "${key}" should differ between locales`).not.toBe(en(key))
+      expect(ja(key), `key "${key}" should differ between locales`).not.toBe(
+        en(key)
+      )
     }
   })
 })

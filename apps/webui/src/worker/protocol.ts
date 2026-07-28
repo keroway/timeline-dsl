@@ -14,9 +14,17 @@ export type WorkerOp =
 export type WorkerRequest =
   | { id: number; op: 'compileToIr'; args: [source: string] }
   | { id: number; op: 'renderSvg'; args: [source: string, scale?: number] }
-  | { id: number; op: 'renderSvgWithOptions'; args: [source: string, scale?: number, opts?: RenderOptions] }
+  | {
+      id: number
+      op: 'renderSvgWithOptions'
+      args: [source: string, scale?: number, opts?: RenderOptions]
+    }
   | { id: number; op: 'renderHtml'; args: [source: string] }
-  | { id: number; op: 'renderHtmlWithOptions'; args: [source: string, opts?: RenderOptions] }
+  | {
+      id: number
+      op: 'renderHtmlWithOptions'
+      args: [source: string, opts?: RenderOptions]
+    }
   | { id: number; op: 'checkSource'; args: [source: string] }
   | { id: number; op: 'formatSource'; args: [source: string] }
   | { id: number; op: 'lintSource'; args: [source: string] }

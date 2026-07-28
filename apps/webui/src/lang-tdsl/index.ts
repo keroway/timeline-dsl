@@ -1,6 +1,10 @@
-import { StreamLanguage, LanguageSupport } from "@codemirror/language"
-import { tags } from "@lezer/highlight"
-import { BLOCK_KEYWORDS as BLOCK_KWS, ITEM_KEYWORDS as ITEM_KWS, MISC_KEYWORDS as MISC_KWS } from "./keywords.ts"
+import { LanguageSupport, StreamLanguage } from '@codemirror/language'
+import { tags } from '@lezer/highlight'
+import {
+  BLOCK_KEYWORDS as BLOCK_KWS,
+  ITEM_KEYWORDS as ITEM_KWS,
+  MISC_KEYWORDS as MISC_KWS,
+} from './keywords.ts'
 
 interface TdslState {
   inBlockComment: boolean
@@ -11,18 +15,18 @@ const ITEM_KEYWORDS = new Set(ITEM_KWS)
 const MISC_KEYWORDS = new Set(MISC_KWS)
 
 const tdslLanguage = StreamLanguage.define<TdslState>({
-  name: "tdsl",
+  name: 'tdsl',
   tokenTable: {
-    keyword:           tags.keyword,
+    keyword: tags.keyword,
     definitionKeyword: tags.definitionKeyword,
-    modifier:          tags.modifier,
-    string:            tags.string,
-    number:            tags.number,
-    atom:              tags.atom,
-    lineComment:       tags.lineComment,
-    blockComment:      tags.blockComment,
-    punctuation:       tags.punctuation,
-    special:           tags.special(tags.variableName),
+    modifier: tags.modifier,
+    string: tags.string,
+    number: tags.number,
+    atom: tags.atom,
+    lineComment: tags.lineComment,
+    blockComment: tags.blockComment,
+    punctuation: tags.punctuation,
+    special: tags.special(tags.variableName),
   },
   startState(): TdslState {
     return { inBlockComment: false }
@@ -33,30 +37,33 @@ const tdslLanguage = StreamLanguage.define<TdslState>({
   token(stream, state): string | null {
     // ブロックコメント継続
     if (state.inBlockComment) {
-      if (stream.match("*/")) {
+      if (stream.match('*/')) {
         state.inBlockComment = false
-        return "blockComment"
+        return 'blockComment'
       }
       stream.next()
-      return "blockComment"
+      return 'blockComment'
     }
 
     if (stream.eatSpace()) return null
 
     // 行コメント
-    if (stream.match("//")) {
+    if (stream.match('//')) {
       stream.skipToEnd()
-      return "lineComment"
+      return 'lineComment'
     }
 
     // ブロックコメント開始
-    if (stream.match("/*")) {
+    if (stream.match('/*')) {
       state.inBlockComment = true
       while (!stream.eol()) {
-        if (stream.match("*/")) { state.inBlockComment = false; break }
+        if (stream.match('*/')) {
+          state.inBlockComment = false
+          break
+        }
         stream.next()
       }
-      return "blockComment"
+      return 'blockComment'
     }
 
     // 文字列リテラル
@@ -64,10 +71,13 @@ const tdslLanguage = StreamLanguage.define<TdslState>({
       stream.next()
       while (!stream.eol()) {
         const c = stream.next()
-        if (c === '\\') { stream.next(); continue }
+        if (c === '\\') {
+          stream.next()
+          continue
+        }
         if (c === '"') break
       }
-      return "string"
+      return 'string'
     }
 
     // claim(...).xxx 式（関数呼び出し＋プロパティアクセス）
@@ -79,28 +89,28 @@ const tdslLanguage = StreamLanguage.define<TdslState>({
         if (c === ')') depth--
       }
       stream.match(/^(\.\w+)*/)
-      return "special"
+      return 'special'
     }
 
     // label@lang 式
     if (stream.match(/^label@[a-z]{2,3}/)) {
-      return "special"
+      return 'special'
     }
 
     // wd:QXX（Wikidata エンティティ参照）
     if (stream.match(/^wd:[A-Z][0-9]+/)) {
-      return "atom"
+      return 'atom'
     }
 
     // 数値リテラル — 日付（YYYY-MM-DD）・年月（YYYY-MM）・年（-?YYYY）。識別子の前にチェック
     if (stream.match(/^\d{1,4}-\d{2}-\d{2}/)) {
-      return "number"
+      return 'number'
     }
     if (stream.match(/^\d{1,4}-\d{2}(?!-?\d)/)) {
-      return "number"
+      return 'number'
     }
     if (stream.match(/^-?\d+(\.\d+)?/)) {
-      return "number"
+      return 'number'
     }
 
     // 識別子・キーワード
@@ -109,24 +119,27 @@ const tdslLanguage = StreamLanguage.define<TdslState>({
     // `span` がキーワードとして誤着色される（#395）。
     const wordMatch = stream.match(/^[a-zA-Z_][a-zA-Z0-9_-]*/)
     if (wordMatch) {
-      const word = Array.isArray(wordMatch) ? wordMatch[0] : ""
+      const word = Array.isArray(wordMatch) ? wordMatch[0] : ''
       if (!word) return null
       // QID / PID: 識別子パターンに引っかかった場合のフォールバック
-      if (/^Q\d+$/.test(word) || /^P\d+$/.test(word)) return "atom"
-      if (BLOCK_KEYWORDS.has(word)) return "keyword"
-      if (ITEM_KEYWORDS.has(word)) return "definitionKeyword"
-      if (MISC_KEYWORDS.has(word)) return "modifier"
+      if (/^Q\d+$/.test(word) || /^P\d+$/.test(word)) return 'atom'
+      if (BLOCK_KEYWORDS.has(word)) return 'keyword'
+      if (ITEM_KEYWORDS.has(word)) return 'definitionKeyword'
+      if (MISC_KEYWORDS.has(word)) return 'modifier'
       return null
     }
 
     // punctuation
     const ch = stream.peek()
-    if (ch && "{}[];,".includes(ch)) {
+    if (ch && '{}[];,'.includes(ch)) {
       stream.next()
-      return "punctuation"
+      return 'punctuation'
     }
-    if (stream.match("..")) return "punctuation"
-    if (ch === '.') { stream.next(); return "punctuation" }
+    if (stream.match('..')) return 'punctuation'
+    if (ch === '.') {
+      stream.next()
+      return 'punctuation'
+    }
 
     stream.next()
     return null

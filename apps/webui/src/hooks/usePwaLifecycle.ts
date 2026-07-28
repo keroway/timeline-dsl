@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
 import { registerSW } from 'virtual:pwa-register'
-import type { Translator } from '../lib/i18n'
+import { useEffect, useRef, useState } from 'react'
 import type { ToastVariant } from '../components/Toast'
+import type { Translator } from '../lib/i18n'
 
 type ShowToast = (message: string, variant?: ToastVariant) => void
 
@@ -15,7 +15,10 @@ function formatRegistrationError(error: unknown): string {
   return String(error)
 }
 
-export function usePwaLifecycle(showToast: ShowToast, t: Translator): PwaUpdateState {
+export function usePwaLifecycle(
+  showToast: ShowToast,
+  t: Translator
+): PwaUpdateState {
   const showToastRef = useRef(showToast)
   const tRef = useRef(t)
   const [updateState, setUpdateState] = useState<PwaUpdateState>({
@@ -41,7 +44,9 @@ export function usePwaLifecycle(showToast: ShowToast, t: Translator): PwaUpdateS
       },
       onRegisterError(error) {
         showToastRef.current(
-          tRef.current.fmt('pwaRegistrationFailed', { msg: formatRegistrationError(error) }),
+          tRef.current.fmt('pwaRegistrationFailed', {
+            msg: formatRegistrationError(error),
+          }),
           'error'
         )
       },

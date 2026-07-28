@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
-import { DEBOUNCE_MS } from '../lib/constants'
 import {
-  type Snapshot,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
+import type { ToastVariant } from '../components/Toast'
+import {
   clearAllHistory,
   deleteManualSnapshot,
   pushAutoSnapshot,
@@ -9,9 +15,10 @@ import {
   readAutoSnapshots,
   readManualSnapshots,
   renameManualSnapshot,
+  type Snapshot,
   shouldAutoSnapshot,
 } from '../history'
-import type { ToastVariant } from '../components/Toast'
+import { DEBOUNCE_MS } from '../lib/constants'
 import type { Translator } from '../lib/i18n'
 
 type Params = {
@@ -43,10 +50,22 @@ export type HistoryApi = {
 
 // 履歴スナップショット（自動 + 手動）の state とすべての操作を所有する。
 export function useHistorySnapshots(params: Params): HistoryApi {
-  const { source, historyEnabled, showToast, setSource, setShowHistory, skipAutoSaveRef, t } = params
+  const {
+    source,
+    historyEnabled,
+    showToast,
+    setSource,
+    setShowHistory,
+    skipAutoSaveRef,
+    t,
+  } = params
 
-  const [autoSnaps, setAutoSnaps] = useState<Snapshot[]>(() => readAutoSnapshots())
-  const [manualSnaps, setManualSnaps] = useState<Snapshot[]>(() => readManualSnapshots())
+  const [autoSnaps, setAutoSnaps] = useState<Snapshot[]>(() =>
+    readAutoSnapshots()
+  )
+  const [manualSnaps, setManualSnaps] = useState<Snapshot[]>(() =>
+    readManualSnapshots()
+  )
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const lastAutoSnapRef = useRef<number>(0)
@@ -77,7 +96,7 @@ export function useHistorySnapshots(params: Params): HistoryApi {
     const snap = pushManualSnapshot(
       source,
       t.fmt('historyManualSnapshotLabel', { datetime }),
-      t('historyManualSnapshotPrefix'),
+      t('historyManualSnapshotPrefix')
     )
     setManualSnaps(readManualSnapshots())
     showToast(t.fmt('historySavedToHistory', { label: snap.label }), 'success')

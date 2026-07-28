@@ -1,6 +1,12 @@
-import { EditorView, Decoration, ViewPlugin, type ViewUpdate, type DecorationSet } from '@codemirror/view'
+import { type Diagnostic as CmDiagnostic, linter } from '@codemirror/lint'
 import { StateEffect, StateField } from '@codemirror/state'
-import { linter, type Diagnostic as CmDiagnostic } from '@codemirror/lint'
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  ViewPlugin,
+  type ViewUpdate,
+} from '@codemirror/view'
 import type { Diagnostic } from '../wasmLoader'
 
 // ─── CodeMirror line highlight effect (プレビュー→エディタ方向) ──────────────────
@@ -10,7 +16,9 @@ export const setLineHighlight = StateEffect.define<number | null>()
 
 /** アクティブなハイライト行を保持する StateField。 */
 export const lineHighlightField = StateField.define<DecorationSet>({
-  create() { return Decoration.none },
+  create() {
+    return Decoration.none
+  },
   update(deco, tr) {
     deco = deco.map(tr.changes)
     for (const effect of tr.effects) {
@@ -82,6 +90,6 @@ export function makeTdslLinter(diagnosticsRef: { current: Diagnostic[] }) {
       }
       return out
     },
-    { delay: 0 },
+    { delay: 0 }
   )
 }

@@ -10,6 +10,7 @@ export function Tooltip({ tooltip }: TooltipProps) {
       style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}
     >
       {tooltip.text.split('\n').map((line, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: line list is derived fresh from a fixed string each render, order never changes
         <div key={i}>{line}</div>
       ))}
     </div>

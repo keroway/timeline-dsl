@@ -12,7 +12,7 @@ body {
   overflow: hidden;
   background: #13131f;
   color: #cdd6f4;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

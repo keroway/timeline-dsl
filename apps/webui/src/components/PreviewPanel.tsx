@@ -1,6 +1,14 @@
-import { useMemo, type ChangeEvent, type Dispatch, type KeyboardEvent, type MouseEvent, type RefObject, type SetStateAction } from 'react'
-import type { FilterState, LegendItem, SelectedItem } from '../lib/svgDom'
+import {
+  type ChangeEvent,
+  type Dispatch,
+  type KeyboardEvent,
+  type MouseEvent,
+  type RefObject,
+  type SetStateAction,
+  useMemo,
+} from 'react'
 import { createTranslator, type Locale } from '../lib/i18n'
+import type { FilterState, LegendItem, SelectedItem } from '../lib/svgDom'
 
 type PreviewPanelProps = {
   hidden: boolean
@@ -91,6 +99,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
         {svgContent && (
           <>
             <button
+              type="button"
               className="btn btn-preview-ctrl"
               onClick={resetPanZoom}
               title={t('previewResetTitle')}
@@ -98,6 +107,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
               {t('previewReset')}
             </button>
             <button
+              type="button"
               className="btn btn-preview-ctrl"
               onClick={() => setShowLegend((v) => !v)}
               title={t('previewLegendTitle')}
@@ -105,6 +115,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
               {showLegend ? t('previewLegendClose') : t('previewLegend')}
             </button>
             <button
+              type="button"
               className={`btn btn-preview-ctrl${filterState.hiddenLanes.size > 0 || filterState.tagSearch ? ' btn-preview-ctrl-active' : ''}`}
               onClick={() => setShowFilterPanel((v) => !v)}
               title={t('previewFilterTitle')}
@@ -114,12 +125,23 @@ export function PreviewPanel(props: PreviewPanelProps) {
           </>
         )}
         <button
+          type="button"
           className={`btn btn-preview-ctrl${previewFullscreen ? ' btn-preview-ctrl-active' : ''}`}
           onClick={() => setPreviewFullscreen((v) => !v)}
-          title={previewFullscreen ? t('previewFullscreenExitTitle') : t('previewFullscreenTitle')}
-          aria-label={previewFullscreen ? t('previewFullscreenExitTitle') : t('previewFullscreenTitle')}
+          title={
+            previewFullscreen
+              ? t('previewFullscreenExitTitle')
+              : t('previewFullscreenTitle')
+          }
+          aria-label={
+            previewFullscreen
+              ? t('previewFullscreenExitTitle')
+              : t('previewFullscreenTitle')
+          }
         >
-          {previewFullscreen ? t('previewFullscreenExit') : t('previewFullscreen')}
+          {previewFullscreen
+            ? t('previewFullscreenExit')
+            : t('previewFullscreen')}
         </button>
       </div>
       {/* Legend panel */}
@@ -128,7 +150,10 @@ export function PreviewPanel(props: PreviewPanelProps) {
           <div className="legend-header">{t('previewLegend')}</div>
           {legendItems.map((item) => (
             <div key={item.lane} className="legend-item">
-              <span className="legend-swatch" style={{ background: item.color }} />
+              <span
+                className="legend-swatch"
+                style={{ background: item.color }}
+              />
               <span className="legend-label">{item.label}</span>
             </div>
           ))}
@@ -139,7 +164,9 @@ export function PreviewPanel(props: PreviewPanelProps) {
         <div className="filter-panel" aria-label={t('previewFilter')}>
           <div className="filter-header">{t('previewFilter')}</div>
           <div className="filter-section">
-            <div className="filter-section-title">{t('previewFilterLaneSection')}</div>
+            <div className="filter-section-title">
+              {t('previewFilterLaneSection')}
+            </div>
             {legendItems.map((item) => (
               <label key={item.lane} className="filter-item">
                 <input
@@ -154,20 +181,28 @@ export function PreviewPanel(props: PreviewPanelProps) {
                     })
                   }}
                 />
-                <span className="filter-swatch" style={{ background: item.color }} />
+                <span
+                  className="filter-swatch"
+                  style={{ background: item.color }}
+                />
                 <span className="filter-label">{item.label}</span>
               </label>
             ))}
           </div>
           {allTags.length > 0 && (
             <div className="filter-section">
-              <div className="filter-section-title">{t('previewFilterTagSection')}</div>
+              <div className="filter-section-title">
+                {t('previewFilterTagSection')}
+              </div>
               <input
                 type="text"
                 className="filter-tag-input"
                 value={filterState.tagSearch}
                 onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setFilterState((prev) => ({ ...prev, tagSearch: e.target.value }))
+                  setFilterState((prev) => ({
+                    ...prev,
+                    tagSearch: e.target.value,
+                  }))
                 }
                 placeholder={t('previewFilterTagPlaceholder')}
               />
@@ -175,8 +210,11 @@ export function PreviewPanel(props: PreviewPanelProps) {
           )}
           {(filterState.hiddenLanes.size > 0 || filterState.tagSearch) && (
             <button
+              type="button"
               className="filter-reset-btn"
-              onClick={() => setFilterState({ hiddenLanes: new Set(), tagSearch: '' })}
+              onClick={() =>
+                setFilterState({ hiddenLanes: new Set(), tagSearch: '' })
+              }
             >
               {t('previewReset')}
             </button>
@@ -188,15 +226,33 @@ export function PreviewPanel(props: PreviewPanelProps) {
         <div className="detail-panel" aria-label={t('previewDetailTitle')}>
           <div className="detail-header">
             <span>{t('previewDetailTitle')}</span>
-            <button className="detail-close" onClick={() => setSelectedItem(null)} aria-label={t('previewDetailClose')}>✕</button>
+            <button
+              type="button"
+              className="detail-close"
+              onClick={() => setSelectedItem(null)}
+              aria-label={t('previewDetailClose')}
+            >
+              ✕
+            </button>
           </div>
           <dl className="detail-list">
-            <dt>{t('previewDetailName')}</dt><dd>{selectedItem.label || t('previewEmptyValue')}</dd>
-            <dt>{t('previewDetailType')}</dt><dd>{selectedItem.type || t('previewEmptyValue')}</dd>
-            <dt>{t('previewDetailLane')}</dt><dd>{selectedItem.lane || t('previewEmptyValue')}</dd>
-            {selectedItem.source && <><dt>{t('previewDetailSource')}</dt><dd>{selectedItem.source}</dd></>}
+            <dt>{t('previewDetailName')}</dt>
+            <dd>{selectedItem.label || t('previewEmptyValue')}</dd>
+            <dt>{t('previewDetailType')}</dt>
+            <dd>{selectedItem.type || t('previewEmptyValue')}</dd>
+            <dt>{t('previewDetailLane')}</dt>
+            <dd>{selectedItem.lane || t('previewEmptyValue')}</dd>
+            {selectedItem.source && (
+              <>
+                <dt>{t('previewDetailSource')}</dt>
+                <dd>{selectedItem.source}</dd>
+              </>
+            )}
             {selectedItem.tooltip && (
-              <><dt>{t('previewDetailInfo')}</dt><dd className="detail-tooltip">{selectedItem.tooltip}</dd></>
+              <>
+                <dt>{t('previewDetailInfo')}</dt>
+                <dd className="detail-tooltip">{selectedItem.tooltip}</dd>
+              </>
             )}
           </dl>
         </div>
@@ -216,17 +272,22 @@ export function PreviewPanel(props: PreviewPanelProps) {
         {svgContent ? (
           <>
             {isStalePreview && (
-              <div className="stale-preview-badge">{t('previewStaleBadge')}</div>
+              <div className="stale-preview-badge">
+                {t('previewStaleBadge')}
+              </div>
             )}
             <div
               ref={svgContainerRef}
               className="svg-container"
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: svgContent is SVG markup rendered locally from the user's own .tdsl source via the WASM compiler, not third-party/remote HTML
               dangerouslySetInnerHTML={{ __html: svgContent }}
             />
           </>
         ) : (
           <div className="preview-placeholder">
-            {wasmReady ? t('previewPlaceholderNoPreview') : t('previewPlaceholderLoading')}
+            {wasmReady
+              ? t('previewPlaceholderNoPreview')
+              : t('previewPlaceholderLoading')}
           </div>
         )}
       </div>
