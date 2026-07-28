@@ -1,6 +1,6 @@
 import { useRef } from 'react'
-import { useFocusTrap } from '../hooks/useFocusTrap'
 import type { ConfirmState } from '../hooks/useConfirm'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type ConfirmModalProps = {
   state: ConfirmState
@@ -9,7 +9,14 @@ type ConfirmModalProps = {
 // window.confirm の代替となる、フォーカストラップ・Esc キャンセル対応のアプリ内モーダル。
 // Enter は確定ボタンにフォーカスがある場合のみ確定として扱う（全体では自動確定しない）。
 export function ConfirmModal({ state }: ConfirmModalProps) {
-  const { title, body, confirmLabel, cancelLabel, tone = 'default', resolve } = state
+  const {
+    title,
+    body,
+    confirmLabel,
+    cancelLabel,
+    tone = 'default',
+    resolve,
+  } = state
   const confirmButtonRef = useRef<HTMLButtonElement>(null)
 
   function handleCancel() {
@@ -20,7 +27,10 @@ export function ConfirmModal({ state }: ConfirmModalProps) {
     resolve(true)
   }
 
-  const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: handleCancel })
+  const dialogRef = useFocusTrap<HTMLDivElement>({
+    active: true,
+    onEscape: handleCancel,
+  })
 
   return (
     <div className="modal-overlay" onClick={handleCancel}>

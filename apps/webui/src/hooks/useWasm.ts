@@ -30,7 +30,8 @@ export function useWasm(): WasmStatus {
       }
 
       if (!cancelled) {
-        const msg = lastError instanceof Error ? lastError.message : String(lastError)
+        const msg =
+          lastError instanceof Error ? lastError.message : String(lastError)
         setWasmError(msg)
       }
     }

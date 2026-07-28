@@ -16,7 +16,10 @@ const FOCUSABLE_SELECTOR = [
 
 // モーダル内に Tab フォーカスを閉じ込め、閉じたあと呼び出し元へフォーカスを戻すフック。
 // onEscape を渡すと Escape キーでも閉じられる。
-export function useFocusTrap<T extends HTMLElement>({ active, onEscape }: Options) {
+export function useFocusTrap<T extends HTMLElement>({
+  active,
+  onEscape,
+}: Options) {
   const containerRef = useRef<T | null>(null)
 
   useEffect(() => {
@@ -24,11 +27,14 @@ export function useFocusTrap<T extends HTMLElement>({ active, onEscape }: Option
     const node = containerRef.current
     if (!node) return
 
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
 
     const getFocusables = (): HTMLElement[] =>
       Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-        (el) => !el.hasAttribute('aria-hidden') && el.offsetParent !== null,
+        (el) => !el.hasAttribute('aria-hidden') && el.offsetParent !== null
       )
 
     const initialTargets = getFocusables()
@@ -52,7 +58,10 @@ export function useFocusTrap<T extends HTMLElement>({ active, onEscape }: Option
       }
       const first = list[0]
       const last = list[list.length - 1]
-      const current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      const current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null
       if (e.shiftKey) {
         if (current === first || !node.contains(current)) {
           e.preventDefault()

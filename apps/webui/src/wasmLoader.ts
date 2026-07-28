@@ -23,8 +23,8 @@ export interface RenderOptions {
 }
 
 export {
-  getWorkerClient,
   createWorkerClient,
+  getWorkerClient,
   type WorkerClient,
   type WorkerLike,
 } from './worker/client'

@@ -38,12 +38,17 @@ export function decodeSource(encoded: string): string {
   return pako.inflate(bytes, { toText: true })
 }
 
-export function buildShareUrl(source: string, origin: string = location.origin + location.pathname): string {
+export function buildShareUrl(
+  source: string,
+  origin: string = location.origin + location.pathname
+): string {
   return `${origin}#${HASH_KEY}=${encodeSource(source)}`
 }
 
 export function readSourceFromHash(): string | null {
-  const hash = location.hash.startsWith('#') ? location.hash.slice(1) : location.hash
+  const hash = location.hash.startsWith('#')
+    ? location.hash.slice(1)
+    : location.hash
   if (!hash) return null
   const params = new URLSearchParams(hash)
   const encoded = params.get(HASH_KEY)

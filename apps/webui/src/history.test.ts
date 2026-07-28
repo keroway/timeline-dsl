@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  readAutoSnapshots,
-  readManualSnapshots,
+  clearAllHistory,
+  deleteManualSnapshot,
   pushAutoSnapshot,
   pushManualSnapshot,
-  shouldAutoSnapshot,
+  readAutoSnapshots,
+  readManualSnapshots,
   renameManualSnapshot,
-  deleteManualSnapshot,
-  clearAllHistory,
+  shouldAutoSnapshot,
 } from './history'
 
 beforeEach(() => {

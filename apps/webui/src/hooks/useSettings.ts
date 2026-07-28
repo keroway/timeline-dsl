@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
   type ColorScheme,
-  type Settings,
-  SETTINGS_KEY,
   detectSystemScheme,
   readSettings,
   resolveColorScheme,
+  SETTINGS_KEY,
+  type Settings,
 } from '../lib/settings'
 
 export type SettingsApi = {
@@ -18,7 +18,8 @@ export type SettingsApi = {
 // 設定 state を所有し、localStorage への永続化と OS カラースキームの追従を行う。
 export function useSettings(): SettingsApi {
   const [settings, setSettings] = useState<Settings>(readSettings)
-  const [systemScheme, setSystemScheme] = useState<ColorScheme>(detectSystemScheme)
+  const [systemScheme, setSystemScheme] =
+    useState<ColorScheme>(detectSystemScheme)
   const colorScheme = resolveColorScheme(settings.theme, systemScheme)
 
   function updateSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
@@ -29,7 +30,9 @@ export function useSettings(): SettingsApi {
   useEffect(() => {
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
-    } catch {/* quota exceeded or private browsing — ignore */}
+    } catch {
+      /* quota exceeded or private browsing — ignore */
+    }
   }, [settings])
 
   // Track OS color-scheme preference so `auto` follows it live

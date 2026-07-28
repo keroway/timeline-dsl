@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEBOUNCE_MS } from '../lib/constants'
-import { getWorkerClient, type Diagnostic, type LintIssue, type RenderOptions } from '../wasmLoader'
+import {
+  type Diagnostic,
+  getWorkerClient,
+  type LintIssue,
+  type RenderOptions,
+} from '../wasmLoader'
 
 function lintIssueToDiagnostic(issue: LintIssue): Diagnostic {
   return {
@@ -18,7 +23,12 @@ export type CompilerState = {
   isStalePreview: boolean
 }
 
-export function useCompiler(source: string, wasmReady: boolean, scale: number, renderOpts: RenderOptions = {}): CompilerState {
+export function useCompiler(
+  source: string,
+  wasmReady: boolean,
+  scale: number,
+  renderOpts: RenderOptions = {}
+): CompilerState {
   const [svgContent, setSvgContent] = useState<string>('')
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
   const [isStalePreview, setIsStalePreview] = useState(false)
@@ -60,7 +70,11 @@ export function useCompiler(source: string, wasmReady: boolean, scale: number, r
           return
         }
 
-        const svg = await client.renderSvgWithOptionsAsync(src, scale, renderOptsRef.current)
+        const svg = await client.renderSvgWithOptionsAsync(
+          src,
+          scale,
+          renderOptsRef.current
+        )
         if (requestId !== latestRequestIdRef.current) return
         setSvgContent(svg)
         setIsStalePreview(false)
@@ -95,7 +109,13 @@ export function useCompiler(source: string, wasmReady: boolean, scale: number, r
       void compileAndCheck(source)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renderOpts.orientation, renderOpts.grid, renderOpts.theme, wasmReady, renderOpts.showEventLabels])
+  }, [
+    renderOpts.orientation,
+    renderOpts.grid,
+    renderOpts.theme,
+    wasmReady,
+    renderOpts.showEventLabels,
+  ])
 
   useEffect(() => {
     if (wasmReady) {

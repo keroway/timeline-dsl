@@ -10,7 +10,10 @@ type GalleryModalProps = {
 }
 
 export function GalleryModal({ onClose, onSelect, locale }: GalleryModalProps) {
-  const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose })
+  const dialogRef = useFocusTrap<HTMLDivElement>({
+    active: true,
+    onEscape: onClose,
+  })
   const t = useMemo(() => createTranslator(locale), [locale])
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -25,26 +28,39 @@ export function GalleryModal({ onClose, onSelect, locale }: GalleryModalProps) {
       >
         <div className="modal-header">
           <span id="gallery-modal-title">{t('galleryTitle')}</span>
-          <button className="modal-close" onClick={onClose} aria-label={t('galleryClose')}>✕</button>
+          <button
+            type="button"
+            className="modal-close"
+            onClick={onClose}
+            aria-label={t('galleryClose')}
+          >
+            ✕
+          </button>
         </div>
-        <p className="gallery-note">
-          {t('galleryNetworkNote')}
-        </p>
+        <p className="gallery-note">{t('galleryNetworkNote')}</p>
         <ul className="gallery-list">
           {GALLERY_EXAMPLES.map((ex) => (
             <li key={ex.filename}>
               <button
+                type="button"
                 className={`gallery-item${ex.requiresNetwork ? ' gallery-item-network' : ''}`}
                 onClick={() => onSelect(ex.source)}
-                aria-describedby={ex.requiresNetwork ? `${ex.filename}-network-note` : undefined}
+                aria-describedby={
+                  ex.requiresNetwork ? `${ex.filename}-network-note` : undefined
+                }
               >
                 <span className="gallery-item-header">
                   <span className="gallery-item-label">{ex.label}</span>
-                  {ex.requiresNetwork ? <span className="gallery-badge">{t('galleryCliOnly')}</span> : null}
+                  {ex.requiresNetwork ? (
+                    <span className="gallery-badge">{t('galleryCliOnly')}</span>
+                  ) : null}
                 </span>
                 <span className="gallery-item-desc">{ex.description}</span>
                 {ex.requiresNetwork ? (
-                  <span className="gallery-item-network-note" id={`${ex.filename}-network-note`}>
+                  <span
+                    className="gallery-item-network-note"
+                    id={`${ex.filename}-network-note`}
+                  >
                     {t('galleryCliNoteItem')}
                   </span>
                 ) : null}

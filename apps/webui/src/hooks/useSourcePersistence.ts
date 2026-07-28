@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react'
+import { type RefObject, useEffect } from 'react'
 import { DEBOUNCE_MS } from '../lib/constants'
 import { EDITOR_SOURCE_KEY } from '../lib/initialSource'
 
@@ -9,7 +9,7 @@ import { EDITOR_SOURCE_KEY } from '../lib/initialSource'
 export function useSourcePersistence(
   source: string,
   autoSaveEnabled: boolean,
-  skipAutoSaveRef: RefObject<boolean>,
+  skipAutoSaveRef: RefObject<boolean>
 ): void {
   // Auto-save editor source to LocalStorage (debounced, skips template/file loads)
   useEffect(() => {
@@ -21,7 +21,9 @@ export function useSourcePersistence(
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(EDITOR_SOURCE_KEY, source)
-      } catch {/* quota exceeded or private browsing */}
+      } catch {
+        /* quota exceeded or private browsing */
+      }
     }, DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [source, autoSaveEnabled, skipAutoSaveRef])
@@ -31,7 +33,9 @@ export function useSourcePersistence(
     if (!autoSaveEnabled) {
       try {
         localStorage.removeItem(EDITOR_SOURCE_KEY)
-      } catch {/* ignore */}
+      } catch {
+        /* ignore */
+      }
     }
   }, [autoSaveEnabled])
 }

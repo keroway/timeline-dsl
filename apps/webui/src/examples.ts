@@ -5,9 +5,9 @@ export interface Example {
   source: string
 }
 
-export const EXAMPLES: Example[] = GALLERY_EXAMPLES
-  .filter((example) => !example.requiresNetwork)
-  .map((example) => ({
-    label: example.label,
-    source: example.source,
-  }))
+export const EXAMPLES: Example[] = GALLERY_EXAMPLES.filter(
+  (example) => !example.requiresNetwork
+).map((example) => ({
+  label: example.label,
+  source: example.source,
+}))

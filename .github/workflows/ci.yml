@@ -59,6 +59,10 @@ jobs:
         working-directory: apps/webui
         run: npm run lint
 
+      - name: Format check
+        working-directory: apps/webui
+        run: npm run format:check
+
       - name: Test
         working-directory: apps/webui
         run: npm test

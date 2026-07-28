@@ -1,9 +1,16 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 import {
+  type KeyboardEvent,
+  type MouseEvent,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
+import {
+  readSplitRatio,
   SPLIT_RATIO_KEY,
   SPLIT_RATIO_MAX,
   SPLIT_RATIO_MIN,
-  readSplitRatio,
 } from '../lib/settings'
 
 export type SplitPaneApi = {
@@ -42,7 +49,11 @@ export function useSplitPane(): SplitPaneApi {
   // mouseup で永続化する最新 ratio。ドラッグ中の onMouseMove（render 外のイベント
   // ハンドラ）で同期するため、effect の実行タイミングに依存せず常に最新値を保持する。
   const splitRatioRef = useRef<number>(splitRatio)
-  const splitDragRef = useRef<{ startX: number; startRatio: number; containerWidth: number } | null>(null)
+  const splitDragRef = useRef<{
+    startX: number
+    startRatio: number
+    containerWidth: number
+  } | null>(null)
   const mainRef = useRef<HTMLElement>(null)
 
   // Split pane drag (document-level to prevent losing track when cursor leaves divider)
@@ -50,7 +61,10 @@ export function useSplitPane(): SplitPaneApi {
     function onMouseMove(e: globalThis.MouseEvent) {
       if (!splitDragRef.current) return
       const dx = e.clientX - splitDragRef.current.startX
-      const newRatio = clampSplitRatio(splitDragRef.current.startRatio + dx / splitDragRef.current.containerWidth)
+      const newRatio = clampSplitRatio(
+        splitDragRef.current.startRatio +
+          dx / splitDragRef.current.containerWidth
+      )
       splitRatioRef.current = newRatio
       setSplitRatio(newRatio)
     }
@@ -61,7 +75,9 @@ export function useSplitPane(): SplitPaneApi {
       document.body.style.userSelect = ''
       try {
         localStorage.setItem(SPLIT_RATIO_KEY, String(splitRatioRef.current))
-      } catch {/* quota or private browsing — ignore */}
+      } catch {
+        /* quota or private browsing — ignore */
+      }
     }
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
@@ -76,13 +92,20 @@ export function useSplitPane(): SplitPaneApi {
     setSplitRatio(value)
     try {
       localStorage.setItem(SPLIT_RATIO_KEY, String(value))
-    } catch {/* quota or private browsing — ignore */}
+    } catch {
+      /* quota or private browsing — ignore */
+    }
   }
 
   function handleDividerMouseDown(e: MouseEvent<HTMLDivElement>) {
     e.preventDefault()
-    const containerWidth = mainRef.current?.clientWidth ?? document.documentElement.clientWidth
-    splitDragRef.current = { startX: e.clientX, startRatio: splitRatio, containerWidth }
+    const containerWidth =
+      mainRef.current?.clientWidth ?? document.documentElement.clientWidth
+    splitDragRef.current = {
+      startX: e.clientX,
+      startRatio: splitRatio,
+      containerWidth,
+    }
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }

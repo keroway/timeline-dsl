@@ -1,8 +1,8 @@
-import { useMemo, type ChangeEvent } from 'react'
-import type { ColorScheme, Settings } from '../lib/settings'
-import { createTranslator, SUPPORTED_LOCALES, type Locale } from '../lib/i18n'
+import { type ChangeEvent, useMemo } from 'react'
 import { getShortcuts } from '../editor/shortcuts'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { createTranslator, type Locale, SUPPORTED_LOCALES } from '../lib/i18n'
+import type { ColorScheme, Settings } from '../lib/settings'
 
 type SettingsModalProps = {
   onClose: () => void
@@ -11,9 +11,17 @@ type SettingsModalProps = {
   systemScheme: ColorScheme
 }
 
-export function SettingsModal({ onClose, settings, updateSetting, systemScheme }: SettingsModalProps) {
+export function SettingsModal({
+  onClose,
+  settings,
+  updateSetting,
+  systemScheme,
+}: SettingsModalProps) {
   const { theme: themePref, fontSize, lineWrap, scale, pngWhiteBg } = settings
-  const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose })
+  const dialogRef = useFocusTrap<HTMLDivElement>({
+    active: true,
+    onEscape: onClose,
+  })
   const t = useMemo(() => createTranslator(settings.locale), [settings.locale])
   const shortcuts = useMemo(() => getShortcuts(t), [t])
 
@@ -34,12 +42,23 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
       >
         <div className="modal-header">
           <span id="settings-modal-title">{t('settingsTitle')}</span>
-          <button className="modal-close" onClick={onClose} aria-label={t('settingsClose')}>✕</button>
+          <button
+            type="button"
+            className="modal-close"
+            onClick={onClose}
+            aria-label={t('settingsClose')}
+          >
+            ✕
+          </button>
         </div>
         <div className="settings-body">
           <div className="settings-section">
             <div className="settings-label">{t('settingsTheme')}</div>
-            <div className="settings-row" role="radiogroup" aria-label={t('settingsTheme')}>
+            <div
+              className="settings-row"
+              role="radiogroup"
+              aria-label={t('settingsTheme')}
+            >
               <button
                 type="button"
                 role="radio"
@@ -47,7 +66,10 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
                 className={`btn${themePref === 'auto' ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('theme', 'auto')}
                 title={t.fmt('settingsThemeAutoTitle', {
-                  scheme: systemScheme === 'dark' ? t('settingsThemeDarkLabel') : t('settingsThemeLightLabel'),
+                  scheme:
+                    systemScheme === 'dark'
+                      ? t('settingsThemeDarkLabel')
+                      : t('settingsThemeLightLabel'),
                 })}
               >
                 {t('settingsThemeAuto')}
@@ -89,6 +111,7 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
           <div className="settings-section">
             <div className="settings-label">{t('settingsLineWrap')}</div>
             <button
+              type="button"
               className={`btn${lineWrap ? ' btn-active' : ''}`}
               onClick={() => updateSetting('lineWrap', !lineWrap)}
             >
@@ -114,12 +137,14 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             <div className="settings-label">{t('settingsPngBg')}</div>
             <div className="settings-row">
               <button
+                type="button"
                 className={`btn${pngWhiteBg ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('pngWhiteBg', true)}
               >
                 {t('settingsPngBgWhite')}
               </button>
               <button
+                type="button"
                 className={`btn${!pngWhiteBg ? ' btn-active' : ''}`}
                 onClick={() => updateSetting('pngWhiteBg', false)}
               >
@@ -129,17 +154,28 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
           </div>
           <hr className="settings-divider" />
           <div className="settings-section">
-            <div className="settings-label">{t('settingsSvgPreviewSection')}</div>
+            <div className="settings-label">
+              {t('settingsSvgPreviewSection')}
+            </div>
           </div>
           <div className="settings-section">
             <div className="settings-label">{t('settingsOrientation')}</div>
             <select
               className="toolbar-select"
               value={settings.svgOrientation}
-              onChange={(e) => updateSetting('svgOrientation', e.target.value as Settings['svgOrientation'])}
+              onChange={(e) =>
+                updateSetting(
+                  'svgOrientation',
+                  e.target.value as Settings['svgOrientation']
+                )
+              }
             >
-              <option value="horizontal">{t('settingsOrientationHorizontal')}</option>
-              <option value="vertical">{t('settingsOrientationVertical')}</option>
+              <option value="horizontal">
+                {t('settingsOrientationHorizontal')}
+              </option>
+              <option value="vertical">
+                {t('settingsOrientationVertical')}
+              </option>
             </select>
           </div>
           <div className="settings-section">
@@ -147,7 +183,9 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             <select
               className="toolbar-select"
               value={settings.svgGrid}
-              onChange={(e) => updateSetting('svgGrid', e.target.value as Settings['svgGrid'])}
+              onChange={(e) =>
+                updateSetting('svgGrid', e.target.value as Settings['svgGrid'])
+              }
             >
               <option value="none">{t('settingsGridNone')}</option>
               <option value="decade">{t('settingsGridDecade')}</option>
@@ -160,7 +198,12 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             <select
               className="toolbar-select"
               value={settings.svgTheme}
-              onChange={(e) => updateSetting('svgTheme', e.target.value as Settings['svgTheme'])}
+              onChange={(e) =>
+                updateSetting(
+                  'svgTheme',
+                  e.target.value as Settings['svgTheme']
+                )
+              }
             >
               <option value="default">{t('settingsSvgThemeDefault')}</option>
               <option value="dark">{t('settingsSvgThemeDark')}</option>
@@ -172,11 +215,19 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             <div className="settings-label">{t('settingsShowEventLabels')}</div>
             <div className="settings-row">
               <button
+                type="button"
                 className={`btn${settings.svgShowEventLabels ? ' btn-active' : ''}`}
-                onClick={() => updateSetting('svgShowEventLabels', !settings.svgShowEventLabels)}
+                onClick={() =>
+                  updateSetting(
+                    'svgShowEventLabels',
+                    !settings.svgShowEventLabels
+                  )
+                }
                 title={t('settingsShowEventLabelsTitle')}
               >
-                {settings.svgShowEventLabels ? t('settingsShowEventLabelsOn') : t('settingsShowEventLabelsOff')}
+                {settings.svgShowEventLabels
+                  ? t('settingsShowEventLabelsOn')
+                  : t('settingsShowEventLabelsOff')}
               </button>
             </div>
           </div>
@@ -184,14 +235,21 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             <div className="settings-label">{t('settingsAutoSave')}</div>
             <div className="settings-row">
               <button
+                type="button"
                 className={`btn${settings.autoSaveEnabled ? ' btn-active' : ''}`}
-                onClick={() => updateSetting('autoSaveEnabled', !settings.autoSaveEnabled)}
+                onClick={() =>
+                  updateSetting('autoSaveEnabled', !settings.autoSaveEnabled)
+                }
                 title={t('settingsAutoSaveTitle')}
               >
-                {settings.autoSaveEnabled ? t('settingsAutoSaveOn') : t('settingsAutoSaveOff')}
+                {settings.autoSaveEnabled
+                  ? t('settingsAutoSaveOn')
+                  : t('settingsAutoSaveOff')}
               </button>
               <span className="settings-hint">
-                {settings.autoSaveEnabled ? t('settingsAutoSaveOnHint') : t('settingsAutoSaveOffHint')}
+                {settings.autoSaveEnabled
+                  ? t('settingsAutoSaveOnHint')
+                  : t('settingsAutoSaveOffHint')}
               </span>
             </div>
           </div>
@@ -199,14 +257,21 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             <div className="settings-label">{t('settingsHistory')}</div>
             <div className="settings-row">
               <button
+                type="button"
                 className={`btn${settings.historyEnabled ? ' btn-active' : ''}`}
-                onClick={() => updateSetting('historyEnabled', !settings.historyEnabled)}
+                onClick={() =>
+                  updateSetting('historyEnabled', !settings.historyEnabled)
+                }
                 title={t('settingsHistoryTitle')}
               >
-                {settings.historyEnabled ? t('settingsHistoryOn') : t('settingsHistoryOff')}
+                {settings.historyEnabled
+                  ? t('settingsHistoryOn')
+                  : t('settingsHistoryOff')}
               </button>
               <span className="settings-hint">
-                {settings.historyEnabled ? t('settingsHistoryOnHint') : t('settingsHistoryOffHint')}
+                {settings.historyEnabled
+                  ? t('settingsHistoryOnHint')
+                  : t('settingsHistoryOffHint')}
               </span>
             </div>
           </div>
@@ -215,7 +280,9 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             <select
               className="toolbar-select"
               value={settings.locale}
-              onChange={(e) => updateSetting('locale', e.target.value as Locale)}
+              onChange={(e) =>
+                updateSetting('locale', e.target.value as Locale)
+              }
               aria-label={t('settingsLanguage')}
             >
               {SUPPORTED_LOCALES.map((loc) => (
@@ -231,19 +298,29 @@ export function SettingsModal({ onClose, settings, updateSetting, systemScheme }
             <button
               type="button"
               className="btn"
-              onClick={() => window.open('https://github.com/keroway/timeline-dsl', '_blank', 'noopener,noreferrer')}
+              onClick={() =>
+                window.open(
+                  'https://github.com/keroway/timeline-dsl',
+                  '_blank',
+                  'noopener,noreferrer'
+                )
+              }
             >
               keroway/timeline-dsl ↗
             </button>
           </div>
           <hr className="settings-divider" />
           <div className="settings-section">
-            <div className="settings-label">{t('settingsShortcutsSection')}</div>
+            <div className="settings-label">
+              {t('settingsShortcutsSection')}
+            </div>
             <table className="shortcuts-table">
               <tbody>
                 {shortcuts.map(({ key, desc }) => (
                   <tr key={key}>
-                    <td><kbd className="kbd">{key}</kbd></td>
+                    <td>
+                      <kbd className="kbd">{key}</kbd>
+                    </td>
                     <td>{desc}</td>
                   </tr>
                 ))}

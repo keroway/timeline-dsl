@@ -1,18 +1,18 @@
-import { useMemo } from 'react'
-import CodeMirror from '@uiw/react-codemirror'
-import { oneDark } from '@codemirror/theme-one-dark'
-import { EditorView } from '@codemirror/view'
 import { autocompletion } from '@codemirror/autocomplete'
 import { bracketMatching } from '@codemirror/language'
-import { search } from '@codemirror/search'
 import { lintGutter } from '@codemirror/lint'
+import { search } from '@codemirror/search'
 import type { Extension } from '@codemirror/state'
-import { tdsl } from '../lang-tdsl'
-import { tdslHover } from '../lang-tdsl/hover'
+import { oneDark } from '@codemirror/theme-one-dark'
+import { EditorView } from '@codemirror/view'
+import CodeMirror from '@uiw/react-codemirror'
+import { useMemo } from 'react'
 import { makeTdslCompletionSource } from '../editor/completions'
 import { lineHighlightField } from '../editor/extensions'
-import type { ColorScheme } from '../lib/settings'
+import { tdsl } from '../lang-tdsl'
+import { tdslHover } from '../lang-tdsl/hover'
 import { createTranslator, type Locale } from '../lib/i18n'
+import type { ColorScheme } from '../lib/settings'
 
 type EditorPaneProps = {
   source: string
@@ -48,7 +48,10 @@ export function EditorPane(props: EditorPaneProps) {
   return (
     <div
       className={`editor-pane${hidden ? ' mobile-hidden' : ''}`}
-      style={{ flex: `0 0 ${splitRatio * 100}%`, ...(fullscreen ? { display: 'none' } : {}) }}
+      style={{
+        flex: `0 0 ${splitRatio * 100}%`,
+        ...(fullscreen ? { display: 'none' } : {}),
+      }}
     >
       <CodeMirror
         value={source}
@@ -58,7 +61,9 @@ export function EditorPane(props: EditorPaneProps) {
           tdsl(),
           search({ top: true }),
           bracketMatching(),
-          autocompletion({ override: [makeTdslCompletionSource(() => source, t)] }),
+          autocompletion({
+            override: [makeTdslCompletionSource(() => source, t)],
+          }),
           tdslHover(() => source),
           lineHighlightField,
           cursorLineExtension,
@@ -67,7 +72,9 @@ export function EditorPane(props: EditorPaneProps) {
           ...(lineWrap ? [EditorView.lineWrapping] : []),
         ]}
         onChange={onChange}
-        onCreateEditor={(view) => { onCreateEditor(view) }}
+        onCreateEditor={(view) => {
+          onCreateEditor(view)
+        }}
         basicSetup={{
           lineNumbers: true,
           foldGutter: false,

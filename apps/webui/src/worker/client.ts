@@ -11,9 +11,16 @@ export type WorkerClient = {
   terminate(): void
   compileToIrAsync(source: string): Promise<string>
   renderSvgAsync(source: string, scale?: number): Promise<string>
-  renderSvgWithOptionsAsync(source: string, scale?: number, opts?: RenderOptions): Promise<string>
+  renderSvgWithOptionsAsync(
+    source: string,
+    scale?: number,
+    opts?: RenderOptions
+  ): Promise<string>
   renderHtmlAsync(source: string): Promise<string>
-  renderHtmlWithOptionsAsync(source: string, opts?: RenderOptions): Promise<string>
+  renderHtmlWithOptionsAsync(
+    source: string,
+    opts?: RenderOptions
+  ): Promise<string>
   checkSourceAsync(source: string): Promise<Diagnostic[]>
   formatSourceAsync(source: string): Promise<string>
   lintSourceAsync(source: string): Promise<LintIssue[]>
@@ -27,11 +34,13 @@ export type WorkerLike = Pick<Worker, 'postMessage' | 'terminate'> & {
 
 export function createWorkerClient(
   workerFactory?: () => WorkerLike,
-  onFatalError?: (error: Error) => void,
+  onFatalError?: (error: Error) => void
 ): WorkerClient {
   const worker = workerFactory
     ? workerFactory()
-    : new Worker(new URL('./tdsl.worker.ts', import.meta.url), { type: 'module' })
+    : new Worker(new URL('./tdsl.worker.ts', import.meta.url), {
+        type: 'module',
+      })
 
   let requestId = 0
   const pending = new Map<number, PendingRequest>()
@@ -90,7 +99,9 @@ export function createWorkerClient(
     fail(event.message || 'Worker error')
   }
 
-  async function request<T extends WorkerRequest>(message: T): Promise<unknown> {
+  async function request<T extends WorkerRequest>(
+    message: T
+  ): Promise<unknown> {
     if (readyState === 'error') {
       throw new Error(readyError ?? 'Worker initialization failed')
     }
@@ -113,31 +124,67 @@ export function createWorkerClient(
       worker.terminate()
     },
     async compileToIrAsync(source) {
-      return await request({ id: nextId(), op: 'compileToIr', args: [source] }) as string
+      return (await request({
+        id: nextId(),
+        op: 'compileToIr',
+        args: [source],
+      })) as string
     },
     async renderSvgAsync(source, scale = 0) {
-      return await request({ id: nextId(), op: 'renderSvg', args: [source, scale] }) as string
+      return (await request({
+        id: nextId(),
+        op: 'renderSvg',
+        args: [source, scale],
+      })) as string
     },
     async renderSvgWithOptionsAsync(source, scale = 0, opts = {}) {
-      return await request({ id: nextId(), op: 'renderSvgWithOptions', args: [source, scale, opts] }) as string
+      return (await request({
+        id: nextId(),
+        op: 'renderSvgWithOptions',
+        args: [source, scale, opts],
+      })) as string
     },
     async renderHtmlAsync(source) {
-      return await request({ id: nextId(), op: 'renderHtml', args: [source] }) as string
+      return (await request({
+        id: nextId(),
+        op: 'renderHtml',
+        args: [source],
+      })) as string
     },
     async renderHtmlWithOptionsAsync(source, opts = {}) {
-      return await request({ id: nextId(), op: 'renderHtmlWithOptions', args: [source, opts] }) as string
+      return (await request({
+        id: nextId(),
+        op: 'renderHtmlWithOptions',
+        args: [source, opts],
+      })) as string
     },
     async checkSourceAsync(source) {
-      return await request({ id: nextId(), op: 'checkSource', args: [source] }) as Diagnostic[]
+      return (await request({
+        id: nextId(),
+        op: 'checkSource',
+        args: [source],
+      })) as Diagnostic[]
     },
     async formatSourceAsync(source) {
-      return await request({ id: nextId(), op: 'formatSource', args: [source] }) as string
+      return (await request({
+        id: nextId(),
+        op: 'formatSource',
+        args: [source],
+      })) as string
     },
     async lintSourceAsync(source) {
-      return await request({ id: nextId(), op: 'lintSource', args: [source] }) as LintIssue[]
+      return (await request({
+        id: nextId(),
+        op: 'lintSource',
+        args: [source],
+      })) as LintIssue[]
     },
     async lintFixSourceAsync(source) {
-      return await request({ id: nextId(), op: 'lintFixSource', args: [source] }) as string
+      return (await request({
+        id: nextId(),
+        op: 'lintFixSource',
+        args: [source],
+      })) as string
     },
   }
 }

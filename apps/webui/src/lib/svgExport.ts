@@ -16,7 +16,7 @@ const SVG_EMBEDDED_CSS = `
 `
 
 function svgWithEmbeddedStyles(svg: string): string {
-  return svg.replace('</style>', SVG_EMBEDDED_CSS + '</style>')
+  return svg.replace('</style>', `${SVG_EMBEDDED_CSS}</style>`)
 }
 
 export function svgToPngBlob(svg: string, whiteBg: boolean): Promise<Blob> {
@@ -41,7 +41,10 @@ export function svgToPngBlob(svg: string, whiteBg: boolean): Promise<Blob> {
         else reject(new Error('canvas.toBlob failed'))
       }, 'image/png')
     }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG load failed')) }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('SVG load failed'))
+    }
     img.src = url
   })
 }

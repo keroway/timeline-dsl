@@ -62,14 +62,21 @@ export function pushAutoSnapshot(source: string, reason: string): void {
   writeSnapshots(HISTORY_AUTO_KEY, updated)
 }
 
-export function shouldAutoSnapshot(source: string, lastAutoMs: number): boolean {
+export function shouldAutoSnapshot(
+  source: string,
+  lastAutoMs: number
+): boolean {
   if (Date.now() - lastAutoMs < AUTO_INTERVAL_MS) return false
   const snaps = readSnapshots(HISTORY_AUTO_KEY)
   if (snaps.length === 0) return true
   return snaps[0].source !== source
 }
 
-export function pushManualSnapshot(source: string, label: string, fallbackPrefix: string): Snapshot {
+export function pushManualSnapshot(
+  source: string,
+  label: string,
+  fallbackPrefix: string
+): Snapshot {
   const snaps = readSnapshots(HISTORY_MANUAL_KEY)
   const snap: Snapshot = {
     id: makeId(),
@@ -84,12 +91,18 @@ export function pushManualSnapshot(source: string, label: string, fallbackPrefix
 
 export function renameManualSnapshot(id: string, label: string): void {
   const snaps = readSnapshots(HISTORY_MANUAL_KEY)
-  writeSnapshots(HISTORY_MANUAL_KEY, snaps.map((s) => s.id === id ? { ...s, label } : s))
+  writeSnapshots(
+    HISTORY_MANUAL_KEY,
+    snaps.map((s) => (s.id === id ? { ...s, label } : s))
+  )
 }
 
 export function deleteManualSnapshot(id: string): void {
   const snaps = readSnapshots(HISTORY_MANUAL_KEY)
-  writeSnapshots(HISTORY_MANUAL_KEY, snaps.filter((s) => s.id !== id))
+  writeSnapshots(
+    HISTORY_MANUAL_KEY,
+    snaps.filter((s) => s.id !== id)
+  )
 }
 
 export function clearAllHistory(): void {

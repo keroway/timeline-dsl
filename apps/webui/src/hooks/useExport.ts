@@ -1,10 +1,10 @@
-import { getWorkerClient, type RenderOptions } from '../wasmLoader'
+import type { ToastVariant } from '../components/Toast'
+import type { Translator } from '../lib/i18n'
 import { svgToPngBlob, triggerDownload } from '../lib/svgExport'
 import { buildShareUrl } from '../share'
-import type { ToastVariant } from '../components/Toast'
-import type { FileHandleApi } from './useFileHandle'
-import type { Translator } from '../lib/i18n'
+import { getWorkerClient, type RenderOptions } from '../wasmLoader'
 import type { ConfirmOptions } from './useConfirm'
+import type { FileHandleApi } from './useFileHandle'
 
 export type ExportApi = {
   downloadTdsl: () => Promise<void>
@@ -27,7 +27,7 @@ export function useExport(
   showToast: (message: string, variant?: ToastVariant) => void,
   fileHandle: FileHandleApi,
   t: Translator,
-  confirm: (options: ConfirmOptions) => Promise<boolean>,
+  confirm: (options: ConfirmOptions) => Promise<boolean>
 ): ExportApi {
   async function downloadTdsl() {
     await fileHandle.saveSource(source)
@@ -38,7 +38,11 @@ export function useExport(
       // Resolve per action so a prior Worker failure does not poison exports.
       const client = getWorkerClient()
       const json = await client.compileToIrAsync(source)
-      if ((await client.checkSourceAsync(source)).some((d) => d.severity === 'info')) {
+      if (
+        (await client.checkSourceAsync(source)).some(
+          (d) => d.severity === 'info'
+        )
+      ) {
         const proceed = await confirm({
           title: t('confirmJsonIrIncompleteTitle'),
           body: t('exportJsonIrIncompleteConfirm'),
@@ -48,7 +52,10 @@ export function useExport(
         })
         if (!proceed) return
       }
-      triggerDownload(new Blob([json], { type: 'application/json' }), 'timeline.json')
+      triggerDownload(
+        new Blob([json], { type: 'application/json' }),
+        'timeline.json'
+      )
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       showToast(t.fmt('exportJsonIrFailed', { msg }), 'error')
@@ -57,13 +64,19 @@ export function useExport(
 
   function downloadSvg() {
     if (!svgContent) return
-    triggerDownload(new Blob([svgContent], { type: 'image/svg+xml' }), 'timeline.svg')
+    triggerDownload(
+      new Blob([svgContent], { type: 'image/svg+xml' }),
+      'timeline.svg'
+    )
   }
 
   async function downloadHtml() {
     if (!svgContent) return
     try {
-      const html = await getWorkerClient().renderHtmlWithOptionsAsync(source, renderOpts)
+      const html = await getWorkerClient().renderHtmlWithOptionsAsync(
+        source,
+        renderOpts
+      )
       triggerDownload(new Blob([html], { type: 'text/html' }), 'timeline.html')
     } catch {
       // keep silent — errors are already shown in diagnostics
@@ -79,7 +92,8 @@ export function useExport(
 
   function copySvg() {
     if (!svgContent) return
-    navigator.clipboard.writeText(svgContent)
+    navigator.clipboard
+      .writeText(svgContent)
       .then(() => showToast(t('exportSvgCopied'), 'success'))
       .catch(() => showToast(t('exportSvgCopyFailed'), 'error'))
   }
@@ -87,14 +101,17 @@ export function useExport(
   function copyPng() {
     if (!svgContent) return
     svgToPngBlob(svgContent, pngWhiteBg)
-      .then((blob) => navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]))
+      .then((blob) =>
+        navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      )
       .then(() => showToast(t('exportPngCopied'), 'success'))
       .catch(() => showToast(t('exportPngCopyFailed'), 'error'))
   }
 
   function copyMarkdown() {
-    const md = '```tdsl\n' + source + '\n```'
-    navigator.clipboard.writeText(md)
+    const md = `\`\`\`tdsl\n${source}\n\`\`\``
+    navigator.clipboard
+      .writeText(md)
       .then(() => showToast(t('exportMarkdownCopied'), 'success'))
       .catch(() => showToast(t('exportMarkdownCopyFailed'), 'error'))
   }
@@ -102,7 +119,8 @@ export function useExport(
   function copyShareLink() {
     try {
       const url = buildShareUrl(source)
-      navigator.clipboard.writeText(url)
+      navigator.clipboard
+        .writeText(url)
         .then(() => showToast(t('exportShareLinkCopied'), 'success'))
         .catch(() => showToast(t('exportShareLinkCopyFailed'), 'error'))
     } catch {
@@ -114,7 +132,10 @@ export function useExport(
     if (!svgContent) return
     let html: string
     try {
-      html = await getWorkerClient().renderHtmlWithOptionsAsync(source, renderOpts)
+      html = await getWorkerClient().renderHtmlWithOptionsAsync(
+        source,
+        renderOpts
+      )
     } catch {
       showToast(t('exportPdfFailed'), 'error')
       return
@@ -124,7 +145,8 @@ export function useExport(
     const url = URL.createObjectURL(blob)
     const iframe = document.createElement('iframe')
     iframe.setAttribute('aria-hidden', 'true')
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+    iframe.style.cssText =
+      'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
     const cleanup = () => {
       URL.revokeObjectURL(url)
       iframe.remove()

@@ -2,8 +2,9 @@
 # https://lefthook.dev/configuration/
 #
 # 導入: `lefthook install` を一度実行する（git hooks が登録される）。
-# WebUI は Biome を意図的に無効化し ESLint で lint する方針のため
-# （apps/webui/biome.json のコメント参照）、ここでも `npm run lint` に委譲する。
+# WebUI は apps/webui/biome.json で Biome の lint/format を有効化しているため、
+# ここでも `npm run lint` に委譲する（実体は Biome。ルート biome.json は無効化のまま、
+# 他ツール向けのデフォルト）。
 
 pre-commit:
   parallel: true
@@ -12,7 +13,7 @@ pre-commit:
       glob: "*.rs"
       run: cargo fmt --all -- --check
 
-    - name: webui lint (eslint)
+    - name: webui lint (biome)
       glob: "apps/webui/**/*.{ts,tsx,js,mjs}"
       run: npm --prefix apps/webui run lint
 

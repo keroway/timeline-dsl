@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ToastVariant } from '../components/Toast'
-import { triggerDownload } from '../lib/svgExport'
 import type { Translator } from '../lib/i18n'
+import { triggerDownload } from '../lib/svgExport'
 
 const TDSL_FILE_TYPES = [
   {
@@ -28,7 +28,12 @@ export type OpenFileSuccess = {
 
 export type FileOperationResult =
   | OpenFileSuccess
-  | { status: 'saved'; name: string; handle: FileSystemFileHandle | null; mode: 'overwrite' | 'save-as' | 'download' }
+  | {
+      status: 'saved'
+      name: string
+      handle: FileSystemFileHandle | null
+      mode: 'overwrite' | 'save-as' | 'download'
+    }
   | { status: 'unsupported' }
   | { status: 'canceled' }
 
@@ -41,15 +46,22 @@ export type FileHandleApi = {
   saveSource: (source: string) => Promise<FileOperationResult>
 }
 
-export function isFileSystemAccessSupported(host: FilePickerHost = window): boolean {
-  return typeof host.showOpenFilePicker === 'function' && typeof host.showSaveFilePicker === 'function'
+export function isFileSystemAccessSupported(
+  host: FilePickerHost = window
+): boolean {
+  return (
+    typeof host.showOpenFilePicker === 'function' &&
+    typeof host.showSaveFilePicker === 'function'
+  )
 }
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
-export async function openTdslFile(host: FilePickerHost = window): Promise<FileOperationResult> {
+export async function openTdslFile(
+  host: FilePickerHost = window
+): Promise<FileOperationResult> {
   if (!isFileSystemAccessSupported(host) || !host.showOpenFilePicker) {
     return { status: 'unsupported' }
   }
@@ -81,7 +93,9 @@ type SaveTdslFileParams = {
   downloadFallback?: (blob: Blob, filename: string) => void | Promise<void>
 }
 
-export async function saveTdslFile(params: SaveTdslFileParams): Promise<FileOperationResult> {
+export async function saveTdslFile(
+  params: SaveTdslFileParams
+): Promise<FileOperationResult> {
   const {
     source,
     handle,
@@ -95,7 +109,12 @@ export async function saveTdslFile(params: SaveTdslFileParams): Promise<FileOper
     const writable = await handle.createWritable()
     await writable.write(source)
     await writable.close()
-    return { status: 'saved', name: handle.name || filename, handle, mode: 'overwrite' }
+    return {
+      status: 'saved',
+      name: handle.name || filename,
+      handle,
+      mode: 'overwrite',
+    }
   }
 
   if (!isFileSystemAccessSupported(host) || !host.showSaveFilePicker) {
@@ -111,7 +130,12 @@ export async function saveTdslFile(params: SaveTdslFileParams): Promise<FileOper
     const writable = await saveHandle.createWritable()
     await writable.write(source)
     await writable.close()
-    return { status: 'saved', name: saveHandle.name || filename, handle: saveHandle, mode: 'save-as' }
+    return {
+      status: 'saved',
+      name: saveHandle.name || filename,
+      handle: saveHandle,
+      mode: 'save-as',
+    }
   } catch (error: unknown) {
     if (isAbortError(error)) return { status: 'canceled' }
     throw error
@@ -120,50 +144,63 @@ export async function saveTdslFile(params: SaveTdslFileParams): Promise<FileOper
 
 export function useFileHandle(
   showToast: (message: string, variant?: ToastVariant) => void,
-  t: Translator,
+  t: Translator
 ): FileHandleApi {
   const supported = isFileSystemAccessSupported()
   const [handle, setHandle] = useState<FileSystemFileHandle | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
 
-  return useMemo(() => ({
-    supported,
-    fileName,
-    hasWritableHandle: handle !== null,
-    async openWithPicker() {
-      const result = await openTdslFile()
-      if (result.status === 'opened') {
-        setHandle(result.handle)
-        setFileName(result.name)
-      } else if (result.status === 'unsupported') {
-        showToast(t('fileAccessUnsupported'), 'info')
-      }
-      return result
-    },
-    markLegacyFileOpened(name: string) {
-      setHandle(null)
-      setFileName(name)
-    },
-    async saveSource(source: string) {
-      try {
-        const result = await saveTdslFile({ source, handle, suggestedName: fileName })
-        if (result.status === 'saved') {
+  return useMemo(
+    () => ({
+      supported,
+      fileName,
+      hasWritableHandle: handle !== null,
+      async openWithPicker() {
+        const result = await openTdslFile()
+        if (result.status === 'opened') {
           setHandle(result.handle)
           setFileName(result.name)
-          if (result.mode === 'download') {
-            showToast(t('fileAccessDownloadFallback'), 'info')
-          } else if (result.mode === 'overwrite') {
-            showToast(t.fmt('fileAccessSaved', { name: result.name }), 'success')
-          } else {
-            showToast(t.fmt('fileAccessSavedAs', { name: result.name }), 'success')
-          }
+        } else if (result.status === 'unsupported') {
+          showToast(t('fileAccessUnsupported'), 'info')
         }
         return result
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error)
-        showToast(t.fmt('fileAccessSaveFailed', { msg }), 'error')
-        throw error
-      }
-    },
-  }), [fileName, handle, showToast, supported, t])
+      },
+      markLegacyFileOpened(name: string) {
+        setHandle(null)
+        setFileName(name)
+      },
+      async saveSource(source: string) {
+        try {
+          const result = await saveTdslFile({
+            source,
+            handle,
+            suggestedName: fileName,
+          })
+          if (result.status === 'saved') {
+            setHandle(result.handle)
+            setFileName(result.name)
+            if (result.mode === 'download') {
+              showToast(t('fileAccessDownloadFallback'), 'info')
+            } else if (result.mode === 'overwrite') {
+              showToast(
+                t.fmt('fileAccessSaved', { name: result.name }),
+                'success'
+              )
+            } else {
+              showToast(
+                t.fmt('fileAccessSavedAs', { name: result.name }),
+                'success'
+              )
+            }
+          }
+          return result
+        } catch (error: unknown) {
+          const msg = error instanceof Error ? error.message : String(error)
+          showToast(t.fmt('fileAccessSaveFailed', { msg }), 'error')
+          throw error
+        }
+      },
+    }),
+    [fileName, handle, showToast, supported, t]
+  )
 }

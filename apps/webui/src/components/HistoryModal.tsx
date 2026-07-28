@@ -1,4 +1,4 @@
-import { useMemo, type Dispatch, type SetStateAction } from 'react'
+import { type Dispatch, type SetStateAction, useMemo } from 'react'
 import type { Snapshot } from '../history'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { createTranslator, type Locale } from '../lib/i18n'
@@ -36,7 +36,10 @@ export function HistoryModal(props: HistoryModalProps) {
     locale,
   } = props
 
-  const dialogRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose })
+  const dialogRef = useFocusTrap<HTMLDivElement>({
+    active: true,
+    onEscape: onClose,
+  })
   const t = useMemo(() => createTranslator(locale), [locale])
 
   return (
@@ -52,12 +55,21 @@ export function HistoryModal(props: HistoryModalProps) {
       >
         <div className="modal-header">
           <span id="history-modal-title">{t('historyTitle')}</span>
-          <button className="modal-close" onClick={onClose} aria-label={t('historyClose')}>✕</button>
+          <button
+            type="button"
+            className="modal-close"
+            onClick={onClose}
+            aria-label={t('historyClose')}
+          >
+            ✕
+          </button>
         </div>
         <div className="history-body">
           {manualSnaps.length > 0 && (
             <section>
-              <div className="history-section-title">{t('historyManualSection')}</div>
+              <div className="history-section-title">
+                {t('historyManualSection')}
+              </div>
               <ul className="history-list">
                 {manualSnaps.map((snap) => (
                   <li key={snap.id} className="history-item">
@@ -66,6 +78,7 @@ export function HistoryModal(props: HistoryModalProps) {
                         <input
                           className="history-rename-input"
                           value={renameValue}
+                          // biome-ignore lint/a11y/noAutofocus: rename mode is explicitly entered by the user via a click, so focusing the newly shown input is expected
                           autoFocus
                           onChange={(e) => setRenameValue(e.target.value)}
                           onKeyDown={(e) => {
@@ -73,12 +86,25 @@ export function HistoryModal(props: HistoryModalProps) {
                             if (e.key === 'Escape') onRenameCancel()
                           }}
                         />
-                        <button className="btn btn-sm" onClick={onRenameCommit}>{t('historyRenameCommit')}</button>
-                        <button className="btn btn-sm" onClick={onRenameCancel}>{t('historyRenameCancel')}</button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={onRenameCommit}
+                        >
+                          {t('historyRenameCommit')}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={onRenameCancel}
+                        >
+                          {t('historyRenameCancel')}
+                        </button>
                       </div>
                     ) : (
                       <div className="history-item-row">
                         <button
+                          type="button"
                           className="history-restore-btn"
                           onClick={() => onRestore(snap.source)}
                           title={t('historyRestoreTitle')}
@@ -86,8 +112,22 @@ export function HistoryModal(props: HistoryModalProps) {
                           {snap.label}
                         </button>
                         <div className="history-item-actions">
-                          <button className="btn btn-sm" onClick={() => onRenameStart(snap)} title={t('historyRenameTitle')}>✎</button>
-                          <button className="btn btn-sm btn-danger" onClick={() => onDeleteManual(snap.id)} title={t('historyDeleteTitle')}>✕</button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => onRenameStart(snap)}
+                            title={t('historyRenameTitle')}
+                          >
+                            ✎
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger"
+                            onClick={() => onDeleteManual(snap.id)}
+                            title={t('historyDeleteTitle')}
+                          >
+                            ✕
+                          </button>
                         </div>
                       </div>
                     )}
@@ -98,12 +138,18 @@ export function HistoryModal(props: HistoryModalProps) {
           )}
           {autoSnaps.length > 0 && (
             <section>
-              <div className="history-section-title">{t.fmt('historyAutoSection', { count: autoSnaps.length, max: 5 })}</div>
+              <div className="history-section-title">
+                {t.fmt('historyAutoSection', {
+                  count: autoSnaps.length,
+                  max: 5,
+                })}
+              </div>
               <ul className="history-list">
                 {autoSnaps.map((snap) => (
                   <li key={snap.id} className="history-item">
                     <div className="history-item-row">
                       <button
+                        type="button"
                         className="history-restore-btn"
                         onClick={() => onRestore(snap.source)}
                         title={t('historyRestoreTitle')}
@@ -121,7 +167,11 @@ export function HistoryModal(props: HistoryModalProps) {
           )}
           {(autoSnaps.length > 0 || manualSnaps.length > 0) && (
             <div className="history-footer">
-              <button className="btn btn-danger" onClick={onClearAll}>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={onClearAll}
+              >
                 {t('historyClearAll')}
               </button>
             </div>

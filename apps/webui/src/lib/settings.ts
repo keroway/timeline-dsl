@@ -1,6 +1,6 @@
 // ─── Settings & LocalStorage persistence ─────────────────────────────────────
 
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from './i18n'
+import { DEFAULT_LOCALE, type Locale, SUPPORTED_LOCALES } from './i18n'
 
 export type { Locale }
 export type ColorScheme = 'dark' | 'light'
@@ -64,7 +64,11 @@ export function readSettings(): Settings {
     if (!raw) return SETTINGS_DEFAULTS
     const parsed = JSON.parse(raw) as Partial<Settings>
     const merged: Settings = { ...SETTINGS_DEFAULTS, ...parsed }
-    if (merged.theme !== 'auto' && merged.theme !== 'light' && merged.theme !== 'dark') {
+    if (
+      merged.theme !== 'auto' &&
+      merged.theme !== 'light' &&
+      merged.theme !== 'dark'
+    ) {
       merged.theme = SETTINGS_DEFAULTS.theme
     }
     if (!['horizontal', 'vertical'].includes(merged.svgOrientation)) {
@@ -90,9 +94,14 @@ export function readSettings(): Settings {
 
 export function detectSystemScheme(): ColorScheme {
   if (typeof window === 'undefined' || !window.matchMedia) return 'dark'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light'
 }
 
-export function resolveColorScheme(pref: ThemePreference, systemScheme: ColorScheme): ColorScheme {
+export function resolveColorScheme(
+  pref: ThemePreference,
+  systemScheme: ColorScheme
+): ColorScheme {
   return pref === 'auto' ? systemScheme : pref
 }
