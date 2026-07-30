@@ -22,7 +22,7 @@ jobs:
         # zizmor: ignore[cache-poisoning] — push:tags のみでトリガーされ pull_request トリガーは無い
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26"
           cache: "npm"
           cache-dependency-path: editors/vscode/package-lock.json
 
