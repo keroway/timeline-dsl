@@ -33,7 +33,7 @@ Use GitHub's [Private vulnerability reporting](https://github.com/keroway/timeli
   - `vite-plugin-top-level-await` は**ビルド時専用**ツールであり、uuid はブラウザバンドルに同梱されない。
 - **修正版に追従しない理由（trade-off）**:
   - `vite-plugin-top-level-await` は 1.6.0 が最新で `uuid: "10.0.0"` を**完全固定**しているため、`overrides` を使わない限り修正版（uuid 14）は入らない。
-  - `uuid@14` は **ESM 専用**（`exports` に `require` 条件なし）。`overrides` で強制した場合、プラグインの `require("uuid")` は Node の require(ESM) サポート（Node 20.19+ / 22+ / 24）に依存する。技術的には動作し得る（ローカルは Node v24）が、Node バージョン依存の脆さを増やす。上記のとおり到達不能・実害なしのため、override より dismiss を選択した。
+  - `uuid@14` は **ESM 専用**（`exports` に `require` 条件なし）。`overrides` で強制した場合、プラグインの `require("uuid")` は Node の require(ESM) サポート（Node 20.19+ / 22.12+ / 24 / 26）に依存する。技術的には動作し得る（ローカルは Node v26）が、Node バージョン依存の脆さを増やす。上記のとおり到達不能・実害なしのため、override より dismiss を選択した。
 - **再評価条件**:
   - より厳密に消したい場合は `apps/webui/package.json` に `"overrides": { "uuid": "14.0.0" }` を入れ、`npm install` 後に `npm run build` が通ることを確認して採用してもよい（require(ESM) 依存に留意）。
   - `vite-plugin-top-level-await` が uuid の参照を更新（CJS 互換の修正版に対応／range 化）したら、追従または `overrides` での `uuid` バンプを検討する。
