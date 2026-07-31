@@ -139,14 +139,14 @@ jobs:
 
             const prNumber = context.payload.pull_request.number;
 
-            // 既存コメントを検索
-            const comments = await github.rest.issues.listComments({
+            // 既存コメントを検索（30件超の長寿命 PR でも bot コメントを見失わないよう全件走査）
+            const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
             });
 
-            const existing = comments.data.find(c => c.body && c.body.includes(BOT_TAG));
+            const existing = comments.find(c => c.body && c.body.includes(BOT_TAG));
 
             if (existing) {
               console.log(`Updating existing comment #${existing.id}`);
