@@ -36,7 +36,7 @@
 - `timeline { range start..end; }` の範囲チェック
 - レンダリング時のソート・順序付け
 
-この比較は暗黙に「offset なしは UTC とみなす」という正規化を **行いません**（AGENTS.md §4.1 no-silent-fallback 原則）。曖昧な比較を機械的に解決せず、著者にどちらかへの統一を求めます。
+この比較は暗黙に「offset なしは UTC とみなす」という正規化を **行いません**（CLAUDE.md「No silent fallback」原則）。曖昧な比較を機械的に解決せず、著者にどちらかへの統一を求めます。
 
 ```tdsl
 # エラーになる例（offset ありと offset なしが同一 span に混在）

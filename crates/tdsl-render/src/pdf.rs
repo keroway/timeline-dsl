@@ -518,7 +518,7 @@ fn pdf_page_geometry(pdf_opts: &PdfOptions) -> Result<(f32, f32, f32, f32, f32),
 /// (rendered separately, see `svg::render_table_page_svg`), so the minimum
 /// viable printable area fits header + 1 data row + footer margin. Returning
 /// `0` here would make callers `chunks(0)` and panic, so this is rejected as
-/// an explicit error instead (AGENTS.md §4.1 no silent fallback).
+/// an explicit error instead (CLAUDE.md "No silent fallback" 原則).
 fn table_rows_per_page(content_height: f32) -> Result<usize, PdfError> {
     let complete_rows = (f64::from(content_height) / TABLE_ROW_HEIGHT).floor() as usize;
     // -1 for the header row that is repeated on every page.

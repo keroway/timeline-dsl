@@ -73,7 +73,7 @@ pub enum LayoutStyle {
     /// (#565), sorted by start time: even-indexed items sit above the lane
     /// axis, odd-indexed items below. Only applied when the timeline has at
     /// most [`ZIGZAG_MAX_LANES`] lanes; otherwise falls back to `Timeline`
-    /// layout with a warning (never silently, per AGENTS.md §4.1). Mutually
+    /// layout with a warning (never silently, per CLAUDE.md "No silent fallback"). Mutually
     /// exclusive with the #549 bar sub-row stacking: Zigzag is an alternative
     /// overlap-avoidance strategy, so its cross-axis offset replaces (rather
     /// than combines with) the bar_stack_level offset.
@@ -395,7 +395,7 @@ pub struct LayoutModel<'a> {
     /// but the timeline has more than [`ZIGZAG_MAX_LANES`] lanes, so Zigzag was
     /// **not** applied and the layout silently degraded to `Timeline` positioning
     /// instead — "silently" here means *this layout pass* does not error, but per
-    /// AGENTS.md §4.1 (no silent fallback) every caller (CLI/wasm/webui) MUST
+    /// CLAUDE.md "No silent fallback" every caller (CLI/wasm/webui) MUST
     /// check this flag and surface a warning to the user; it is never swallowed.
     pub zigzag_fallback: bool,
 }
@@ -1238,7 +1238,7 @@ fn compute_lane_effective_heights(
 /// Maximum lane count for which `LayoutStyle::Zigzag` is applied (#565). Beyond
 /// this, alternating cross-axis offsets from adjacent lanes would visually
 /// collide, so the layout falls back to `Timeline` positioning instead — never
-/// silently (AGENTS.md §4.1): callers must check `LayoutModel::zigzag_fallback`
+/// silently (CLAUDE.md "No silent fallback"): callers must check `LayoutModel::zigzag_fallback`
 /// and surface a warning.
 pub const ZIGZAG_MAX_LANES: usize = 2;
 
@@ -3694,7 +3694,7 @@ mod tests {
         // #565: with more than ZIGZAG_MAX_LANES lanes, Zigzag must not silently
         // apply partial/incorrect offsets — it must fall back to Timeline
         // positioning (bar_stack_level-based, identical to layout_style=Timeline)
-        // and set `zigzag_fallback = true` so callers can warn (AGENTS.md §4.1).
+        // and set `zigzag_fallback = true` so callers can warn (CLAUDE.md "No silent fallback").
         let lanes: Vec<Lane> = (0..(ZIGZAG_MAX_LANES + 1))
             .map(|i| Lane {
                 id: format!("lane{i}"),

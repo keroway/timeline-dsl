@@ -8,7 +8,7 @@ pub(crate) struct PdfCliOptions {
     pub title: Option<String>,
     /// ADR-0004 D3: opt-in table pagination. Requires `--show-table`; the CLI
     /// rejects `--pdf-pagination` without `--show-table` explicitly rather than
-    /// silently no-op'ing (AGENTS.md §4.1).
+    /// silently no-op'ing (CLAUDE.md "No silent fallback").
     pub pagination: bool,
 }
 
@@ -184,7 +184,7 @@ fn do_render(
     // #565: --layout-style zigzag only applies when the timeline has at most
     // ZIGZAG_MAX_LANES lanes; LayoutModel silently degrades to Timeline layout
     // beyond that, so the CLI must surface a non-silent warning here per
-    // AGENTS.md §4.1 ("no silent fallback").
+    // CLAUDE.md "No silent fallback".
     if matches!(layout_style, LayoutStyleArg::Zigzag)
         && ir.lanes.len() > tdsl_render::ZIGZAG_MAX_LANES
     {
@@ -252,7 +252,7 @@ fn do_render(
         }
         RenderFormat::Pdf => {
             // ADR-0004 D3: --pdf-pagination without --show-table is an explicit
-            // error, not a silent no-op (AGENTS.md §4.1). This mirrors the
+            // error, not a silent no-op (CLAUDE.md "No silent fallback"). This mirrors the
             // PdfError::PaginationRequiresTable check inside tdsl-render, but is
             // surfaced here as a plain CLI error message before any rendering work
             // happens.

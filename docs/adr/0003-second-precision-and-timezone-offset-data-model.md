@@ -61,7 +61,7 @@ pub enum TimeValue {
 
 - **offset 付き値同士**（`DateTimeOffset` / `DateTimeSecondOffset`）は、`offset_minutes` を引いて UTC 相当の civil time に正規化してから比較する。
 - **offset なし値**（`Year`〜`DateTimeSecond`）同士は、従来どおり暦時刻の値そのもので比較する（タイムゾーンの概念を持ち込まない）。
-- **offset 付き値と offset なし値の比較は明示的エラーとする**（`LoweringError` の新規バリアント、例: `MixedOffsetComparison`）。offset なしの値を「暗黙に UTC」とみなして正規化することはしない。これは AGENTS.md §4.1「no silent fallback」の直接適用で、曖昧な比較を機械的に解決せず著者に明示させる。
+- **offset 付き値と offset なし値の比較は明示的エラーとする**（`LoweringError` の新規バリアント、例: `MixedOffsetComparison`）。offset なしの値を「暗黙に UTC」とみなして正規化することはしない。これは CLAUDE.md「No silent fallback」原則の直接適用で、曖昧な比較を機械的に解決せず著者に明示させる。
   - 実務上の含意: 同一 lane / 同一 span-end 比較などで offset 付きと offset なしを混在させたい場合、著者はどちらかに揃える（全値に offset を付与するか、全値から外す）必要がある。
 - Wikidata インポートは常に offset なし（`DateTime` / `DateTimeSecond`）として格納する（Wikidata API の instant は UTC だが、既存動作を変えず「裸の civil time」のまま）。したがって静的データに offset を付けた場合、同一比較コンテキストで Wikidata データと混在させると上記エラーになりうる — これは意図した挙動であり、ドキュメント（#616）で明記する。
 
@@ -76,7 +76,7 @@ pub enum TimeValue {
 - 秒: `HH:MM:SS`（`:SS` は既存の `HH:MM` の後ろに追加のオプション部として拡張）。
 - オフセット: `Z`（UTC）または `[+-]HH:MM`（例: `+09:00`, `-05:00`, `+05:45`, `+12:45` の 15 分単位も許容— 実在するタイムゾーンに合わせる）。
 - 許容範囲: `-14:00` 〜 `+14:00`（実在するUTCオフセットの範囲。キリバス等の `+14:00` を上限とする）。
-- 範囲外・書式不正（例: `+25:00`, `+09:3`, `+9:00`）は **parse エラーで拒否**。silent fallback・クランプは行わない（AGENTS.md §4.1 / ADR 0002 の margin 方針と同じ思想）。
+- 範囲外・書式不正（例: `+25:00`, `+09:3`, `+9:00`）は **parse エラーで拒否**。silent fallback・クランプは行わない（CLAUDE.md「No silent fallback」原則 / ADR 0002 の margin 方針と同じ思想）。
 - error-catalog に新規エラーコードを追記する（例: `E12x` 系列。具体的な番号は実装 issue #612 で確定）。
 
 ### D5. Wikidata precision マッピング
@@ -96,7 +96,7 @@ pub enum TimeValue {
 | **precision-tag civil-time enum の拡張（採用）** | ✅ 採用 | 既存アーキテクチャ・既存 variant への非破壊性・実装のブラスト半径の小ささを優先。 |
 | instant (UTC epoch, 例: `i64` ミリ秒 + 別途表示用オフセット) への刷新 | ❌ 不採用 | 全消費箇所を破壊的変更する必要があり、Effort/Riskの見積り（親issue #610: Risk HIGH）に見合わない。「入力した暦表記がそのまま尊重される」という現行の直感的な挙動も失われる。 |
 | civil time + offset を必須フィールド化した新構造体でラップ (`struct Timestamp { value, offset: Option<i16> }`) | ❌ 不採用 | `SpanDecl`/`EventDecl`/`EventRangeDecl` 等すべての型シグネチャを変更する必要がありブラスト半径が大きい。variant 追加よりリファクタリングコストが高い。 |
-| offset なし値を暗黙に UTC とみなして offset 付き値と正規化比較 | ❌ 不採用 | AGENTS.md §4.1 の no-silent-fallback 原則に反する。著者の意図しない比較結果を生みうる（例: 静的データがローカルタイム前提で書かれていた場合に誤って UTC 起点で比較される）。 |
+| offset なし値を暗黙に UTC とみなして offset 付き値と正規化比較 | ❌ 不採用 | CLAUDE.md「No silent fallback」原則に反する。著者の意図しない比較結果を生みうる（例: 静的データがローカルタイム前提で書かれていた場合に誤って UTC 起点で比較される）。 |
 
 ## 影響範囲
 
@@ -122,7 +122,7 @@ pub enum TimeValue {
 ## 未決定事項（本 ADR の範囲外）
 
 - `now` に明示的な offset を持たせるかどうかは ADR-0006 で検討中（現時点では実装方式未確定、`now` の解決粒度拡張を扱う先行 issue が必要）。
-- ミリ秒未満（サブ秒）精度は本 ADR のスコープ外（AGENTS.md §5 に明記のとおり）。
+- ミリ秒未満（サブ秒）精度は本 ADR のスコープ外（CLAUDE.md「未実装 / 意図的に対応しない機能」に明記のとおり）。
 - IANA タイムゾーン名（`Asia/Tokyo` 等）による DST 自動解決は対象外とすることを ADR-0007 で正式決定した（2026-07-26）。offset は数値（分単位）のみを扱う固定オフセットモデルであり、DST 遷移の自動計算は行わない（著者が期間ごとに offset を明示する）。
 
 ## 実測結果（#615, D6 フィードバック）

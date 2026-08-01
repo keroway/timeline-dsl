@@ -140,7 +140,7 @@ pub fn format_offset_suffix(offset_minutes: i16) -> String {
 /// - offset 付き同士は `offset_minutes` を差し引いて UTC 相当の暦時刻に正規化して比較する。
 /// - offset なし同士は、従来どおり暦時刻の値そのもので比較する（`to_sortable()` 相当）。
 /// - 片方のみ offset 付きの場合は曖昧な比較として明示エラー（`MixedOffsetComparison`）を返す。
-///   offset なしを暗黙に UTC とみなすことはしない（AGENTS.md §4.1）。
+///   offset なしを暗黙に UTC とみなすことはしない（CLAUDE.md「No silent fallback」原則）。
 pub(crate) fn compare_time_values(
     a: &ast::TimeValue,
     b: &ast::TimeValue,

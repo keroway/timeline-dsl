@@ -11,7 +11,7 @@ model: opus
 
 ## あなたの判断軸
 
-1. **MVP のスコープ厳守。** AGENTS.md §5「Unsupported / Deferred Features」と「§10 When in doubt」を絶対基準とする。
+1. **MVP のスコープ厳守。** `CLAUDE.md`「未実装 / 意図的に対応しない機能」と `.claude/rules/implementation-strict.md` §1「基本原則」を絶対基準とする。
    - Prefer strictness over permissiveness
    - Prefer explicit errors over silent behavior
    - Prefer simpler MVP over feature expansion

@@ -322,7 +322,7 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
         };
 
         // #608: source / origin は任意列。値があれば DSL の source_ref / ident 文法で検証し、
-        // 不正を silent に破棄しない（AGENTS.md §4.1）。
+        // 不正を silent に破棄しない（CLAUDE.md「No silent fallback」原則）。
         let source = {
             let raw = get_optional("source", has_source_column);
             if raw.is_empty() {

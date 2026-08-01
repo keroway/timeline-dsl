@@ -20,7 +20,7 @@ model: sonnet
 
 ## 必ず守るルール
 
-1. **AGENTS.md と CLAUDE.md と `.claude/rules/implementation-strict.md` を最初に確認すること。** 設計原則と Critical Rules（silent fallback 禁止、IR 単一真実源、imported item の source ルール等）から外れない。
+1. **CLAUDE.md（`AGENTS.md` は同ファイルへの symlink）と `.claude/rules/implementation-strict.md` を最初に確認すること。** 設計原則と Critical Rules（silent fallback 禁止、IR 単一真実源、imported item の source ルール等）から外れない。
 2. **クレートの責務を混ぜない。** parser が render に依存したり、core が cli に依存したりしてはならない。依存方向は `cli → core → parser`, `core → wikidata`。
 3. **エラー処理は `thiserror` で型定義、`miette` で整形出力。** `anyhow::Error` をライブラリ層で公開しない。`Result<_, ParseError>` のような具体型を返す。
 4. **文法変更は必ず以下の順で行う。**

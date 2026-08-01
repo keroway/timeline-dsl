@@ -49,7 +49,7 @@ pub enum LoweringError {
     InvalidItemColor(String),
 
     /// offset付きtime valueとoffsetなしtime valueの比較は曖昧なので明示エラーとする
-    /// （ADR 0003 D2: 「オフセットなしは暗黙にUTCとはみなさない」/ AGENTS.md §4.1 no silent fallback）。
+    /// （ADR 0003 D2: 「オフセットなしは暗黙にUTCとはみなさない」/ CLAUDE.md "No silent fallback" 原則）。
     #[error(
         "Cannot compare a UTC-offset time value with a value that has no offset (author must make both sides consistent): {0} vs {1}"
     )]
