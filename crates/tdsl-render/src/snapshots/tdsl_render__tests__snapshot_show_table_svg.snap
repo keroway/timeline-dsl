@@ -1,10 +1,10 @@
 ---
 source: crates/tdsl-render/src/lib.rs
-assertion_line: 1026
+assertion_line: 1481
 expression: svg
 ---
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 226" width="340" height="226" role="img" aria-label="timeline" class="tdsl-root">
-  <style>:root { --tdsl-lane-0: #4682B4; --tdsl-lane-1: #E67E22; --tdsl-lane-2: #27AE60; --tdsl-lane-3: #8E44AD; --tdsl-lane-4: #E74C3C; --tdsl-lane-5: #1ABC9C; --tdsl-lane-6: #F39C12; --tdsl-lane-7: #2980B9; } .tdsl-root text { font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; } .tdsl-axis-text { font-size: 11px; } .tdsl-axis-month-tick { stroke: #ccc; stroke-width: 1; } .tdsl-axis-day-tick { stroke: #ddd; stroke-width: 1; } .tdsl-axis-day-text { font-size: 9px; fill: #888; } .tdsl-event-label { font-size: 10px; fill: #333; pointer-events: none; }</style>
+  <style>:where(.tdsl-root) { --tdsl-lane-0: #4682B4; --tdsl-lane-1: #E67E22; --tdsl-lane-2: #27AE60; --tdsl-lane-3: #8E44AD; --tdsl-lane-4: #E74C3C; --tdsl-lane-5: #1ABC9C; --tdsl-lane-6: #F39C12; --tdsl-lane-7: #2980B9; } .tdsl-root text { font-family: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif; } .tdsl-axis-text { font-size: 11px; } .tdsl-axis-month-tick { stroke: #ccc; stroke-width: 1; } .tdsl-axis-day-tick { stroke: #ddd; stroke-width: 1; } .tdsl-axis-day-text { font-size: 9px; fill: #888; } .tdsl-event-label { font-size: 10px; fill: #333; pointer-events: none; }</style>
   <rect class="tdsl-lane-band-even" role="presentation" aria-hidden="true" x="120" y="40" width="200" height="60"/>
   <line class="tdsl-axis-baseline" role="presentation" x1="120" y1="36" x2="320" y2="36"/>
   <line class="tdsl-axis-tick" role="presentation" x1="120" y1="40" x2="120" y2="206"/>
@@ -18,11 +18,11 @@ expression: svg
   <line class="tdsl-axis-tick" role="presentation" x1="320" y1="40" x2="320" y2="206"/>
   <text class="tdsl-axis-text" x="320" y="32" text-anchor="middle">100</text>
   <text class="tdsl-lane-label" data-lane="x" x="112" y="70" text-anchor="end" dominant-baseline="middle">X</text>
-  <g class="tdsl-item tdsl-item-span" role="group" aria-label="スパン: Span A、0〜50、tags: tag1、id: s1、レーン: X" tabindex="0" data-tdsl-tooltip="Span A&#10;0〜50&#10;tags: tag1&#10;id: s1" data-lane="x" data-tags="tag1"><rect class="tdsl-span" style="fill:var(--tdsl-lane-0, #4682B4);" x="120" y="58" width="102.00" height="24" rx="3"><title>Span A
+  <g class="tdsl-item tdsl-item-span" role="group" aria-label="Span: Span A, 0〜50, tags: tag1, id: s1, Lane: X" tabindex="0" data-tdsl-tooltip="Span A&#10;0〜50&#10;tags: tag1&#10;id: s1" data-lane="x" data-tags="tag1"><rect class="tdsl-span" style="fill:var(--tdsl-lane-0, #4682B4);" x="120" y="58" width="102.00" height="24" rx="3"><title>Span A
 0〜50
 tags: tag1
 id: s1</title></rect><text class="tdsl-item-label" x="124" y="70" dominant-baseline="middle">Span A</text></g>
-  <g class="tdsl-item tdsl-item-event" role="group" aria-label="イベント: Event B、75、id: e1、レーン: X" tabindex="0" data-tdsl-tooltip="Event B&#10;75&#10;id: e1" data-lane="x"><rect class="tdsl-event-hit" x="262" y="50" width="16" height="40"><title>Event B
+  <g class="tdsl-item tdsl-item-event" role="group" aria-label="Event: Event B, 75, id: e1, Lane: X" tabindex="0" data-tdsl-tooltip="Event B&#10;75&#10;id: e1" data-lane="x"><rect class="tdsl-event-hit" x="262" y="50" width="16" height="40"><title>Event B
 75
 id: e1</title></rect><line class="tdsl-event-stem" x1="270" y1="50" x2="270" y2="90"><title>Event B
 75

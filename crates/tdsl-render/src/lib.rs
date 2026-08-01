@@ -1307,6 +1307,16 @@ mod tests {
             svg.contains("var(--tdsl-lane-0,"),
             "item fill must use CSS variable var(--tdsl-lane-0, ...), got:\n{svg}"
         );
+        // #701: must be scoped to :where(.tdsl-root), not a bare :root, so the definition
+        // does not leak into the host document when the SVG is inserted as inline DOM.
+        assert!(
+            svg.contains(":where(.tdsl-root) {"),
+            "lane color custom properties must be scoped to :where(.tdsl-root), got:\n{svg}"
+        );
+        assert!(
+            !svg.contains(":root {") && !svg.contains(":root{"),
+            "style block must not define a bare :root rule (leaks into host document), got:\n{svg}"
+        );
     }
 
     #[test]
