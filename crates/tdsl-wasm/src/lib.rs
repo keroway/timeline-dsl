@@ -674,6 +674,48 @@ span a 10..20 "S" { id "s1"; tags ["dynasty"]; };
         );
     }
 
+    #[test]
+    fn render_options_for_ir_embeds_data_line_for_svg() {
+        // #700: WASM 経由の SVG 出力には data-line が常に埋め込まれる（WebUI の
+        // カーソル↔プレビュー双方向ジャンプに必須）。
+        let source = r##"timeline "T" {
+  unit year;
+  range 0..100;
+}
+lane "A" as a { kind custom; }
+span a 10..20 "S" { id "s1"; };
+"##;
+        let file = tdsl_parser::parse(source).unwrap();
+        let ir = lower_static_with_source(&file, Some(source)).unwrap();
+        let opts = render_options_for_ir(&ir, &JsRenderOptions::new(), 8.0);
+        let svg = render_svg_only(&ir, opts).unwrap();
+
+        assert!(
+            svg.contains("data-line="),
+            "expected data-line attribute in SVG:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn render_options_for_ir_embeds_data_line_for_html() {
+        let source = r##"timeline "T" {
+  unit year;
+  range 0..100;
+}
+lane "A" as a { kind custom; }
+span a 10..20 "S" { id "s1"; };
+"##;
+        let file = tdsl_parser::parse(source).unwrap();
+        let ir = lower_static_with_source(&file, Some(source)).unwrap();
+        let opts = render_options_for_ir(&ir, &JsRenderOptions::new(), 8.0);
+        let html = render_html(&ir, opts).unwrap();
+
+        assert!(
+            html.contains("data-line="),
+            "expected data-line attribute in HTML:\n{html}"
+        );
+    }
+
     // ─── lint_source / lint_fix_source テスト ─────────────────────────────────
 
     #[test]
@@ -935,6 +977,10 @@ fn render_options_for_ir(
 ) -> RenderOptions {
     let mut render_opts = js_opts_to_render_options(opts, scale);
     render_opts.color_map = ir.meta.color_map.clone();
+    // WASM 出力はブラウザでのインタラクティブプレビュー専用（WebUI の
+    // カーソル↔プレビュー双方向ジャンプ等）のため、常に interactive 属性
+    // （data-id / data-line 等、#700）を埋め込む。
+    render_opts.interactive = true;
     render_opts
 }
 

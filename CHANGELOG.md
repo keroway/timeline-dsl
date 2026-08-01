@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **WASM 出力の SVG/HTML に `data-line` 等の interactive 属性が一切埋め込まれていなかったのを修正**（#700）: `render_svg_from_source` / `render_svg_from_source_with_options` / `render_html_from_source` / `render_html_from_source_with_options` はいずれも `RenderOptions::interactive` を常に `false` のまま `tdsl-render` へ渡していたため、`data-id` / `data-label` / `data-type` / `data-source` / `data-line` が出力されず、`tdsl_wasm.d.ts` の docstring（「`data-line` が埋め込まれる」）と実際の出力が乖離していた。WASM バインディングはブラウザでのインタラクティブプレビュー専用（WebUI のカーソル↔プレビュー双方向ジャンプ等）であるため、`render_options_for_ir` で常に `interactive: true` を設定するよう修正した
+
 ## [1.28.0] - 2026-07-26
 
 ### Added
