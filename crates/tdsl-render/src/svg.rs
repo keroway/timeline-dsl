@@ -29,8 +29,16 @@ pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
 
     // Embed font-family and axis text size for standalone SVG viewers (no CDN dependency).
     // Use .tdsl-root text selector to scope styles and prevent CSS leakage when embedded inline.
-    // :root block defines --tdsl-lane-N custom properties so LP sites can override lane colors.
-    let mut root_css = String::from(":root {");
+    // #701: define --tdsl-lane-N custom properties scoped to the <svg> element itself via
+    // :where(.tdsl-root), not :root — when the SVG is inserted as inline DOM (e.g. via
+    // adoptNode rather than <img>), a :root selector inside its <style> matches the *host*
+    // document's root element and leaks these custom properties into the embedding page.
+    // :where() keeps the selector's specificity at zero so a host page's own
+    // `.tdsl-root { --tdsl-lane-N: ... }` override (e.g. timeline-dsl-lp's semantic-token
+    // bridge, DESIGN.md) still wins deterministically regardless of stylesheet source order —
+    // a plain `.tdsl-root` selector here would tie on specificity and could lose to an
+    // earlier-loaded host stylesheet purely by DOM position.
+    let mut root_css = String::from(":where(.tdsl-root) {");
     for (i, hex) in LANE_PALETTE.iter().enumerate() {
         write!(root_css, " --tdsl-lane-{i}: {hex};")?;
     }
@@ -1367,16 +1375,19 @@ fn item_end_open(item: &Item) -> bool {
 
 /// Build the ARIA label string for a timeline item.
 ///
-/// Format: `"<type>: <tooltip_on_one_line>、レーン: <lane_label>"`
-/// Newlines in the tooltip are replaced with `、` for a compact single-line value.
+/// Format: `"<type>: <tooltip_on_one_line>, Lane: <lane_label>"`
+/// Newlines in the tooltip are replaced with `, ` for a compact single-line value.
+///
+/// #701: fixed to English (was hardcoded Japanese) to match the surrounding
+/// tooling ecosystem's UI language convention (e.g. `obsidian-tdsl`, #82).
 fn item_aria_label(item: &Item, tooltip: &str, lane_label: &str) -> String {
     let type_str = match item {
-        Item::Span { .. } => "スパン",
-        Item::Event { .. } => "イベント",
-        Item::EventRange { .. } => "期間イベント",
+        Item::Span { .. } => "Span",
+        Item::Event { .. } => "Event",
+        Item::EventRange { .. } => "Event range",
     };
-    let info = tooltip.replace('\n', "、");
-    format!("{type_str}: {info}、レーン: {lane_label}")
+    let info = tooltip.replace('\n', ", ");
+    format!("{type_str}: {info}, Lane: {lane_label}")
 }
 
 /// Escape for SVG/XML text content and attribute values.
@@ -1824,19 +1835,19 @@ mod tests {
             svg.contains(r#"class="tdsl-item tdsl-item-span" role="group" aria-label=""#),
             "span item must have role=group and aria-label"
         );
-        // aria-label に "スパン" が含まれる
+        // aria-label に "Span" が含まれる（#701: 英語に統一）
         assert!(
-            svg.contains("スパン:"),
-            "span aria-label must contain type prefix 'スパン:'"
+            svg.contains("Span:"),
+            "span aria-label must contain type prefix 'Span:'"
         );
         // aria-label に期間情報が含まれる (BC206 と 220 の両方)
         assert!(
             svg.contains("BC206"),
             "span aria-label must contain start year"
         );
-        // aria-label に "レーン:" が含まれる
+        // aria-label に "Lane:" が含まれる
         assert!(
-            svg.contains("レーン:"),
+            svg.contains("Lane:"),
             "aria-label must contain lane label reference"
         );
         // Event item: <g> に role=group と aria-label が含まれる
@@ -1844,10 +1855,10 @@ mod tests {
             svg.contains(r#"class="tdsl-item tdsl-item-event" role="group" aria-label=""#),
             "event item must have role=group and aria-label"
         );
-        // event aria-label に "イベント" が含まれる
+        // event aria-label に "Event" が含まれる
         assert!(
-            svg.contains("イベント:"),
-            "event aria-label must contain type prefix 'イベント:'"
+            svg.contains("Event:"),
+            "event aria-label must contain type prefix 'Event:'"
         );
 
         // lane band の rect に role=presentation が含まれる
@@ -1924,10 +1935,10 @@ mod tests {
             svg.contains(r#"class="tdsl-item tdsl-item-event-range" role="group" aria-label=""#),
             "event_range item must have role=group and aria-label"
         );
-        // aria-label に "期間イベント" が含まれる
+        // aria-label に "Event range" が含まれる（#701: 英語に統一）
         assert!(
-            svg.contains("期間イベント:"),
-            "event_range aria-label must contain type prefix '期間イベント:'"
+            svg.contains("Event range:"),
+            "event_range aria-label must contain type prefix 'Event range:'"
         );
         // aria-label に レーン名 "戦争" が含まれる
         assert!(

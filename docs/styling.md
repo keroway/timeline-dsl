@@ -243,14 +243,14 @@ SVG 全体を `role="img"` として宣言し、`aria-label="timeline"` でコ�
 ```xml
 <g class="tdsl-item tdsl-item-span"
    role="group"
-   aria-label="スパン: 漢、BC206〜220、source: wd:Q7209、id: span:han、レーン: 漢"
+   aria-label="Span: 漢, BC206〜220, source: wd:Q7209, id: span:han, Lane: 漢"
    tabindex="0" ...>
 ```
 
-`aria-label` の形式: `"<種別>: <ツールチップ情報（改行を「、」に変換）>、レーン: <レーン名>"`
+`aria-label` の形式: `"<種別>: <ツールチップ情報（改行を「, 」に変換）>, Lane: <レーン名>"`
 
-- 種別は `スパン` / `イベント` / `期間イベント` のいずれか
-- ツールチップの改行は `、` に変換されて 1 行に収められる
+- 種別は `Span` / `Event` / `Event range` のいずれか（#701: 周辺ツール群（`obsidian-tdsl` 等）のUI言語との一貫性のため英語固定。以前は日本語ハードコードだった）
+- ツールチップの改行は `, ` に変換されて 1 行に収められる
 - `<title>` 要素はブラウザのツールチップ表示用のフォールバックとして残す
 
 ### 装飾要素

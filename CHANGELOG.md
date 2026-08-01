@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **WASM 出力の SVG/HTML に `data-line` 等の interactive 属性が一切埋め込まれていなかったのを修正**（#700）: `render_svg_from_source` / `render_svg_from_source_with_options` / `render_html_from_source` / `render_html_from_source_with_options` はいずれも `RenderOptions::interactive` を常に `false` のまま `tdsl-render` へ渡していたため、`data-id` / `data-label` / `data-type` / `data-source` / `data-line` が出力されず、`tdsl_wasm.d.ts` の docstring（「`data-line` が埋め込まれる」）と実際の出力が乖離していた。WASM バインディングはブラウザでのインタラクティブプレビュー専用（WebUI のカーソル↔プレビュー双方向ジャンプ等）であるため、`render_options_for_ir` で常に `interactive: true` を設定するよう修正した
+- **SVG アイテムの `aria-label` を英語に固定 / lane 色カスタムプロパティのスコープを `:root` から `:where(.tdsl-root)` に変更**（#701）: `item_aria_label` が `"スパン"` / `"イベント"` / `"期間イベント"` / `"レーン"` を日本語ハードコードで出力しており、`obsidian-tdsl` 側が UI 文言を英語に統一済み（#82）であることと食い違っていたため `"Span"` / `"Event"` / `"Event range"` / `"Lane"` に修正した。また `<style>` 内の lane 色カスタムプロパティ（`--tdsl-lane-N`）の定義に `:root` セレクタを使っていたため、SVG を `<img>` ではなく `DOMParser` + `document.adoptNode` でインライン DOM として挿入するホスト（`obsidian-tdsl` 等）でホストページの `<html>` 全体を汚染していた問題を、`:where(.tdsl-root)`（生成される `<svg>` 自身のクラスに限定しつつ `:where()` で詳細度をゼロにしたセレクタ）にスコープを限定することで修正した。`timeline-dsl-lp` の semantic-token ブリッジ（DESIGN.md、`.tdsl-root { --tdsl-lane-N: var(--tdsl-lane-warm) }` 等）のようにホスト側が既に `.tdsl-root` で lane 色を上書きしている場合、詳細度をゼロにしたことでスタイルシートの読み込み順に関わらず確実にホスト側の定義が優先されるようになる（後方互換）
 
 ## [1.28.0] - 2026-07-26
 
