@@ -1062,3 +1062,40 @@ missions,event,,,1969,Apollo 11,,event:apollo,,wikidata\n",
     );
     let _ = std::fs::remove_file(&csv_path);
 }
+
+/// Zigzag is unsupported for more than two lanes and must fail rather than
+/// silently rendering the regular timeline layout.
+#[test]
+fn render_zigzag_with_too_many_lanes_fails() {
+    let out_path = unique_temp("zigzag_too_many_lanes.svg");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/sci_tech_timeline.tdsl")
+                .to_str()
+                .expect("example path must be UTF-8"),
+            "--offline",
+            "--layout-style",
+            "zigzag",
+            "--format",
+            "svg",
+            "--output",
+            out_path.to_str().expect("output path must be UTF-8"),
+        ])
+        .output()
+        .expect("failed to run tdsl render");
+
+    assert!(
+        !out.status.success(),
+        "zigzag with more than two lanes must fail"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("zigzag supports at most 2 lane(s)"),
+        "stderr must explain the lane limit: {stderr}"
+    );
+    assert!(
+        !out_path.exists(),
+        "failed rendering must not create output"
+    );
+}

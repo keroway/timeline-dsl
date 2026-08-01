@@ -19,6 +19,7 @@ use svg2pdf::usvg::{Options, Tree};
 use tdsl_core::ir::TimelineIr;
 use thiserror::Error;
 
+use crate::RenderError;
 use crate::layout::{LayoutModel, RenderOptions, TABLE_ROW_HEIGHT, collect_table_rows};
 use crate::pagination::{self, PaginationError};
 use crate::svg;
@@ -28,6 +29,8 @@ use crate::svg;
 pub enum PdfError {
     #[error("SVG formatting failed: {0}")]
     Fmt(#[from] std::fmt::Error),
+    #[error("failed to render timeline: {0}")]
+    Render(#[from] RenderError),
     #[error("failed to parse intermediate SVG: {0}")]
     Parse(#[from] svg2pdf::usvg::Error),
     #[error("failed to convert SVG to PDF: {0}")]
@@ -224,7 +227,7 @@ fn render_pdf_svg_pages(
     let Some(lanes_per_page) = pdf_opts.chart_pagination else {
         // ── No chart pagination: preserve the pre-#661 behavior verbatim ──
         if !pdf_opts.pagination {
-            let layout = LayoutModel::compute(ir, opts);
+            let layout = LayoutModel::compute(ir, opts)?;
             let svg_str = svg::render_svg(&layout)?;
             return Ok((vec![svg_str], vec![]));
         }
@@ -237,7 +240,7 @@ fn render_pdf_svg_pages(
         let lane_label_lookup = lane_label_lookup(ir);
         let table_rows = collect_table_rows(ir, lane_label_lookup);
         opts.show_table = false;
-        let timeline_layout = LayoutModel::compute(ir, opts);
+        let timeline_layout = LayoutModel::compute(ir, opts)?;
         let timeline_svg = svg::render_svg(&timeline_layout)?;
 
         let (_, _, _, content_w, content_h) = pdf_page_geometry(pdf_opts)?;

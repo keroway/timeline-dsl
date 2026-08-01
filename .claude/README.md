@@ -55,8 +55,8 @@
 
 ## Rules の参照階層
 
-`本ファイル（implementation-strict.md）` を `CLAUDE.md`（`AGENTS.md` は symlink）より優先する
-（timeline-dsl はこの向きが正しい。reflectorbit とは逆だが、それぞれ明示されているため統一しない）。
+`implementation-strict.md` を `CLAUDE.md`（`AGENTS.md` は symlink）より優先する
+（timeline-dsl はこの向きが正しい。reflectorbit とは逆だが、それぞれ明示されているため統一しない）。`implementation-strict.md` 自体は `.claude/` 配下の補助ルールであり、リポジトリルートの `CLAUDE.md` より優先して適用する。
 
 ## AGENTS.md との関係
 

@@ -29,9 +29,27 @@ pub use png::{PngError, PngOptions, render_png, svg_to_png};
 
 use tdsl_core::ir::TimelineIr;
 
+/// Errors that can occur while rendering a timeline.
+#[derive(Debug, thiserror::Error)]
+pub enum RenderError {
+    /// The requested layout style is not supported for the given timeline.
+    #[error("layout style `{style}` is not supported for {lane_count} lane(s): {message}")]
+    UnsupportedLayout {
+        /// The requested layout style name.
+        style: String,
+        /// Number of lanes in the timeline.
+        lane_count: usize,
+        /// Human-readable explanation.
+        message: String,
+    },
+    /// SVG formatting failed.
+    #[error("SVG formatting failed: {0}")]
+    Fmt(#[from] std::fmt::Error),
+}
+
 /// Render the given IR as a standalone HTML document string.
-pub fn render_html(ir: &TimelineIr, opts: RenderOptions) -> Result<String, std::fmt::Error> {
-    let layout = LayoutModel::compute(ir, opts.clone());
+pub fn render_html(ir: &TimelineIr, opts: RenderOptions) -> Result<String, RenderError> {
+    let layout = LayoutModel::compute(ir, opts.clone())?;
     let svg = svg::render_svg(&layout)?;
     let table_html = if opts.show_table {
         Some(html::generate_table_html(ir, &ir.lanes))
@@ -57,9 +75,9 @@ pub fn render_html(ir: &TimelineIr, opts: RenderOptions) -> Result<String, std::
 }
 
 /// Render the given IR as a standalone SVG string.
-pub fn render_svg_only(ir: &TimelineIr, opts: RenderOptions) -> Result<String, std::fmt::Error> {
-    let layout = LayoutModel::compute(ir, opts);
-    svg::render_svg(&layout)
+pub fn render_svg_only(ir: &TimelineIr, opts: RenderOptions) -> Result<String, RenderError> {
+    let layout = LayoutModel::compute(ir, opts)?;
+    Ok(svg::render_svg(&layout)?)
 }
 
 #[cfg(test)]
@@ -593,8 +611,8 @@ mod tests {
             orientation: Orientation::Vertical,
             ..RenderOptions::default()
         };
-        let layout_h = LayoutModel::compute(&ir, opts_h.clone());
-        let layout_v = LayoutModel::compute(&ir, opts_v.clone());
+        let layout_h = LayoutModel::compute(&ir, opts_h.clone()).unwrap();
+        let layout_v = LayoutModel::compute(&ir, opts_v.clone()).unwrap();
 
         // 水平: 幅 = left_gutter + 1000*scale + right_margin
         //       高さ = top_margin + 2*lane_height + bottom_margin
@@ -715,7 +733,7 @@ mod tests {
             scale: 2.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let span = layout.items.iter().find_map(|i| match i {
             crate::layout::LaidItem::Span { width, height, .. } => Some((*width, *height)),
             _ => None,
@@ -1112,7 +1130,7 @@ mod tests {
             scale: 20.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = svg::render_svg(&layout).unwrap();
         assert!(
             svg.contains("tdsl-label-leader"),
@@ -1130,20 +1148,26 @@ mod tests {
     }
 
     #[test]
-    fn render_svg_zigzag_exceeding_lane_threshold_matches_timeline_output() {
-        // #565: beyond ZIGZAG_MAX_LANES, Zigzag falls back to Timeline layout,
-        // so the rendered SVG must be identical to layout_style=timeline (the
-        // fallback is a real layout decision, not merely a warning-only no-op).
+    fn render_svg_zigzag_exceeding_lane_threshold_returns_error() {
+        // #565: beyond ZIGZAG_MAX_LANES, Zigzag must not fall back to Timeline
+        // layout. It must return an explicit UnsupportedLayout error
+        // (implementation-strict.md / CLAUDE.md "No silent fallback").
         let ir = zigzag_ir(ZIGZAG_MAX_LANES + 1);
-        let default_svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
         let zigzag_opts = RenderOptions {
             layout_style: LayoutStyle::Zigzag,
             ..RenderOptions::default()
         };
-        let zigzag_svg = render_svg_only(&ir, zigzag_opts).unwrap();
-        assert_eq!(
-            default_svg, zigzag_svg,
-            "Zigzag must fall back to identical Timeline-layout SVG output beyond ZIGZAG_MAX_LANES"
+        let result = render_svg_only(&ir, zigzag_opts);
+        assert!(
+            matches!(
+                result,
+                Err(RenderError::UnsupportedLayout {
+                    style,
+                    lane_count,
+                    ..
+                }) if style == "zigzag" && lane_count == ZIGZAG_MAX_LANES + 1
+            ),
+            "Zigzag beyond ZIGZAG_MAX_LANES must return UnsupportedLayout error"
         );
     }
 

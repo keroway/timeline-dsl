@@ -351,7 +351,7 @@ map wd.emperors { ... }
 
 **原因**: 同一の比較コンテキスト（例: 同一 `span`/`event_range` の `start..end`、同一 lane 内の並べ換え等）で、オフセット付きの時刻値（`DateTimeOffset` / `DateTimeSecondOffset`）とオフセットなしの時刻値（`Year`〜`DateTimeSecond`）を直接比較しようとしました（ADR 0003 D2）。
 
-オフセットなしの値は「タイムゾーン不明」ではなく「タイムゾーンという概念を持たない裸の暦時刻」として扱われるため、暗黙に UTC とみなして正規化比較することはしません（CLAUDE.md「No silent fallback」原則）。Wikidata インポートは常にオフセットなし（`DateTime` / `DateTimeSecond`）で格納されるため、静的データにオフセットを付けた場合は Wikidata データと同一比較コンテキストで混在させるとこのエラーになりうます（意図した挙動）。
+オフセットなしの値は「タイムゾーン不明」ではなく「タイムゾーンという概念を持たない裸の暦時刻」として扱われるため、暗黙に UTC とみなして正規化比較することはしません（CLAUDE.md「No silent fallback」原則）。Wikidata インポートは常にオフセットなし（`DateTime` / `DateTimeSecond`）で格納されるため、静的データにオフセットを付けた場合は Wikidata データと同一比較コンテキストで混在させるとこのエラーになり得ます（意図した挙動）。
 
 **修正方法**: 同一比較コンテキスト内の値は、全てにオフセットを付与するか、全てからオフセットを取り除くかで統一してください。Wikidata インポートと静的定義を同一 `span`/`event_range` で混在させたい場合は、静的側のオフセットを削除することでどちらもオフセットなしに揃えてください（docs/migration-second-precision.md の「Wikidataと静的offset付きデータの混在」節を参照）。
 

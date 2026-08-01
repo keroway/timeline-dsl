@@ -129,7 +129,7 @@ tdsl render examples/china_dynasties.tdsl --layout-style group-bands --output ch
 tdsl render examples/china_dynasties.tdsl --layout-style gantt --output china_gantt.html
 
 # Zigzag layout style: alternate items above/below the lane axis by start time
-# (single/few-lane timelines only; falls back to timeline layout with a warning beyond 2 lanes)
+# (single/few-lane timelines only; errors beyond 2 lanes)
 tdsl render examples/apollo_11.tdsl --layout-style zigzag --output apollo_zigzag.html
 
 # Watch mode: re-render automatically on file changes (--output required; html / svg only)

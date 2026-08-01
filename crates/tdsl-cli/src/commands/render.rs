@@ -181,18 +181,17 @@ fn do_render(
     // which show_table must be forced off, so the CLI simply forwards it.
     let effective_show_table = show_table;
 
-    // #565: --layout-style zigzag only applies when the timeline has at most
-    // ZIGZAG_MAX_LANES lanes; LayoutModel silently degrades to Timeline layout
-    // beyond that, so the CLI must surface a non-silent warning here per
-    // CLAUDE.md "No silent fallback".
+    // #565: --layout-style zigzag only supports up to ZIGZAG_MAX_LANES lanes.
+    // Reject unsupported input before any renderer writes output; this mirrors
+    // tdsl-render's typed error and preserves CLAUDE.md "No silent fallback".
     if matches!(layout_style, LayoutStyleArg::Zigzag)
         && ir.lanes.len() > tdsl_render::ZIGZAG_MAX_LANES
     {
-        eprintln!(
-            "Warning: --layout-style zigzag only supports up to {} lane(s); this timeline has {}. Falling back to the standard timeline layout.",
+        return Err(format!(
+            "--layout-style zigzag supports at most {} lane(s); this timeline has {}. Use --chart-pagination or choose a different layout style.",
             tdsl_render::ZIGZAG_MAX_LANES,
             ir.lanes.len()
-        );
+        ));
     }
 
     let opts = tdsl_render::RenderOptions {

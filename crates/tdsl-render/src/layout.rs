@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use tdsl_core::ir::{Item, Lane, TimelineIr, end_frac, start_frac};
 
+use crate::RenderError;
+
 /// Colorblind-friendly 8-color palette for per-lane fill colors.
 ///
 /// Single source of truth for palette shared by all emitters.
@@ -71,10 +73,10 @@ pub enum LayoutStyle {
     Gantt,
     /// Alternating up/down (zigzag) placement of items within a single lane
     /// (#565), sorted by start time: even-indexed items sit above the lane
-    /// axis, odd-indexed items below. Only applied when the timeline has at
-    /// most [`ZIGZAG_MAX_LANES`] lanes; otherwise falls back to `Timeline`
-    /// layout with a warning (never silently, per CLAUDE.md "No silent fallback"). Mutually
-    /// exclusive with the #549 bar sub-row stacking: Zigzag is an alternative
+    /// axis, odd-indexed items below. Supported only when the timeline has at
+    /// most [`ZIGZAG_MAX_LANES`] lanes; otherwise rendering returns an explicit
+    /// error (per CLAUDE.md "No silent fallback"). Mutually exclusive with the
+    /// #549 bar sub-row stacking: Zigzag is an alternative
     /// overlap-avoidance strategy, so its cross-axis offset replaces (rather
     /// than combines with) the bar_stack_level offset.
     Zigzag,
@@ -391,17 +393,10 @@ pub struct LayoutModel<'a> {
     /// #536: Y coordinate (in the *final*, table-inclusive `total_height`) where the
     /// table's header row begins. Only meaningful when `opts.show_table` is true.
     pub(crate) table_top_y: f64,
-    /// #565: `true` when `opts.layout_style == LayoutStyle::Zigzag` was requested
-    /// but the timeline has more than [`ZIGZAG_MAX_LANES`] lanes, so Zigzag was
-    /// **not** applied and the layout silently degraded to `Timeline` positioning
-    /// instead — "silently" here means *this layout pass* does not error, but per
-    /// CLAUDE.md "No silent fallback" every caller (CLI/wasm/webui) MUST
-    /// check this flag and surface a warning to the user; it is never swallowed.
-    pub zigzag_fallback: bool,
 }
 
 impl<'a> LayoutModel<'a> {
-    pub fn compute(ir: &'a TimelineIr, opts: RenderOptions) -> Self {
+    pub fn compute(ir: &'a TimelineIr, opts: RenderOptions) -> Result<Self, RenderError> {
         let (year_min, year_max) = ir.meta.range;
         let (year_min, year_max) = if year_max > year_min {
             (year_min, year_max)
@@ -421,12 +416,20 @@ impl<'a> LayoutModel<'a> {
 
         // #565: Zigzag is mutually exclusive with the #549 bar sub-row stacking
         // (an alternative overlap-avoidance strategy), and only applies when the
-        // timeline has at most ZIGZAG_MAX_LANES lanes — otherwise it falls back to
-        // Timeline positioning (bar_stack_level-based), surfaced via
-        // `zigzag_fallback` so callers can warn instead of silently ignoring it.
+        // timeline has at most ZIGZAG_MAX_LANES lanes. Exceeding the threshold is
+        // an explicit error (implementation-strict.md / CLAUDE.md "No silent fallback");
+        // callers (CLI, WASM, WebUI) must surface it and stop rendering.
         let zigzag_requested = opts.layout_style == LayoutStyle::Zigzag;
-        let zigzag_active = zigzag_requested && lanes_ordered.len() <= ZIGZAG_MAX_LANES;
-        let zigzag_fallback = zigzag_requested && !zigzag_active;
+        if zigzag_requested && lanes_ordered.len() > ZIGZAG_MAX_LANES {
+            return Err(RenderError::UnsupportedLayout {
+                style: "zigzag".to_string(),
+                lane_count: lanes_ordered.len(),
+                message: format!(
+                    "zigzag layout supports at most {ZIGZAG_MAX_LANES} lane(s); use --chart-pagination or choose a different layout style"
+                ),
+            });
+        }
+        let zigzag_active = zigzag_requested;
         let zigzag_parity = if zigzag_active {
             assign_zigzag_parity(ir)
         } else {
@@ -654,7 +657,7 @@ impl<'a> LayoutModel<'a> {
             assign_period_label_stack_levels(&mut items, is_vertical);
         }
 
-        Self {
+        Ok(Self {
             ir,
             opts,
             year_min,
@@ -672,8 +675,7 @@ impl<'a> LayoutModel<'a> {
             legend_row_count,
             legend_top_y,
             table_top_y,
-            zigzag_fallback,
-        }
+        })
     }
 
     /// Returns `true` when the layout uses a vertical (top-to-bottom time axis) orientation.
@@ -1235,11 +1237,9 @@ fn compute_lane_effective_heights(
         .collect()
 }
 
-/// Maximum lane count for which `LayoutStyle::Zigzag` is applied (#565). Beyond
-/// this, alternating cross-axis offsets from adjacent lanes would visually
-/// collide, so the layout falls back to `Timeline` positioning instead — never
-/// silently (CLAUDE.md "No silent fallback"): callers must check `LayoutModel::zigzag_fallback`
-/// and surface a warning.
+/// Maximum lane count supported by `LayoutStyle::Zigzag` (#565). Beyond this,
+/// alternating cross-axis offsets from adjacent lanes would visually collide, so
+/// rendering returns [`crate::RenderError::UnsupportedLayout`].
 pub const ZIGZAG_MAX_LANES: usize = 2;
 
 /// The item's primary (time-axis) start coordinate, in fractional-year units,
@@ -2596,7 +2596,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         // With scale=2.0 and left_gutter=120, year -500 → x=120, year 0 → x=120+500*2=1120
         assert_eq!(layout.year_to_x(-500), 120.0);
         assert_eq!(layout.year_to_x(0), 1120.0);
@@ -2666,7 +2666,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         assert!(layout.day_ticks().is_empty());
     }
 
@@ -2679,7 +2679,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         assert!(layout.day_ticks().is_empty());
     }
 
@@ -2697,7 +2697,7 @@ mod tests {
             scale: 365.25 * 6.0, // pixels_per_day = 6 → step=1
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let ticks = layout.day_ticks();
         // 1939年内+1940年の日々
         assert!(!ticks.is_empty(), "expected day ticks but got none");
@@ -2721,7 +2721,7 @@ mod tests {
             scale: 365.25 * 3.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let ticks = layout.day_ticks();
         // 月初は常に含まれる
         assert!(ticks.contains(&(1939, 1, 1)));
@@ -2745,7 +2745,7 @@ mod tests {
             scale: 365.25 * 2.0, // pixels_per_day=2 → step=7
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let ticks = layout.day_ticks();
         // 月初は描画
         assert!(ticks.contains(&(1939, 1, 1)));
@@ -2769,7 +2769,7 @@ mod tests {
             scale: 2.0, // pixels_per_day ≈ 0.0055 → 描画不可
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         assert!(layout.day_ticks().is_empty());
     }
 
@@ -2803,7 +2803,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         assert!(layout.hour_ticks().is_empty());
     }
 
@@ -2821,7 +2821,7 @@ mod tests {
             scale: 365.25 * 24.0 * 6.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let ticks = layout.hour_ticks();
         assert!(!ticks.is_empty(), "expected hour ticks but got none");
         assert!(ticks.contains(&(1969, 1, 1, 0)));
@@ -2842,7 +2842,7 @@ mod tests {
             scale: 365.25 * 24.0 * 2.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let ticks = layout.hour_ticks();
         assert!(ticks.contains(&(1969, 1, 1, 0)));
         assert!(ticks.contains(&(1969, 1, 1, 3)));
@@ -2863,7 +2863,7 @@ mod tests {
             scale: 2.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         assert!(layout.hour_ticks().is_empty());
     }
 
@@ -2876,7 +2876,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         assert!(layout.minute_ticks().is_empty());
     }
 
@@ -2894,7 +2894,7 @@ mod tests {
             scale: 365.25 * 24.0 * 60.0 * 6.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let ticks = layout.minute_ticks();
         assert!(!ticks.is_empty(), "expected minute ticks but got none");
         assert!(ticks.contains(&(1969, 1, 1, 0, 0)));
@@ -2914,7 +2914,7 @@ mod tests {
             scale: 2.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         assert!(layout.minute_ticks().is_empty());
     }
 
@@ -3010,7 +3010,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let span = layout
             .items
             .iter()
@@ -3093,7 +3093,7 @@ mod tests {
             scale: 20.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts.clone());
+        let layout = LayoutModel::compute(&ir, opts.clone()).unwrap();
         let item = layout.items.first().expect("span should be laid out");
 
         assert!(
@@ -3154,7 +3154,7 @@ mod tests {
             scale: 40.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts.clone());
+        let layout = LayoutModel::compute(&ir, opts.clone()).unwrap();
         let item = layout
             .items
             .first()
@@ -3219,6 +3219,7 @@ mod tests {
                 ..RenderOptions::default()
             };
             LayoutModel::compute(&ir, opts)
+                .unwrap()
                 .items
                 .iter()
                 .find_map(|i| match i {
@@ -3306,7 +3307,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let ys: Vec<f64> = layout
             .items
             .iter()
@@ -3393,7 +3394,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let ys: Vec<f64> = layout
             .items
             .iter()
@@ -3482,7 +3483,7 @@ mod tests {
             orientation: Orientation::Vertical,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let xs: Vec<f64> = layout
             .items
             .iter()
@@ -3573,7 +3574,7 @@ mod tests {
             layout_style: LayoutStyle::GroupBands,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
 
         assert_eq!(layout.group_bands.len(), 1);
         assert!((layout.group_bands[0].height - 100.0).abs() < 0.001);
@@ -3630,11 +3631,7 @@ mod tests {
             layout_style: LayoutStyle::Zigzag,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
-        assert!(
-            !layout.zigzag_fallback,
-            "single-lane timeline must not trigger the Zigzag fallback"
-        );
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
 
         let lane_axis = layout.lane_y["events"];
         let cross: Vec<f64> = layout
@@ -3679,8 +3676,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
-        assert!(!layout.zigzag_fallback);
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let lane_axis = layout.lane_y["events"];
         for item in &layout.items {
             if let LaidItem::Event { y_dot, .. } = item {
@@ -3690,11 +3686,11 @@ mod tests {
     }
 
     #[test]
-    fn zigzag_falls_back_to_timeline_when_lane_count_exceeds_threshold() {
+    fn zigzag_errors_when_lane_count_exceeds_threshold() {
         // #565: with more than ZIGZAG_MAX_LANES lanes, Zigzag must not silently
-        // apply partial/incorrect offsets — it must fall back to Timeline
-        // positioning (bar_stack_level-based, identical to layout_style=Timeline)
-        // and set `zigzag_fallback = true` so callers can warn (CLAUDE.md "No silent fallback").
+        // fall back to Timeline positioning. It must return an explicit
+        // UnsupportedLayout error (implementation-strict.md / CLAUDE.md
+        // "No silent fallback").
         let lanes: Vec<Lane> = (0..(ZIGZAG_MAX_LANES + 1))
             .map(|i| Lane {
                 id: format!("lane{i}"),
@@ -3721,24 +3717,18 @@ mod tests {
             layout_style: LayoutStyle::Zigzag,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let result = LayoutModel::compute(&ir, opts);
         assert!(
-            layout.zigzag_fallback,
-            "exceeding ZIGZAG_MAX_LANES must set zigzag_fallback = true"
+            matches!(
+                result,
+                Err(RenderError::UnsupportedLayout {
+                    style,
+                    lane_count,
+                    ..
+                }) if style == "zigzag" && lane_count == ZIGZAG_MAX_LANES + 1
+            ),
+            "exceeding ZIGZAG_MAX_LANES must return UnsupportedLayout error"
         );
-        // Every item must sit exactly on its own lane's axis (Timeline layout),
-        // not offset by a zigzag cross-axis shift.
-        for item in &layout.items {
-            if let LaidItem::Event {
-                item: ir_item,
-                y_dot,
-                ..
-            } = item
-            {
-                let lane_axis = layout.lane_y[item_lane_id(ir_item)];
-                assert!((*y_dot - lane_axis).abs() < 0.001);
-            }
-        }
     }
 
     #[test]
@@ -3821,7 +3811,7 @@ mod tests {
         // Sanity check: without Zigzag, #549 stacking pushes s2 to level 1
         // (non-zero Y offset from s1), as covered by the pre-existing
         // `vertical_overlap_stacking_expands_lane_width`/horizontal equivalents.
-        let timeline_layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let timeline_layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let timeline_ys: Vec<f64> = timeline_layout
             .items
             .iter()
@@ -3842,8 +3832,7 @@ mod tests {
             layout_style: LayoutStyle::Zigzag,
             ..RenderOptions::default()
         };
-        let zigzag_layout = LayoutModel::compute(&ir, zigzag_opts);
-        assert!(!zigzag_layout.zigzag_fallback);
+        let zigzag_layout = LayoutModel::compute(&ir, zigzag_opts).unwrap();
         let lane_axis = zigzag_layout.lane_y["x"];
         let zigzag_ys: Vec<f64> = zigzag_layout
             .items
@@ -3885,7 +3874,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let ya = layout.lane_y["a"];
         let yb = layout.lane_y["b"];
         assert!(
@@ -3903,7 +3892,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         assert!(layout.items.is_empty());
     }
 
@@ -3992,7 +3981,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         assert!(layout.month_ticks().is_empty());
     }
 
@@ -4010,7 +3999,7 @@ mod tests {
             scale: 6.0, // 6/12 = 0.5 < 1.0
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         assert!(layout.month_ticks().is_empty());
     }
 
@@ -4028,7 +4017,7 @@ mod tests {
             scale: 24.0, // 24/12 = 2.0 >= 1.0
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let ticks = layout.month_ticks();
         assert!(!ticks.is_empty(), "expected month ticks for month unit");
         // 月初 (month=1) はティックに含まれない（年目盛と重複回避）
@@ -4082,7 +4071,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         assert!(layout.items.is_empty());
     }
 }

@@ -29,6 +29,7 @@ use std::collections::HashSet;
 
 use tdsl_core::ir::{Item, Lane, TimelineIr};
 
+use crate::RenderError;
 use crate::layout::{LayoutModel, RenderOptions, TABLE_ROW_HEIGHT, collect_table_rows};
 use crate::svg::{render_svg, render_table_page_svg};
 
@@ -76,7 +77,13 @@ pub enum PaginationError {
     #[error("item references unknown lane {lane:?}")]
     UnknownLane { lane: String },
     #[error("SVG rendering failed: {0}")]
-    Render(#[from] std::fmt::Error),
+    Render(#[from] RenderError),
+}
+
+impl From<std::fmt::Error> for PaginationError {
+    fn from(err: std::fmt::Error) -> Self {
+        Self::Render(RenderError::from(err))
+    }
 }
 
 /// Split `ir`'s lanes into groups of `lanes_per_page` (ordered the same way
@@ -140,7 +147,7 @@ pub fn paginate_svg_by_lane_groups(
             show_table: false,
             ..opts.clone()
         };
-        let layout = LayoutModel::compute(&page_ir, chart_opts);
+        let layout = LayoutModel::compute(&page_ir, chart_opts)?;
         chart_width = layout.total_width;
         let svg = render_svg(&layout)?;
         pages.push(ChartPage {

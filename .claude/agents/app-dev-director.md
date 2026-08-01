@@ -33,7 +33,7 @@ model: opus
 
 - 実装後レビューでは、以下を確認する。
   - silent fallback が混入していないか（unknown lane/import/map target がエラーになるか）
-  - imported item の `source = wd:<QID>` / `origin = "imported"` ルールが守られているか
+  - imported item の `source = wd:<QID>` / `origin = "wikidata"` ルールが守られているか
   - 静的アイテムの `source` も `sources[]` に登録されているか
   - lane ID の決定性（日本語ラベルのみで空 ID にならない、`lane_N` のフォールバックがある）
   - docs（dsl-spec / README.md / README.ja.md / CHANGELOG）の更新漏れ
