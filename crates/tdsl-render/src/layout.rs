@@ -424,9 +424,7 @@ impl<'a> LayoutModel<'a> {
             return Err(RenderError::UnsupportedLayout {
                 style: "zigzag".to_string(),
                 lane_count: lanes_ordered.len(),
-                message: format!(
-                    "zigzag layout supports at most {ZIGZAG_MAX_LANES} lane(s); use --chart-pagination or choose a different layout style"
-                ),
+                message: "use --chart-pagination or choose a different layout style".to_string(),
             });
         }
         let zigzag_active = zigzag_requested;

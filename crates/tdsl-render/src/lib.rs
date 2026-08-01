@@ -1157,17 +1157,22 @@ mod tests {
             layout_style: LayoutStyle::Zigzag,
             ..RenderOptions::default()
         };
-        let result = render_svg_only(&ir, zigzag_opts);
-        assert!(
-            matches!(
-                result,
-                Err(RenderError::UnsupportedLayout {
-                    style,
-                    lane_count,
-                    ..
-                }) if style == "zigzag" && lane_count == ZIGZAG_MAX_LANES + 1
-            ),
-            "Zigzag beyond ZIGZAG_MAX_LANES must return UnsupportedLayout error"
+        let err = render_svg_only(&ir, zigzag_opts)
+            .expect_err("Zigzag beyond ZIGZAG_MAX_LANES must return UnsupportedLayout error");
+        assert!(matches!(
+            &err,
+            RenderError::UnsupportedLayout {
+                style,
+                lane_count,
+                ..
+            } if style == "zigzag" && *lane_count == ZIGZAG_MAX_LANES + 1
+        ));
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "layout style `zigzag` is not supported for {} lane(s): use --chart-pagination or choose a different layout style",
+                ZIGZAG_MAX_LANES + 1
+            )
         );
     }
 
