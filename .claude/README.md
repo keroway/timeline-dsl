@@ -1,7 +1,7 @@
 # timeline-dsl — Claude Code Setup
 
 このディレクトリは Claude Code / Codex / pi 等の AI コーディングエージェントの動作をこのプロジェクト用に
-整える共有設定です。`CLAUDE.md` / `AGENTS.md`（リポジトリルート）と一緒に読んでください。
+整える共有設定です。`CLAUDE.md`（リポジトリルート。`AGENTS.md` は同ファイルへの symlink）と一緒に読んでください。
 
 ## 構成
 
@@ -55,8 +55,14 @@
 
 ## Rules の参照階層
 
-`本ファイル（implementation-strict.md）` を `CLAUDE.md` / `AGENTS.md` より優先する
-（timeline-dsl はこの向きが正しい。reflectorbit とは逆だが、それぞれ明示されているため統一しない）。
+`implementation-strict.md` を `CLAUDE.md`（`AGENTS.md` は symlink）より優先する
+（timeline-dsl はこの向きが正しい。reflectorbit とは逆だが、それぞれ明示されているため統一しない）。`implementation-strict.md` 自体は `.claude/` 配下の補助ルールであり、リポジトリルートの `CLAUDE.md` より優先して適用する。
+
+## AGENTS.md との関係
+
+`AGENTS.md`（リポジトリルート）は `CLAUDE.md` への symlink（#705）。正典は `CLAUDE.md` 側のみで、
+Codex / pi など非 Claude エージェント向けにも同一内容が `AGENTS.md` 経由で届く。二重編集は不要
+（symlink なので編集は自動的に両方に反映される）。
 
 ## 他環境への移植
 

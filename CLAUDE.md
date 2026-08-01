@@ -156,6 +156,14 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.json` をミラー�
 - GitHub Actions composite action（`action.yml`）: `uses: keroway/timeline-dsl@v1` で `.tdsl` → SVG/HTML レンダリングを CI から呼び出せる（詳細: `docs/ci-integration.md`）
 - `tdsl render --chart-pagination <N>`: タイムライン本体（チャート部分）を lane グループ単位で複数ページに分割出力（ADR-0005 D2 / #660, #661）。`--format svg` では `<stem>.pageN.svg` の複数ファイル、`--format pdf` では単一 PDF 内の複数ページ（チャートページ群 → テーブルページ群の順、`--pdf-pagination` 併用時はテーブルページ番号がテーブルページ数のみを数える）として出力される。`--show-table` 併用時は IR 全体の item を一覧する専用テーブルページを末尾に追加
 
+## 未実装 / 意図的に対応しない機能
+
+- `map source` -- `map` ブロック内の `source:` プロパティ指定。`MapProp` に `Source` バリアントが存在せず、pest 文法（`grammar.pest` の `map_prop`）がそもそも受理しないためパース時点で拒否される（item レベルの `source wd:<QID>` のみ有効）
+- サブ秒（ミリ秒未満）精度
+- IANA タイムゾーン名（例: `Asia/Tokyo`）による DST 自動解決 -- 意図的に非対応と確定済み（ADR-0007、2026-07-26 決定）。固定の数値 UTC オフセット（`+09:00` 等）のみサポート
+
+これらに遭遇した場合は silent fallback ではなく必ずパース/lowering エラーで拒否する（「No silent fallback」原則、`.claude/rules/implementation-strict.md` §2）。秒精度（`DateTimeSecond`）と UTC オフセット（`DateTimeOffset` / `DateTimeSecondOffset`）自体は #612〜#616（ADR-0003）で実装済みなので、上記の未実装リストに含めない。
+
 ## サンプルファイル
 
 - `examples/china_dynasties.tdsl` -- 静的定義のみ（インポートなし）
@@ -182,12 +190,13 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.json` をミラー�
 - map ブロックの `source` プロパティは廃止済み。imported item の source は `wd:<entity_id>` で自動付与
 - map の `target_type` は `span` / `event` / `event_range` のみ。不正値はパースエラー
 - `wd.xxx` の entity_key が import に存在しない場合はエラー（全件フォールバックしない）
+- imported item の `origin` は lowering で常に `"wikidata"` に固定される（`crates/tdsl-core/src/lower/mapping.rs`）。静的アイテムの `origin` は DSL の `origin` オプションで宣言した値がそのまま使われ、lowering は上書きしない（`crates/tdsl-core/src/lower/static_items.rs`）
 
 ## Claude Code 用セットアップ（このリポジトリ）
 
 このリポジトリには Claude Code 用の補助設定が `.claude/` 配下にコミットされている。実装時は以下を参照・利用すること。
 
-- **`.claude/rules/implementation-strict.md`** -- 実装方針の strict ルール。`AGENTS.md` と本ファイルに加えて必ず参照する。NO-GO パターン、コードレベルの規約、テスト最低ライン、PR 提出前ゲートを定義。
+- **`.claude/rules/implementation-strict.md`** -- 実装方針の strict ルール。本ファイル（`AGENTS.md` は本ファイルへの symlink）に加えて必ず参照する。NO-GO パターン、コードレベルの規約、テスト最低ライン、PR 提出前ゲートを定義。
 - **`.claude/agents/rust-app-developer.md`** -- Rust 実装用サブエージェント。文法・lowering・Wikidata 連携の実装はこれに委譲する。
 - **`.claude/agents/app-dev-director.md`** -- 設計判断・スコープ整理・仕様整合性レビュー用サブエージェント。実装着手前のレビュー、実装後の整合性チェックに使う。
 - **`.claude/commands/fix-pr.md`** -- `/fix-pr [PR番号]` で自分の PR の CI 失敗を自動修正する。

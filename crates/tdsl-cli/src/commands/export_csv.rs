@@ -6,7 +6,7 @@ use tdsl_core::ir::{Item, TimelineIr};
 /// 出力カラムは `lane,type,start,end,time,label,tags,id,source,origin` の 10 列。
 /// `source` / `origin` も含めて `import-csv` で往復保持される（#608）。`source` は `<ident>:<QID>`
 /// 形式（例 `wd:Q7209`）、`origin` は DSL の `ident` 文法を満たす必要があり、不正な値は
-/// `import-csv` がエラーとして拒否する（silent に破棄しない、AGENTS.md §4.1）。
+/// `import-csv` がエラーとして拒否する（silent に破棄しない、CLAUDE.md「No silent fallback」原則）。
 pub(crate) fn cmd_export_csv(
     input: &std::path::Path,
     output: Option<&std::path::Path>,

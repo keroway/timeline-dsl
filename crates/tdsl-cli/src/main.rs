@@ -227,8 +227,8 @@ enum Commands {
 
         /// High-level layout style: timeline (default), group-bands (era/group background
         /// blocks), gantt (emphasized month grid + always-on period labels), or zigzag
-        /// (alternating up/down placement; only for <=2 lanes, otherwise falls back to
-        /// timeline with a warning)
+        /// (alternating up/down placement; only for <=2 lanes, otherwise returns an
+        /// explicit error)
         #[arg(long, value_enum, default_value_t = LayoutStyleArg::Timeline)]
         layout_style: LayoutStyleArg,
 
@@ -551,8 +551,8 @@ enum LayoutStyleArg {
     /// always-on Span/EventRange period labels.
     Gantt,
     /// Alternating up/down (zigzag) placement of items within a single lane
-    /// (#565), sorted by start time. Only applied when the timeline has at
-    /// most 2 lanes; otherwise falls back to Timeline layout with a warning.
+    /// (#565), sorted by start time. Supported only when the timeline has at
+    /// most 2 lanes; otherwise rendering returns an explicit error.
     Zigzag,
 }
 

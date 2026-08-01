@@ -1,7 +1,7 @@
 # 実装方針ルール（strict）
 
 このドキュメントは `timeline-dsl` における**実装の厳密化ルール**です。
-`CLAUDE.md` / `AGENTS.md` と併せて遵守すること。曖昧な状況では本ファイルを優先。
+`CLAUDE.md`（`AGENTS.md` は `CLAUDE.md` への symlink）と併せて遵守すること。曖昧な状況では本ファイルを優先。
 
 ---
 
@@ -21,10 +21,11 @@
 
 実装前に以下に該当する変更案ならば、**着手前に必ずユーザーに確認**する。
 
-1. **MVP で deferred とされた機能の実装**（AGENTS.md §5 を参照）
+1. **MVP で deferred とされた機能の実装**（`CLAUDE.md`「未実装 / 意図的に対応しない機能」を参照）
    - `map source` の手動指定
-   - 古い `query "..." as alias` の制約復活（既に実装済の場合は別）
-   - 詳細な Wikidata qualifier（P39 + P580/P582 等）
+   - 詳細な Wikidata qualifier（P39 + P580/P582 等）の新規追加・拡張
+   - サブ秒（ミリ秒未満）精度
+   - IANA タイムゾーン名（例: `Asia/Tokyo`）による DST 自動解決
 2. **IR の破壊的変更**（既存 `.tdsl` / IR JSON コンシューマが壊れる）
 3. **クレート間の循環参照**を導入する変更
 4. **silent fallback** の導入（unknown lane に対する自動マッチ、未解決 import の無視等）
@@ -81,7 +82,7 @@
 ### 4.5 Lane / item ルール
 
 - lane ID の決定性を保つ。日本語ラベルのみで空 slug になる場合は `lane_N` にフォールバック。
-- imported item は必ず `source = wd:<QID>` / `origin = "imported"`。
+- imported item は必ず `source = wd:<QID>` / `origin = "wikidata"`。
 - 静的アイテムの `source` も `sources[]` に登録する。
 
 ---

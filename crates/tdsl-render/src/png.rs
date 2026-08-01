@@ -14,6 +14,7 @@ use resvg::usvg::{Options, Tree};
 use tdsl_core::ir::TimelineIr;
 use thiserror::Error;
 
+use crate::RenderError;
 use crate::layout::{LayoutModel, RenderOptions};
 use crate::svg;
 
@@ -22,6 +23,8 @@ use crate::svg;
 pub enum PngError {
     #[error("SVG formatting failed: {0}")]
     Fmt(#[from] std::fmt::Error),
+    #[error("failed to render timeline: {0}")]
+    Render(#[from] RenderError),
     #[error("failed to parse intermediate SVG: {0}")]
     Parse(#[from] resvg::usvg::Error),
     #[error("failed to allocate pixmap of size {width}x{height}")]
@@ -79,7 +82,7 @@ pub fn render_png(
 ) -> Result<Vec<u8>, PngError> {
     // usvg does not support CSS custom properties; force plain hex lane colours.
     opts.use_css_vars = false;
-    let layout = LayoutModel::compute(ir, opts);
+    let layout = LayoutModel::compute(ir, opts)?;
     let svg_str = svg::render_svg(&layout)?;
     svg_to_png(&svg_str, png_opts)
 }

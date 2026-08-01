@@ -731,7 +731,7 @@ fn check_unknown_lane_reference_exits_nonzero() {
         .expect("failed to run tdsl");
     assert!(
         !out.status.success(),
-        "check on an unknown lane reference must fail (AGENTS.md §4.1 No silent fallback)"
+        "check on an unknown lane reference must fail (CLAUDE.md「No silent fallback」原則)"
     );
 }
 
@@ -943,7 +943,7 @@ fn export_csv_then_import_csv_round_trips() {
 
 /// #608: `export-csv` → `import-csv` → `build` の往復で `source`/`origin`（wd:Q… / wikidata）
 /// が保持され、再度 IR 化できることを検証する。ネットワーク依存を避けるため Wikidata 連携は
-/// 使わず、静的 `.tdsl` に手動で `source`/`origin` を付与した fixture を使う（AGENTS.md §5、
+/// 使わず、静的 `.tdsl` に手動で `source`/`origin` を付与した fixture を使う（CLAUDE.md「未実装 / 意図的に対応しない機能」、
 /// implementation-strict.md §5）。
 #[test]
 fn export_csv_then_import_csv_preserves_provenance() {
@@ -1061,4 +1061,41 @@ missions,event,,,1969,Apollo 11,,event:apollo,,wikidata\n",
         "stderr must explain the provenance error: {stderr}"
     );
     let _ = std::fs::remove_file(&csv_path);
+}
+
+/// Zigzag is unsupported for more than two lanes and must fail rather than
+/// silently rendering the regular timeline layout.
+#[test]
+fn render_zigzag_with_too_many_lanes_fails() {
+    let out_path = unique_temp("zigzag_too_many_lanes.svg");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/sci_tech_timeline.tdsl")
+                .to_str()
+                .expect("example path must be UTF-8"),
+            "--offline",
+            "--layout-style",
+            "zigzag",
+            "--format",
+            "svg",
+            "--output",
+            out_path.to_str().expect("output path must be UTF-8"),
+        ])
+        .output()
+        .expect("failed to run tdsl render");
+
+    assert!(
+        !out.status.success(),
+        "zigzag with more than two lanes must fail"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("zigzag supports at most 2 lane(s)"),
+        "stderr must explain the lane limit: {stderr}"
+    );
+    assert!(
+        !out_path.exists(),
+        "failed rendering must not create output"
+    );
 }

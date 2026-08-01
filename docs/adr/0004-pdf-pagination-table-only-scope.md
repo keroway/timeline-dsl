@@ -39,7 +39,7 @@
 
 - `tdsl render --format pdf --show-table --pdf-pagination` のように指定する。
 - **デフォルトは無効**（現行どおりテーブルも1ページに縮小して収める）。既存の `--format pdf` 単体・`--show-table` 単体の出力は本ADRにより一切変更しない（完全な後方互換）。
-- `--pdf-pagination` は `--show-table` が指定されていない場合は無効（分割対象のテーブルが存在しないため）。`--show-table` なしで `--pdf-pagination` のみを指定した場合はエラーとする（silent no-op にしない。AGENTS.md §4.1）。
+- `--pdf-pagination` は `--show-table` が指定されていない場合は無効（分割対象のテーブルが存在しないため）。`--show-table` なしで `--pdf-pagination` のみを指定した場合はエラーとする（silent no-op にしない。CLAUDE.md「No silent fallback」原則）。
 
 ### D4. ヘッダ/フッタ・ページ番号・タイトルメタデータ・テーブル見出し
 

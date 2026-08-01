@@ -945,12 +945,9 @@ impl JsRenderOptions {
 
     /// High-level visual layout style (#543/#564/#565): `"timeline"` (default),
     /// `"group-bands"`, `"gantt"`, or `"zigzag"`. Orthogonal to `orientation`.
-    /// `"zigzag"` only takes effect when the timeline has at most
-    /// `ZIGZAG_MAX_LANES` lanes; beyond that it falls back to `"timeline"`
-    /// positioning at the `tdsl-render` layer — callers that need a
-    /// user-facing warning (mirroring the CLI's `--layout-style zigzag`
-    /// notice) should check the timeline's lane count themselves before
-    /// rendering.
+    /// `"zigzag"` is supported only when the timeline has at most
+    /// `ZIGZAG_MAX_LANES` lanes; beyond that `tdsl-render` returns an explicit
+    /// error instead of falling back to `"timeline"` positioning.
     #[wasm_bindgen(getter)]
     pub fn layout_style(&self) -> String {
         self.layout_style.clone()

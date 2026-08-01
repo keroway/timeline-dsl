@@ -1574,7 +1574,7 @@ mod tests {
     #[test]
     fn svg_contains_core_elements() {
         let ir = sample_ir();
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(svg.contains("<svg"));
         assert!(svg.contains("</svg>"));
@@ -1639,7 +1639,7 @@ mod tests {
             scale: 365.25 * 24.0 * 6.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("tdsl-axis-hour-tick"),
@@ -1708,7 +1708,7 @@ mod tests {
             scale: 365.25 * 24.0 * 60.0 * 60.0 * 6.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("tdsl-axis-second-tick"),
@@ -1752,7 +1752,7 @@ mod tests {
             scale: 365.25 * 24.0 * 60.0 * 60.0 * 6.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             !svg.contains("tdsl-axis-second-tick"),
@@ -1768,7 +1768,7 @@ mod tests {
         if let Item::Span { end_open, .. } = &mut ir.items[0] {
             *end_open = true;
         }
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains(r#"class="tdsl-item tdsl-item-span tdsl-item-open-ended""#),
@@ -1783,7 +1783,7 @@ mod tests {
     #[test]
     fn svg_closed_span_has_no_open_ended_class() {
         let ir = sample_ir();
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(!svg.contains("tdsl-item-open-ended"));
     }
@@ -1792,7 +1792,7 @@ mod tests {
     fn svg_escapes_xml_in_labels() {
         let mut ir = sample_ir();
         ir.lanes[0].label = "<danger> & \"quoted\"".into();
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(svg.contains("&lt;danger&gt;"));
         assert!(svg.contains("&amp;"));
@@ -1803,7 +1803,7 @@ mod tests {
     #[test]
     fn svg_includes_tooltip_via_title_element() {
         let ir = sample_ir();
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(svg.contains("<title>"));
         assert!(svg.contains("wd:Q7209"));
@@ -1827,7 +1827,7 @@ mod tests {
     #[test]
     fn aria_attributes_on_items() {
         let ir = sample_ir();
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
 
         // Span item: <g> に role=group と aria-label が含まれる
@@ -1927,7 +1927,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
 
         // event_range の <g> に role=group と aria-label が含まれる
@@ -2005,7 +2005,7 @@ mod tests {
             imports: vec![],
             sources: vec![],
         };
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("BC206 Feb"),
@@ -2023,7 +2023,7 @@ mod tests {
             color_map,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         render_svg(&layout).unwrap()
     }
 
@@ -2080,7 +2080,7 @@ mod tests {
     fn grid_none_produces_no_grid_lines() {
         // GridStyle::None (default) must not output any tdsl-grid-line element.
         let ir = sample_ir();
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             !svg.contains("tdsl-grid-line"),
@@ -2092,14 +2092,18 @@ mod tests {
     fn grid_none_svg_output_unchanged() {
         // Explicitly setting GridStyle::None must produce identical output to the default.
         let ir = sample_ir();
-        let default_svg = render_svg(&LayoutModel::compute(&ir, RenderOptions::default())).unwrap();
-        let explicit_none_svg = render_svg(&LayoutModel::compute(
-            &ir,
-            RenderOptions {
-                grid: GridStyle::None,
-                ..RenderOptions::default()
-            },
-        ))
+        let default_svg =
+            render_svg(&LayoutModel::compute(&ir, RenderOptions::default()).unwrap()).unwrap();
+        let explicit_none_svg = render_svg(
+            &LayoutModel::compute(
+                &ir,
+                RenderOptions {
+                    grid: GridStyle::None,
+                    ..RenderOptions::default()
+                },
+            )
+            .unwrap(),
+        )
         .unwrap();
         assert_eq!(
             default_svg, explicit_none_svg,
@@ -2115,7 +2119,7 @@ mod tests {
             grid: GridStyle::Decade,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("tdsl-grid-line"),
@@ -2136,7 +2140,7 @@ mod tests {
             grid: GridStyle::Year,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("tdsl-grid-line"),
@@ -2152,7 +2156,7 @@ mod tests {
             grid: GridStyle::Month,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("tdsl-grid-line"),
@@ -2170,7 +2174,7 @@ mod tests {
             orientation: Orientation::Vertical,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("tdsl-grid-line"),
@@ -2187,7 +2191,7 @@ mod tests {
             orientation: Orientation::Vertical,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("tdsl-grid-line"),
@@ -2203,7 +2207,7 @@ mod tests {
             grid: GridStyle::Decade,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         let grid_pos = svg.find("tdsl-grid-line").expect("grid line must exist");
         let axis_pos = svg.find("tdsl-axis-tick").expect("axis tick must exist");
@@ -2221,7 +2225,7 @@ mod tests {
         // Note: the CSS class name appears once in the embedded <style> block, but no <text> elements
         // with that class should be emitted.
         let ir = sample_ir();
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             !svg.contains(r#"class="tdsl-event-label""#),
@@ -2237,7 +2241,7 @@ mod tests {
             show_event_labels: true,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains(r#"class="tdsl-event-label""#),
@@ -2304,7 +2308,7 @@ mod tests {
             show_event_labels: true,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains(r#"class="tdsl-event-label""#),
@@ -2378,7 +2382,7 @@ mod tests {
             scale: 2.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(svg.contains(">OK</text>"));
         assert!(!svg.contains("tdsl-label-leader"));
@@ -2393,7 +2397,7 @@ mod tests {
             scale: 3.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("font-size:"),
@@ -2409,7 +2413,7 @@ mod tests {
             scale: 3.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains('…'),
@@ -2427,7 +2431,7 @@ mod tests {
             scale: 1.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains("tdsl-label-leader"),
@@ -2445,7 +2449,7 @@ mod tests {
             orientation: Orientation::Vertical,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             svg.contains(r#"class="tdsl-event-label""#),
@@ -2518,7 +2522,7 @@ mod tests {
             scale: 10.0,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let levels: Vec<u8> = layout
             .items
             .iter()
@@ -2549,7 +2553,7 @@ mod tests {
             orientation: Orientation::Vertical,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let levels: Vec<u8> = layout
             .items
             .iter()
@@ -2575,7 +2579,7 @@ mod tests {
             show_event_labels: true,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         for i in &layout.items {
             if let LaidItem::Event {
                 label_stack_level, ..
@@ -2627,7 +2631,7 @@ mod tests {
     #[test]
     fn show_table_false_no_table_elements_in_svg() {
         let ir = sample_ir();
-        let layout = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(
             !svg.contains(r#"class="tdsl-table""#),
@@ -2642,7 +2646,7 @@ mod tests {
             show_table: true,
             ..RenderOptions::default()
         };
-        let layout = LayoutModel::compute(&ir, opts);
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(svg.contains(r#"class="tdsl-table""#));
         assert!(svg.contains("tdsl-table-header"));
@@ -2663,12 +2667,12 @@ mod tests {
     #[test]
     fn show_table_true_expands_total_height_to_fit_table() {
         let ir = sample_ir();
-        let layout_without = LayoutModel::compute(&ir, RenderOptions::default());
+        let layout_without = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let opts = RenderOptions {
             show_table: true,
             ..RenderOptions::default()
         };
-        let layout_with = LayoutModel::compute(&ir, opts);
+        let layout_with = LayoutModel::compute(&ir, opts).unwrap();
         assert!(
             layout_with.total_height > layout_without.total_height,
             "show_table=true must reserve extra vertical space for the table"
@@ -2680,14 +2684,18 @@ mod tests {
         // Regression guard: toggling show_table off must not affect the rest of
         // the SVG output at all (identical bytes).
         let ir = sample_ir();
-        let svg_default = render_svg(&LayoutModel::compute(&ir, RenderOptions::default())).unwrap();
-        let svg_explicit_false = render_svg(&LayoutModel::compute(
-            &ir,
-            RenderOptions {
-                show_table: false,
-                ..RenderOptions::default()
-            },
-        ))
+        let svg_default =
+            render_svg(&LayoutModel::compute(&ir, RenderOptions::default()).unwrap()).unwrap();
+        let svg_explicit_false = render_svg(
+            &LayoutModel::compute(
+                &ir,
+                RenderOptions {
+                    show_table: false,
+                    ..RenderOptions::default()
+                },
+            )
+            .unwrap(),
+        )
         .unwrap();
         assert_eq!(svg_default, svg_explicit_false);
     }
