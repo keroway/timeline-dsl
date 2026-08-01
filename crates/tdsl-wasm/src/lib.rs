@@ -690,9 +690,10 @@ span a 10..20 "S" { id "s1"; };
         let opts = render_options_for_ir(&ir, &JsRenderOptions::new(), 8.0);
         let svg = render_svg_only(&ir, opts).unwrap();
 
+        // span 文はソースの 6 行目にあるため data-line="6" になるはず。
         assert!(
-            svg.contains("data-line="),
-            "expected data-line attribute in SVG:\n{svg}"
+            svg.contains(r#"data-line="6""#),
+            "expected data-line=\"6\" attribute in SVG:\n{svg}"
         );
     }
 
@@ -710,9 +711,10 @@ span a 10..20 "S" { id "s1"; };
         let opts = render_options_for_ir(&ir, &JsRenderOptions::new(), 8.0);
         let html = render_html(&ir, opts).unwrap();
 
+        // span 文はソースの 6 行目にあるため data-line="6" になるはず。
         assert!(
-            html.contains("data-line="),
-            "expected data-line attribute in HTML:\n{html}"
+            html.contains(r#"data-line="6""#),
+            "expected data-line=\"6\" attribute in HTML:\n{html}"
         );
     }
 
