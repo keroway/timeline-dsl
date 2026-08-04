@@ -1,6 +1,6 @@
 # ADR 0005: タイムライン本体（チャート部分）の複数ページ化
 
-- **Status**: Accepted（設計方針として承認。lane グループ軸は Spike #651 → 本実装 #660 → PDF 統合 #661 で完了。時間範囲軸の分割は #662（spike, needs-refinement）として継続検討中。境界またぎ検出の spike 土台は #709、group band/gantt/zigzag/open-ended の相互作用検証は #711 で完了。境界をまたぐ span の表示戦略3案の比較は #710 が担当）
+- **Status**: Accepted（設計方針として承認。lane グループ軸は Spike #651 → 本実装 #660 → PDF 統合 #661 で完了。時間範囲軸の分割は #662（spike, needs-refinement）として継続検討中。境界またぎ検出の spike 土台は #709、group band/gantt/zigzag/open-ended の相互作用検証は #711、境界をまたぐ span の表示戦略3案の比較は #710 で完了。時間範囲軸の未検証事項はいずれも解消済みで、次は本実装 GO/NO-GO 判断が残る）
 - **Date**: 2026-07-21
 - **Deciders**: keroway（承認済み、2026-07-21）
 - **Related issues**: #649（本 ADR）, #609（親: paginated PDF export, ADR 0004 が分岐元）
@@ -173,10 +173,60 @@ issue #709（時間範囲軸チャートページ分割の spike 土台、`crate
 
 第3節「group band / gantt / zigzag / open-ended range の分割時の振る舞い」は、本 spike により **group band / gantt / zigzag / open-ended の4機能すべてで「時間範囲軸固有の追加設計は不要」と判明し、未検証状態を解消した**。残る未検証事項は第2節（境界をまたぐ span の表示戦略、issue #710 が担当）のみ。
 
+## Spike 実施結果（issue #710、境界をまたぐ span の表示戦略3案の比較）
+
+issue #709 の spike 土台（`split_ir_by_time_range` / `items_crossing_boundaries`）の上に、第2節が挙げた3つの表示戦略を `crates/tdsl-render/src/time_range_pagination_spike.rs` に `#[cfg(test)]` 限定・本番未配線で実装し、同一 IR（`s-crossing`: `[80, 220]`、4ページ・0..400分割、境界は 100/200/300）に対する出力を比較した。
+
+### 実装した3案
+
+- **戦略1: クリップ + 継続マーカー**（`clip_with_continuation_markers`）— `layout::primary_axis_segment` の既存クランプ（`start_frac.max(year_min)` / `end_frac.min(year_max)`）がクリップ自体は既に行っているため、新規実装が必要なのは「どちら側がクリップされたか」を示すマーカーのみ。ページごとに `continues_from_previous_page` / `continues_to_next_page` の2フラグを返す。31行。
+- **戦略2: 開始ページのみ描画**（`start_page_only_visible_items`）— item の `start` が属するページ1枚にのみ表示し、他ページでは完全に省略する。3案中最小の実装（25行）だが、クランプ計算そのものが不要なぶん単純なだけで、機能的には情報を捨てている。
+- **戦略3: 主ページに全体を縮小描画**（`primary_page_shrunk_extent`）— item の全期間を「開始点を含むページ」の幅に強制的に圧縮する（`shrunk_width_frac`、`1.0` にクランプ）。36行。
+
+### 検証できたこと
+
+- **戦略1**: `s-crossing`([80,220]) は 0..400/4ページ分割でページ0・1・2の3ページにまたがる。各ページのマーカーは幾何学的に整合した値になった — ページ0は `continues_to_next_page=true` のみ、ページ1は両方 `true`（前ページから継続かつ次ページへ継続）、ページ2は `continues_from_previous_page=true` のみ。item が全く触れないページ3にはマーカー自体が存在しない（`両方false`ではなく「不在」で表現— 「クリップされたが継続していない」と「そもそも存在しない」を区別する設計）。テスト `strategy1_clip_markers_are_present_on_every_page_the_item_intersects` で確認。
+- **戦略2**: `s-crossing` はページ0（`start=80` が `[0,100)` に属する）にのみ出現し、ページ1・2には一切現れない。ジオメトリ上はページ1・2にも実在する item が、見た目上は消える。テスト `strategy2_item_disappears_from_every_page_but_its_start_page` で構造的に確認（ADR-0005 §2 が予告した「後半ページだけを見た読者には span の存在が分からない」を実測で再現）。
+- **戦略3**: `s-crossing` の実際の長さ(140年)は主ページ(ページ0, 幅100年)の1.4倍のため、`shrunk_width_frac` は `1.0` にクランプされる(テスト `strategy3_long_span_saturates_the_shrink_clamp`)。一方、ページ幅に収まる短い item(`s-1`: 80年 / 100年ページ = 0.8)はクランプされずそのまま比例した幅になる(テスト `strategy3_short_span_does_not_saturate`)。これは「実際の長さが2倍・10倍・100倍でもクランプ後は区別がつかない」ことを意味し、王朝の存続期間のような大きく異なる長さの span 同士が視覚的に同一になり得るという ADR-0005 §2 の懸念を実測で確認した。
+
+### `primary_axis_segment` の利用/拡張と差分行数
+
+3案とも `primary_axis_segment` そのものは変更していない（本番レイアウトコードは無傷のまま）。差分は本 spike ファイル内の純粋関数のみで完結し、`git diff --stat` 実測で **251行**（テスト含む。うち戦略実装本体は3関数合計92行、残りはテスト）。
+
+- 戦略1は `primary_axis_segment` の既存クランプをそのまま利用し、クリップ判定に追加の境界比較ロジック（`end <= seg_start || start >= seg_end` の除外 + 2フラグの算出）を足すだけで済んだ。本実装時に必要な追加コストはこのマーカー算出ロジックと、SVG側での継続マーカー描画（矢印等のグラフィック要素）のみ。
+- 戦略2は `primary_axis_segment` を全く使わない（クランプ計算自体が不要）。実装コストは3案中最小だが、これは「クリッピングという難しい問題を回避した」のではなく「情報を落として問題自体をなくした」ことによる見かけ上の単純さである。
+- 戦略3は `primary_axis_segment` の代わりに新規の圧縮計算（主ページの決定 + 幅比のクランプ）が必要で、既存クランプとは別の計算軸を持つ。
+
+### 継続マーカーの決定的テスト可否（ADR-0004 D7 パターン）
+
+戦略1のマーカーは「ページごとの2フラグ(bool)」という構造化データであり、ADR-0004 D7 が採用した「ページ数・構造アサーション中心、ゴールデン画像比較なし」パターンがそのまま踏襲できることを実測で確認した(`strategy1_clip_markers_are_present_on_every_page_the_item_intersects` は座標やSVG文字列ではなく `bool` の組み合わせのみをアサートしている)。クリップ座標自体も `primary_axis_segment` の既存クランプ式から決定的に導出されるため、追加の非決定性は生じない。
+
+### 3案の比較表
+
+| 案 | 実装コスト(spike実測) | 情報欠落リスク | 視認性 |
+|---|---|---|---|
+| 1. クリップ + 継続マーカー | 中(31行 + 本実装時はSVG側のマーカー描画が別途必要) | なし(マーカーが継続を明示) | 高(クリップ位置・継続方向が正確に伝わる) |
+| 2. 開始ページのみ描画 | 低(25行) | 高(後続ページで item が完全に消える。implementation-strict.md §1 に反する) | 低(item の存在自体が一部ページで分からない) |
+| 3. 主ページに縮小描画 | 中(36行) | 中(長さの相対関係が飽和して失われる) | 低〜中(短い item では機能するが、長い item ほど視認性が劣化する) |
+
+### 推奨案
+
+**戦略1(クリップ + 継続マーカー)を推奨する。** 戦略2は情報欠落が implementation-strict.md §1「Explicit error over silent fallback」の精神に明確に反するため却下。戦略3は実装コストが戦略1と同程度でありながら、長い span ほど情報欠落が悪化するという戦略2と同種の問題を抱える(飽和により長さの違いが視覚的に区別できなくなる)ため却下。戦略1は本 spike で実測した通り、既存の `primary_axis_segment` クランプを流用でき追加コストが最小であり、かつ ADR-0004 D7 の決定的テストパターンをそのまま踏襲できる。
+
+### 未解決のまま残る論点
+
+- 継続マーカーの具体的な描画(矢印の形状・色・アクセシビリティラベル)は本 spike のスコープ外。本実装 issue で改めて設計する。
+- 戦略1は item がページ内で intersect する場合のみマーカーを返す設計にしたが、「visually clipped but marker suppressed」のようなオプトアウト経路が必要かは本実装 issue で検討する。
+- 縦書き(vertical)レイアウトでの継続マーカーの向きは未検証(本 spike は水平レイアウトの `primary_axis_segment` の座標系のみで検証した)。
+
+### Status 更新
+
+第2節「ページ境界をまたぐ span/event_range の扱い」は、本 spike により3戦略の実装比較と推奨案(戦略1: クリップ + 継続マーカー)が確定し、未検証状態を解消した。ADR-0005 の未検証事項は全節で解消済みとなった(第1節のページ分割軸の最終選定、第4節のCLIフラグ名、継続マーカーの具体的な描画仕様は、いずれも本実装 issue に委ねる実装詳細として残る)。
+
 ## 未決定事項（本 ADR の範囲外）
 
 - ページ分割軸の最終決定（時間範囲 / lane グループ / 両方）。lane グループ軸は issue #660 で実装済み。時間範囲軸は未着手（#662, `needs-refinement`）。
-- span/event_range のページ境界クリッピング・継続表示の具体的な描画仕様（lane グループ軸では原理上不要と判明済み。時間範囲軸では依然未解決）。
+- span/event_range のページ境界クリッピング・継続表示の具体的な描画仕様（lane グループ軸では原理上不要と判明済み。時間範囲軸は issue #710 の spike により戦略選定〈クリップ + 継続マーカー〉は完了。継続マーカーの具体的な描画〈矢印形状・色・アクセシビリティラベル〉は本実装 issue に委ねる）。
 - CLI フラグの最終的な名前・構文。lane グループ軸は `--chart-pagination <N>` として issue #660 で確定済み。
 - group band / gantt / zigzag / open-ended range の分割時の詳細な振る舞い。lane グループ軸の group band は issue #660 で「警告して分割続行」に確定済み。時間範囲軸は issue #711 の spike により4機能とも「追加設計不要」と判明し解消済み。
 - HTML/SVG インタラクティブレンダリング（`tdsl render --interactive`）への同様のページ分割ニーズの適用可否（本 ADR は PDF 出力のみを対象とする）。
