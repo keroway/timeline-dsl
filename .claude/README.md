@@ -38,7 +38,7 @@
   `origin/main..HEAD` → 空 の3段 degrade）を分類し、`cargo fmt --check` / `cargo clippy -D warnings` /
   `cargo test --workspace` を実行（WebUI 変更時は `npm run lint` も）
 - 失敗時: exit 2 で Claude にフィードバック（ブロッキング）
-- 一時的に止めたい場合: `TDSL_SKIP_STOP_HOOK=1`
+- 一時的に止めたい場合: `TIMELINE_DSL_SKIP_STOP_HOOK=1`
 
 ## Slash Commands
 
