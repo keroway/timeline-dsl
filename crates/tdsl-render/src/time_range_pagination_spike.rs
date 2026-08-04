@@ -232,6 +232,158 @@ pub(crate) fn items_crossing_boundaries(
     Ok(crossing)
 }
 
+// ─── issue #710: boundary-crossing span/event_range display strategies ────
+//
+// ADR-0005 §2 lists three untested strategies for a `Span`/`EventRange` that
+// straddles a page boundary. This section implements all three as pure,
+// `#[cfg(test)]`-only functions over the same `TimeRangePage`/boundary
+// primitives `split_ir_by_time_range`/`items_crossing_boundaries` already
+// established, so their outputs can be compared on the same fixture IR
+// without wiring any of them into `svg.rs`/`pdf.rs`.
+
+/// Strategy 1 — "clip + continuation marker". A `Span`/`EventRange` that
+/// crosses a page's boundary is still laid out on every page it intersects
+/// (this is *already* what `layout::primary_axis_segment`'s
+/// `start_frac.max(year_min)` / `end_frac.min(year_max)` clamp does — see
+/// `layout::tests::span_clamps_to_range`), so this strategy needs no new
+/// geometry. What ADR-0005 §2 flags as unbuilt is the *marker*: a signal,
+/// per page, of which side(s) of the item were actually clipped, so the
+/// renderer can draw a continuation indicator instead of silently emitting a
+/// bar that just happens to touch the page edge (implementation-strict.md §1
+/// "Explicit error over silent fallback" — a clipped-but-unmarked bar is
+/// visually indistinguishable from an item that genuinely ends there).
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct ClipMarker {
+    pub id: String,
+    /// The item's `start` is before this page's segment start (i.e. it was
+    /// already visible, continuing, on an earlier page).
+    pub continues_from_previous_page: bool,
+    /// The item's `end` is after this page's segment end (i.e. it continues
+    /// onto a later page).
+    pub continues_to_next_page: bool,
+}
+
+/// Compute clip markers for every `Span`/`EventRange` that intersects
+/// `page_index`'s segment (items wholly outside the segment are omitted —
+/// they'd clamp to a zero/negative-width bar per `primary_axis_segment` and
+/// have no marker to report).
+pub(crate) fn clip_with_continuation_markers(
+    ir: &TimelineIr,
+    range: (i64, i64),
+    page_count: usize,
+    page_index: usize,
+) -> Result<Vec<ClipMarker>, TimeRangePaginationError> {
+    let boundaries = segment_boundaries(range, page_count)?;
+    let (seg_start, seg_end) = (boundaries[page_index], boundaries[page_index + 1]);
+
+    let mut out = Vec::new();
+    for item in &ir.items {
+        let extent = match item {
+            Item::Span { id, start, end, .. } | Item::EventRange { id, start, end, .. } => {
+                Some((id.as_str(), *start, *end))
+            }
+            Item::Event { .. } => None,
+        };
+        let Some((id, start, end)) = extent else {
+            continue;
+        };
+        if end <= seg_start || start >= seg_end {
+            continue; // wholly outside this page's segment
+        }
+        out.push(ClipMarker {
+            id: id.to_string(),
+            continues_from_previous_page: start < seg_start,
+            continues_to_next_page: end > seg_end,
+        });
+    }
+    Ok(out)
+}
+
+/// Strategy 2 — "draw only on the start page, omit elsewhere". An item is
+/// visible on exactly one page: the page whose segment contains `start`
+/// (`range.1` itself, if an item starts exactly there, resolves to the last
+/// page). Every other page that the item's `[start, end]` actually overlaps
+/// gets nothing — this is the strategy ADR-0005 §2 calls out as a "silent"
+/// information loss.
+pub(crate) fn start_page_only_visible_items(
+    ir: &TimelineIr,
+    range: (i64, i64),
+    page_count: usize,
+) -> Result<Vec<(usize, String)>, TimeRangePaginationError> {
+    let boundaries = segment_boundaries(range, page_count)?;
+    let mut out = Vec::new();
+    for item in &ir.items {
+        let extent = match item {
+            Item::Span { id, start, end, .. } | Item::EventRange { id, start, end, .. } => {
+                Some((id.as_str(), *start, *end))
+            }
+            Item::Event { .. } => None,
+        };
+        let Some((id, start, _end)) = extent else {
+            continue;
+        };
+        let page_index = boundaries
+            .windows(2)
+            .position(|w| start >= w[0] && start < w[1])
+            .unwrap_or(page_count - 1);
+        out.push((page_index, id.to_string()));
+    }
+    Ok(out)
+}
+
+/// Strategy 3 — "shrink onto the primary page". An item's *entire* duration
+/// is compressed into the width of its "primary" page (the page containing
+/// `start`), independent of the item's true length relative to that page's
+/// own time span. `shrunk_width_frac` is the fraction of the primary page's
+/// width the compressed bar would occupy, clamped to `1.0` — an item many
+/// times longer than a single page's segment still maxes out at "the whole
+/// page", which is the exact "非常に長い span では視覚的に意味をなさない"
+/// failure ADR-0005 §2 predicts (two spans of very different real duration
+/// become visually indistinguishable once both saturate the clamp).
+#[derive(Debug, PartialEq)]
+pub(crate) struct PrimaryPageShrunkExtent {
+    pub id: String,
+    pub primary_page_index: usize,
+    pub shrunk_width_frac: f64,
+}
+
+pub(crate) fn primary_page_shrunk_extent(
+    ir: &TimelineIr,
+    range: (i64, i64),
+    page_count: usize,
+) -> Result<Vec<PrimaryPageShrunkExtent>, TimeRangePaginationError> {
+    let boundaries = segment_boundaries(range, page_count)?;
+    let mut out = Vec::new();
+    for item in &ir.items {
+        let extent = match item {
+            Item::Span { id, start, end, .. } | Item::EventRange { id, start, end, .. } => {
+                Some((id.as_str(), *start, *end))
+            }
+            Item::Event { .. } => None,
+        };
+        let Some((id, start, end)) = extent else {
+            continue;
+        };
+        let primary_page_index = boundaries
+            .windows(2)
+            .position(|w| start >= w[0] && start < w[1])
+            .unwrap_or(page_count - 1);
+        let (seg_start, seg_end) = (
+            boundaries[primary_page_index],
+            boundaries[primary_page_index + 1],
+        );
+        let seg_width = (seg_end - seg_start) as f64;
+        let full_width = (end - start) as f64;
+        let shrunk_width_frac = (full_width / seg_width).min(1.0);
+        out.push(PrimaryPageShrunkExtent {
+            id: id.to_string(),
+            primary_page_index,
+            shrunk_width_frac,
+        });
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -797,6 +949,105 @@ mod tests {
         assert!(
             tooltip.contains("進行中"),
             "open-ended span tooltip must read 進行中 on every page it appears on: {tooltip:?}"
+        );
+    }
+
+    // ─── issue #710: 3-strategy comparison for boundary-crossing spans ────
+    // Shared fixture: `s-crossing` spans [80, 220] in a 0..400 / 4-page
+    // split (boundaries 0, 100, 200, 300, 400) — it crosses both the 100 and
+    // 200 interior boundaries, so it touches pages 0, 1, and 2.
+
+    fn crossing_ir() -> TimelineIr {
+        let mut ir = no_crossing_ir();
+        ir.items.push(span("s-crossing", "a", 80, 220));
+        ir
+    }
+
+    #[test]
+    fn strategy1_clip_markers_are_present_on_every_page_the_item_intersects() {
+        let ir = crossing_ir();
+        let range = ir.meta.range;
+
+        let page0 = clip_with_continuation_markers(&ir, range, 4, 0).unwrap();
+        let m0 = page0.iter().find(|m| m.id == "s-crossing").unwrap();
+        assert!(!m0.continues_from_previous_page, "page 0: item starts here");
+        assert!(m0.continues_to_next_page, "page 0: item extends past 100");
+
+        let page1 = clip_with_continuation_markers(&ir, range, 4, 1).unwrap();
+        let m1 = page1.iter().find(|m| m.id == "s-crossing").unwrap();
+        assert!(
+            m1.continues_from_previous_page,
+            "page 1: item started on page 0"
+        );
+        assert!(m1.continues_to_next_page, "page 1: item extends past 200");
+
+        let page2 = clip_with_continuation_markers(&ir, range, 4, 2).unwrap();
+        let m2 = page2.iter().find(|m| m.id == "s-crossing").unwrap();
+        assert!(
+            m2.continues_from_previous_page,
+            "page 2: item started earlier"
+        );
+        assert!(
+            !m2.continues_to_next_page,
+            "page 2: item ends at 220, before 300"
+        );
+
+        // Page 3 (300..400) is never touched by [80, 220] — no marker at all,
+        // not a marker with both flags false (that would conflate "never
+        // present" with "present, not clipped").
+        let page3 = clip_with_continuation_markers(&ir, range, 4, 3).unwrap();
+        assert!(page3.iter().all(|m| m.id != "s-crossing"));
+    }
+
+    #[test]
+    fn strategy2_item_disappears_from_every_page_but_its_start_page() {
+        let ir = crossing_ir();
+        let range = ir.meta.range;
+        let visible = start_page_only_visible_items(&ir, range, 4).unwrap();
+        let pages_showing_it: Vec<usize> = visible
+            .iter()
+            .filter(|(_, id)| id == "s-crossing")
+            .map(|(page, _)| *page)
+            .collect();
+        assert_eq!(
+            pages_showing_it,
+            vec![0],
+            "strategy 2 shows the item on exactly its start page (80 falls in page 0, \
+             0..100), even though it geometrically extends across pages 1 and 2 — this \
+             is the silent information loss ADR-0005 §2 warns about"
+        );
+    }
+
+    #[test]
+    fn strategy3_long_span_saturates_the_shrink_clamp() {
+        let ir = crossing_ir();
+        let range = ir.meta.range;
+        let shrunk = primary_page_shrunk_extent(&ir, range, 4).unwrap();
+        let s = shrunk.iter().find(|s| s.id == "s-crossing").unwrap();
+        assert_eq!(
+            s.primary_page_index, 0,
+            "80 falls within page 0's 0..100 segment"
+        );
+        // True duration is 140 years against a 100-year page width — the
+        // compressed bar saturates at "the whole page", indistinguishable
+        // from an item whose true duration is exactly 100 years.
+        assert_eq!(
+            s.shrunk_width_frac, 1.0,
+            "a span 1.4x longer than one page's width must clamp to the full page width"
+        );
+    }
+
+    #[test]
+    fn strategy3_short_span_does_not_saturate() {
+        let ir = no_crossing_ir(); // s-1: [10, 90], wholly inside page 0 (0..100)
+        let range = ir.meta.range;
+        let shrunk = primary_page_shrunk_extent(&ir, range, 4).unwrap();
+        let s = shrunk.iter().find(|s| s.id == "s-1").unwrap();
+        assert_eq!(s.primary_page_index, 0);
+        assert!(
+            (s.shrunk_width_frac - 0.8).abs() < 0.001,
+            "80-year span on a 100-year page should occupy 0.8 of the page width, got {}",
+            s.shrunk_width_frac
         );
     }
 }
