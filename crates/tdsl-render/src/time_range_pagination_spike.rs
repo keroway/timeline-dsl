@@ -35,6 +35,7 @@
 use tdsl_core::ir::{Item, TimelineIr};
 
 use crate::layout::LayoutModel;
+use crate::layout::LayoutStyle;
 use crate::layout::RenderOptions;
 
 /// Error returned by [`split_ir_by_time_range`].
@@ -586,5 +587,216 @@ mod tests {
             assert_eq!(page.ir.meta.range_start_month, None);
             assert_eq!(page.ir.meta.range_end_day, None);
         }
+    }
+
+    // ─── issue #711: group band / gantt / zigzag / open-ended interaction
+    // findings for ADR-0005 §3 ───────────────────────────────────────────
+
+    fn lane_with_group(id: &str, group: &str) -> tdsl_core::ir::Lane {
+        tdsl_core::ir::Lane {
+            id: id.to_string(),
+            label: format!("Lane {id}"),
+            kind: "custom".into(),
+            order: 1,
+            group: Some(group.to_string()),
+            source_span: None,
+        }
+    }
+
+    /// Unlike the lane-group axis (`pagination::paginate_svg_by_lane_groups`,
+    /// which filters `lanes` per page and therefore truncates a group band
+    /// whose member lanes land on different pages — ADR-0005 §"Spike 実施結果"
+    /// / issue #660's `group_bands_split_across_pages` warning), the
+    /// time-range axis never filters `lanes` at all: every page's `TimelineIr`
+    /// carries the full, unmodified lane list (see `split_ir_by_time_range`).
+    /// So a group band's lane membership is identical on every page, and its
+    /// primary-axis extent is derived purely from `total_width` /
+    /// `left_gutter` / `right_margin` (`layout::compute_group_bands`), not
+    /// from any item's time extent — it is drawn full-width on every page by
+    /// construction, with no split/truncation concept to warn about.
+    #[test]
+    fn group_band_spans_full_page_width_on_every_time_range_page_no_truncation() {
+        let mut ir = TimelineIr {
+            meta: meta(0, 400),
+            lanes: vec![lane_with_group("a", "G"), lane_with_group("b", "G")],
+            items: vec![span("s-1", "a", 10, 90), span("s-2", "b", 310, 390)],
+            imports: vec![],
+            sources: vec![],
+        };
+        ir.meta.range = (0, 400);
+        let pages = split_ir_by_time_range(&ir, 4).expect("split should succeed");
+
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::GroupBands,
+            ..RenderOptions::default()
+        };
+        for page in &pages {
+            let layout =
+                LayoutModel::compute(&page.ir, opts.clone()).expect("layout should succeed");
+            assert_eq!(
+                layout.group_bands.len(),
+                1,
+                "both lanes stay in group G on every page (lanes are never filtered \
+                 on the time-range axis)"
+            );
+            let band = &layout.group_bands[0];
+            // Horizontal orientation: band.x == left_gutter, band spans to
+            // total_width - right_margin regardless of which 100-year segment
+            // this page covers or whether either lane has an item on it.
+            assert!(
+                (band.x - opts.left_gutter).abs() < 0.001,
+                "band x should start at left_gutter regardless of page segment"
+            );
+        }
+    }
+
+    /// `Span`/`EventRange` layout (`layout::compute_item`) never excludes an
+    /// item whose extent falls wholly outside `[year_min, year_max]` from the
+    /// laid-item list the way `Event` does (`year_in_range` early-return) —
+    /// it always pushes a `LaidItem`, relying on `primary_axis_segment`'s
+    /// clamp to collapse it to a non-positive-width bar. On the time-range
+    /// axis, every page's `TimelineIr` carries every item unchanged (no
+    /// per-page item filtering), so a page whose segment an item never
+    /// touches still computes (and would, unless the SVG emitter itself
+    /// skips zero/negative-width bars) a degenerate `LaidItem` for it. This
+    /// is a previously-undocumented cost/risk for ADR-0005 §3's GO/NO-GO
+    /// material: no crash and no incorrect on-page visual (the emitted
+    /// bar has zero or negative width), but every page still runs full
+    /// layout math for every off-page item.
+    #[test]
+    fn items_wholly_outside_a_page_segment_still_produce_a_laid_item_with_non_positive_extent() {
+        let ir = no_crossing_ir(); // s-1 sits in [10, 90], entirely within page 0 (0..100)
+        let pages = split_ir_by_time_range(&ir, 4).expect("split should succeed");
+        let last_page = &pages[3]; // covers 300..400; s-1 never touches this segment
+
+        let layout = LayoutModel::compute(&last_page.ir, RenderOptions::default())
+            .expect("layout should succeed even for a page an item never touches");
+        let s1 = layout
+            .items
+            .iter()
+            .find_map(|laid| match laid {
+                crate::layout::LaidItem::Span { item, width, .. } if item_id(item) == "s-1" => {
+                    Some(*width)
+                }
+                _ => None,
+            })
+            .expect("s-1 must still be present as a LaidItem on a page it never touches");
+        assert!(
+            s1 <= 0.0,
+            "an item wholly outside the page's segment must clamp to non-positive width, \
+             not a positive/garbage width: got {s1}"
+        );
+    }
+
+    fn item_id(item: &Item) -> &str {
+        match item {
+            Item::Span { id, .. } | Item::Event { id, .. } | Item::EventRange { id, .. } => id,
+        }
+    }
+
+    /// `layout::assign_zigzag_parity` sorts by `(lane, start_frac)` over the
+    /// *full* `ir.items` — and because the time-range axis duplicates the
+    /// full unfiltered item list onto every page (unlike the lane-group axis,
+    /// which filters both `lanes` and `items` per page), a given item's
+    /// zigzag parity is computed from the same global chronological order on
+    /// every page. This is a positive finding for ADR-0005 §3: zigzag does
+    /// NOT suffer the lane-axis's "silently recomputed on a page subset"
+    /// problem — parity for a shared item is provably identical across pages.
+    #[test]
+    fn zigzag_parity_for_a_shared_item_is_identical_across_time_range_pages() {
+        let mut ir = no_crossing_ir();
+        // Add a second item in lane "a" so zigzag parity is non-trivial
+        // (alternates true/false by chronological order within the lane).
+        ir.items.push(span("s-4", "a", 250, 260));
+        let pages = split_ir_by_time_range(&ir, 4).expect("split should succeed");
+
+        let opts = RenderOptions {
+            layout_style: LayoutStyle::Zigzag,
+            ..RenderOptions::default()
+        };
+        // s-3 (lane a, [210, 290]) lives wholly on page 2 (200..300) but is
+        // duplicated (as an off-page degenerate item) onto every page's IR;
+        // its zigzag cross-axis offset sign must not depend on which page
+        // computed it.
+        let mut offsets = Vec::new();
+        for page in &pages {
+            let layout =
+                LayoutModel::compute(&page.ir, opts.clone()).expect("layout should succeed");
+            let offset = layout.items.iter().find_map(|laid| match laid {
+                crate::layout::LaidItem::Span { item, y, .. } if item_id(item) == "s-3" => Some(*y),
+                _ => None,
+            });
+            offsets.push(offset.expect("s-3 must be present on every page"));
+        }
+        for w in offsets.windows(2) {
+            assert!(
+                (w[0] - w[1]).abs() < 0.001,
+                "s-3's zigzag cross-axis offset must be identical across pages: {offsets:?}"
+            );
+        }
+    }
+
+    /// `end_open` is a static per-item bool duplicated unchanged onto every
+    /// page's `TimelineIr` (`split_ir_by_time_range` doesn't touch item
+    /// fields) — so an open-ended span's tooltip reads "進行中" (ongoing) on
+    /// every page it's laid out on, including pages whose segment sits
+    /// entirely before the resolved `now` end year. This confirms the "進行中"
+    /// arrow/label collision-with-page-boundary question raised in ADR-0005
+    /// §3's open-ended bullet is really the same already-solved problem as
+    /// §2 (page-boundary clipping of a long-running span): the label is a
+    /// per-item tooltip property, not something that needs new per-boundary
+    /// logic.
+    #[test]
+    fn open_ended_span_reads_ongoing_on_every_page_it_is_laid_out_on() {
+        let mut ir = no_crossing_ir();
+        ir.items.push(Item::Span {
+            id: "s-open".into(),
+            lane: "a".into(),
+            start: 50,
+            end: 999, // resolved-at-parse-time placeholder year; end_open governs display
+            label: "Open span".into(),
+            tags: vec![],
+            source: None,
+            origin: None,
+            note: None,
+            link: None,
+            color: None,
+            start_month: None,
+            start_day: None,
+            start_hour: None,
+            start_minute: None,
+            start_second: None,
+            start_offset_minutes: None,
+            end_month: None,
+            end_day: None,
+            end_hour: None,
+            end_minute: None,
+            end_second: None,
+            end_offset_minutes: None,
+            end_open: true,
+            source_span: None,
+        });
+        let pages = split_ir_by_time_range(&ir, 4).expect("split should succeed");
+        // Page 0 (0..100) is entirely before the resolved end (999); the span
+        // is still clamped/drawn there (it starts at year 50) and must still
+        // read "進行中", not a resolved end date.
+        let layout =
+            LayoutModel::compute(&pages[0].ir, RenderOptions::default()).expect("layout ok");
+        let tooltip = layout
+            .items
+            .iter()
+            .find_map(|laid| match laid {
+                crate::layout::LaidItem::Span { item, tooltip, .. }
+                    if item_id(item) == "s-open" =>
+                {
+                    Some(tooltip.clone())
+                }
+                _ => None,
+            })
+            .expect("s-open must be present on page 0");
+        assert!(
+            tooltip.contains("進行中"),
+            "open-ended span tooltip must read 進行中 on every page it appears on: {tooltip:?}"
+        );
     }
 }
