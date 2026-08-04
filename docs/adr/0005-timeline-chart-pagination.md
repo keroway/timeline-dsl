@@ -1,6 +1,6 @@
 # ADR 0005: タイムライン本体（チャート部分）の複数ページ化
 
-- **Status**: Accepted（設計方針として承認。lane グループ軸は Spike #651 → 本実装 #660 → PDF 統合 #661 で完了。時間範囲軸の分割は #662（spike, needs-refinement）として継続検討中）
+- **Status**: Accepted（設計方針として承認。lane グループ軸は Spike #651 → 本実装 #660 → PDF 統合 #661 で完了。時間範囲軸の分割は #662（spike, needs-refinement）として継続検討中。境界またぎ検出の spike 土台は #709、group band/gantt/zigzag/open-ended の相互作用検証は #711 で完了。境界をまたぐ span の表示戦略3案の比較は #710 が担当）
 - **Date**: 2026-07-21
 - **Deciders**: keroway（承認済み、2026-07-21）
 - **Related issues**: #649（本 ADR）, #609（親: paginated PDF export, ADR 0004 が分岐元）
@@ -148,10 +148,35 @@ issue #660 で `--format svg` 限定だった `--chart-pagination` を `--format
 - **API**: `crates/tdsl-render` に `PdfOptions::chart_pagination: Option<usize>`（デフォルト `None`）と、group band 分断警告を返す新 API `render_pdf_with_warnings()` を追加した（既存の `render_pdf()` はラッパーのまま不変）。
 - **テスト**: A4/A3/Letter × 縦横向きの決定的テストマトリクス（ADR-0004 D7 パターン）にチャート分割ケースを追加。
 
+## Spike 実施結果（issue #711、時間範囲軸の group band / gantt / zigzag / open-ended 相互作用）
+
+issue #709（時間範囲軸チャートページ分割の spike 土台、`crates/tdsl-render/src/time_range_pagination_spike.rs`）が確立した「境界をまたぐ span/event_range を検出する」土台の上で、第3節が未検証としていた4機能（group band / gantt / zigzag / open-ended range）の時間範囲軸での振る舞いを実装・検証した。`#[cfg(test)]` 限定・本番未配線のまま、`time_range_pagination_spike.rs` に5件のテストを追加した。
+
+### 検証できたこと
+
+- **group band は時間範囲軸では原理上分断されない**: lane グループ軸（`pagination::paginate_svg_by_lane_groups`）は `lanes` をページごとにフィルタするため、同じ `Lane::group` の lane が複数チャンクにまたがると group band が分断される（issue #660 で確定済みの既知課題）。一方、時間範囲軸の `split_ir_by_time_range` は `lanes` を一切フィルタしない（全ページに全 lane を複製する）。さらに `layout::compute_group_bands` は band の主軸（時間軸方向）の範囲を lane の並びからではなく `total_width - left_gutter - right_margin`（そのページの描画幅そのもの）から導出しており、item の時間範囲にも依存しない。したがって group band の lane 構成はどのページでも同一になり、band は常にそのページの全幅に描画される — **分断・警告の概念自体が存在しない**。テスト `group_band_spans_full_page_width_on_every_time_range_page_no_truncation` で構造的に確認した。
+- **gantt / zigzag のレイアウト計算は時間範囲軸でも一貫性が保たれる**: `layout::assign_zigzag_parity` と `layout::assign_bar_stack_levels`（gantt の期間ラベル衝突回避が使う土台）はいずれも `LayoutModel::compute` に渡された `TimelineIr` の**全 item**（範囲外フィルタ前）に対して計算される。lane グループ軸は `items` もページごとにフィルタするため、あるページに見えている item だけからその場で再計算される（group band と同じ「ページごとの部分集合から再計算」パターン）。一方、時間範囲軸は `items` を一切フィルタしないため、同じ item の zigzag parity はどのページで計算しても同一の値になる。テスト `zigzag_parity_for_a_shared_item_is_identical_across_time_range_pages` で、あるページにしか実在しない item (`s-3`) の zigzag オフセットが全4ページで一致することを確認した。
+- **open-ended（`now` 終端）の「進行中」表示はページ境界と無関係に成立する**: `end_open` は item の静的フィールドであり、`split_ir_by_time_range` は item を無変更で複製するため、「進行中」ラベル（`layout::open_ended_end_label`）はその item が現れるどのページでも同一に表示される。これは第2節（境界をまたぐ span の表示戦略）が扱う「クリップ」の問題であり、open-ended 固有の新規ロジックは不要と判明した。テスト `open_ended_span_reads_ongoing_on_every_page_it_is_laid_out_on` で確認した。
+
+### 想定外だった点（新規コスト/リスク）
+
+- **範囲外 item も毎ページ全レイアウト計算を通る**: `Event` は `layout::year_in_range` によってページ範囲外なら早期リターンされるが、`Span`/`EventRange` にはこの除外がない。`layout::primary_axis_segment` のクランプにより非正の幅（0 以下）に収束するだけで、`LaidItem` としては必ず push される。時間範囲軸は item を一切フィルタしないため、ある item を一度も含まないページでもその item の座標計算・(Gantt 有効時は)期間ラベル衝突判定パスを毎回通る。クラッシュや誤描画（正の幅の bar が出る）は起きないが、ページ数 × item 数のオーダーで無駄な計算コストが発生する。lane グループ軸にはこの種の無駄はない（item ごと1ページにしか属さない）。テスト `items_wholly_outside_a_page_segment_still_produce_a_laid_item_with_non_positive_extent` で構造的に確認した。本実装時は、`split_ir_by_time_range` 相当の処理で `items` もページの `[start, end]` と交差するものだけに絞り込む最適化を検討する余地がある（正しさには影響しないが、ページ数が多いタイムラインでの計算コストに影響する）。
+
+### 本実装 GO/NO-GO 判断材料
+
+- **実装コスト見積もり**: #709 の spike 土台（`split_ir_by_time_range` / `items_crossing_boundaries`）と本 spike の検証結果を踏まえると、group band / gantt / zigzag / open-ended の4機能は**いずれも追加の分岐処理を必要としない**（既存の `LayoutModel::compute` パイプラインをそのまま複数回呼ぶだけで正しく動く）。本実装で新規に書く必要があるのは (a) #709 の境界またぎ検出結果を CLI 警告として配線する経路（lane グループ軸の `group_bands_split_across_pages` パターンを踏襲）と、(b) 上記の「範囲外 item のフィルタ最適化」（任意、パフォーマンス目的）のみ。第6節の Effort L 見積もりは、この4機能に関する限り縮小方向に再評価してよい。
+- **テスト戦略の実現性**: ADR-0004 D7 パターン（ページ数・構造アサーション中心、ゴールデン画像比較なし）がそのまま踏襲可能であることを本 spike で実証した(5テストすべてが構造アサーションのみで完結)。
+- **CLI フラグ設計案**: lane グループ軸の `--chart-pagination <N>` との対称性から、時間範囲軸は `--chart-pagination-range <N>` のような独立フラグ、または両軸を区別する値（例: `--chart-pagination lane:<N>` / `--chart-pagination range:<N>`）が候補になる。どちらも既存 `--chart-pagination <N>`（lane グループ軸、#660 で確定済み）の後方互換を壊さない設計が前提。フラグ名の最終決定は本実装 issue に委ねる。
+- **未解決のまま残る論点**: 第2節（境界をまたぐ span の表示戦略3案）は本 issue のスコープ外で、issue #710 の spike 結果を待つ。境界またぎ item がある場合、time-range 軸の group band / gantt / zigzag 自体への追加の影響はない（境界またぎの影響は span/event_range 自体のクリップ表示にのみ及び、bar-stack や zigzag の parity 計算には波及しないことを本 spike で確認済み）。
+
+### Status 更新
+
+第3節「group band / gantt / zigzag / open-ended range の分割時の振る舞い」は、本 spike により **group band / gantt / zigzag / open-ended の4機能すべてで「時間範囲軸固有の追加設計は不要」と判明し、未検証状態を解消した**。残る未検証事項は第2節（境界をまたぐ span の表示戦略、issue #710 が担当）のみ。
+
 ## 未決定事項（本 ADR の範囲外）
 
 - ページ分割軸の最終決定（時間範囲 / lane グループ / 両方）。lane グループ軸は issue #660 で実装済み。時間範囲軸は未着手（#662, `needs-refinement`）。
 - span/event_range のページ境界クリッピング・継続表示の具体的な描画仕様（lane グループ軸では原理上不要と判明済み。時間範囲軸では依然未解決）。
 - CLI フラグの最終的な名前・構文。lane グループ軸は `--chart-pagination <N>` として issue #660 で確定済み。
-- group band / gantt / zigzag / open-ended range の分割時の詳細な振る舞い。lane グループ軸の group band は issue #660 で「警告して分割続行」に確定済み。gantt / zigzag / open-ended range は未検証のまま。
+- group band / gantt / zigzag / open-ended range の分割時の詳細な振る舞い。lane グループ軸の group band は issue #660 で「警告して分割続行」に確定済み。時間範囲軸は issue #711 の spike により4機能とも「追加設計不要」と判明し解消済み。
 - HTML/SVG インタラクティブレンダリング（`tdsl render --interactive`）への同様のページ分割ニーズの適用可否（本 ADR は PDF 出力のみを対象とする）。
