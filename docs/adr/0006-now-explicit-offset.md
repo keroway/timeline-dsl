@@ -1,6 +1,6 @@
 # ADR 0006: `now` への明示的 UTC オフセット付与
 
-- **Status**: Proposed（設計検討・issue #647 のスコープ内。実装 GO/NO-GO は本 ADR のレビュー後に別途判断する）
+- **Status**: Accepted（D5「年精度のまま据え置く（NO-GO）」を正式決定。2026-08-05。issue #686/#712/#713/#714 の検討を経て確定）
 - **Date**: 2026-07-21
 - **Deciders**: keroway（レビュー待ち）
 - **Related issues**: #647（本 ADR）
@@ -52,28 +52,55 @@ ADR 0003 D2 の `MixedOffsetComparison`（offset の有無が混在する比較�
 2. 構文は既存の precision-tag 拡張パターン（`TimeValue` への variant 追加、ADR 0003 D1）を踏襲することを優先候補とする。ただし `now` がリテラルではなく評価時解決トークンである点を踏まえ、パーサ・AST 設計時に既存の `DateTimeOffset` 系 variant とは別の設計単位（例: `NowWithOffset` 相当）が必要かどうかを実装着手時に再検討する。
 3. `now` 自体の解決粒度拡張（年→秒）とセットで設計するか、独立した issue に分けるかは、実装着手時にスコープを再確認する。
 
+### D3. `now` の現状解決規則の棚卸しと秒精度化の需要評価（issue #712、2026-08-05）
+
+- **現状の解決経路の訂正**: D1・親issue #686 の技術メモは解決地点を `crates/tdsl-core/src/lower/mod.rs` としていたが誤り。実際は**パース時**（`crates/tdsl-parser/src/builder.rs::parse_open_ended_time_value`）に `now_kw` が `TimeValue::Year(current_year_utc())` へ確定的に潰れ、`end_open: bool` フラグだけが「元は `now` だった」事実を IR まで運ぶ。AST に `TimeValue::Now` variant は存在しない（粒度情報はパース時点で失われる）。
+- **秒精度化した場合に影響する層**: IR 自体は ADR 0003（D1〜D6）ですでに `end_month` / `end_day` / `end_hour` / `end_minute` / `end_second` / `end_offset_minutes` を持っており、**新規フィールド追加は不要**（`now.rs` の解決結果を書き込む先は既存）。実質的な影響範囲は (a) `now.rs` に `current_year_utc()` に加えて完全な civil datetime を返す関数を追加、(b) `builder.rs::parse_open_ended_time_value` の返り値を `TimeValue::DateTimeSecond`/`DateTimeSecondOffset` 相当に変更、(c) golden snapshot の redaction（D4 参照）、(d) `format.rs` / `decompile.rs` の `now` 再出力ロジック — ただし `format_open_ended_end` は `end_open` フラグのみを見て "now" を出力するため**変更不要**と確認済み、(e) renderer の「進行中」表示（`layout.rs::open_ended_end_label` / `svg.rs::item_end_open`）も `end_open` フラグのみに依存するため**変更不要**。総じて、変更が必要なのは parser 層と golden テストのみで、renderer/decompile/format 層は無傷という想定外に小さい影響範囲だった。
+- **具体的ユースケースの評価**: 秒精度 `now` を要求する具体的ユースケースを3件以上洗い出そうとしたが、いずれも本DSLのドメイン（王朝・戦争・科学史等、年〜日単位が主体の歴史年表）とは接続しない仮説的シナリオに留まった。
+  1. 「ライブ更新ダッシュボード」的用途 — 本DSLはCLIでビルド時に静的SVG/PDF/HTMLを生成する設計であり、実行中に`now`が動的に再評価される仕組み自体が存在しない（該当なし）。
+  2. `now` への offset 付与（issue #647, ADR-0006本体の主題）— 唯一の具体的動機だが、これは秒精度化の**理由ではなく、秒精度化を前提とする別機能**であり、その別機能自体の需要が実証されていない（後述 D5）。
+  3. 監査・コンプライアンス用途の「生成時刻の正確な記録」— IR 全体のビルドメタデータ（生成タイムスタンプ等）として持たせるべき情報であり、`now` キーワード（span/event_rangeの終端値）の意味論とは別問題。
+  - 「需要が薄い」と結論する。年精度で十分な理由: `now` の用途は「継続中の期間の終端」を示すことであり、年表という粒度（年〜日単位の出来事を扱う）において、終端が「今日」か「今この瞬間」かの違いに実用上の意味がない。
+- **中間段階（月日精度）の評価**: 月日精度のみへの拡張も検討したが、ADR-0006本体が挙げる唯一の具体的動機（offset付与）に対しては不十分。UTC offsetは時刻（時・分）に対して意味を持つ情報であり、月日精度までの拡張では「offsetを付けても年月日の表示が変わらない」という中途半端な状態になる。時刻を伴わない中間段階は需要にも技術的合理性にも欠けると判断する。
+
+### D4. 秒精度 `now` の決定性・再現性コスト評価（issue #713、2026-08-05）
+
+- **現状の決定性対策**: (1) `crates/tdsl-core/src/tests/golden.rs` の insta redaction（`.items[4].end` を `"[resolved-now-year]"` に固定、`examples/feature_showcase.tdsl` のアイテム順序決め打ちのため脆い）、(2) `now.rs::current_year_utc()` と `lower_static.rs` の `(2020..=2200)` 範囲アサーション（2200年以降は失敗する期限付きテスト）、(3) `ir.rs` の `skip_serializing_if = "is_false"`（`end_open` 未使用時は IR に出さない）の3つのみ。値を固定するオーバーライド手段（`TDSL_NOW` 環境変数等）は存在しない。
+- **秒精度化で壊れる/悪化する箇所**: 年精度なら `now` の値が変わるのは年1回であり、テストの実行タイミングに依存する不安定性は実質ゼロだった。秒精度化するとビルドのたびに（テスト実行のたびに）IR が変わり、golden snapshot・decompileラウンドトリップの再現性が実行タイミング依存になる。既存の index決め打ちredactionはアイテム追加で壊れる脆さを既に抱えており、秒精度化はこの脆さを悪化させるのみでなく、新たに全フィールド（`end_second`等）のredactionを追加で必要とする。
+- **注入方式の比較**: `SOURCE_DATE_EPOCH`（再現可能ビルドの業界慣習、`now.rs::now_unix_secs()` の唯一の呼び出し経路を差し替える形で実現可能）が最有力候補。CLIフラグ案は`tdsl build`以外のエントリポイント（WASM/LSP）に届かないため不採用。ただしいずれの方式でも、WASM経路（`js_sys::Date`、#583のトラップ回避分岐）に同じ注入方式を通す追加実装が必要になる。
+- **結論**: 決定性確保のための実装コスト（環境変数注入 + WASM分岐対応 + golden redaction の全面的な作り直し）は、D3で「需要が薄い」と結論した機能に対して不釣り合いに大きい。この非対称性自体が NO-GO の追加根拠になる。
+
+### D5. 最終決定: 年精度のまま据え置く（NO-GO、2026-08-05 決定）
+
+D3（需要が薄い）・D4（決定性確保のコストが不釣り合いに大きい）を踏まえ、`now` の解決粒度は**年精度のまま据え置く**ことを正式決定とする。implementation-strict.md 原則4「Smaller MVP over larger speculation」に従い、実証されていない speculative な offset 付与機能のためだけに解決粒度を拡張しない。
+
+- D1〜D2 が申し送った「offset 付与とセットで設計するか独立issueに分けるか」（ADR-0006 D2-3）への回答: **セット/独立の判断自体が不要になる**。`now` への offset 付与は、粒度拡張なしには意味論上ほぼ無意味（年精度の値にoffsetを付けても年をまたぐ極端なケースを除き表示が変わらない）であるため、offset付与機能自体も本ADRの範囲でNO-GOとする。
+- 既存規則は変更しない: 秒精度 `now` を採用しないため、`end_open: true` の既存規則（renderer「進行中」表示、decompileが `now` を再出力する往復規則）への影響はそもそも発生しない。
+- ADR 0003 D3「`now` はビルド時点の UTC 年に解決される、offset なしの値」の記述はそのまま維持する（更新不要）。
+- **NO-GO の場合の対応**（ADR-0007 D3 のパターンを踏襲、2026-08-05 実施済み）:
+  - issue #647 の実装スコープは起票しない。
+  - 需要が再燃した場合の再検討条件（ニーズが再燃した場合に再評価すべき点）: (a) `now` を使うユースケースが年表ドメイン外（ライブダッシュボード等）に広がった場合、(b) D4 の決定性コストを許容してもよいほど強い具体的ユースケースが提示された場合。
+
 ## 比較した代替案
 
 | 方式 | 判定 | 理由 |
 |---|---|---|
 | 本 ADR で構文・意味論まで確定する | ❌ 不採用 | `now` の解決粒度という前提が未確定であり、構文だけを先に固定すると手戻りリスクが高い |
 | 検討軸整理 + 申し送り事項に留める（採用） | ✅ 採用 | 前提条件（`now` の解決粒度）を明確にした上で、次の設計フェーズに正確な出発点を渡せる |
-| `now` への offset 付与自体を却下する | ❌ 不採用 | 需要（レポート生成タイムゾーンの明示）自体は issue #647 の起票理由として残っており、却下は本 ADR の権限外（プロダクト判断が必要） |
+| `now` への offset 付与自体を却下する | ❌ 不採用（起票時点） → ✅ D5 で採用 | 起票当初は却下がプロダクト判断の権限外だったが、D3/D4 の需要・コスト評価を経て D5 で正式に却下（NO-GO）した |
 
 ## 影響範囲
 
 本 ADR 自体はドキュメントのみの変更であり、コード変更は伴わない。
 
-- `docs/adr/0006-now-explicit-offset.md`（本ファイル、新規）
-- 実装が GO と判断された場合の想定変更範囲（未確定、参考情報）: `crates/tdsl-parser/src/grammar.pest` / `ast.rs` / `builder.rs`、`crates/tdsl-core/src/lower/mod.rs`、`crates/tdsl-core/src/ir.rs`、`docs/dsl-spec.md`、`apps/webui/src/lang-tdsl/keywords.json`（CLAUDE.md「DSL文法の変更手順」に従う）
+- `docs/adr/0006-now-explicit-offset.md`（本ファイル）
+- D5（NO-GO）決定に伴い、実装スコープの起票は行わない
 
 ## 既知リスク
 
-- `now` の解決粒度拡張とセットで議論しないと、offset 付与の意味論だけが宙に浮いた設計になる可能性がある。
-- implementation-strict.md §2 NO-GO（MVP deferred機能の実装）に該当するため、実装着手前には必ずユーザー確認が必要。
+- D5 は「現時点で需要が薄い」という消極的結論であり、需要が再燃した場合は D3/D4 の再評価が必要になる（D5 参照）。
+- D3 の影響範囲調査は静的コード分析に基づくものであり、実装を伴う実測ではない。
 
 ## 未決定事項（本 ADR の範囲外）
 
-- `now` 自体の解決粒度（年精度のまま据え置くか、秒精度に拡張するか）。
-- 構文の最終決定（`now+09:00` / `now(+09:00)` / 専用キーワード等）。
-- パーサ・AST・IR・lowering・renderer・decompile・CSV・LSP・WASM の各層への実装方式。
+- なし。D5 により本 ADR のスコープ内の論点（解決粒度・offset 付与の GO/NO-GO）はすべて確定した。
