@@ -1,6 +1,6 @@
 # ADR 0005: タイムライン本体（チャート部分）の複数ページ化
 
-- **Status**: Accepted（設計方針として承認。lane グループ軸は Spike #651 → 本実装 #660 → PDF 統合 #661 で完了。時間範囲軸の分割は #662（spike, needs-refinement）として継続検討中。境界またぎ検出の spike 土台は #709、group band/gantt/zigzag/open-ended の相互作用検証は #711、境界をまたぐ span の表示戦略3案の比較は #710 で完了。時間範囲軸の未検証事項はいずれも解消済みで、次は本実装 GO/NO-GO 判断が残る）
+- **Status**: Accepted（設計方針として承認。lane グループ軸は Spike #651 → 本実装 #660 → PDF 統合 #661 で完了。時間範囲軸の分割は Spike #662（#709/#710/#711）で検証完了し、D3 で本実装 GO 判断済み。#662 はクローズ、本実装は新規 issue に引き継ぐ）
 - **Date**: 2026-07-21
 - **Deciders**: keroway（承認済み、2026-07-21）
 - **Related issues**: #649（本 ADR）, #609（親: paginated PDF export, ADR 0004 が分岐元）
@@ -223,9 +223,21 @@ issue #709 の spike 土台（`split_ir_by_time_range` / `items_crossing_boundar
 
 第2節「ページ境界をまたぐ span/event_range の扱い」は、本 spike により3戦略の実装比較と推奨案(戦略1: クリップ + 継続マーカー)が確定し、未検証状態を解消した。ADR-0005 の未検証事項は全節で解消済みとなった(第1節のページ分割軸の最終選定、第4節のCLIフラグ名、継続マーカーの具体的な描画仕様は、いずれも本実装 issue に委ねる実装詳細として残る)。
 
+## D3. 時間範囲軸チャートページ分割の本実装 GO/NO-GO 判断（issue #662 の結論）
+
+issue #709/#710/#711 の spike 結果を踏まえ、**時間範囲軸のチャートページ分割を本実装する（GO）と判断する。**
+
+- ADR 0004（#609）が Effort L / Risk HIGH と見積もっていた根拠（境界をまたぐ span のクリッピング・継続表示・レイアウトエンジンの構造的変更）は、spike で以下の通り縮小した:
+  - group band / gantt / zigzag / open-ended の4機能はいずれも追加の分岐処理が不要（#711）。
+  - 境界をまたぐ span の表示戦略は「クリップ + 継続マーカー」に確定し、既存の `primary_axis_segment` クランプを流用できる（#710、spike実装92行）。
+  - テスト戦略は ADR-0004 D7 の構造アサーションパターンをそのまま踏襲可能と実証済み（ゴールデン画像比較不要）。
+- 残るコストは (a) CLI 警告経路の配線（lane グループ軸の `group_bands_split_across_pages` パターン踏襲）、(b) 継続マーカーの SVG 描画、(c) 範囲外 item のフィルタ最適化（任意）に限定される。
+- 本実装 issue で確定させる実装詳細（本 ADR では決定しない）: CLI フラグ名（`--chart-pagination-range <N>` 案 / `--chart-pagination lane:<N>|range:<N>` 案）、継続マーカーの具体的描画仕様（矢印形状・色・アクセシビリティラベル）、縦書きレイアウトでの継続マーカーの向き、`--pdf-pagination`（テーブルページ分割）との組み合わせ時の挙動。
+- issue #662 はこの判断をもって完了とする。本実装は新規 issue として起票する。
+
 ## 未決定事項（本 ADR の範囲外）
 
-- ページ分割軸の最終決定（時間範囲 / lane グループ / 両方）。lane グループ軸は issue #660 で実装済み。時間範囲軸は未着手（#662, `needs-refinement`）。
+- ページ分割軸の最終決定（時間範囲 / lane グループ / 両方）。lane グループ軸は issue #660 で実装済み。時間範囲軸は D3 により GO 判断済み・本実装 issue 起票待ち。
 - span/event_range のページ境界クリッピング・継続表示の具体的な描画仕様（lane グループ軸では原理上不要と判明済み。時間範囲軸は issue #710 の spike により戦略選定〈クリップ + 継続マーカー〉は完了。継続マーカーの具体的な描画〈矢印形状・色・アクセシビリティラベル〉は本実装 issue に委ねる）。
 - CLI フラグの最終的な名前・構文。lane グループ軸は `--chart-pagination <N>` として issue #660 で確定済み。
 - group band / gantt / zigzag / open-ended range の分割時の詳細な振る舞い。lane グループ軸の group band は issue #660 で「警告して分割続行」に確定済み。時間範囲軸は issue #711 の spike により4機能とも「追加設計不要」と判明し解消済み。
