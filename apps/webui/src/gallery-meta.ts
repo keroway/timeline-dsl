@@ -14,6 +14,7 @@ import officeholderWikidataSource from '../../../examples/officeholder_wikidata.
 import samuraiWikidataSource from '../../../examples/samurai_wikidata.tdsl?raw'
 import sciTechTimelineSource from '../../../examples/sci_tech_timeline.tdsl?raw'
 import templateApplyExampleSource from '../../../examples/template_apply_example.tdsl?raw'
+import timeRangeChartPaginationSource from '../../../examples/time_range_chart_pagination.tdsl?raw'
 import worldWarsSource from '../../../examples/world_wars.tdsl?raw'
 
 export interface GalleryExample {
@@ -158,5 +159,13 @@ export const GALLERY_EXAMPLES: GalleryExample[] = [
     filename: 'global_conference_timezones.tdsl',
     requiresNetwork: false,
     source: globalConferenceTimezonesSource,
+  },
+  {
+    label: '古代〜中世 文明史（時間範囲軸ページ分割）',
+    description:
+      '複数ページ境界をまたぐ長期 span を例示（--chart-pagination-range の継続マーカー描画はCLI実行時のみ確認可）',
+    filename: 'time_range_chart_pagination.tdsl',
+    requiresNetwork: false,
+    source: timeRangeChartPaginationSource,
   },
 ]
