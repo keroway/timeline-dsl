@@ -287,19 +287,19 @@ enum Commands {
         chart_pagination: Option<usize>,
 
         /// Split the chart into N pages along the time-range axis instead of
-        /// by lane group (issue #733/#736, ADR-0005 D3): `meta.range` is
+        /// by lane group (issue #733/#736/#734, ADR-0005 D3): `meta.range` is
         /// divided into N contiguous, non-empty integer-year segments and
         /// each is rendered as its own page. A `Span`/`EventRange` that
         /// straddles a segment boundary is clipped on each page it
-        /// intersects (a warning is printed listing every such item; no
-        /// visual continuation marker is drawn yet). Applies to --format svg
-        /// (separate `<stem>.pageN.svg` files, zero-padded to the total page
-        /// count's digit width) and --format pdf (separate PDF pages: all
-        /// chart pages first, then any --show-table table page(s); when
-        /// combined with --pdf-pagination, table page footers count only the
-        /// table pages). Requires --output. Not compatible with --watch or
-        /// --chart-pagination. Default: disabled (single-page output
-        /// unchanged).
+        /// intersects, with a continuation-marker glyph drawn at the clipped
+        /// edge (a warning is also printed listing every such item). Applies
+        /// to --format svg (separate `<stem>.pageN.svg` files, zero-padded to
+        /// the total page count's digit width) and --format pdf (separate
+        /// PDF pages: all chart pages first, then any --show-table table
+        /// page(s); when combined with --pdf-pagination, table page footers
+        /// count only the table pages). Requires --output. Not compatible
+        /// with --watch or --chart-pagination. Default: disabled (single-page
+        /// output unchanged).
         #[arg(long)]
         chart_pagination_range: Option<usize>,
     },

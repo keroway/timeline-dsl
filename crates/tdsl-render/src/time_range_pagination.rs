@@ -21,11 +21,17 @@
 //! new geometry needed) and separately *detected* — never silently dropped —
 //! via [`items_crossing_boundaries`], so callers can warn.
 //!
-//! Drawing a continuation marker for a clipped item (ADR-0005 §2 strategy
-//! "クリップ + 継続マーカー") is deferred to a follow-up issue; this module
-//! only promotes the pure marker-computation primitive
-//! ([`clip_with_continuation_markers`]) without wiring it into the SVG
-//! output yet.
+//! A continuation-marker glyph for a clipped item (ADR-0005 §2 strategy
+//! "クリップ + 継続マーカー", issue #734) is drawn directly by
+//! `svg::render_continuation_marker_fragment`, computed at the *sub-year
+//! fraction* precision `LayoutModel::compute` already uses for the
+//! `primary_axis_segment` clamp (`RenderOptions::show_boundary_clip_markers`)
+//! — this is more precise than the plain-integer-year [`ClipMarker`] this
+//! module computes, so the two are intentionally independent: this module's
+//! [`clip_with_continuation_markers`] stays a year-granularity utility
+//! (useful for callers that only need "does this item cross a boundary",
+//! e.g. an alternative non-SVG renderer), not the primitive the SVG path
+//! actually renders from.
 
 use tdsl_core::ir::{Item, TimelineIr};
 
@@ -342,6 +348,12 @@ pub fn paginate_svg_by_time_range(
     for time_page in &time_pages {
         let chart_opts = RenderOptions {
             show_table: false,
+            // #734: draw a continuation-marker glyph on every page a
+            // boundary-crossing item is clipped by (see svg.rs
+            // render_continuation_marker_fragment). Only this axis's chart
+            // pages opt in — plain single-page renders with a
+            // user-narrowed `range` keep their existing silent-clamp look.
+            show_boundary_clip_markers: true,
             ..opts.clone()
         };
         let layout = LayoutModel::compute(&time_page.ir, chart_opts)?;
@@ -795,6 +807,72 @@ mod tests {
             .expect("pagination should succeed");
         assert_eq!(result.pages.len(), 4);
         assert!(result.pages.iter().all(|p| p.kind == PageKind::Chart));
+    }
+
+    #[test]
+    fn paginate_draws_continuation_markers_on_every_page_a_crossing_item_intersects() {
+        // #734 end-to-end: paginate_svg_by_time_range opts in to
+        // RenderOptions::show_boundary_clip_markers internally, so the real
+        // per-page SVG output (not just a unit-level LayoutModel::compute
+        // call) must carry the marker on each page s-crossing [80, 220]
+        // touches (pages 0, 1, 2 of a 4-page 0..400 split; see crossing_ir).
+        let ir = crossing_ir();
+        let result = paginate_svg_by_time_range(&ir, &RenderOptions::default(), 4)
+            .expect("pagination should succeed");
+        assert_eq!(result.pages.len(), 4);
+
+        // Page 0 (0..100): item starts here, continues onward only.
+        assert!(
+            !result.pages[0]
+                .svg
+                .contains("tdsl-continuation-marker-from-previous-page")
+        );
+        assert!(
+            result.pages[0]
+                .svg
+                .contains("tdsl-continuation-marker-to-next-page")
+        );
+
+        // Page 1 (100..200): item continues from page 0 and onward to page 2.
+        assert!(
+            result.pages[1]
+                .svg
+                .contains("tdsl-continuation-marker-from-previous-page")
+        );
+        assert!(
+            result.pages[1]
+                .svg
+                .contains("tdsl-continuation-marker-to-next-page")
+        );
+
+        // Page 2 (200..300): item ends here (at 220), no further continuation.
+        assert!(
+            result.pages[2]
+                .svg
+                .contains("tdsl-continuation-marker-from-previous-page")
+        );
+        assert!(
+            !result.pages[2]
+                .svg
+                .contains("tdsl-continuation-marker-to-next-page")
+        );
+
+        // Page 3 (300..400): the item never touches this segment at all.
+        assert!(!result.pages[3].svg.contains("tdsl-continuation-marker"));
+    }
+
+    #[test]
+    fn paginate_no_crossing_items_draw_no_continuation_markers() {
+        let ir = no_crossing_ir();
+        let result = paginate_svg_by_time_range(&ir, &RenderOptions::default(), 4)
+            .expect("pagination should succeed");
+        for page in &result.pages {
+            assert!(
+                !page.svg.contains("tdsl-continuation-marker"),
+                "no item crosses a boundary in no_crossing_ir; page must have no markers: {}",
+                page.svg
+            );
+        }
     }
 
     #[test]

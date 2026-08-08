@@ -476,7 +476,7 @@ fn warn_group_bands_split_across_pages(group_bands_split_across_pages: &[String]
 fn warn_items_crossing_boundaries(items_crossing_boundaries: &[tdsl_render::BoundaryCrossingItem]) {
     for item in items_crossing_boundaries {
         eprintln!(
-            "Warning: item {:?} ({}..{}) is clipped at chart page boundary year(s) {:?}; it renders as separate, unmarked segments on each page it crosses. Adjust --chart-pagination-range if a different page count would move the boundary outside this item's range, or accept the clipping.",
+            "Warning: item {:?} ({}..{}) is clipped at chart page boundary year(s) {:?}; each page it crosses shows a continuation-marker glyph at the clipped edge (#734). Adjust --chart-pagination-range if a different page count would move the boundary outside this item's range, or accept the clipping.",
             item.id, item.start, item.end, item.crossed_boundaries
         );
     }
