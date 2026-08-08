@@ -176,7 +176,12 @@ cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format svg --
 test -s "$TMP_DIR/china_range.page1.svg"
 test -s "$TMP_DIR/china_range.page2.svg"
 test -s "$TMP_DIR/china_range.page3.svg"
-grep -Fq "<svg" "$TMP_DIR/china_range.page1.svg"
+for f in china_range.page1.svg china_range.page2.svg china_range.page3.svg; do
+  grep -Fq "<svg" "$TMP_DIR/$f"
+  grep -Fq "</svg>" "$TMP_DIR/$f"
+done
+! test -e "$TMP_DIR/china_range.page4.svg" \
+  || { echo "FAIL: --chart-pagination-range 3 must not produce a 4th page file"; exit 1; }
 
 echo "[e2e] render: --chart-pagination-range 0 exits non-zero"
 ! cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format svg --chart-pagination-range 0 --output "$TMP_DIR/china_range_zero.svg" 2>/dev/null \

@@ -60,6 +60,15 @@ pub enum TimeRangePaginationError {
         span: i64,
         page_count: usize,
     },
+    /// `page_index >= page_count` in [`clip_with_continuation_markers`] would
+    /// index past the `page_count + 1` segment boundaries — a hard error
+    /// instead of a panic, since this is a public API a caller can invoke
+    /// with an out-of-range index.
+    #[error("page_index {page_index} is out of range for page_count {page_count}")]
+    InvalidPageIndex {
+        page_index: usize,
+        page_count: usize,
+    },
     #[error("SVG rendering failed: {0}")]
     Render(#[from] RenderError),
 }
@@ -266,6 +275,12 @@ pub fn clip_with_continuation_markers(
     page_count: usize,
     page_index: usize,
 ) -> Result<Vec<ClipMarker>, TimeRangePaginationError> {
+    if page_index >= page_count {
+        return Err(TimeRangePaginationError::InvalidPageIndex {
+            page_index,
+            page_count,
+        });
+    }
     let boundaries = segment_boundaries(range, page_count)?;
     let (seg_start, seg_end) = (boundaries[page_index], boundaries[page_index + 1]);
 
@@ -739,6 +754,36 @@ mod tests {
 
         let page3 = clip_with_continuation_markers(&ir, range, 4, 3).unwrap();
         assert!(page3.iter().all(|m| m.id != "s-crossing"));
+    }
+
+    #[test]
+    fn clip_markers_page_index_equal_to_page_count_is_rejected_explicitly() {
+        let ir = crossing_ir();
+        let range = ir.meta.range;
+        let err = clip_with_continuation_markers(&ir, range, 4, 4)
+            .expect_err("page_index == page_count must be a hard error, not a panic");
+        assert!(matches!(
+            err,
+            TimeRangePaginationError::InvalidPageIndex {
+                page_index: 4,
+                page_count: 4,
+            }
+        ));
+    }
+
+    #[test]
+    fn clip_markers_page_index_greater_than_page_count_is_rejected_explicitly() {
+        let ir = crossing_ir();
+        let range = ir.meta.range;
+        let err = clip_with_continuation_markers(&ir, range, 4, 100)
+            .expect_err("page_index > page_count must be a hard error, not a panic");
+        assert!(matches!(
+            err,
+            TimeRangePaginationError::InvalidPageIndex {
+                page_index: 100,
+                page_count: 4,
+            }
+        ));
     }
 
     // ─── paginate_svg_by_time_range ─────────────────────────────────────────

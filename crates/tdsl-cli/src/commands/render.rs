@@ -280,7 +280,7 @@ fn do_render(
                 if !pagination.items_crossing_boundaries.is_empty() {
                     for item in &pagination.items_crossing_boundaries {
                         eprintln!(
-                            "Warning: item {:?} ({}..{}) is clipped at chart page boundary year(s) {:?}; it renders as separate, unmarked segments on each page it crosses. Increase --chart-pagination-range to avoid crossing boundaries, or accept the clipping.",
+                            "Warning: item {:?} ({}..{}) is clipped at chart page boundary year(s) {:?}; it renders as separate, unmarked segments on each page it crosses. Adjust --chart-pagination-range if a different page count would move the boundary outside this item's range, or accept the clipping.",
                             item.id, item.start, item.end, item.crossed_boundaries
                         );
                     }
