@@ -113,8 +113,9 @@ tdsl render examples/china_dynasties.tdsl --format svg --chart-pagination 2 --ou
 # 同様に単一 PDF 内の複数ページとして出力（チャートページ群 → テーブルページ群の順）
 tdsl render examples/china_dynasties.tdsl --format pdf --chart-pagination 2 --show-table --pdf-pagination --output china_chart.pdf
 
-# 代わりに時間範囲軸でチャートを複数の SVG ページに分割（現時点では svg のみ対応）
+# 代わりに時間範囲軸でチャートを複数ページに分割（svg / pdf のどちらも対応）
 tdsl render examples/china_dynasties.tdsl --format svg --chart-pagination-range 3 --output china_chart_range.svg
+tdsl render examples/china_dynasties.tdsl --format pdf --chart-pagination-range 3 --show-table --pdf-pagination --output china_chart_range.pdf
 
 # 縦方向レイアウト（時間軸を上から下に描画）
 tdsl render examples/china_dynasties.tdsl --orientation vertical --output china_vertical.html

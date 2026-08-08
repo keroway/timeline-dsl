@@ -41,6 +41,18 @@ pub enum PdfError {
     PaginationRequiresTable,
     #[error("chart pagination failed: {0}")]
     ChartPagination(#[from] PaginationError),
+    #[error("time-range chart pagination failed: {0}")]
+    TimeRangeChartPagination(#[from] crate::time_range_pagination::TimeRangePaginationError),
+    /// `PdfOptions::chart_pagination` and `PdfOptions::chart_pagination_range`
+    /// were both set — the combined "両方" axis (lane group × time range) is
+    /// out of scope (ADR-0005 検討事項1). The CLI already rejects this
+    /// combination before calling into `tdsl-render`; this is a
+    /// defense-in-depth guard for other callers of the public API.
+    #[error(
+        "chart_pagination and chart_pagination_range cannot both be set \
+         (lane-group axis and time-range axis pagination together is not supported)"
+    )]
+    BothChartPaginationAxesSet,
 }
 
 /// Standard page sizes for PDF output.
@@ -131,6 +143,18 @@ pub struct PdfOptions {
     /// into multiple pages, so this single table page takes over the role the
     /// combined chart+table SVG played in the non-chart-paginated case.
     pub chart_pagination: Option<usize>,
+    /// Split the timeline chart into `N` PDF pages along the time-range axis
+    /// instead of by lane group (issue #736, following #733's SVG-only
+    /// implementation in [`crate::time_range_pagination`]). `None` (the
+    /// default) retains the historical single-chart-page behavior
+    /// byte-for-byte, regardless of `pagination`. Mutually exclusive with
+    /// `chart_pagination` (setting both is [`PdfError::BothChartPaginationAxesSet`]).
+    ///
+    /// Page ordering, table-page behavior, and footer numbering when combined
+    /// with `pagination` are identical to `chart_pagination`'s (see its doc
+    /// comment) — chart pages first, then table pages, with `i / N` counting
+    /// only the table pages.
+    pub chart_pagination_range: Option<usize>,
 }
 
 impl Default for PdfOptions {
@@ -143,6 +167,7 @@ impl Default for PdfOptions {
             creation_date: None,
             pagination: false,
             chart_pagination: None,
+            chart_pagination_range: None,
         }
     }
 }
@@ -163,20 +188,34 @@ pub fn render_pdf(
     Ok(bytes)
 }
 
-/// Same as [`render_pdf`], but also returns diagnostic warnings that must not
-/// be silently dropped (implementation-strict.md §1 "Explicit error over
-/// silent fallback").
-///
-/// Currently the only warnings produced are `Lane::group` labels whose
-/// contiguous lane run was split across chart pages by `pdf_opts.chart_pagination`
-/// — the same diagnostic [`crate::pagination::paginate_svg_by_lane_groups`]
-/// returns for the SVG-only pagination path (issue #660). When
-/// `pdf_opts.chart_pagination` is `None` this always returns an empty `Vec`.
+/// Diagnostic warnings [`render_pdf_with_warnings`] returns alongside the
+/// rendered PDF bytes. Neither field is ever silently dropped
+/// (implementation-strict.md §1 "Explicit error over silent fallback") — a
+/// non-empty field means the caller MUST surface it (e.g. as a CLI stderr
+/// warning), not just log it internally.
+#[derive(Debug, Default)]
+pub struct PdfWarnings {
+    /// `Lane::group` labels whose contiguous lane run was split across chart
+    /// pages by `pdf_opts.chart_pagination` — the same diagnostic
+    /// [`crate::pagination::paginate_svg_by_lane_groups`] returns for the
+    /// SVG-only pagination path (issue #660). Always empty unless
+    /// `chart_pagination` is set.
+    pub group_bands_split_across_pages: Vec<String>,
+    /// `Span`/`EventRange` items whose extent straddles an interior time-range
+    /// page boundary produced by `pdf_opts.chart_pagination_range` — the same
+    /// diagnostic [`crate::time_range_pagination::paginate_svg_by_time_range`]
+    /// returns for the SVG-only pagination path (issue #733). Always empty
+    /// unless `chart_pagination_range` is set.
+    pub items_crossing_boundaries: Vec<crate::time_range_pagination::BoundaryCrossingItem>,
+}
+
+/// Same as [`render_pdf`], but also returns diagnostic warnings (see
+/// [`PdfWarnings`]) that must not be silently dropped.
 pub fn render_pdf_with_warnings(
     ir: &TimelineIr,
     opts: RenderOptions,
     mut pdf_opts: PdfOptions,
-) -> Result<(Vec<u8>, Vec<String>), PdfError> {
+) -> Result<(Vec<u8>, PdfWarnings), PdfError> {
     // Supplement title from IR metadata when the caller did not override it.
     if pdf_opts.title.is_none() && !ir.meta.title.is_empty() {
         pdf_opts.title = Some(ir.meta.title.clone());
@@ -193,26 +232,33 @@ pub fn render_pdf_with_warnings(
 
 /// Compute the raw per-page SVG strings that [`render_pdf`] would convert to a
 /// PDF, without performing the SVG→PDF conversion itself, plus any chart
-/// group-band split warnings (see [`render_pdf_with_warnings`]).
+/// pagination warnings (see [`render_pdf_with_warnings`] / [`PdfWarnings`]).
 ///
 /// This is the single source of truth for the pagination branches (ADR-0004
-/// D1/D2, ADR-0005/#661):
+/// D1/D2, ADR-0005/#661/#736):
 ///
-/// - `chart_pagination: None`, `pagination: false` — exactly one page (the
-///   combined timeline+table SVG), byte-for-byte identical to the pre-#661
-///   behavior (regression-tested).
-/// - `chart_pagination: None`, `pagination: true` — `[timeline_page,
-///   table_page_1, ..., table_page_N]`, where the timeline page is computed
-///   identically to the non-paginated single page (`show_table` forced to
-///   `false`, everything else unchanged) so that table pagination cannot
-///   alter the timeline chart (ADR-0004 D5). Unchanged by #661.
+/// - `chart_pagination: None`, `chart_pagination_range: None`,
+///   `pagination: false` — exactly one page (the combined timeline+table
+///   SVG), byte-for-byte identical to the pre-#661 behavior
+///   (regression-tested).
+/// - same, `pagination: true` — `[timeline_page, table_page_1, ...,
+///   table_page_N]`, where the timeline page is computed identically to the
+///   non-paginated single page (`show_table` forced to `false`, everything
+///   else unchanged) so that table pagination cannot alter the timeline
+///   chart (ADR-0004 D5). Unchanged by #661/#736.
 /// - `chart_pagination: Some(n)` — `[chart_page_1, ..., chart_page_M,
 ///   table_page_1, ..., table_page_N]` (chart pages always precede table
-///   pages). `N` is `0` when `RenderOptions::show_table` is disabled, `1`
-///   when it is enabled but `pagination` is not, or the row-chunked count
-///   from `pagination: true` otherwise. Table page footers count only the
-///   table pages, matching the `chart_pagination: None` + `pagination: true`
-///   numbering.
+///   pages), split by lane group.
+/// - `chart_pagination_range: Some(n)` — same page ordering, but split along
+///   the time-range axis (#733's `time_range_pagination` module) instead of
+///   by lane group. Mutually exclusive with `chart_pagination`
+///   ([`PdfError::BothChartPaginationAxesSet`] if both are set).
+///
+/// For either chart-pagination axis, `N` (table page count) is `0` when
+/// `RenderOptions::show_table` is disabled, `1` when it is enabled but
+/// `pagination` is not, or the row-chunked count from `pagination: true`
+/// otherwise. Table page footers count only the table pages, matching the
+/// no-chart-pagination + `pagination: true` numbering.
 ///
 /// Exposed at `pub(crate)` so tests can assert on the exact page SVGs through
 /// the real code path instead of re-implementing it.
@@ -220,16 +266,50 @@ fn render_pdf_svg_pages(
     ir: &TimelineIr,
     mut opts: RenderOptions,
     pdf_opts: &PdfOptions,
-) -> Result<(Vec<String>, Vec<String>), PdfError> {
+) -> Result<(Vec<String>, PdfWarnings), PdfError> {
     // usvg does not support CSS custom properties; force plain hex lane colours.
     opts.use_css_vars = false;
+
+    if pdf_opts.chart_pagination.is_some() && pdf_opts.chart_pagination_range.is_some() {
+        return Err(PdfError::BothChartPaginationAxesSet);
+    }
+
+    if let Some(page_count) = pdf_opts.chart_pagination_range {
+        // ── Time-range chart pagination (#736): mirrors the lane-group axis
+        // below, splitting meta.range instead of lanes. The chart is always
+        // split, never combined with the table into one SVG. ──────────────
+        if pdf_opts.pagination && !opts.show_table {
+            return Err(PdfError::PaginationRequiresTable);
+        }
+
+        let chart_opts = RenderOptions {
+            show_table: false,
+            ..opts.clone()
+        };
+        let time_range_pagination =
+            crate::time_range_pagination::paginate_svg_by_time_range(ir, &chart_opts, page_count)?;
+        let items_crossing_boundaries = time_range_pagination.items_crossing_boundaries;
+        let mut pages: Vec<String> = time_range_pagination
+            .pages
+            .into_iter()
+            .map(|page| page.svg)
+            .collect();
+        append_table_pages(ir, pdf_opts, opts.show_table, &mut pages)?;
+        return Ok((
+            pages,
+            PdfWarnings {
+                group_bands_split_across_pages: vec![],
+                items_crossing_boundaries,
+            },
+        ));
+    }
 
     let Some(lanes_per_page) = pdf_opts.chart_pagination else {
         // ── No chart pagination: preserve the pre-#661 behavior verbatim ──
         if !pdf_opts.pagination {
             let layout = LayoutModel::compute(ir, opts)?;
             let svg_str = svg::render_svg(&layout)?;
-            return Ok((vec![svg_str], vec![]));
+            return Ok((vec![svg_str], PdfWarnings::default()));
         }
         if !opts.show_table {
             return Err(PdfError::PaginationRequiresTable);
@@ -247,7 +327,7 @@ fn render_pdf_svg_pages(
         let table_pages = table_pages_by_row_chunks(&table_rows, content_w, content_h)?;
         let mut pages = vec![timeline_svg];
         pages.extend(table_pages);
-        return Ok((pages, vec![]));
+        return Ok((pages, PdfWarnings::default()));
     };
 
     // ── Chart pagination (#661): the chart is always split, never combined
@@ -262,39 +342,60 @@ fn render_pdf_svg_pages(
     };
     let chart_pagination =
         pagination::paginate_svg_by_lane_groups(ir, &chart_opts, lanes_per_page)?;
-    let warnings = chart_pagination.group_bands_split_across_pages;
+    let group_bands_split_across_pages = chart_pagination.group_bands_split_across_pages;
     let mut pages: Vec<String> = chart_pagination
         .pages
         .into_iter()
         .map(|page| page.svg)
         .collect();
 
-    if opts.show_table {
-        let lane_label_lookup = lane_label_lookup(ir);
-        let table_rows = collect_table_rows(ir, lane_label_lookup);
-        let (_, _, _, content_w, content_h) = pdf_page_geometry(pdf_opts)?;
-        if pdf_opts.pagination {
-            pages.extend(table_pages_by_row_chunks(
-                &table_rows,
-                content_w,
-                content_h,
-            )?);
-        } else {
-            // Single, unsplit table page: this takes over the role the
-            // combined chart+table SVG played when the chart was not split
-            // (see the `PdfOptions::chart_pagination` doc comment).
-            let table_height = TABLE_ROW_HEIGHT * (table_rows.len() as f64 + 1.0) + 24.0;
-            pages.push(svg::render_table_page_svg(
-                &table_rows,
-                content_w,
-                table_height as f32,
-                1,
-                1,
-            )?);
-        }
-    }
+    append_table_pages(ir, pdf_opts, opts.show_table, &mut pages)?;
 
-    Ok((pages, warnings))
+    Ok((
+        pages,
+        PdfWarnings {
+            group_bands_split_across_pages,
+            items_crossing_boundaries: vec![],
+        },
+    ))
+}
+
+/// Append trailing table page(s) to `pages` when `show_table` is enabled,
+/// shared by both chart-pagination axes (#661 lane-group / #736 time-range):
+/// once either axis splits the chart, it can no longer share one SVG with
+/// the table, so a single unsplit table page (or, with `pdf_opts.pagination`,
+/// several row-chunked table pages) is appended after all chart pages —
+/// taking over the role the combined chart+table SVG played when the chart
+/// was not split (see `PdfOptions::chart_pagination`'s doc comment).
+fn append_table_pages(
+    ir: &TimelineIr,
+    pdf_opts: &PdfOptions,
+    show_table: bool,
+    pages: &mut Vec<String>,
+) -> Result<(), PdfError> {
+    if !show_table {
+        return Ok(());
+    }
+    let lane_label_lookup = lane_label_lookup(ir);
+    let table_rows = collect_table_rows(ir, lane_label_lookup);
+    let (_, _, _, content_w, content_h) = pdf_page_geometry(pdf_opts)?;
+    if pdf_opts.pagination {
+        pages.extend(table_pages_by_row_chunks(
+            &table_rows,
+            content_w,
+            content_h,
+        )?);
+    } else {
+        let table_height = TABLE_ROW_HEIGHT * (table_rows.len() as f64 + 1.0) + 24.0;
+        pages.push(svg::render_table_page_svg(
+            &table_rows,
+            content_w,
+            table_height as f32,
+            1,
+            1,
+        )?);
+    }
+    Ok(())
 }
 
 /// Build a lane-id → lane-label lookup closure shared by every table
@@ -1792,10 +1893,11 @@ mod tests {
         .expect("chart-paginated PDF with a split group band still renders");
         assert!(bytes.starts_with(PDF_SIGNATURE));
         assert_eq!(
-            warnings,
+            warnings.group_bands_split_across_pages,
             vec!["グループ".to_string()],
             "group band split across chart pages must be reported, not silently dropped"
         );
+        assert!(warnings.items_crossing_boundaries.is_empty());
     }
 
     #[test]
@@ -1806,8 +1908,12 @@ mod tests {
                 .expect("default PDF render succeeds");
         assert!(bytes.starts_with(PDF_SIGNATURE));
         assert!(
-            warnings.is_empty(),
-            "chart_pagination: None must never produce warnings"
+            warnings.group_bands_split_across_pages.is_empty(),
+            "chart_pagination: None must never produce group-band warnings"
+        );
+        assert!(
+            warnings.items_crossing_boundaries.is_empty(),
+            "chart_pagination_range: None must never produce boundary-crossing warnings"
         );
     }
 
@@ -1849,6 +1955,311 @@ mod tests {
                 page_object_count(&bytes),
                 expected_total_pages,
                 "{page_size:?} landscape={landscape}: expected {expected_total_pages} total pages (2 chart + table pages)"
+            );
+        }
+    }
+
+    // ─── chart_pagination_range (#736, time-range axis PDF integration) ────
+
+    /// Fixture for time-range chart-pagination PDF tests: a `range`-wide
+    /// timeline with `row_count` non-overlapping `Span` items spread evenly
+    /// across the range (one per expected page segment), all in a single
+    /// lane — the time-range axis pages by `meta.range`, not by lane, so a
+    /// single lane is sufficient to exercise it independently of the
+    /// lane-group axis.
+    fn ir_for_time_range_pagination(range: (i64, i64), row_count: usize) -> TimelineIr {
+        let mut ir = sample_ir();
+        ir.meta.range = range;
+        ir.lanes = vec![Lane {
+            id: "a".into(),
+            label: "Lane A".into(),
+            kind: "custom".into(),
+            order: 1,
+            group: None,
+            source_span: None,
+        }];
+        let span = (range.1 - range.0) / row_count as i64;
+        ir.items = (0..row_count)
+            .map(|i| Item::Span {
+                id: format!("span:{i}"),
+                lane: "a".into(),
+                start: range.0 + i as i64 * span,
+                end: range.0 + i as i64 * span + span.max(1) - 1,
+                label: format!("Item {i}"),
+                tags: vec![],
+                source: None,
+                origin: None,
+                note: None,
+                link: None,
+                color: None,
+                start_month: None,
+                start_day: None,
+                start_hour: None,
+                start_minute: None,
+                start_second: None,
+                start_offset_minutes: None,
+                end_month: None,
+                end_day: None,
+                end_hour: None,
+                end_minute: None,
+                end_second: None,
+                end_offset_minutes: None,
+                end_open: false,
+                source_span: None,
+            })
+            .collect();
+        ir
+    }
+
+    #[test]
+    fn chart_pagination_range_none_does_not_change_default_pdf_options() {
+        assert_eq!(PdfOptions::default().chart_pagination_range, None);
+    }
+
+    #[test]
+    fn chart_pagination_range_none_output_is_byte_identical_to_pre_736_behavior() {
+        // Regression (ADR-0005, #736): a PdfOptions with chart_pagination_range
+        // left at its default (None) must take the exact same code path as
+        // before this field existed, producing byte-identical output to the
+        // lane-axis-only PdfOptions equivalent.
+        let ir = ir_with_lanes(2);
+        let baseline = render_pdf(&ir, RenderOptions::default(), PdfOptions::default())
+            .expect("baseline render succeeds");
+        let explicit_none = render_pdf(
+            &ir,
+            RenderOptions::default(),
+            PdfOptions {
+                chart_pagination_range: None,
+                ..PdfOptions::default()
+            },
+        )
+        .expect("explicit chart_pagination_range: None render succeeds");
+        assert_eq!(
+            baseline, explicit_none,
+            "chart_pagination_range: None must be byte-identical to the pre-#736 single-page path"
+        );
+    }
+
+    #[test]
+    fn chart_pagination_range_splits_into_multiple_chart_pages_without_table() {
+        let ir = ir_for_time_range_pagination((0, 400), 4);
+        let bytes = render_pdf(
+            &ir,
+            RenderOptions::default(),
+            PdfOptions {
+                chart_pagination_range: Some(4),
+                ..PdfOptions::default()
+            },
+        )
+        .expect("time-range-paginated PDF without a table renders");
+        assert!(bytes.starts_with(PDF_SIGNATURE));
+        assert_eq!(
+            page_object_count(&bytes),
+            4,
+            "400-year range / 4 pages = 4 chart pages; show_table is false so no table page"
+        );
+    }
+
+    #[test]
+    fn chart_pagination_range_with_show_table_appends_single_unsplit_table_page() {
+        let ir = ir_for_time_range_pagination((0, 400), 4);
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let bytes = render_pdf(
+            &ir,
+            opts,
+            PdfOptions {
+                chart_pagination_range: Some(4),
+                ..PdfOptions::default()
+            },
+        )
+        .expect("time-range-paginated PDF with show_table renders");
+        assert_eq!(
+            page_object_count(&bytes),
+            5,
+            "4 chart pages + 1 unsplit table page (pdf_pagination not requested)"
+        );
+    }
+
+    #[test]
+    fn chart_pagination_range_combined_with_pdf_pagination_orders_chart_pages_before_table_pages() {
+        // 400-year range / 4 pages = 4 chart pages. 70 rows at the default A4
+        // portrait geometry (34 rows/page) split into 3 table pages, so
+        // total = 7 pages.
+        let ir = ir_for_time_range_pagination((0, 400), 70);
+        let opts = RenderOptions {
+            show_table: true,
+            ..RenderOptions::default()
+        };
+        let (pages, _warnings) = render_pdf_svg_pages(
+            &ir,
+            opts,
+            &PdfOptions {
+                chart_pagination_range: Some(4),
+                pagination: true,
+                ..PdfOptions::default()
+            },
+        )
+        .expect("combined time-range chart + table pagination succeeds");
+        assert_eq!(pages.len(), 4 + 3, "4 chart pages then 3 table pages");
+        // Table footers must count only the table pages, never including the
+        // 4 preceding chart pages in the denominator or offset.
+        assert!(
+            pages[4].contains("1 / 3"),
+            "first table page footer must be '1 / 3', got: {}",
+            pages[4]
+        );
+        assert!(
+            pages[5].contains("2 / 3"),
+            "second table page footer must be '2 / 3', got: {}",
+            pages[5]
+        );
+        assert!(
+            pages[6].contains("3 / 3"),
+            "third table page footer must be '3 / 3', got: {}",
+            pages[6]
+        );
+    }
+
+    #[test]
+    fn chart_pagination_range_zero_page_count_is_explicit_error() {
+        let ir = ir_for_time_range_pagination((0, 400), 4);
+        let err = render_pdf(
+            &ir,
+            RenderOptions::default(),
+            PdfOptions {
+                chart_pagination_range: Some(0),
+                ..PdfOptions::default()
+            },
+        )
+        .expect_err("page_count=0 must be a hard error, not a silent no-op");
+        assert!(
+            matches!(
+                err,
+                PdfError::TimeRangeChartPagination(
+                    crate::time_range_pagination::TimeRangePaginationError::InvalidPageCount
+                )
+            ),
+            "expected PdfError::TimeRangeChartPagination(InvalidPageCount), got: {err}"
+        );
+    }
+
+    #[test]
+    fn chart_pagination_range_and_pdf_pagination_without_show_table_is_explicit_error() {
+        let ir = ir_for_time_range_pagination((0, 400), 4);
+        let err = render_pdf(
+            &ir,
+            RenderOptions::default(),
+            PdfOptions {
+                chart_pagination_range: Some(4),
+                pagination: true,
+                ..PdfOptions::default()
+            },
+        )
+        .expect_err(
+            "pdf table pagination without show_table must fail even with chart_pagination_range set",
+        );
+        assert!(matches!(err, PdfError::PaginationRequiresTable));
+    }
+
+    #[test]
+    fn chart_pagination_range_boundary_crossing_warning_propagates_through_render_pdf_with_warnings()
+     {
+        let mut ir = ir_for_time_range_pagination((0, 400), 4);
+        // Straddles the interior boundary at year 100.
+        ir.items.push(Item::Span {
+            id: "span:crossing".into(),
+            lane: "a".into(),
+            start: 80,
+            end: 120,
+            label: "Crossing".into(),
+            tags: vec![],
+            source: None,
+            origin: None,
+            note: None,
+            link: None,
+            color: None,
+            start_month: None,
+            start_day: None,
+            start_hour: None,
+            start_minute: None,
+            start_second: None,
+            start_offset_minutes: None,
+            end_month: None,
+            end_day: None,
+            end_hour: None,
+            end_minute: None,
+            end_second: None,
+            end_offset_minutes: None,
+            end_open: false,
+            source_span: None,
+        });
+        let (bytes, warnings) = render_pdf_with_warnings(
+            &ir,
+            RenderOptions::default(),
+            PdfOptions {
+                chart_pagination_range: Some(4),
+                ..PdfOptions::default()
+            },
+        )
+        .expect("time-range-paginated PDF with a boundary-crossing item still renders");
+        assert!(bytes.starts_with(PDF_SIGNATURE));
+        assert_eq!(warnings.items_crossing_boundaries.len(), 1);
+        assert_eq!(warnings.items_crossing_boundaries[0].id, "span:crossing");
+        assert!(warnings.group_bands_split_across_pages.is_empty());
+    }
+
+    #[test]
+    fn both_chart_pagination_axes_set_is_explicit_error() {
+        let ir = ir_for_time_range_pagination((0, 400), 4);
+        let err = render_pdf(
+            &ir,
+            RenderOptions::default(),
+            PdfOptions {
+                chart_pagination: Some(2),
+                chart_pagination_range: Some(4),
+                ..PdfOptions::default()
+            },
+        )
+        .expect_err("setting both chart-pagination axes must be a hard error");
+        assert!(matches!(err, PdfError::BothChartPaginationAxesSet));
+    }
+
+    #[test]
+    fn chart_pagination_range_page_count_matrix_across_page_size_and_orientation() {
+        let cases: &[(PdfPageSize, bool, usize)] = &[
+            (PdfPageSize::A4, false, 4 + 3),
+            (PdfPageSize::A4, true, 4 + 4),
+            (PdfPageSize::A3, false, 4 + 2),
+            (PdfPageSize::A3, true, 4 + 3),
+            (PdfPageSize::Letter, false, 4 + 3),
+            (PdfPageSize::Letter, true, 4 + 3),
+        ];
+        let ir = ir_for_time_range_pagination((0, 400), 70);
+        for (page_size, landscape, expected_total_pages) in cases.iter().copied() {
+            let bytes = render_pdf(
+                &ir,
+                RenderOptions {
+                    show_table: true,
+                    ..RenderOptions::default()
+                },
+                PdfOptions {
+                    chart_pagination_range: Some(4),
+                    pagination: true,
+                    page_size,
+                    landscape,
+                    ..PdfOptions::default()
+                },
+            )
+            .unwrap_or_else(|e| {
+                panic!("render_pdf must succeed for {page_size:?} landscape={landscape}: {e}")
+            });
+            assert_eq!(
+                page_object_count(&bytes),
+                expected_total_pages,
+                "{page_size:?} landscape={landscape}: expected {expected_total_pages} total pages (4 chart + table pages)"
             );
         }
     }

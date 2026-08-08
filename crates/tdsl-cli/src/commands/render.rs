@@ -164,12 +164,10 @@ fn do_render(
         }
     }
 
-    // #733 (ADR-0005 D3): --chart-pagination-range mirrors --chart-pagination's
-    // validation shape, plus mutual exclusivity with the lane-group axis (the
-    // combined "両方" axis is out of scope, ADR-0005 検討事項1) and a
-    // narrower format restriction: PDF support for this axis is tracked
-    // separately, so --format pdf is rejected explicitly here rather than
-    // accepted and silently mishandled downstream.
+    // #733/#736 (ADR-0005 D3): --chart-pagination-range mirrors
+    // --chart-pagination's validation shape, plus mutual exclusivity with the
+    // lane-group axis (the combined "両方" axis is out of scope, ADR-0005
+    // 検討事項1). #736 added --format pdf support (previously svg-only).
     if let Some(page_count) = chart_pagination_range {
         if chart_pagination.is_some() {
             return Err(
@@ -181,9 +179,9 @@ fn do_render(
         if page_count == 0 {
             return Err("--chart-pagination-range must be >= 1".to_string());
         }
-        if !matches!(format, RenderFormat::Svg) {
+        if !matches!(format, RenderFormat::Svg | RenderFormat::Pdf) {
             return Err(
-                "--chart-pagination-range currently only supports --format svg".to_string(),
+                "--chart-pagination-range only supports --format svg or --format pdf".to_string(),
             );
         }
         if output.is_none() {
@@ -322,16 +320,23 @@ fn do_render(
                 creation_date: today_pdf_date(),
                 pagination: pdf_cli.pagination,
                 chart_pagination,
+                chart_pagination_range,
             };
-            // #661: render_pdf_with_warnings surfaces the same "group band
-            // split across chart pages" diagnostic as the --format svg path
-            // (implementation-strict.md §1: explicit warning, never a silent
-            // drop). When --chart-pagination is not set this is always empty.
+            // #661/#736: render_pdf_with_warnings surfaces the same
+            // diagnostics as the --format svg path (implementation-strict.md
+            // §1: explicit warning, never a silent drop). Empty unless the
+            // corresponding chart-pagination axis is set.
             let (bytes, warnings) = tdsl_render::render_pdf_with_warnings(&ir, opts, pdf_opts)
                 .map_err(|e| format!("PDF rendering failed: {e}"))?;
-            for group in &warnings {
+            for group in &warnings.group_bands_split_across_pages {
                 eprintln!(
                     "Warning: group band {group:?} is split across chart pages; each page redraws a truncated band. Increase --chart-pagination or reorder lanes to keep the group on one page."
+                );
+            }
+            for item in &warnings.items_crossing_boundaries {
+                eprintln!(
+                    "Warning: item {:?} ({}..{}) is clipped at chart page boundary year(s) {:?}; it renders as separate, unmarked segments on each page it crosses. Adjust --chart-pagination-range if a different page count would move the boundary outside this item's range, or accept the clipping.",
+                    item.id, item.start, item.end, item.crossed_boundaries
                 );
             }
             write_render_binary(&bytes, output)
