@@ -13,8 +13,7 @@ pub mod pdf;
 #[cfg(feature = "png")]
 pub mod png;
 pub mod svg;
-#[cfg(test)]
-mod time_range_pagination_spike;
+pub mod time_range_pagination;
 
 pub use layout::{
     GridStyle, LayoutModel, LayoutStyle, Orientation, RenderOptions, Theme, ZIGZAG_MAX_LANES,
@@ -28,6 +27,11 @@ pub use pdf::{
 };
 #[cfg(feature = "png")]
 pub use png::{PngError, PngOptions, render_png, svg_to_png};
+pub use time_range_pagination::{
+    BoundaryCrossingItem, ClipMarker, TimeRangeChartPagination, TimeRangePage,
+    TimeRangePaginationError, clip_with_continuation_markers, items_crossing_boundaries,
+    paginate_svg_by_time_range, split_ir_by_time_range,
+};
 
 use tdsl_core::ir::TimelineIr;
 
