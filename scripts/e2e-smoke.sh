@@ -180,8 +180,17 @@ for f in china_range.page1.svg china_range.page2.svg china_range.page3.svg; do
   grep -Fq "<svg" "$TMP_DIR/$f"
   grep -Fq "</svg>" "$TMP_DIR/$f"
 done
+
 ! test -e "$TMP_DIR/china_range.page4.svg" \
   || { echo "FAIL: --chart-pagination-range 3 must not produce a 4th page file"; exit 1; }
+
+echo "[e2e] render: boundary-crossing item draws a continuation-marker glyph (#734)"
+# china_dynasties.tdsl's span:han (-206..220) doesn't cross any interior
+# boundary at N=3 (-500..2000 split into -500/333/1167/2000); N=4 puts an
+# interior boundary at 125, inside span:han's range, so it actually crosses.
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format svg --chart-pagination-range 4 --output "$TMP_DIR/china_range4.svg"
+grep -Fq "tdsl-continuation-marker" "$TMP_DIR/china_range4.page2.svg"
+grep -Fq 'aria-label="Continues' "$TMP_DIR/china_range4.page2.svg"
 
 echo "[e2e] render: --chart-pagination-range 0 exits non-zero"
 ! cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format svg --chart-pagination-range 0 --output "$TMP_DIR/china_range_zero.svg" 2>/dev/null \

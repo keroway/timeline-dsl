@@ -130,6 +130,15 @@ pub struct RenderOptions {
     /// override lane colours via `:root { --tdsl-lane-N: … }`. Set to false for raster
     /// renderers (`usvg`-based PNG/PDF) that do not support CSS custom properties.
     pub use_css_vars: bool,
+    /// When true, a `Span`/`EventRange` whose true `[start, end]` extent is
+    /// clipped by `[year_min, year_max]` gets a continuation-marker glyph
+    /// drawn at its clipped edge(s) (issue #734, ADR-0005 §2 strategy 1
+    /// "クリップ + 継続マーカー"). `false` by default so ordinary
+    /// narrow-`range` renders (unrelated to chart pagination) keep their
+    /// existing silent-clamp appearance unchanged;
+    /// [`crate::time_range_pagination::paginate_svg_by_time_range`] sets this
+    /// to `true` for the per-page chart options it builds.
+    pub show_boundary_clip_markers: bool,
 }
 
 /// Default lane height in pixels. Bar thickness and intra-lane padding scale
@@ -158,6 +167,7 @@ impl Default for RenderOptions {
             show_legend: false,
             show_event_labels: false,
             use_css_vars: true,
+            show_boundary_clip_markers: false,
         }
     }
 }
@@ -207,6 +217,14 @@ pub enum LaidItem<'a> {
         /// by lane *and* the #549 bar sub-row (`bar_stack_level`) so the label
         /// offset is relative to the bar's own sub-row placement.
         period_label_stack_level: u8,
+        /// #734: `true` when the item's true `start` is before `year_min`
+        /// (the bar was clamped at its start edge). Always `false` unless
+        /// `RenderOptions::show_boundary_clip_markers` is set.
+        continues_from_previous_page: bool,
+        /// #734: `true` when the item's true `end` is after `year_max` (the
+        /// bar was clamped at its end edge). Always `false` unless
+        /// `RenderOptions::show_boundary_clip_markers` is set.
+        continues_to_next_page: bool,
     },
     EventRange {
         item: &'a Item,
@@ -220,6 +238,10 @@ pub enum LaidItem<'a> {
         tooltip: String,
         /// #564: see `LaidItem::Span::period_label_stack_level`.
         period_label_stack_level: u8,
+        /// #734: see `LaidItem::Span::continues_from_previous_page`.
+        continues_from_previous_page: bool,
+        /// #734: see `LaidItem::Span::continues_to_next_page`.
+        continues_to_next_page: bool,
     },
     Event {
         item: &'a Item,
@@ -1478,6 +1500,13 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
             } else {
                 (primary_start, cross_start, primary_extent, cross_extent)
             };
+            let (continues_from_previous_page, continues_to_next_page) = continuation_marker_flags(
+                opts.show_boundary_clip_markers,
+                sf,
+                ef,
+                year_min,
+                year_max,
+            );
             items.push(LaidItem::Span {
                 item,
                 x,
@@ -1487,6 +1516,8 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
                 color,
                 tooltip,
                 period_label_stack_level: 0,
+                continues_from_previous_page,
+                continues_to_next_page,
             });
         }
         Item::EventRange {
@@ -1541,6 +1572,13 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
                     event_range_h,
                 )
             };
+            let (continues_from_previous_page, continues_to_next_page) = continuation_marker_flags(
+                opts.show_boundary_clip_markers,
+                sf,
+                ef,
+                year_min,
+                year_max,
+            );
             items.push(LaidItem::EventRange {
                 item,
                 x,
@@ -1550,6 +1588,8 @@ fn compute_item<'a>(item: &'a Item, items: &mut Vec<LaidItem<'a>>, args: ItemLay
                 color,
                 tooltip,
                 period_label_stack_level: 0,
+                continues_from_previous_page,
+                continues_to_next_page,
             });
         }
         Item::Event {
@@ -2518,6 +2558,32 @@ fn primary_axis_segment(
         return (anchor + (start_frac - year_min as f64) * scale, 0.0);
     }
     (anchor + (s - year_min as f64) * scale, (e - s) * scale)
+}
+
+/// `(continues_from_previous_page, continues_to_next_page)` for a
+/// `Span`/`EventRange` item's fractional `[start_frac, end_frac]` extent
+/// against `[year_min, year_max]` (issue #734). Both are always `false` when
+/// `enabled` is `false`, or when the item is wholly outside
+/// `[year_min, year_max]` — an item entirely past the page's edge is a
+/// zero/negative-width `primary_axis_segment` degenerate bar (see
+/// `items_wholly_outside_a_page_segment_still_produce_a_laid_item_with_non_positive_extent`
+/// in `time_range_pagination.rs`), not a bar actually shown on this page, so
+/// it must never get a marker either.
+fn continuation_marker_flags(
+    enabled: bool,
+    start_frac: f64,
+    end_frac: f64,
+    year_min: i64,
+    year_max: i64,
+) -> (bool, bool) {
+    if !enabled {
+        return (false, false);
+    }
+    let on_this_page = end_frac > year_min as f64 && start_frac < year_max as f64;
+    if !on_this_page {
+        return (false, false);
+    }
+    (start_frac < year_min as f64, end_frac > year_max as f64)
 }
 
 fn derive_range_from_items(ir: &TimelineIr) -> Option<(i64, i64)> {

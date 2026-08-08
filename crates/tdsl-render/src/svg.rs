@@ -748,6 +748,8 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 color,
                 tooltip,
                 period_label_stack_level,
+                continues_from_previous_page,
+                continues_to_next_page,
             } => {
                 let tip = escape_xml(tooltip);
                 let tip_attr = escape_xml_attr(tooltip);
@@ -778,6 +780,12 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 } else {
                     ""
                 };
+                // #734: hook class(es) for a bar clipped by a time-range chart
+                // page boundary.
+                let boundary_classes = continuation_boundary_classes(
+                    *continues_from_previous_page,
+                    *continues_to_next_page,
+                );
                 let period_label_fragment = if layout.opts.layout_style == LayoutStyle::Gantt {
                     render_gantt_period_label_fragment(
                         item,
@@ -791,15 +799,25 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 } else {
                     String::new()
                 };
+                let marker_fragment = render_continuation_marker_fragment(
+                    *x,
+                    *y,
+                    *width,
+                    *height,
+                    layout.is_vertical(),
+                    *continues_from_previous_page,
+                    *continues_to_next_page,
+                );
                 writeln!(
                     s,
-                    r#"  <g class="tdsl-item tdsl-item-span{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect>{label_fragment}{period_label_fragment}</g>"#,
+                    r#"  <g class="tdsl-item tdsl-item-span{open_class}{boundary_classes}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-span" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="3"><title>{tip}</title></rect>{label_fragment}{period_label_fragment}{marker_fragment}</g>"#,
                     aria_label = aria_label,
                     tip = tip,
                     tip_attr = tip_attr,
                     fill_style = fill_style,
                     data_attrs = data_attrs,
                     open_class = open_class,
+                    boundary_classes = boundary_classes,
                     x = fmt_f(*x),
                     y = fmt_f(*y),
                     w = fmt_f(*width),
@@ -813,6 +831,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                         "tdsl-item-label"
                     ),
                     period_label_fragment = period_label_fragment,
+                    marker_fragment = marker_fragment,
                 )?;
             }
             LaidItem::EventRange {
@@ -824,6 +843,8 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 color,
                 tooltip,
                 period_label_stack_level,
+                continues_from_previous_page,
+                continues_to_next_page,
             } => {
                 let tip = escape_xml(tooltip);
                 let tip_attr = escape_xml_attr(tooltip);
@@ -853,6 +874,12 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 } else {
                     ""
                 };
+                // #734: hook class(es) for a bar clipped by a time-range chart
+                // page boundary.
+                let boundary_classes = continuation_boundary_classes(
+                    *continues_from_previous_page,
+                    *continues_to_next_page,
+                );
                 let is_gantt = layout.opts.layout_style == LayoutStyle::Gantt;
                 let period_label_fragment = if is_gantt {
                     render_gantt_period_label_fragment(
@@ -867,6 +894,15 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 } else {
                     String::new()
                 };
+                let marker_fragment = render_continuation_marker_fragment(
+                    *x,
+                    *y,
+                    *width,
+                    *height,
+                    layout.is_vertical(),
+                    *continues_from_previous_page,
+                    *continues_to_next_page,
+                );
                 if layout.opts.show_event_labels {
                     let label_fragment = if layout.is_vertical() {
                         render_bar_label_fragment(
@@ -889,35 +925,39 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     };
                     writeln!(
                         s,
-                        r#"  <g class="tdsl-item tdsl-item-event-range{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect>{label_fragment}{period_label_fragment}</g>"#,
+                        r#"  <g class="tdsl-item tdsl-item-event-range{open_class}{boundary_classes}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect>{label_fragment}{period_label_fragment}{marker_fragment}</g>"#,
                         aria_label = aria_label,
                         tip = tip,
                         tip_attr = tip_attr,
                         fill_style = fill_style,
                         data_attrs = data_attrs,
                         open_class = open_class,
+                        boundary_classes = boundary_classes,
                         x = fmt_f(*x),
                         y = fmt_f(*y),
                         w = fmt_f(*width),
                         h = fmt_f(*height),
                         label_fragment = label_fragment,
                         period_label_fragment = period_label_fragment,
+                        marker_fragment = marker_fragment,
                     )?;
                 } else {
                     writeln!(
                         s,
-                        r#"  <g class="tdsl-item tdsl-item-event-range{open_class}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect>{period_label_fragment}</g>"#,
+                        r#"  <g class="tdsl-item tdsl-item-event-range{open_class}{boundary_classes}" role="group" aria-label="{aria_label}" tabindex="0" data-tdsl-tooltip="{tip_attr}"{data_attrs}><rect class="tdsl-event-range" style="{fill_style}" x="{x}" y="{y}" width="{w}" height="{h}" rx="2"><title>{tip}</title></rect>{period_label_fragment}{marker_fragment}</g>"#,
                         aria_label = aria_label,
                         tip = tip,
                         tip_attr = tip_attr,
                         fill_style = fill_style,
                         data_attrs = data_attrs,
                         open_class = open_class,
+                        boundary_classes = boundary_classes,
                         x = fmt_f(*x),
                         y = fmt_f(*y),
                         w = fmt_f(*width),
                         h = fmt_f(*height),
                         period_label_fragment = period_label_fragment,
+                        marker_fragment = marker_fragment,
                     )?;
                 }
             }
@@ -1373,6 +1413,115 @@ fn item_end_open(item: &Item) -> bool {
     }
 }
 
+/// Half-width (px) of the triangular continuation-marker glyph drawn at a
+/// clipped bar edge (issue #734, ADR-0005 §2 strategy 1 "クリップ +
+/// 継続マーカー").
+const CONTINUATION_MARKER_SIZE: f64 = 6.0;
+
+/// `<g>` CSS hook class suffix(es) for a bar clipped by a time-range chart
+/// page boundary, mirroring the `tdsl-item-open-ended` hook pattern (#550) so
+/// embedding pages can style clipped bars via `--custom-css` (e.g. a dashed
+/// edge on the clipped side). Independent modifiers — both can be present at
+/// once for an item spanning a full interior page.
+fn continuation_boundary_classes(
+    continues_from_previous_page: bool,
+    continues_to_next_page: bool,
+) -> String {
+    let mut classes = String::new();
+    if continues_from_previous_page {
+        classes.push_str(" tdsl-item-continues-from-previous-page");
+    }
+    if continues_to_next_page {
+        classes.push_str(" tdsl-item-continues-to-next-page");
+    }
+    classes
+}
+
+/// Render `<polygon>` continuation-marker glyph(s) for a `Span`/`EventRange`
+/// bar clipped at its start and/or end edge by a time-range chart-pagination
+/// page boundary (`RenderOptions::show_boundary_clip_markers`).
+///
+/// Drawn as plain `<polygon>` shapes (not an SVG `<marker>` def referenced via
+/// `marker-start`/`marker-end`) so each glyph can carry its own `role="img"`
+/// `aria-label` and `<title>` — SVG `<marker>` content sits outside the
+/// accessibility tree in common implementations, which would fail this
+/// issue's accessibility-label acceptance criterion. Orientation-aware: the
+/// glyph points away from the bar, along the primary (time) axis, toward the
+/// page the item continues onto. Colour is a fixed neutral inline value
+/// (mirrors `tdsl-label-leader`'s inline `stroke="#999"`) so it renders
+/// correctly in standalone `--format svg` output with no external CSS.
+fn render_continuation_marker_fragment(
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    is_vertical: bool,
+    continues_from_previous_page: bool,
+    continues_to_next_page: bool,
+) -> String {
+    let s = CONTINUATION_MARKER_SIZE;
+    let mut out = String::new();
+    if continues_from_previous_page {
+        let points = if is_vertical {
+            // Top edge clipped: arrow points up, off the top of this page.
+            let cx = x + width / 2.0;
+            format!(
+                "{tx},{ty} {lx},{by} {rx},{by}",
+                tx = fmt_f(cx),
+                ty = fmt_f(y - s),
+                lx = fmt_f(cx - s),
+                by = fmt_f(y),
+                rx = fmt_f(cx + s),
+            )
+        } else {
+            // Left edge clipped: arrow points left, off the start of this page.
+            let cy = y + height / 2.0;
+            format!(
+                "{lx},{ly} {rx},{ty} {rx},{by}",
+                lx = fmt_f(x - s),
+                ly = fmt_f(cy),
+                rx = fmt_f(x),
+                ty = fmt_f(cy - s),
+                by = fmt_f(cy + s),
+            )
+        };
+        out.push_str(&format!(
+            r##"<polygon class="tdsl-continuation-marker tdsl-continuation-marker-from-previous-page" points="{points}" fill="#555" role="img" aria-label="Continues from previous page"><title>Continues from previous page</title></polygon>"##
+        ));
+    }
+    if continues_to_next_page {
+        let points = if is_vertical {
+            // Bottom edge clipped: arrow points down, onto the next page.
+            let cx = x + width / 2.0;
+            let by = y + height;
+            format!(
+                "{bx},{bby} {lx},{ty} {rx},{ty}",
+                bx = fmt_f(cx),
+                bby = fmt_f(by + s),
+                lx = fmt_f(cx - s),
+                ty = fmt_f(by),
+                rx = fmt_f(cx + s),
+            )
+        } else {
+            // Right edge clipped: arrow points right, onto the next page.
+            let cy = y + height / 2.0;
+            let rx = x + width;
+            format!(
+                "{rrx},{ry} {lx},{ty} {lx},{by}",
+                rrx = fmt_f(rx + s),
+                ry = fmt_f(cy),
+                lx = fmt_f(rx),
+                ty = fmt_f(cy - s),
+                by = fmt_f(cy + s),
+            )
+        };
+        out.push_str(&format!(
+            r##"<polygon class="tdsl-continuation-marker tdsl-continuation-marker-to-next-page" points="{points}" fill="#555" role="img" aria-label="Continues to next page"><title>Continues to next page</title></polygon>"##
+        ));
+    }
+    out
+}
+
 /// Build the ARIA label string for a timeline item.
 ///
 /// Format: `"<type>: <tooltip_on_one_line>, Lane: <lane_label>"`
@@ -1786,6 +1935,174 @@ mod tests {
         let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
         assert!(!svg.contains("tdsl-item-open-ended"));
+    }
+
+    // ─── continuation marker (#734, ADR-0005 §2 strategy 1) ────────────────
+    // `sample_ir()`'s span:han is [-206, 220]; each test narrows `meta.range`
+    // to clip one or both edges.
+
+    #[test]
+    fn svg_marks_start_clipped_span_with_from_previous_page_marker() {
+        let mut ir = sample_ir();
+        ir.meta.range = (0, 300); // clips span:han's start (-206 < 0)
+        let opts = RenderOptions {
+            show_boundary_clip_markers: true,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains(
+                r#"class="tdsl-item tdsl-item-span tdsl-item-continues-from-previous-page""#
+            ),
+            "start-clipped span must carry the from-previous-page hook class: {svg}"
+        );
+        assert!(!svg.contains("tdsl-item-continues-to-next-page"));
+        assert!(
+            svg.contains("tdsl-continuation-marker-from-previous-page"),
+            "expected a from-previous-page marker polygon: {svg}"
+        );
+        assert!(!svg.contains("tdsl-continuation-marker-to-next-page"));
+        assert!(
+            svg.contains(r#"aria-label="Continues from previous page""#),
+            "marker must carry an accessible aria-label: {svg}"
+        );
+        assert!(svg.contains("<title>Continues from previous page</title>"));
+    }
+
+    #[test]
+    fn svg_marks_end_clipped_span_with_to_next_page_marker() {
+        let mut ir = sample_ir();
+        ir.meta.range = (-300, 100); // clips span:han's end (220 > 100)
+        let opts = RenderOptions {
+            show_boundary_clip_markers: true,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains(r#"class="tdsl-item tdsl-item-span tdsl-item-continues-to-next-page""#),
+            "end-clipped span must carry the to-next-page hook class: {svg}"
+        );
+        assert!(!svg.contains("tdsl-item-continues-from-previous-page"));
+        assert!(
+            svg.contains("tdsl-continuation-marker-to-next-page"),
+            "expected a to-next-page marker polygon: {svg}"
+        );
+        assert!(!svg.contains("tdsl-continuation-marker-from-previous-page"));
+        assert!(svg.contains(r#"aria-label="Continues to next page""#));
+    }
+
+    #[test]
+    fn svg_marks_both_edges_clipped_span_with_both_markers() {
+        let mut ir = sample_ir();
+        ir.meta.range = (-50, 50); // clips both edges of span:han [-206, 220]
+        let opts = RenderOptions {
+            show_boundary_clip_markers: true,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
+        let svg = render_svg(&layout).unwrap();
+        assert!(svg.contains(
+            r#"class="tdsl-item tdsl-item-span tdsl-item-continues-from-previous-page tdsl-item-continues-to-next-page""#
+        ));
+        assert!(svg.contains("tdsl-continuation-marker-from-previous-page"));
+        assert!(svg.contains("tdsl-continuation-marker-to-next-page"));
+    }
+
+    #[test]
+    fn svg_boundary_clip_markers_disabled_by_default_even_when_range_clips_item() {
+        // #734 is strictly opt-in (RenderOptions::show_boundary_clip_markers):
+        // an ordinary narrow-`range` render (unrelated to chart pagination)
+        // must keep its pre-#734 silent-clamp appearance unchanged.
+        let mut ir = sample_ir();
+        ir.meta.range = (0, 100); // clips both edges of span:han, but opt-in flag is off
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
+        let svg = render_svg(&layout).unwrap();
+        assert!(!svg.contains("tdsl-continuation-marker"));
+        assert!(!svg.contains("tdsl-item-continues-from-previous-page"));
+        assert!(!svg.contains("tdsl-item-continues-to-next-page"));
+    }
+
+    #[test]
+    fn svg_boundary_clip_markers_enabled_but_item_not_clipped_shows_no_marker() {
+        // AC: "marker absent" and "both flags false" must be distinguishable
+        // from a marker being drawn with no direction — here, no polygon at
+        // all should be emitted for an item wholly inside the range, even
+        // with the feature enabled.
+        let ir = sample_ir(); // meta.range (-300, 300) fully contains span:han [-206, 220]
+        let opts = RenderOptions {
+            show_boundary_clip_markers: true,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
+        let svg = render_svg(&layout).unwrap();
+        assert!(!svg.contains("tdsl-continuation-marker"));
+        assert!(!svg.contains("tdsl-item-continues-from-previous-page"));
+        assert!(!svg.contains("tdsl-item-continues-to-next-page"));
+    }
+
+    #[test]
+    fn svg_marks_clipped_event_range_with_continuation_marker() {
+        let mut ir = sample_ir();
+        ir.items.push(Item::EventRange {
+            id: "er:clipped".into(),
+            lane: "han".into(),
+            start: -250,
+            end: 50,
+            label: "ER".into(),
+            tags: vec![],
+            source: None,
+            origin: None,
+            note: None,
+            link: None,
+            color: None,
+            start_month: None,
+            start_day: None,
+            start_hour: None,
+            start_minute: None,
+            start_second: None,
+            start_offset_minutes: None,
+            end_month: None,
+            end_day: None,
+            end_hour: None,
+            end_minute: None,
+            end_second: None,
+            end_offset_minutes: None,
+            end_open: false,
+            source_span: None,
+        });
+        ir.meta.range = (-200, 300); // clips er:clipped's start (-250 < -200)
+        let opts = RenderOptions {
+            show_boundary_clip_markers: true,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains(
+                r#"class="tdsl-item tdsl-item-event-range tdsl-item-continues-from-previous-page""#
+            ),
+            "start-clipped event_range must carry the from-previous-page hook class: {svg}"
+        );
+        assert!(svg.contains("tdsl-continuation-marker-from-previous-page"));
+    }
+
+    #[test]
+    fn svg_marks_clipped_span_with_continuation_marker_in_vertical_orientation() {
+        let mut ir = sample_ir();
+        ir.meta.range = (-300, 100); // clips span:han's end
+        let opts = RenderOptions {
+            show_boundary_clip_markers: true,
+            orientation: crate::layout::Orientation::Vertical,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("tdsl-continuation-marker-to-next-page"),
+            "vertical orientation must still draw a continuation marker: {svg}"
+        );
     }
 
     #[test]
