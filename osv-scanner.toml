@@ -1,0 +1,22 @@
+# osv-scanner の既知脆弱性 ignore 設定。
+#
+# `.github/workflows/reusable-osv-scan.yml`（keroway/.github）が `osv-scanner scan source
+# --recursive .` を実行する際にこのファイルを読み込む。ここに列挙するのは、修正版が
+# 現時点でまだリリースされていない（FIXED VERSION が存在しない）脆弱性のみ。npm 側の
+# `brace-expansion`（GHSA-mh99-v99m-4gvg / GHSA-rgw5-rvv9-x895）は修正版が存在するため
+# `apps/webui/package.json` の `overrides` フィールドで解消済み、ここには含めない
+# （issue #731）。
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0206"
+reason = """
+  rustybuzz 0.20.1 が該当。2026-08-08 時点で FIXED VERSION が未リリース
+  （https://osv.dev/RUSTSEC-2026-0206）。upstream のリリースを待つ。issue #731
+"""
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0192"
+reason = """
+  ttf-parser 0.25.1 が該当。2026-08-08 時点で FIXED VERSION が未リリース
+  （https://osv.dev/RUSTSEC-2026-0192）。upstream のリリースを待つ。issue #731
+"""
