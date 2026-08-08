@@ -170,6 +170,27 @@ test -s "$TMP_DIR/sci_tech.page2.svg"
 grep -Fq "<svg" "$TMP_DIR/sci_tech.page1.svg"
 grep -Fq "<svg" "$TMP_DIR/sci_tech.page2.svg"
 
+# ---- tdsl render --chart-pagination-range (time-range chart pagination, #733) ----
+echo "[e2e] render: --chart-pagination-range 3 splits a chart into 3 SVG page files by time segment"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format svg --chart-pagination-range 3 --output "$TMP_DIR/china_range.svg"
+test -s "$TMP_DIR/china_range.page1.svg"
+test -s "$TMP_DIR/china_range.page2.svg"
+test -s "$TMP_DIR/china_range.page3.svg"
+for f in china_range.page1.svg china_range.page2.svg china_range.page3.svg; do
+  grep -Fq "<svg" "$TMP_DIR/$f"
+  grep -Fq "</svg>" "$TMP_DIR/$f"
+done
+! test -e "$TMP_DIR/china_range.page4.svg" \
+  || { echo "FAIL: --chart-pagination-range 3 must not produce a 4th page file"; exit 1; }
+
+echo "[e2e] render: --chart-pagination-range 0 exits non-zero"
+! cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format svg --chart-pagination-range 0 --output "$TMP_DIR/china_range_zero.svg" 2>/dev/null \
+  || { echo "FAIL: --chart-pagination-range 0 must exit non-zero"; exit 1; }
+
+echo "[e2e] render: --chart-pagination and --chart-pagination-range together exits non-zero"
+! cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format svg --chart-pagination 2 --chart-pagination-range 2 --output "$TMP_DIR/china_both.svg" 2>/dev/null \
+  || { echo "FAIL: combining --chart-pagination and --chart-pagination-range must exit non-zero"; exit 1; }
+
 # ---- tdsl build --json-schema -------------------------------------------------
 echo "[e2e] build: --json-schema outputs TimelineIr JSON Schema without input file"
 cargo run -q -p tdsl-cli -- build --json-schema >"$TMP_DIR/schema.json"

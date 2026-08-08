@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`--chart-pagination-range <N>`: タイムライン本体（チャート部分）を時間範囲軸で複数の SVG ページに分割するオプションを追加**（ADR-0005 D3 / #733）: `tdsl render --format svg --chart-pagination-range <N>` で、`meta.range` を `N` 個の連続する非空の整数年区間に均等分割し、区間ごとに1ページを描画できるようになった。既存の `--chart-pagination <N>`（lane グループ軸、issue #660）とは独立したフラグで、両者は併用できない（明示エラー）。lane グループ軸と異なり、各ページの `TimelineIr` は全 lane/item を保持したまま `meta.range`（およびサブ年精度フィールド、ページ境界では意味を持たないためクリアされる）だけが書き換わる。区間境界をまたぐ `span`/`event_range` は既存の `primary_axis_segment` クランプでクリップされ、境界をまたぐ item がある場合は stderr に警告を出力する（silent no-op にしない、implementation-strict.md §1）。継続を示す視覚的マーカーは未実装（クリップされた事実のみを警告）。group band / gantt / zigzag / open-ended range の4機能はこの軸では追加の分岐処理が不要（`lanes`/`items` がページごとにフィルタされないため）。`--output` が必須で、`--watch` との併用は明示エラー。現時点では `--format svg` のみ対応（`--format pdf` は明示エラー、統合は別issueで対応予定）
+
 ### Changed
 
 - **BREAKING（次回メジャーリリース予定）: `tdsl-render` の render API が `RenderError` を返すよう変更**（#708）: `--layout-style zigzag` が 2 lane を超える場合に通常レイアウトへフォールバックせず明示エラーにするため、`render_html` / `render_svg_only` のエラー型を `std::fmt::Error` から `RenderError` に変更した。`PaginationError::Render` の payload も `RenderError` に変更し、`PdfError::Render(RenderError)` を追加した。外部利用者は従来の書式エラーを `RenderError::Fmt`、未対応レイアウトを `RenderError::UnsupportedLayout` として処理すること。次のリリースタグは SemVer に従い 2.0.0 とする。

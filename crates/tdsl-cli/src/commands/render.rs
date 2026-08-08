@@ -39,10 +39,14 @@ pub(crate) fn cmd_render(
     show_event_labels: bool,
     pdf_cli: PdfCliOptions,
     chart_pagination: Option<usize>,
+    chart_pagination_range: Option<usize>,
 ) -> Result<(), String> {
     if watch {
         if chart_pagination.is_some() {
             return Err("--chart-pagination is not supported with --watch".to_string());
+        }
+        if chart_pagination_range.is_some() {
+            return Err("--chart-pagination-range is not supported with --watch".to_string());
         }
         let out_path = output.ok_or(
             "--watch requires --output <file>; stdout is not supported in watch mode".to_string(),
@@ -108,6 +112,7 @@ pub(crate) fn cmd_render(
         show_event_labels,
         pdf_cli,
         chart_pagination,
+        chart_pagination_range,
     )
 }
 
@@ -137,6 +142,7 @@ fn do_render(
     show_event_labels: bool,
     pdf_cli: PdfCliOptions,
     chart_pagination: Option<usize>,
+    chart_pagination_range: Option<usize>,
 ) -> Result<(), String> {
     // #660 (ADR-0005 D2): --chart-pagination is validated before any rendering
     // work happens, mirroring the --pdf-pagination "explicit error, not a
@@ -153,6 +159,36 @@ fn do_render(
         if output.is_none() {
             return Err(
                 "--chart-pagination requires --output <file> (stdout cannot hold multiple pages)"
+                    .to_string(),
+            );
+        }
+    }
+
+    // #733 (ADR-0005 D3): --chart-pagination-range mirrors --chart-pagination's
+    // validation shape, plus mutual exclusivity with the lane-group axis (the
+    // combined "両方" axis is out of scope, ADR-0005 検討事項1) and a
+    // narrower format restriction: PDF support for this axis is tracked
+    // separately, so --format pdf is rejected explicitly here rather than
+    // accepted and silently mishandled downstream.
+    if let Some(page_count) = chart_pagination_range {
+        if chart_pagination.is_some() {
+            return Err(
+                "--chart-pagination and --chart-pagination-range cannot be combined \
+                 (lane-group axis and time-range axis pagination together is not supported)"
+                    .to_string(),
+            );
+        }
+        if page_count == 0 {
+            return Err("--chart-pagination-range must be >= 1".to_string());
+        }
+        if !matches!(format, RenderFormat::Svg) {
+            return Err(
+                "--chart-pagination-range currently only supports --format svg".to_string(),
+            );
+        }
+        if output.is_none() {
+            return Err(
+                "--chart-pagination-range requires --output <file> (stdout cannot hold multiple pages)"
                     .to_string(),
             );
         }
@@ -230,6 +266,22 @@ fn do_render(
                     for group in &pagination.group_bands_split_across_pages {
                         eprintln!(
                             "Warning: group band {group:?} is split across chart pages; each page redraws a truncated band. Increase --chart-pagination or reorder lanes to keep the group on one page."
+                        );
+                    }
+                }
+                write_render_pages(&pagination.pages, out_path)
+            } else if let Some(page_count) = chart_pagination_range {
+                // Validated above: chart_pagination_range.is_some() implies output.is_some().
+                let out_path = output.ok_or_else(|| {
+                    "--chart-pagination-range requires --output <file>".to_string()
+                })?;
+                let pagination = tdsl_render::paginate_svg_by_time_range(&ir, &opts, page_count)
+                    .map_err(|e| format!("Chart pagination failed: {e}"))?;
+                if !pagination.items_crossing_boundaries.is_empty() {
+                    for item in &pagination.items_crossing_boundaries {
+                        eprintln!(
+                            "Warning: item {:?} ({}..{}) is clipped at chart page boundary year(s) {:?}; it renders as separate, unmarked segments on each page it crosses. Adjust --chart-pagination-range if a different page count would move the boundary outside this item's range, or accept the clipping.",
+                            item.id, item.start, item.end, item.crossed_boundaries
                         );
                     }
                 }
@@ -375,8 +427,10 @@ fn cmd_render_watch(
                 title: None,
                 pagination: false,
             },
-            // --chart-pagination is rejected together with --watch before
-            // cmd_render_watch is ever called (see cmd_render).
+            // --chart-pagination / --chart-pagination-range are rejected
+            // together with --watch before cmd_render_watch is ever called
+            // (see cmd_render).
+            None,
             None,
         )
     };

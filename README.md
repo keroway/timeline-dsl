@@ -116,6 +116,9 @@ tdsl render examples/china_dynasties.tdsl --format svg --chart-pagination 2 --ou
 # Same, but as a single multi-page PDF (chart pages, then table pages)
 tdsl render examples/china_dynasties.tdsl --format pdf --chart-pagination 2 --show-table --pdf-pagination --output china_chart.pdf
 
+# Split the chart into multiple SVG pages along the time-range axis instead (svg only for now)
+tdsl render examples/china_dynasties.tdsl --format svg --chart-pagination-range 3 --output china_chart_range.svg
+
 # Vertical layout (time axis runs top to bottom)
 tdsl render examples/china_dynasties.tdsl --orientation vertical --output china_vertical.html
 
