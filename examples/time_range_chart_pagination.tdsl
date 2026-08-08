@@ -1,0 +1,71 @@
+// 時間範囲軸チャートページ分割（--chart-pagination-range）のデモ
+//
+// meta.range が広い年表を --chart-pagination-range <N> で複数ページに分割する例
+// （issue #733/#734/#736、ADR-0005 D3/D4）。「漢〜隋唐」span はページ境界を
+// 複数またぐよう意図的に配置してあり、境界に継続マーカー（issue #734）が
+// 描画される様子を確認できる。
+//
+// range -800..1200 を 4 ページに分割すると境界は -300 / 200 / 700 になる。
+//
+// 試し方:
+//   tdsl render examples/time_range_chart_pagination.tdsl --format svg \
+//     --chart-pagination-range 4 --output out.svg
+//   → out.page1.svg 〜 out.page4.svg が生成される。「漢〜隋唐」span は
+//     page2/page3/page4 にまたがって表示され、クリップされた辺に継続マーカー
+//     （三角形の polygon）が描画される。
+//
+//   tdsl render examples/time_range_chart_pagination.tdsl --format pdf \
+//     --chart-pagination-range 4 --show-table --pdf-pagination --output out.pdf
+//   → 単一 PDF 内に「チャートページ群 → テーブルページ群」の順で出力される。
+timeline "古代〜中世 文明史（時間範囲軸ページ分割デモ）" {
+  title "古代〜中世 文明史";
+  unit year;
+  range -800..1200;
+  calendar proleptic_gregorian;
+}
+
+lane "ローマ" as rome {
+  kind country;
+  order 10;
+}
+
+lane "中国" as china {
+  kind country;
+  order 20;
+}
+
+lane "出来事" as events {
+  kind event;
+  order 30;
+}
+
+// -300 の境界をまたぐ（page1 → page2）。
+span rome -509..-27 "共和政ローマ" {
+  tags ["republic"];
+  id "span:rome-republic";
+};
+
+// 200 の境界をまたぐ（page2 → page3）。
+span rome -27..476 "ローマ帝国（西）" {
+  tags ["empire"];
+  id "span:rome-empire";
+};
+
+// 200 と 700 の両方の境界をまたぐ（page2 → page3 → page4 の3ページ連続表示）。
+span china -206..907 "漢〜隋唐" {
+  tags ["dynasty"];
+  id "span:china-han-to-tang";
+};
+
+event rome -27 "アウグストゥス即位" {
+  id "event:rome:-27";
+};
+
+event china 618 "唐の建国" {
+  id "event:china:618";
+};
+
+event_range events 400..600 "民族大移動" {
+  tags ["migration"];
+  id "event_range:migration";
+};

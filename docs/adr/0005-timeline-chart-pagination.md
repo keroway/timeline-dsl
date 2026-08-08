@@ -1,6 +1,6 @@
 # ADR 0005: タイムライン本体（チャート部分）の複数ページ化
 
-- **Status**: Accepted（設計方針として承認。lane グループ軸は Spike #651 → 本実装 #660 → PDF 統合 #661 で完了。時間範囲軸の分割は Spike #662（#709/#710/#711）で検証完了し、D3 で本実装 GO 判断済み。#662 はクローズ、本実装は新規 issue に引き継ぐ）
+- **Status**: Accepted（設計方針として承認。lane グループ軸は Spike #651 → 本実装 #660 → PDF 統合 #661 で完了。時間範囲軸の分割は Spike #662（#709/#710/#711）で検証完了し D3 で本実装 GO 判断、本実装は #729 → #733（コア昇格・CLIフラグ）/ #734（継続マーカー描画）/ #736（PDF統合）/ #735（PDF警告配線、#736 に吸収してクローズ）で完了。詳細は D4 参照）
 - **Date**: 2026-07-21
 - **Deciders**: keroway（承認済み、2026-07-21）
 - **Related issues**: #649（本 ADR）, #609（親: paginated PDF export, ADR 0004 が分岐元）
@@ -235,10 +235,17 @@ issue #709/#710/#711 の spike 結果を踏まえ、**時間範囲軸のチャ�
 - 本実装 issue で確定させる実装詳細（本 ADR では決定しない）: CLI フラグ名（`--chart-pagination-range <N>` 案 / `--chart-pagination lane:<N>|range:<N>` 案）、継続マーカーの具体的描画仕様（矢印形状・色・アクセシビリティラベル）、縦書きレイアウトでの継続マーカーの向き、`--pdf-pagination`（テーブルページ分割）との組み合わせ時の挙動。
 - issue #662 はこの判断をもって完了とする。本実装は新規 issue として起票する。
 
+## D4. 時間範囲軸チャートページ分割の本実装で確定した仕様（issue #729/#733/#734/#736 の結論）
+
+D3 が本実装 issue に委ねた実装詳細は、以下の通り確定・実装済み（#729 の分割issue #733/#734/#735/#736 経由）。
+
+- **CLI フラグ名**（#733）: `--chart-pagination-range <N>` に確定。既存の lane グループ軸 `--chart-pagination <N>` とは独立した別フラグとし、両者は併用不可（明示エラー）。`--chart-pagination lane:<N>|range:<N>` 案は不採用（バリデーション形状を lane 軸と完全に揃えられる独立フラグの方が単純で後方互換リスクが低いと判断）。
+- **継続マーカーの描画仕様**（#734）: 境界をまたぐ `span`/`event_range` のクリップされた辺に、小さな三角形の `<polygon>` を直接描画する（`<defs><marker>` + `marker-start`/`marker-end` は不採用 — `<marker>` の内容は多くの実装でアクセシビリティツリーの外側に置かれるため、`role="img"` `aria-label`/`<title>` を持たせる要件を満たすには直接描画する図形の方が適切と判断）。色は固定のニュートラルカラー `#555` をインライン指定（standalone SVG がホストCSSに依存せず正しく見えるようにするため）。CSS フックは `tdsl-item-continues-from-previous-page` / `tdsl-item-continues-to-next-page`（`<g>` 要素、既存の `tdsl-item-open-ended` パターン踏襲）と `tdsl-continuation-marker-from-previous-page` / `tdsl-continuation-marker-to-next-page`（`<polygon>` 要素自体）。マーカー描画は新規 `RenderOptions::show_boundary_clip_markers`（デフォルト `false`）による opt-in で、`--chart-pagination-range` の内部レンダリングのみが有効化する（ページ分割と無関係な狭い `range` 指定の通常レンダリングは、既存の「サイレントにクランプする」挙動を変えない）。
+- **縦書きレイアウトでの継続マーカーの向き**（#734）: 横書きは左右方向、縦書き（`Orientation::Vertical`）は上下方向に矢印が向くよう、両orientationに対応。
+- **`--pdf-pagination` との組み合わせ挙動**（#736）: lane グループ軸の PDF 統合（issue #661）と同じページ構成規則を踏襲。単一 PDF 内で「チャートページ群（時間範囲順）→ テーブルページ群」の順に並び、テーブルページの `i / N` フッタはテーブルページ数のみを数える（先行するチャートページ数は含めない）。`--chart-pagination-range` を指定しない既存の `--format pdf` 出力は本機能追加後も完全に不変。
+- **PDF 経路の境界またぎ警告**（#736、当初は別issue #735 で計画したが実装が重複するため #736 に吸収してクローズ）: SVG 経路と同じ `items_crossing_boundaries` の結果を元に、共通ヘルパー関数で文言を揃えた stderr 警告を PDF 経路にも配線した。
+- **範囲外 item のフィルタ最適化**: D3 で任意（optional）とされたパフォーマンス施策で、今回のスコープでは未着手。各ページの `TimelineIr` は全 item を保持したまま `LayoutModel::compute` を通すため、そのページに実際には表示されない item も毎回レイアウト計算される（issue #711 の spike で確認済みの想定コスト）。計測の上で必要になった場合に別issueで対応する。
+
 ## 未決定事項（本 ADR の範囲外）
 
-- ページ分割軸の最終決定（時間範囲 / lane グループ / 両方）。lane グループ軸は issue #660 で実装済み。時間範囲軸は D3 により GO 判断済み・本実装 issue 起票待ち。
-- span/event_range のページ境界クリッピング・継続表示の具体的な描画仕様（lane グループ軸では原理上不要と判明済み。時間範囲軸は issue #710 の spike により戦略選定〈クリップ + 継続マーカー〉は完了。継続マーカーの具体的な描画〈矢印形状・色・アクセシビリティラベル〉は本実装 issue に委ねる）。
-- CLI フラグの最終的な名前・構文。lane グループ軸は `--chart-pagination <N>` として issue #660 で確定済み。
-- group band / gantt / zigzag / open-ended range の分割時の詳細な振る舞い。lane グループ軸の group band は issue #660 で「警告して分割続行」に確定済み。時間範囲軸は issue #711 の spike により4機能とも「追加設計不要」と判明し解消済み。
-- HTML/SVG インタラクティブレンダリング（`tdsl render --interactive`）への同様のページ分割ニーズの適用可否（本 ADR は PDF 出力のみを対象とする）。
+- HTML/SVG インタラクティブレンダリング（`tdsl render --interactive`）への同様のページ分割ニーズの適用可否（本 ADR は PDF/SVG 静的出力のみを対象とする）。
