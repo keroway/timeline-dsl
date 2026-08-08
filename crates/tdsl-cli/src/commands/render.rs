@@ -164,12 +164,10 @@ fn do_render(
         }
     }
 
-    // #733 (ADR-0005 D3): --chart-pagination-range mirrors --chart-pagination's
-    // validation shape, plus mutual exclusivity with the lane-group axis (the
-    // combined "両方" axis is out of scope, ADR-0005 検討事項1) and a
-    // narrower format restriction: PDF support for this axis is tracked
-    // separately, so --format pdf is rejected explicitly here rather than
-    // accepted and silently mishandled downstream.
+    // #733/#736 (ADR-0005 D3): --chart-pagination-range mirrors
+    // --chart-pagination's validation shape, plus mutual exclusivity with the
+    // lane-group axis (the combined "両方" axis is out of scope, ADR-0005
+    // 検討事項1). #736 added --format pdf support (previously svg-only).
     if let Some(page_count) = chart_pagination_range {
         if chart_pagination.is_some() {
             return Err(
@@ -181,9 +179,9 @@ fn do_render(
         if page_count == 0 {
             return Err("--chart-pagination-range must be >= 1".to_string());
         }
-        if !matches!(format, RenderFormat::Svg) {
+        if !matches!(format, RenderFormat::Svg | RenderFormat::Pdf) {
             return Err(
-                "--chart-pagination-range currently only supports --format svg".to_string(),
+                "--chart-pagination-range only supports --format svg or --format pdf".to_string(),
             );
         }
         if output.is_none() {
@@ -262,13 +260,7 @@ fn do_render(
                 let pagination =
                     tdsl_render::paginate_svg_by_lane_groups(&ir, &opts, lanes_per_page)
                         .map_err(|e| format!("Chart pagination failed: {e}"))?;
-                if !pagination.group_bands_split_across_pages.is_empty() {
-                    for group in &pagination.group_bands_split_across_pages {
-                        eprintln!(
-                            "Warning: group band {group:?} is split across chart pages; each page redraws a truncated band. Increase --chart-pagination or reorder lanes to keep the group on one page."
-                        );
-                    }
-                }
+                warn_group_bands_split_across_pages(&pagination.group_bands_split_across_pages);
                 write_render_pages(&pagination.pages, out_path)
             } else if let Some(page_count) = chart_pagination_range {
                 // Validated above: chart_pagination_range.is_some() implies output.is_some().
@@ -277,14 +269,7 @@ fn do_render(
                 })?;
                 let pagination = tdsl_render::paginate_svg_by_time_range(&ir, &opts, page_count)
                     .map_err(|e| format!("Chart pagination failed: {e}"))?;
-                if !pagination.items_crossing_boundaries.is_empty() {
-                    for item in &pagination.items_crossing_boundaries {
-                        eprintln!(
-                            "Warning: item {:?} ({}..{}) is clipped at chart page boundary year(s) {:?}; it renders as separate, unmarked segments on each page it crosses. Adjust --chart-pagination-range if a different page count would move the boundary outside this item's range, or accept the clipping.",
-                            item.id, item.start, item.end, item.crossed_boundaries
-                        );
-                    }
-                }
+                warn_items_crossing_boundaries(&pagination.items_crossing_boundaries);
                 write_render_pages(&pagination.pages, out_path)
             } else {
                 let svg = tdsl_render::render_svg_only(&ir, opts)
@@ -322,18 +307,16 @@ fn do_render(
                 creation_date: today_pdf_date(),
                 pagination: pdf_cli.pagination,
                 chart_pagination,
+                chart_pagination_range,
             };
-            // #661: render_pdf_with_warnings surfaces the same "group band
-            // split across chart pages" diagnostic as the --format svg path
-            // (implementation-strict.md §1: explicit warning, never a silent
-            // drop). When --chart-pagination is not set this is always empty.
+            // #661/#736: render_pdf_with_warnings surfaces the same
+            // diagnostics as the --format svg path (implementation-strict.md
+            // §1: explicit warning, never a silent drop). Empty unless the
+            // corresponding chart-pagination axis is set.
             let (bytes, warnings) = tdsl_render::render_pdf_with_warnings(&ir, opts, pdf_opts)
                 .map_err(|e| format!("PDF rendering failed: {e}"))?;
-            for group in &warnings {
-                eprintln!(
-                    "Warning: group band {group:?} is split across chart pages; each page redraws a truncated band. Increase --chart-pagination or reorder lanes to keep the group on one page."
-                );
-            }
+            warn_group_bands_split_across_pages(&warnings.group_bands_split_across_pages);
+            warn_items_crossing_boundaries(&warnings.items_crossing_boundaries);
             write_render_binary(&bytes, output)
         }
     }
@@ -473,6 +456,30 @@ fn cmd_render_watch(
     }
 
     Ok(())
+}
+
+/// Print the "group band split across chart pages" warning shared by the
+/// `--chart-pagination` (lane-group axis) SVG and PDF paths (issue #660/#661)
+/// — kept in one place so the wording can only be changed in one place.
+fn warn_group_bands_split_across_pages(group_bands_split_across_pages: &[String]) {
+    for group in group_bands_split_across_pages {
+        eprintln!(
+            "Warning: group band {group:?} is split across chart pages; each page redraws a truncated band. Increase --chart-pagination or reorder lanes to keep the group on one page."
+        );
+    }
+}
+
+/// Print the "item clipped at chart page boundary" warning shared by the
+/// `--chart-pagination-range` (time-range axis) SVG and PDF paths (issue
+/// #733/#736) — kept in one place so the wording can only be changed in one
+/// place.
+fn warn_items_crossing_boundaries(items_crossing_boundaries: &[tdsl_render::BoundaryCrossingItem]) {
+    for item in items_crossing_boundaries {
+        eprintln!(
+            "Warning: item {:?} ({}..{}) is clipped at chart page boundary year(s) {:?}; it renders as separate, unmarked segments on each page it crosses. Adjust --chart-pagination-range if a different page count would move the boundary outside this item's range, or accept the clipping.",
+            item.id, item.start, item.end, item.crossed_boundaries
+        );
+    }
 }
 
 fn parse_color_map(raw: &str) -> Result<std::collections::HashMap<String, String>, String> {

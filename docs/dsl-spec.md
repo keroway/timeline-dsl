@@ -592,7 +592,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `--offline` | Wikidata fetch を省略 |
 | `--pdf-pagination` | `--show-table` のアイテムテーブルを用紙サイズ・余白に収まる行数ごとに複数ページへ分割する（ADR-0004）。デフォルトは無効（既存の単一ページ縮小描画のまま）。`--show-table` なしで指定するとエラー。`--format pdf` のみ有効。`--chart-pagination` 併用時のページ構成は下記参照 |
 | `--chart-pagination <N>` | タイムライン本体（チャート）を lane グループ単位（1 ページ N レーン）で複数ページに分割する（issue #660/#661, ADR-0005 D2）。`--output` 必須。`--format svg`（`<stem>.pageN.<ext>` の複数ファイル）と `--format pdf`（単一 PDF 内の複数ページ）の両方で有効。`--chart-pagination-range` とは併用不可 |
-| `--chart-pagination-range <N>` | タイムライン本体（チャート）を時間範囲軸で `N` ページ（連続する非空の整数年区間）に分割する（issue #733, ADR-0005 D3）。`--output` 必須。現時点では `--format svg` のみ有効。`--chart-pagination` とは併用不可 |
+| `--chart-pagination-range <N>` | タイムライン本体（チャート）を時間範囲軸で `N` ページ（連続する非空の整数年区間）に分割する（issue #733/#736, ADR-0005 D3）。`--output` 必須。`--format svg`（`<stem>.pageN.<ext>` の複数ファイル）と `--format pdf`（単一 PDF 内の複数ページ）の両方で有効。`--chart-pagination` とは併用不可 |
 
 ### 出力仕様
 
@@ -623,10 +623,10 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
   - `--format svg`: `<stem>.pageN.<ext>` ごとに別ファイルとして分割出力される（stdout 非対応）。`--show-table` を併用すると、チャートページ群の後ろに専用のテーブルページを 1 枚追加し、IR 全体（最後のチャートページの lane に限らない）の item を一覧表示する（このテーブルページは常に `1 / 1`、複数ページへの分割は未対応）。
   - `--format pdf`（issue #661）: 別ファイルには分割されず、単一の PDF ファイル内で「チャートページ群（lane グループ順）→ テーブルページ群」の順に複数ページとして出力される。`--show-table` なしならテーブルページなし。`--show-table` のみ（`--pdf-pagination` なし）なら IR 全体を 1 枚の未分割テーブルページとして末尾に追加する。`--show-table --pdf-pagination` を併用すると `--pdf-pagination` の行分割ロジックでテーブルページ群を生成し、その `i / N` フッタはテーブルページ数のみを数える（先行するチャートページ数は含めない）。`--chart-pagination` を指定しない既存の `--format pdf` 出力は本機能の追加後も完全に不変（ADR-0004 D3）。
   - `--format html` / `--format png` との併用はエラー。
-- **タイムライン本体（チャート）の時間範囲軸による複数ページ分割（`--chart-pagination-range`）**：`--chart-pagination-range <N>` を指定すると、`meta.range` を `N` 個の連続する非空の整数年区間へ均等分割し、区間ごとに1ページを描画する（issue #733, ADR-0005 D3）。lane グループ軸（`--chart-pagination`）と異なり `lanes`/`items` はページごとにフィルタされず、各ページの `TimelineIr` は全 item を保持したまま `meta.range`（およびサブ年精度フィールド、クリアされる）だけが書き換わる。
+- **タイムライン本体（チャート）の時間範囲軸による複数ページ分割（`--chart-pagination-range`）**：`--chart-pagination-range <N>` を指定すると、`meta.range` を `N` 個の連続する非空の整数年区間へ均等分割し、区間ごとに1ページを描画する（issue #733/#736, ADR-0005 D3）。lane グループ軸（`--chart-pagination`）と異なり `lanes`/`items` はページごとにフィルタされず、各ページの `TimelineIr` は全 item を保持したまま `meta.range`（およびサブ年精度フィールド、クリアされる）だけが書き換わる。
   - 区間境界をまたぐ `span`/`event_range` は既存の `primary_axis_segment` クランプでページごとにクリップされる（新規ジオメトリは不要）。境界をまたぐ item がある場合は `stderr` に `Warning: item "..." (...) is clipped at chart page boundary year(s) [...]; ...` を出力する（silent no-op にはしない。継続を示す視覚的マーカーは未実装で、クリップされた事実のみを警告する）。
   - group band / gantt / zigzag / open-ended range の4機能はいずれもこの軸では追加の分岐処理が不要（band は lane フィルタが無いため常に全幅描画、gantt/zigzag は全ページ共通の item 集合から計算されるため parity が全ページで一致する）。
-  - `--output` は必須。現時点では `--format svg` のみ対応（`<stem>.pageN.<ext>` ごとに別ファイルとして分割出力、stdout 非対応）。`--format pdf` は明示エラー（統合は別途対応予定）。
+  - `--output` は必須。`--format svg`（`<stem>.pageN.<ext>` ごとに別ファイルとして分割出力、stdout 非対応）と `--format pdf`（issue #736、単一 PDF 内の複数ページ。ページ構成は `--chart-pagination` の PDF 出力と同じ規則：チャートページ群 → テーブルページ群の順、footer はテーブルページ数のみを数える）の両方で有効。
   - `--watch`、`--chart-pagination` との併用はいずれもエラー。
 - **静的凡例（`--show-legend`）**：有効にすると、レーンごとのパレット色と `timeline.color_map` のタグ色を凡例パネルとして表示する（#544）。
   - `html`: インライン SVG 内の凡例パネルとして表示されるため、JavaScript 非依存の静的HTMLでも色対応を確認できる。

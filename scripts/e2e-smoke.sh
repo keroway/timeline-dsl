@@ -191,6 +191,25 @@ echo "[e2e] render: --chart-pagination and --chart-pagination-range together exi
 ! cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format svg --chart-pagination 2 --chart-pagination-range 2 --output "$TMP_DIR/china_both.svg" 2>/dev/null \
   || { echo "FAIL: combining --chart-pagination and --chart-pagination-range must exit non-zero"; exit 1; }
 
+# ---- tdsl render --chart-pagination-range --format pdf (PDF integration, #736) ----
+echo "[e2e] render: --chart-pagination-range 3 --format pdf writes a single multi-page PDF"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format pdf --chart-pagination-range 3 --output "$TMP_DIR/china_range.pdf"
+test -s "$TMP_DIR/china_range.pdf"
+head -c 5 "$TMP_DIR/china_range.pdf" | grep -Fq "%PDF-"
+
+echo "[e2e] render: --chart-pagination-range --show-table --pdf-pagination combined PDF renders"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format pdf --chart-pagination-range 3 --show-table --pdf-pagination --output "$TMP_DIR/china_range_full.pdf"
+test -s "$TMP_DIR/china_range_full.pdf"
+head -c 5 "$TMP_DIR/china_range_full.pdf" | grep -Fq "%PDF-"
+
+echo "[e2e] render: --chart-pagination with --chart-pagination-range (--format pdf) exits non-zero"
+! cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format pdf --chart-pagination 2 --chart-pagination-range 3 --output "$TMP_DIR/china_both.pdf" 2>/dev/null \
+  || { echo "FAIL: combining both chart-pagination axes with --format pdf must exit non-zero"; exit 1; }
+
+echo "[e2e] render: --format pdf without --chart-pagination-range is unchanged (single page)"
+cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format pdf --output "$TMP_DIR/china_plain.pdf"
+test -s "$TMP_DIR/china_plain.pdf"
+
 # ---- tdsl build --json-schema -------------------------------------------------
 echo "[e2e] build: --json-schema outputs TimelineIr JSON Schema without input file"
 cargo run -q -p tdsl-cli -- build --json-schema >"$TMP_DIR/schema.json"

@@ -23,7 +23,8 @@ pub use pagination::{
 };
 #[cfg(feature = "pdf")]
 pub use pdf::{
-    PdfDate, PdfError, PdfOptions, PdfPageSize, render_pdf, render_pdf_with_warnings, svg_to_pdf,
+    PdfDate, PdfError, PdfOptions, PdfPageSize, PdfWarnings, render_pdf, render_pdf_with_warnings,
+    svg_to_pdf,
 };
 #[cfg(feature = "png")]
 pub use png::{PngError, PngOptions, render_png, svg_to_png};
