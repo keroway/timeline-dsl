@@ -1,22 +1,36 @@
 # osv-scanner の既知脆弱性 ignore 設定。
 #
 # `.github/workflows/reusable-osv-scan.yml`（keroway/.github）が `osv-scanner scan source
-# --recursive .` を実行する際にこのファイルを読み込む。ここに列挙するのは、修正版が
-# 現時点でまだリリースされていない（FIXED VERSION が存在しない）脆弱性のみ。npm 側の
-# `brace-expansion`（GHSA-mh99-v99m-4gvg / GHSA-rgw5-rvv9-x895）は修正版が存在するため
-# `apps/webui/package.json` の `overrides` フィールドで解消済み、ここには含めない
-# （issue #731）。
+# --recursive .` を実行する際にこのファイルを読み込む。ここに列挙するのは、クレート自体が
+# unmaintained と判定され修正版が今後もリリースされない（informational: unmaintained）
+# 脆弱性のみ。npm 側の `brace-expansion`（GHSA-mh99-v99m-4gvg / GHSA-rgw5-rvv9-x895）は
+# 修正版が存在するため `apps/webui/package.json` の `overrides` フィールドで解消済み、
+# ここには含めない（issue #731）。
+#
+# `ignoreUntil` は「その日までに移行状況を再確認する」期限であり、脆弱性自体の有効期限
+# ではない。期限到来時に移行が未着手なら、このファイルの日付を更新した上で理由に
+# 追跡issueへのリンクを追加すること（silent renewal にしない）。
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0206"
+ignoreUntil = 2026-11-08
 reason = """
-  rustybuzz 0.20.1 が該当。2026-08-08 時点で FIXED VERSION が未リリース
-  （https://osv.dev/RUSTSEC-2026-0206）。upstream のリリースを待つ。issue #731
+  crates.io の rustybuzz 0.20.1 が該当。CVE ではなく RustSec の
+  informational: unmaintained 判定（メンテナが今後の修正提供を明言して停止、
+  修正版は将来的にも出ない）。tdsl-render の推移的依存
+  （usvg → resvg → svg2pdf → tdsl-render、`cargo tree -i rustybuzz` で確認）で、
+  直接置き換えるには usvg/resvg の major upgrade が必要なため本PRのスコープ外。
+  移行候補は harfrust（Harfbuzz プロジェクト後継）。issue #731
 """
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0192"
+ignoreUntil = 2026-11-08
 reason = """
-  ttf-parser 0.25.1 が該当。2026-08-08 時点で FIXED VERSION が未リリース
-  （https://osv.dev/RUSTSEC-2026-0192）。upstream のリリースを待つ。issue #731
+  crates.io の ttf-parser 0.25.1 が該当。CVE ではなく RustSec の
+  informational: unmaintained 判定（作者が今後の修正提供を明言して停止、
+  修正版は将来的にも出ない）。tdsl-render の推移的依存
+  （fontdb/usvg/rustybuzz → svg2pdf → tdsl-render、`cargo tree -i ttf-parser` で確認）で、
+  直接置き換えるには fontdb/usvg の major upgrade が必要なため本PRのスコープ外。
+  移行候補は skrifa（Google Fonts oxidize/fontations プロジェクト）。issue #731
 """
