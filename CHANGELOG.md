@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **BREAKING（次回メジャーリリース予定）: `tdsl-render` の render API が `RenderError` を返すよう変更**（#708）: `--layout-style zigzag` が 2 lane を超える場合に通常レイアウトへフォールバックせず明示エラーにするため、`render_html` / `render_svg_only` のエラー型を `std::fmt::Error` から `RenderError` に変更した。`PaginationError::Render` の payload も `RenderError` に変更し、`PdfError::Render(RenderError)` を追加した。外部利用者は従来の書式エラーを `RenderError::Fmt`、未対応レイアウトを `RenderError::UnsupportedLayout` として処理すること。次のリリースタグは SemVer に従い 2.0.0 とする。
+- **BREAKING（同上 2.0.0 へ合流）: `tdsl_render::render_pdf_with_warnings` の戻り値を `(Vec<u8>, Vec<String>)` から `(Vec<u8>, PdfWarnings)` に変更**（#736、詳細は Added の `--chart-pagination-range` PDF 統合を参照）: 外部利用者は `warnings.group_bands_split_across_pages`（従来の `Vec<String>` 相当）と `warnings.items_crossing_boundaries` をそれぞれ参照すること。
 
 ### Fixed
 

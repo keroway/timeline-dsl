@@ -592,7 +592,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
 | `--offline` | Wikidata fetch を省略 |
 | `--pdf-pagination` | `--show-table` のアイテムテーブルを用紙サイズ・余白に収まる行数ごとに複数ページへ分割する（ADR-0004）。デフォルトは無効（既存の単一ページ縮小描画のまま）。`--show-table` なしで指定するとエラー。`--format pdf` のみ有効。`--chart-pagination` 併用時のページ構成は下記参照 |
 | `--chart-pagination <N>` | タイムライン本体（チャート）を lane グループ単位（1 ページ N レーン）で複数ページに分割する（issue #660/#661, ADR-0005 D2）。`--output` 必須。`--format svg`（`<stem>.pageN.<ext>` の複数ファイル）と `--format pdf`（単一 PDF 内の複数ページ）の両方で有効。`--chart-pagination-range` とは併用不可 |
-| `--chart-pagination-range <N>` | タイムライン本体（チャート）を時間範囲軸で `N` ページ（連続する非空の整数年区間）に分割する（issue #733, ADR-0005 D3）。`--output` 必須。現時点では `--format svg` のみ有効。`--chart-pagination` とは併用不可 |
+| `--chart-pagination-range <N>` | タイムライン本体（チャート）を時間範囲軸で `N` ページ（連続する非空の整数年区間）に分割する（issue #733/#736, ADR-0005 D3）。`--output` 必須。`--format svg`（`<stem>.pageN.<ext>` の複数ファイル）と `--format pdf`（単一 PDF 内の複数ページ）の両方で有効。`--chart-pagination` とは併用不可 |
 
 ### 出力仕様
 

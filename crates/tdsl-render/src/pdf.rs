@@ -193,7 +193,11 @@ pub fn render_pdf(
 /// (implementation-strict.md §1 "Explicit error over silent fallback") — a
 /// non-empty field means the caller MUST surface it (e.g. as a CLI stderr
 /// warning), not just log it internally.
+///
+/// `#[non_exhaustive]`: a future warning kind can be added as a new field
+/// without breaking external struct-literal construction.
 #[derive(Debug, Default)]
+#[non_exhaustive]
 pub struct PdfWarnings {
     /// `Lane::group` labels whose contiguous lane run was split across chart
     /// pages by `pdf_opts.chart_pagination` — the same diagnostic
@@ -260,8 +264,8 @@ pub fn render_pdf_with_warnings(
 /// otherwise. Table page footers count only the table pages, matching the
 /// no-chart-pagination + `pagination: true` numbering.
 ///
-/// Exposed at `pub(crate)` so tests can assert on the exact page SVGs through
-/// the real code path instead of re-implementing it.
+/// Kept private; the in-module `mod tests` asserts on the exact page SVGs
+/// through this real code path instead of re-implementing it.
 fn render_pdf_svg_pages(
     ir: &TimelineIr,
     mut opts: RenderOptions,
@@ -1968,6 +1972,10 @@ mod tests {
     /// single lane is sufficient to exercise it independently of the
     /// lane-group axis.
     fn ir_for_time_range_pagination(range: (i64, i64), row_count: usize) -> TimelineIr {
+        assert!(
+            row_count > 0 && (range.1 - range.0) >= row_count as i64,
+            "fixture requires 1 <= row_count <= range width, got row_count={row_count} range={range:?}"
+        );
         let mut ir = sample_ir();
         ir.meta.range = range;
         ir.lanes = vec![Lane {

@@ -200,6 +200,11 @@ head -c 5 "$TMP_DIR/china_range.pdf" | grep -Fq "%PDF-"
 echo "[e2e] render: --chart-pagination-range --show-table --pdf-pagination combined PDF renders"
 cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format pdf --chart-pagination-range 3 --show-table --pdf-pagination --output "$TMP_DIR/china_range_full.pdf"
 test -s "$TMP_DIR/china_range_full.pdf"
+head -c 5 "$TMP_DIR/china_range_full.pdf" | grep -Fq "%PDF-"
+
+echo "[e2e] render: --chart-pagination with --chart-pagination-range (--format pdf) exits non-zero"
+! cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format pdf --chart-pagination 2 --chart-pagination-range 3 --output "$TMP_DIR/china_both.pdf" 2>/dev/null \
+  || { echo "FAIL: combining both chart-pagination axes with --format pdf must exit non-zero"; exit 1; }
 
 echo "[e2e] render: --format pdf without --chart-pagination-range is unchanged (single page)"
 cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --format pdf --output "$TMP_DIR/china_plain.pdf"
