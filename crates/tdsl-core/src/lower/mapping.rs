@@ -576,11 +576,16 @@ pub(crate) fn item_id(item: &Item) -> &str {
 }
 
 #[cfg(feature = "wikidata")]
+/// `policy field_priority` の下で同一 ID のアイテムをフィールド単位でマージする。
+///
+/// **型が食い違う場合はエラーにする。** 以前は incoming を黙って採用しており、
+/// 手書きの `event` と Wikidata の `span` が ID で衝突すると手書き側が丸ごと
+/// 消えていた（#762）。フィールド単位のマージは同じ型どうしでしか定義できない。
 pub(crate) fn merge_items_by_field_priority(
     existing: Item,
     incoming: Item,
     config: &ast::FieldPriorityConfig,
-) -> Item {
+) -> Result<Item, crate::error::LoweringError> {
     use ast::FieldStrategy;
 
     let pick_label = |ex: String, inc: String| match config.label {
@@ -605,7 +610,7 @@ pub(crate) fn merge_items_by_field_priority(
         }
     };
 
-    match (existing, incoming) {
+    Ok(match (existing, incoming) {
         (
             Item::Span {
                 id,
@@ -810,6 +815,127 @@ pub(crate) fn merge_items_by_field_priority(
             end_open: ex_end_open,
             source_span,
         },
-        (_, incoming) => incoming,
+        (existing, incoming) => {
+            return Err(crate::error::LoweringError::FieldPriorityTypeMismatch {
+                id: item_id(&existing).to_string(),
+                existing: item_type_name(&existing),
+                incoming: item_type_name(&incoming),
+            });
+        }
+    })
+}
+
+/// エラーメッセージ用の item 型名。DSL の構文キーワードに合わせる。
+fn item_type_name(item: &Item) -> &'static str {
+    match item {
+        Item::Span { .. } => "span",
+        Item::Event { .. } => "event",
+        Item::EventRange { .. } => "event_range",
+    }
+}
+
+#[cfg(all(test, feature = "wikidata"))]
+mod field_priority_tests {
+    use super::*;
+    use crate::error::LoweringError;
+
+    fn event(id: &str, label: &str, time: i64) -> Item {
+        Item::Event {
+            id: id.into(),
+            lane: "l".into(),
+            time,
+            label: label.into(),
+            tags: vec![],
+            source: None,
+            origin: None,
+            note: None,
+            link: None,
+            color: None,
+            time_month: None,
+            time_day: None,
+            time_hour: None,
+            time_minute: None,
+            time_second: None,
+            time_offset_minutes: None,
+            source_span: None,
+        }
+    }
+
+    fn span(id: &str, label: &str) -> Item {
+        Item::Span {
+            id: id.into(),
+            lane: "l".into(),
+            start: 1900,
+            end: 2000,
+            label: label.into(),
+            tags: vec![],
+            source: None,
+            origin: None,
+            note: None,
+            link: None,
+            color: None,
+            start_month: None,
+            start_day: None,
+            start_hour: None,
+            start_minute: None,
+            start_second: None,
+            start_offset_minutes: None,
+            end_month: None,
+            end_day: None,
+            end_hour: None,
+            end_minute: None,
+            end_second: None,
+            end_offset_minutes: None,
+            end_open: false,
+            source_span: None,
+        }
+    }
+
+    /// #762: 型が一致していれば従来どおりフィールド単位でマージする。
+    /// 既定の `label manual` により、手書きの label が保たれる。
+    #[test]
+    fn same_type_merges_field_by_field() {
+        let config = ast::FieldPriorityConfig::default();
+        let merged = merge_items_by_field_priority(
+            event("e1", "手書きのラベル", 1950),
+            event("e1", "Wikidata のラベル", 1951),
+            &config,
+        )
+        .expect("same-type merge must succeed");
+
+        match merged {
+            Item::Event { label, time, .. } => {
+                // label manual → 手書きが勝つ / time wikidata → incoming が勝つ
+                assert_eq!(label, "手書きのラベル");
+                assert_eq!(time, 1951);
+            }
+            other => panic!("unexpected item: {other:?}"),
+        }
+    }
+
+    /// #762: 型が食い違う場合は既存を置換せずエラーにする。
+    /// 以前は incoming が黙って勝ち、手書きアイテムが丸ごと消えていた。
+    #[test]
+    fn type_mismatch_is_an_error_not_a_silent_replace() {
+        let config = ast::FieldPriorityConfig::default();
+        let err = merge_items_by_field_priority(
+            event("x1", "手書きのイベント", 1950),
+            span("x1", "Wikidata の期間"),
+            &config,
+        )
+        .expect_err("type mismatch must not silently replace the manual item");
+
+        match err {
+            LoweringError::FieldPriorityTypeMismatch {
+                id,
+                existing,
+                incoming,
+            } => {
+                assert_eq!(id, "x1");
+                assert_eq!(existing, "event");
+                assert_eq!(incoming, "span");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 }

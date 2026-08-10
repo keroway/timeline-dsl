@@ -368,6 +368,32 @@ span a 2024-01-01T10:00:00..2024-01-02T10:00 "S" {};
 
 ---
 
+### E114: field_priority でのアイテム種別不一致
+
+**メッセージ**: `Item id `{id}` has conflicting types under `policy field_priority`: existing is `{existing}`, incoming is `{incoming}` (field-level merge is only defined between items of the same type)`
+
+**原因**: `policy field_priority` の下で ID が衝突したアイテムの**種別が食い違って**います
+（例: 手書きの `event` と Wikidata インポートの `span`）。
+フィールド単位のマージは同じ種別どうしでのみ定義されます。
+
+**修正方法**: どちらかの `id` を変えるか、種別を揃えてください。
+取り込み側で置き換えてよい場合は `policy overwrite_imported` を、
+手動定義を常に優先する場合は `policy keep_manual` を使います。
+
+```
+# 誤り（同じ id "x1" で種別が違う）
+event lane 1950 "手書きのイベント" { id: x1 }
+# → Wikidata インポートが span として同じ id を生成するとエラー
+
+# 正しい（id を分ける、または種別を揃える）
+event lane 1950 "手書きのイベント" { id: x1_manual }
+```
+
+**補足**: このエラーは以前は発生せず、取り込み側が既存アイテムを**黙って丸ごと置換**していました。
+`label manual` を指定していても手書きの内容が失われるため、明示エラーに変更されています。
+
+---
+
 ## バリデーション警告（tdsl-core: validate）
 
 IR生成後の整合性チェックで発生する警告です。ビルドは続行されますが、出力が意図と異なる可能性があります。

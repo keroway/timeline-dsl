@@ -14,6 +14,24 @@ pub enum LoweringError {
     #[error("Duplicate item id: {0}")]
     DuplicateItemId(String),
 
+    /// `policy field_priority` で ID が衝突したが、item の型（span / event /
+    /// event_range）が食い違っている。
+    ///
+    /// 以前は incoming が黙って既存を丸ごと置換しており、`label manual` 等の
+    /// 設定も無視されて「手動データを守る」という field_priority の意図と
+    /// 逆の結果になっていた（#762）。
+    #[error(
+        "Item id `{id}` has conflicting types under `policy field_priority`:          existing is `{existing}`, incoming is `{incoming}` (field-level merge is          only defined between items of the same type)"
+    )]
+    FieldPriorityTypeMismatch {
+        /// 衝突した item の ID。
+        id: String,
+        /// 既存アイテムの型名。
+        existing: &'static str,
+        /// 取り込もうとしたアイテムの型名。
+        incoming: &'static str,
+    },
+
     #[error("No timeline block found")]
     NoTimeline,
 
