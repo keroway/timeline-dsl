@@ -370,15 +370,22 @@ span a 2024-01-01T10:00:00..2024-01-02T10:00 "S" {};
 
 ### E114: field_priority でのアイテム種別不一致
 
-**メッセージ**: `Item id `{id}` has conflicting types under `policy field_priority`: existing is `{existing}`, incoming is `{incoming}` (field-level merge is only defined between items of the same type)`
+**メッセージ**: `Item id {id} has conflicting types under policy field_priority: existing is {existing}, incoming is {incoming} (field-level merge is only defined between items of the same type)`
+
+（実際の出力では `{id}` / `{existing}` / `{incoming}` はバッククォートで囲まれます）
 
 **原因**: `policy field_priority` の下で ID が衝突したアイテムの**種別が食い違って**います
 （例: 手書きの `event` と Wikidata インポートの `span`）。
 フィールド単位のマージは同じ種別どうしでのみ定義されます。
 
 **修正方法**: どちらかの `id` を変えるか、種別を揃えてください。
-取り込み側で置き換えてよい場合は `policy overwrite_imported` を、
-手動定義を常に優先する場合は `policy keep_manual` を使います。
+手動定義を常に優先してよい場合は `policy keep_manual` を使います。
+
+**`policy overwrite_imported` はこの状況では使えません。** 同ポリシーが置換するのは
+**既存アイテムもインポート由来である場合だけ**で、既存が手動定義なら
+`E103: アイテムIDの重複` になります（`crates/tdsl-core/src/lower/context.rs` の
+`ReimportPolicy::OverwriteImported` 分岐）。E114 が問題になるのは手書きと
+インポートが衝突する場面なので、この案内は当てはまりません。
 
 ```
 # 誤り（同じ id "x1" で種別が違う）
