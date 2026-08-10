@@ -248,6 +248,30 @@ test -s "$TMP_DIR/manual.json"
 cargo run -q -p tdsl-cli -- render "$TMP_DIR/manual.tdsl" --output "$TMP_DIR/manual.html"
 test -s "$TMP_DIR/manual.html"
 
+# ---- tdsl lint 終了コード ----------------------------------------------------
+# ERROR が残っている場合に非ゼロを返すこと (#766)。ここが 0 のままだと
+# JSON をパースしない限り CI で lint をゲートにできない。
+echo "[e2e] lint: ERROR が残る入力では非ゼロ終了する (#766)"
+sed '18s/span mission/span nosuchlane/' examples/apollo_11.tdsl >"$TMP_DIR/lint_error.tdsl"
+grep -Fq "span nosuchlane" "$TMP_DIR/lint_error.tdsl"
+if cargo run -q -p tdsl-cli -- lint "$TMP_DIR/lint_error.tdsl" >"$TMP_DIR/lint_error.out" 2>&1; then
+  echo "expected non-zero exit for lint errors" >&2
+  cat "$TMP_DIR/lint_error.out" >&2
+  exit 1
+fi
+grep -Fq "unknown_lane" "$TMP_DIR/lint_error.out"
+
+echo "[e2e] lint: --format json でも ERROR なら非ゼロ終了する (#766)"
+if cargo run -q -p tdsl-cli -- lint "$TMP_DIR/lint_error.tdsl" --format json \
+  >"$TMP_DIR/lint_error.json" 2>/dev/null; then
+  echo "expected non-zero exit for lint errors (json)" >&2
+  exit 1
+fi
+grep -Fq '"ok": false' "$TMP_DIR/lint_error.json"
+
+echo "[e2e] lint: issue の無い入力は 0 で返る"
+cargo run -q -p tdsl-cli -- lint examples/apollo_11.tdsl
+
 # ---- tdsl fmt ---------------------------------------------------------------
 echo "[e2e] fmt: format static example to stdout"
 cargo run -q -p tdsl-cli -- fmt examples/china_dynasties.tdsl >"$TMP_DIR/fmt_out.tdsl"

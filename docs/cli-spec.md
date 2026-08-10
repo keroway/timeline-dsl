@@ -722,6 +722,23 @@ tdsl lint examples/china_dynasties.tdsl --fix
 tdsl lint examples/china_dynasties.tdsl --format json
 ```
 
+### 終了コード
+
+| 条件 | 終了コード |
+|---|---|
+| issue なし | 0 |
+| WARN のみ | 0 |
+| **ERROR が 1 件以上** | **1** |
+
+`--fix` を指定した場合は**修正適用後に残った** issue で判定する。
+`--format json` でも同じ（JSON は標準出力に出したうえで終了コードを返す）。
+
+ERROR で非ゼロを返すため、**JSON をパースしなくても CI のゲートにできる**。
+`fmt --check` が未整形時に 1 を返すのと同じ扱い（issue #766 以前は ERROR でも 0 を返しており、
+両者が非一貫だった）。
+
+WARN で落とすかどうかは `check` の `--deny-warnings` 提案（issue #748）と揃えて別途決める。
+
 ---
 
 ## `fmt`

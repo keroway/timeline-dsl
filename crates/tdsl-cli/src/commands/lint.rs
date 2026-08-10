@@ -36,6 +36,12 @@ pub(crate) fn cmd_lint(
     }
 
     let issues = lint_issues(&file, &lint_source);
+    // ERROR の件数は match の前に数える。JSON 分岐で `issues` が
+    // `LintReportOutput` へ move されるため、後から参照できない。
+    let error_count = issues
+        .iter()
+        .filter(|i| matches!(i.severity, LintSeverity::Error))
+        .count();
     match format {
         LintOutputFormat::Text => {
             if fix {
@@ -73,6 +79,19 @@ pub(crate) fn cmd_lint(
                 serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
             );
         }
+    }
+
+    // ERROR が残っていれば非ゼロ終了する。`main.rs` は `Err` のときだけ
+    // `process::exit(1)` するため、ここで Ok を返すと CI で lint をゲートにできない
+    // （`fmt --check` は未整形時に Err を返しており、そちらと非一貫だった。#766）。
+    //
+    // WARN のみの場合は従来どおり成功にする。警告で落とすかは `check` の
+    // `--deny-warnings` 提案（#748）と揃えて別途決める。
+    if error_count > 0 {
+        return Err(format!(
+            "{error_count} lint error(s) in {}",
+            input.display()
+        ));
     }
 
     Ok(())
