@@ -49,6 +49,32 @@ pub enum RenderError {
         /// Human-readable explanation.
         message: String,
     },
+    /// An item references a lane that is not defined in the IR.
+    ///
+    /// `.tdsl` の lowering はこれをエラーにするが、IR JSON を直接受ける経路
+    /// (WASM / 外部ツールが生成した IR) には lowering が挟まらない。以前は
+    /// レイアウト時に黙って読み飛ばしており、アイテムが警告なく描画から消えていた
+    /// (implementation-strict.md §2-4 の NO-GO パターン。#765)。
+    #[error("item `{item}` references unknown lane `{lane}`")]
+    UnknownLane {
+        /// The undefined lane id referenced by the item.
+        lane: String,
+        /// A human-readable identifier of the offending item (id or label).
+        item: String,
+    },
+    /// The timeline range is degenerate and cannot be derived from items either.
+    ///
+    /// 以前は `unwrap_or((0, 2000))` で魔法の既定値に握りつぶしており、
+    /// 不正な range が「西暦 0〜2000 年の年表」として静かに描画されていた (#765)。
+    #[error(
+        "timeline range is degenerate ({start}..{end}) and cannot be derived from items          (no dated item found)"
+    )]
+    DegenerateRange {
+        /// The declared range start.
+        start: i64,
+        /// The declared range end.
+        end: i64,
+    },
     /// SVG formatting failed.
     #[error("SVG formatting failed: {0}")]
     Fmt(#[from] std::fmt::Error),
