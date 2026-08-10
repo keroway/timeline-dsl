@@ -426,8 +426,14 @@ impl<'a> LayoutModel<'a> {
             // 同一年内のレンジ（例: range 1939-09..1939-10）: items から導出せず一年幅を確保
             (year_min, year_max + 1)
         } else {
-            // Fallback: if range is degenerate, derive from items.
-            derive_range_from_items(ir).unwrap_or((0, 2000))
+            // range が degenerate な場合は items から導出する。導出もできない
+            // (日付を持つ item が 1 つも無い) 場合は、以前は (0, 2000) という
+            // 魔法の既定値に握りつぶしていた。不正な range が「西暦 0〜2000 年の
+            // 年表」として静かに描画されるため、明示エラーにする (#765)。
+            derive_range_from_items(ir).ok_or(RenderError::DegenerateRange {
+                start: year_min,
+                end: year_max,
+            })?
         };
 
         let mut lanes_ordered: Vec<&Lane> = ir.lanes.iter().collect();
@@ -630,8 +636,15 @@ impl<'a> LayoutModel<'a> {
         let mut items = Vec::new();
         for (item_idx, item) in ir.items.iter().enumerate() {
             let lane_id = item_lane_id(item);
+            // 未知 lane を読み飛ばすと、アイテムが警告なく描画から消える (#765)。
+            // pagination.rs は同じ条件を明示エラーにしており、doc コメントで
+            // 「a plain filter would silently drop」と書いている。その "plain filter" が
+            // ここに残っていたので、同じ扱いに揃える。
             let Some(&lane_axis) = lane_y.get(lane_id) else {
-                continue;
+                return Err(RenderError::UnknownLane {
+                    lane: lane_id.to_owned(),
+                    item: item_display_name(item),
+                });
             };
             let item_tags = get_item_tags(item);
             let color = resolve_item_color(
@@ -2036,6 +2049,22 @@ fn item_lane_id(item: &Item) -> &str {
     }
 }
 
+/// エラーメッセージ用にアイテムを人間が識別できる形で表す。
+/// id が空のときは label にフォールバックする（IR JSON を直接渡す経路では
+/// id が省略されうるため、どちらか一方だけでは特定できないことがある）。
+fn item_display_name(item: &Item) -> String {
+    let (id, label) = match item {
+        Item::Span { id, label, .. }
+        | Item::Event { id, label, .. }
+        | Item::EventRange { id, label, .. } => (id, label),
+    };
+    if id.is_empty() {
+        label.clone()
+    } else {
+        id.clone()
+    }
+}
+
 fn get_item_tags(item: &Item) -> &[String] {
     match item {
         Item::Span { tags, .. } | Item::Event { tags, .. } | Item::EventRange { tags, .. } => tags,
@@ -2665,6 +2694,116 @@ mod tests {
         assert_eq!(layout.year_to_x(-500), 120.0);
         assert_eq!(layout.year_to_x(0), 1120.0);
         assert_eq!(layout.year_to_x(2000), 120.0 + 2500.0 * 2.0);
+    }
+
+    fn mk_lane(id: &str) -> tdsl_core::ir::Lane {
+        tdsl_core::ir::Lane {
+            id: id.into(),
+            label: id.into(),
+            kind: "custom".into(),
+            order: 0,
+            group: None,
+            source_span: None,
+        }
+    }
+
+    fn mk_event(id: &str, lane: &str, year: i64) -> Item {
+        Item::Event {
+            id: id.into(),
+            lane: lane.into(),
+            time: year,
+            label: id.into(),
+            tags: vec![],
+            source: None,
+            origin: None,
+            note: None,
+            link: None,
+            color: None,
+            time_month: None,
+            time_day: None,
+            time_hour: None,
+            time_minute: None,
+            time_second: None,
+            time_offset_minutes: None,
+            source_span: None,
+        }
+    }
+
+    /// #765: 未知 lane を参照する item は黙って読み飛ばさず、明示エラーにする。
+    /// `.tdsl` 経由なら lowering が弾くが、IR JSON を直接受ける経路
+    /// (WASM / 外部ツール生成 IR) には lowering が挟まらない。
+    #[test]
+    fn unknown_lane_item_is_an_error_not_a_silent_drop() {
+        let ir = TimelineIr {
+            meta: mk_meta((1900, 2000)),
+            lanes: vec![mk_lane("known")],
+            items: vec![mk_event("e1", "nosuchlane", 1950)],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let err = LayoutModel::compute(&ir, RenderOptions::default())
+            .map(|_| ())
+            .expect_err("unknown lane must fail instead of dropping the item");
+        match err {
+            RenderError::UnknownLane { lane, item } => {
+                assert_eq!(lane, "nosuchlane");
+                assert_eq!(item, "e1");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    /// 既知 lane だけなら従来どおり成功する（上のテストが常に失敗していないことの確認）。
+    #[test]
+    fn known_lane_item_still_lays_out() {
+        let ir = TimelineIr {
+            meta: mk_meta((1900, 2000)),
+            lanes: vec![mk_lane("known")],
+            items: vec![mk_event("e1", "known", 1950)],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let layout =
+            LayoutModel::compute(&ir, RenderOptions::default()).expect("known lane must lay out");
+        assert_eq!(layout.items.len(), 1);
+    }
+
+    /// #765: range が degenerate で items からも導出できない場合、
+    /// 以前は (0, 2000) という魔法の既定値に握りつぶしていた。
+    #[test]
+    fn degenerate_range_without_items_is_an_error() {
+        let ir = TimelineIr {
+            meta: mk_meta((2000, 1900)),
+            lanes: vec![mk_lane("known")],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let err = LayoutModel::compute(&ir, RenderOptions::default())
+            .map(|_| ())
+            .expect_err("degenerate range without items must fail");
+        assert!(
+            matches!(err, RenderError::DegenerateRange { .. }),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    /// degenerate でも items から導出できるなら従来どおり成功する。
+    #[test]
+    fn degenerate_range_with_items_derives_from_items() {
+        let ir = TimelineIr {
+            meta: mk_meta((2000, 1900)),
+            lanes: vec![mk_lane("known")],
+            items: vec![mk_event("e1", "known", 1950)],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        LayoutModel::compute(&ir, RenderOptions::default())
+            .expect("range derivable from items must succeed");
     }
 
     #[test]
