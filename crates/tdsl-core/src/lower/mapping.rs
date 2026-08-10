@@ -826,6 +826,10 @@ pub(crate) fn merge_items_by_field_priority(
 }
 
 /// エラーメッセージ用の item 型名。DSL の構文キーワードに合わせる。
+///
+/// `Item` の import 自体が wikidata feature 限定のため、同じ属性を付ける
+/// （付け忘れると feature 無効時のビルド（WASM 等）で E0425 になる）。
+#[cfg(feature = "wikidata")]
 fn item_type_name(item: &Item) -> &'static str {
     match item {
         Item::Span { .. } => "span",
