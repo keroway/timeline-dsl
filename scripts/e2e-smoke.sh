@@ -272,6 +272,35 @@ grep -Fq '"ok": false' "$TMP_DIR/lint_error.json"
 echo "[e2e] lint: issue の無い入力は 0 で返る"
 cargo run -q -p tdsl-cli -- lint examples/apollo_11.tdsl
 
+echo "[e2e] lint: 正常入力を --format json でも 0 で返る (#766)"
+cargo run -q -p tdsl-cli -- lint examples/apollo_11.tdsl --format json \
+  >"$TMP_DIR/lint_ok.json"
+grep -Fq '"ok": true' "$TMP_DIR/lint_ok.json"
+
+echo "[e2e] lint: WARN のみなら 0 で返る (#766)"
+# id 行を落として missing_id (WARN) だけが出る入力を作る。
+sed '20d' examples/apollo_11.tdsl >"$TMP_DIR/lint_warn.tdsl"
+cargo run -q -p tdsl-cli -- lint "$TMP_DIR/lint_warn.tdsl" >"$TMP_DIR/lint_warn.out"
+grep -Fq "WARN" "$TMP_DIR/lint_warn.out"
+
+echo "[e2e] lint --fix: ERROR が解消されなければ非ゼロのまま (#766)"
+# unknown_lane は fixable ではないため --fix でも残る。
+if cargo run -q -p tdsl-cli -- lint "$TMP_DIR/lint_error.tdsl" --fix \
+  >"$TMP_DIR/lint_fix_error.out" 2>&1; then
+  echo "expected non-zero exit when --fix leaves errors" >&2
+  cat "$TMP_DIR/lint_fix_error.out" >&2
+  exit 1
+fi
+grep -Fq "unknown_lane" "$TMP_DIR/lint_fix_error.out"
+
+echo "[e2e] lint --fix: WARN が解消されれば 0 で返る (#766)"
+cp "$TMP_DIR/lint_warn.tdsl" "$TMP_DIR/lint_fix_warn.tdsl"
+cargo run -q -p tdsl-cli -- lint "$TMP_DIR/lint_fix_warn.tdsl" --fix \
+  >"$TMP_DIR/lint_fix_warn.out"
+cargo run -q -p tdsl-cli -- lint "$TMP_DIR/lint_fix_warn.tdsl" --format json \
+  >"$TMP_DIR/lint_fix_warn.json"
+grep -Fq '"ok": true' "$TMP_DIR/lint_fix_warn.json"
+
 # ---- tdsl fmt ---------------------------------------------------------------
 echo "[e2e] fmt: format static example to stdout"
 cargo run -q -p tdsl-cli -- fmt examples/china_dynasties.tdsl >"$TMP_DIR/fmt_out.tdsl"
