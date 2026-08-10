@@ -25,7 +25,8 @@ pub(crate) fn cmd_scaffold_wikidata(
 
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let doc = rt.block_on(async {
-        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
+        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout)
+            .map_err(|e| e.to_string())?;
         let mut entities = Vec::new();
         let langs_ref: Vec<&str> = langs.iter().map(String::as_str).collect();
         for qid in &qids {

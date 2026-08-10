@@ -56,6 +56,17 @@ pub struct SearchResult {
 /// Default maximum number of retry attempts for transient errors.
 pub const DEFAULT_MAX_RETRIES: u32 = 5;
 
+/// `Retry-After` ヘッダで指示された待機時間の上限（秒）。
+///
+/// サーバが `Retry-After: 86400` を返すと、以前は進捗表示なしで 24 時間 sleep し、
+/// それを最大 `max_retries` 回繰り返しえた（#768）。CLI が無反応に見えるため、
+/// 上限を超える指示は待たずに `RateLimit` として即座に返す。
+///
+/// 60 秒は「一時的な絞り込みなら待つ価値があるが、それ以上は人間に判断を返す方がよい」
+/// という線引き。待つべきかどうかは実行文脈（対話的な CLI か、バッチか）で変わるため、
+/// ライブラリ側で長時間ブロックしない側に倒す。
+pub const MAX_RETRY_AFTER_SECS: u64 = 60;
+
 /// HTTP-based Wikidata client using the public API.
 pub struct HttpWikidataClient {
     http: reqwest::Client,
@@ -63,15 +74,26 @@ pub struct HttpWikidataClient {
 }
 
 impl HttpWikidataClient {
-    pub fn new() -> Self {
+    /// 既定のタイムアウト（30 秒）でクライアントを構築する。
+    pub fn new() -> Result<Self, WikidataError> {
         Self::with_timeout(std::time::Duration::from_secs(30))
     }
 
-    pub fn with_timeout(timeout: std::time::Duration) -> Self {
+    /// タイムアウトを指定してクライアントを構築する。
+    pub fn with_timeout(timeout: std::time::Duration) -> Result<Self, WikidataError> {
         Self::with_options(timeout, DEFAULT_MAX_RETRIES)
     }
 
-    pub fn with_options(timeout: std::time::Duration, max_retries: u32) -> Self {
+    /// タイムアウトとリトライ回数を指定してクライアントを構築する。
+    ///
+    /// `reqwest::Client::builder().build()` は TLS バックエンドの初期化などで失敗しうる。
+    /// 以前は `.expect()` でライブラリ層から panic していたが、
+    /// implementation-strict.md §4.1 は「ライブラリ層は thiserror ベースのエラー型を返す。
+    /// `.expect()` 原則禁止」としている（#768）。
+    pub fn with_options(
+        timeout: std::time::Duration,
+        max_retries: u32,
+    ) -> Result<Self, WikidataError> {
         let http = reqwest::Client::builder()
             .user_agent(concat!(
                 "tdsl/",
@@ -79,15 +101,8 @@ impl HttpWikidataClient {
                 " (https://github.com/keroway/timeline-dsl)"
             ))
             .timeout(timeout)
-            .build()
-            .expect("failed to create HTTP client");
-        Self { http, max_retries }
-    }
-}
-
-impl Default for HttpWikidataClient {
-    fn default() -> Self {
-        Self::new()
+            .build()?;
+        Ok(Self { http, max_retries })
     }
 }
 
@@ -120,12 +135,24 @@ impl HttpWikidataClient {
                         if attempt >= self.max_retries {
                             return Err(WikidataError::RateLimit);
                         }
-                        let wait = resp
+                        // Retry-After は秒数（delta-seconds）形式のみ解釈する。
+                        // HTTP-date 形式は parse に失敗し、指数バックオフに落ちる。
+                        let retry_after = resp
                             .headers()
                             .get("Retry-After")
                             .and_then(|v| v.to_str().ok())
-                            .and_then(|s| s.parse::<u64>().ok())
-                            .unwrap_or(1u64 << attempt);
+                            .and_then(|s| s.parse::<u64>().ok());
+                        // 上限を超える指示には従わず、待たずに返す（#768）。
+                        // 従うと CLI が進捗表示なしで長時間ブロックする。
+                        if let Some(secs) = retry_after
+                            && secs > MAX_RETRY_AFTER_SECS
+                        {
+                            return Err(WikidataError::RateLimitRetryAfterTooLong {
+                                requested_secs: secs,
+                                max_secs: MAX_RETRY_AFTER_SECS,
+                            });
+                        }
+                        let wait = retry_after.unwrap_or(1u64 << attempt);
                         tokio::time::sleep(Duration::from_secs(wait)).await;
                         attempt += 1;
                         continue;
@@ -604,6 +631,97 @@ mod tests {
             matches!(result, Err(WikidataError::RateLimit)),
             "expected RateLimit error, got: {result:?}"
         );
+    }
+
+    /// #768: Retry-After が上限を超える待機を指示したら、従わずに即返す。
+    /// 従うとサーバの指示ひとつで CLI が進捗表示なしで何時間もブロックしうる。
+    #[tokio::test]
+    async fn retry_after_beyond_cap_returns_error_without_waiting() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        // 24 時間待てという指示。以前はこれに従って sleep していた。
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "86400"))
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::builder()
+            .user_agent("tdsl-test")
+            .build()
+            .unwrap();
+        let client = HttpWikidataClient {
+            http,
+            max_retries: DEFAULT_MAX_RETRIES,
+        };
+        let base = format!("{}/w/api.php", server.uri());
+
+        // 実際に待たずに返ることを確認する（待つ実装ならこのテストは完走しない）。
+        let started = std::time::Instant::now();
+        let result = client.send_with_retry(|| client.http.get(&base)).await;
+        let elapsed = started.elapsed();
+
+        match result {
+            Err(WikidataError::RateLimitRetryAfterTooLong {
+                requested_secs,
+                max_secs,
+            }) => {
+                assert_eq!(requested_secs, 86_400);
+                assert_eq!(max_secs, MAX_RETRY_AFTER_SECS);
+            }
+            other => panic!("expected RateLimitRetryAfterTooLong, got: {other:?}"),
+        }
+        assert!(
+            elapsed < Duration::from_secs(5),
+            "must not sleep for the requested duration, took {elapsed:?}"
+        );
+    }
+
+    /// 上限以内の Retry-After には従来どおり従う（上のテストが常に発火しないことの確認）。
+    #[tokio::test]
+    async fn retry_after_within_cap_is_honored() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "1"))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/w/api.php"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::builder()
+            .user_agent("tdsl-test")
+            .build()
+            .unwrap();
+        let client = HttpWikidataClient {
+            http,
+            max_retries: DEFAULT_MAX_RETRIES,
+        };
+        let base = format!("{}/w/api.php", server.uri());
+
+        let result = client.send_with_retry(|| client.http.get(&base)).await;
+        assert!(result.is_ok(), "expected success after retry: {result:?}");
+    }
+
+    /// #768: 公開コンストラクタは panic せず Result を返す。
+    #[tokio::test]
+    async fn constructors_return_result_instead_of_panicking() {
+        HttpWikidataClient::new().expect("default construction must succeed");
+        HttpWikidataClient::with_timeout(Duration::from_secs(5))
+            .expect("with_timeout must succeed");
+        HttpWikidataClient::with_options(Duration::from_secs(5), 3)
+            .expect("with_options must succeed");
     }
 
     #[tokio::test]
