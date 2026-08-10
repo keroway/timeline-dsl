@@ -301,6 +301,14 @@ import wikidata as wd {
 | `label` / `time` / `tags` | `wikidata` | Wikidata側を優先（手動定義を上書き） |
 | `label` / `time` / `tags` | `merge` | 両方を保持（`tags` では和集合、`label`/`time`はWikidata側を採用） |
 
+**フィールド単位のマージは、同じ種別のアイテムどうしでのみ定義される。**
+ID が衝突したアイテムの種別が食い違う場合（例: 手書きの `event` と Wikidata の `span`）は
+エラー `E114` になり、既存アイテムは置換されない。
+
+以前は取り込み側が黙って既存を丸ごと置き換えており、`label manual` の指定も無視されて
+「手動データを守る」という field_priority の意図と逆の結果になっていた
+（[error-catalog の E114](./error-catalog.md#e114-field_priority-でのアイテム種別不一致) を参照）。
+
 ### map
 
 インポートしたエンティティを年表要素に変換するルール。

@@ -152,9 +152,16 @@ impl LoweringContext {
                 }
                 ast::ReimportPolicy::FieldPriority(config) => {
                     let existing = self.items[idx].clone();
-                    let merged = merge_items_by_field_priority(existing, item, &config);
-                    self.items[idx] = merged;
-                    self.upsert_import_record(&id, qid);
+                    match merge_items_by_field_priority(existing, item, &config) {
+                        Ok(merged) => {
+                            self.items[idx] = merged;
+                            self.upsert_import_record(&id, qid);
+                        }
+                        // 型不一致は既存を置換せずエラーにする（#762）。
+                        // 置換すると `label manual` 等の設定が無視され、
+                        // 「手動データを守る」という field_priority の意図と逆になる。
+                        Err(err) => self.errors.push(err),
+                    }
                 }
             }
         } else {
