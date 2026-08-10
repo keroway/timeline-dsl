@@ -21,7 +21,7 @@ pub enum LoweringError {
     /// 設定も無視されて「手動データを守る」という field_priority の意図と
     /// 逆の結果になっていた（#762）。
     #[error(
-        "Item id `{id}` has conflicting types under `policy field_priority`:          existing is `{existing}`, incoming is `{incoming}` (field-level merge is          only defined between items of the same type)"
+        "Item id `{id}` has conflicting types under `policy field_priority`: existing is `{existing}`, incoming is `{incoming}` (field-level merge is only defined between items of the same type)"
     )]
     FieldPriorityTypeMismatch {
         /// 衝突した item の ID。
