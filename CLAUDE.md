@@ -28,7 +28,18 @@ cargo run -p tdsl-cli -- fetch Q7209 --lang ja,en
 
 ## アーキテクチャ
 
-### クレート構成（依存方向: cli → core → parser, core → wikidata）
+### クレート構成
+
+依存方向（`cargo metadata` が正。矢印の先が依存される側）:
+
+```
+tdsl-parser ← tdsl-core ← tdsl-render ← tdsl-wasm
+tdsl-wikidata ↗         ↖ tdsl-lsp ← tdsl-cli
+```
+
+`tdsl-parser` と `tdsl-wikidata` は他のワークスペースクレートに依存しない基底。
+`tdsl-cli` は core / parser / wikidata / render / lsp すべてに依存する最上位。
+`tdsl-wasm` は CLI からは参照されず、WebUI 向けのビルドターゲットとして独立している。
 
 ```
 crates/
@@ -36,18 +47,43 @@ crates/
 │   ├── grammar.pest   # PEG文法定義
 │   ├── ast.rs         # AST型定義
 │   ├── builder.rs     # pest解析木 → AST変換
+│   ├── format.rs      # AST → 整形済みソース（tdsl fmt）
+│   ├── comments.rs    # コメントの保持
+│   ├── now.rs         # `now` キーワードの解決
 │   └── error.rs       # パースエラー
 ├── tdsl-core/      # AST → IR変換・バリデーション
 │   ├── ir.rs          # IR型定義（JSON直列化対象）
-│   ├── lower.rs       # 4パスlowering（静的 / Wikidata連携）
+│   ├── lower/         # 4パスlowering（静的 / Wikidata連携）。mod.rs がパスを束ねる
+│   │   ├── declarations.rs   # Pass 1: timeline/lane 宣言の収集
+│   │   ├── static_items.rs   # Pass 2: 静的アイテムの変換
+│   │   ├── imports.rs        # Pass 3: import ブロックの解決
+│   │   ├── mapping.rs        # map / template / color_map の適用
+│   │   └── context.rs        # パス間で共有する状態
 │   ├── validate.rs    # 意味検証
+│   ├── lint.rs        # tdsl lint（品質チェックと --fix）
+│   ├── merge.rs       # tdsl merge（複数 IR のマージ）
+│   ├── decompile.rs   # tdsl decompile（JSON IR → .tdsl 逆変換）
 │   └── error.rs       # lowering エラー
 ├── tdsl-wikidata/  # Wikidata APIクライアント
 │   ├── client.rs      # WikidataClient trait + HTTP実装
 │   ├── entity.rs      # エンティティ型 + 時間パース
+│   ├── cache.rs       # 取得キャッシュ（TTL、~/.cache/tdsl/）
 │   └── error.rs       # Wikidataエラー
+├── tdsl-render/    # IR → SVG / HTML / PDF / PNG
+│   ├── layout.rs      # LayoutModel の算出（描画の中核）
+│   ├── svg.rs         # SVG 直列化
+│   ├── html.rs        # SVG を埋め込んだスタンドアロン HTML
+│   ├── pdf.rs / png.rs        # ラスタ・PDF 出力
+│   └── pagination.rs / time_range_pagination.rs  # ページ分割（ADR-0005 D2）
+├── tdsl-lsp/       # Language Server（tdsl lsp から起動）
+│   ├── backend.rs     # LSP サーバ本体
+│   ├── completion.rs / hover.rs / diagnostics.rs / formatting.rs
+│   └── goto_definition.rs / find_references.rs / rename.rs / code_action.rs
+├── tdsl-wasm/      # WebUI 向け wasm バインディング（CLI からは参照されない）
+│   └── lib.rs
 └── tdsl-cli/       # CLIバイナリ
-    └── main.rs        # build / check / ast / fetch サブコマンド
+    ├── main.rs        # 引数パースとディスパッチ
+    └── commands/      # サブコマンド1つにつき1ファイル
 ```
 
 ### コンパイルパイプライン
@@ -89,7 +125,7 @@ WebUI と WASM バインディングはソーステキストを渡している�
 1. `crates/tdsl-parser/src/grammar.pest` を編集
 2. `crates/tdsl-parser/src/ast.rs` にAST型を追加/変更
 3. `crates/tdsl-parser/src/builder.rs` に変換ロジックを実装
-4. `crates/tdsl-core/src/lower.rs` にloweringロジックを追加
+4. `crates/tdsl-core/src/lower/` にloweringロジックを追加（宣言なら `declarations.rs`、静的アイテムなら `static_items.rs`、import 解決なら `imports.rs`）
 5. 必要に応じて `crates/tdsl-core/src/ir.rs` のIR型を更新
 6. `cargo test --workspace` で全テスト通過を確認
 7. **シンタックスハイライトのキーワードを更新すること**（手順下記参照）
@@ -126,7 +162,7 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.json` をミラー�
 - PEG文法 + パーサ（7種のstatement: timeline, lane, span, event, event_range, import, map）
 - AST → IR変換（静的 / Wikidata連携 両方）
 - Wikidata HTTPクライアント（wbgetentities API, wbsearchentities, SPARQL）
-- CLI サブコマンド: `build` / `check` / `ast` / `fetch` / `search` / `inspect` / `resolve` / `scaffold` / `render` / `init` / `import-csv` / `export-csv` / `lint` / `decompile` / `merge` / `cache` / `lsp`
+- CLI サブコマンド: `build` / `check` / `ast` / `fetch` / `search` / `inspect` / `resolve` / `scaffold` / `render` / `init` / `import-csv` / `export-csv` / `lint` / `decompile` / `merge` / `cache` / `lsp` / `fmt` / `completions`（`main.rs` の `enum Commands` が正）
 - JSON IR出力（`origin` フィールドを含む）
 - コメント（行 `//` / ブロック `/* */`）
 - `map` の `target_type` は enum 型（span / event / event_range のみ許可）
