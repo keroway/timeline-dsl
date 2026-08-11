@@ -93,7 +93,8 @@ crates/
 3. **Lowering Pass 2**: 静的アイテム（span/event/event_range）を変換
 4. **Lowering Pass 3**: import ブロックを解決（Wikidata fetch）
 5. **Lowering Pass 4**: map ブロックを適用してアイテム生成
-6. **バリデーション**: range整合性、未使用lane等の警告
+6. **バリデーション**（`tdsl_core::validate`）: range整合性、lane kind、item→lane 参照、start>end
+7. **lint**（`tdsl_core::lint`、`tdsl lint` から呼ばれる）: 未使用 lane、ID 重複、空ラベル、タグの重複など
 
 ### IR構造（`tdsl_core::ir::TimelineIr`）
 

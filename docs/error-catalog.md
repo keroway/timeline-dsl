@@ -821,6 +821,35 @@ span dynasty -206..-9 "秦" {
 
 ---
 
+### WARN: unused_lane — 宣言されているが参照されていない lane
+
+**メッセージ**: `lane \`{id}\` is declared but never referenced (it renders as an empty band)`
+
+**原因**: `lane` を宣言したものの、`span` / `event` / `event_range` からも `map` / `template` / `apply` の `lane` プロパティからも参照されていません。この lane はアイテムが 1 つも乗らない**空帯**として描画され続けます。
+
+典型的には `tdsl scaffold wikidata --lane-mode per-entity` で lane を大量生成したあと、対応する `map` を削った場合に出ます。
+
+**修正方法**: 不要なら lane 宣言を削除し、必要なら参照を追加してください。
+
+**`tdsl lint --fix` では自動修正しません**（`fixable: false`）。「これから item を足すために先に宣言した」ケースを機械的に壊さないためです。
+
+```tdsl
+// 誤り（orphan にアイテムが乗らない）
+timeline "T" { title "T"; unit year; range 0..3000; }
+lane "使う" as used { kind custom; order 1; }
+lane "使わない" as orphan { kind custom; order 2; }
+span used 2001..2005 "A" { id "a1"; };
+
+// 正しい（使わない lane を削除する）
+timeline "T" { title "T"; unit year; range 0..3000; }
+lane "使う" as used { kind custom; order 1; }
+span used 2001..2005 "A" { id "a1"; };
+```
+
+**`map` 経由の参照も数えます。** item を直接書かず import + map から生成するファイルでも偽陽性は出ません。
+
+---
+
 ### WARN: invalid_calendar_date — 無効なカレンダー日付
 
 **メッセージ**: `Invalid calendar date: YYYY-MM-DD`

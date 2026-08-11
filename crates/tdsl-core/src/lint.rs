@@ -140,7 +140,68 @@ pub fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue
         }
     }
 
+    lint_unused_lanes(file, &lane_ids, &line_offsets, &mut issues);
+
     issues
+}
+
+/// 宣言されているが一度も参照されていない lane を warning で報告する。
+///
+/// `scaffold wikidata --lane-mode per-entity` で lane を大量生成してから map を
+/// 削ると、item が 1 つも乗らない lane が空帯としてレンダリングされ続けるが、
+/// 従来は誰も警告しなかった。`CLAUDE.md` の「未使用lane等の警告」という記述に
+/// 対して実装が存在しない、という乖離もあった（#756）。
+///
+/// **`fixable: false`。** 未使用 lane を機械的に消すのは危険で、
+/// 「これから item を足すために先に宣言した」ケースを壊す。直すのは書き手。
+fn lint_unused_lanes(
+    file: &tdsl_parser::ast::File,
+    lane_ids: &std::collections::HashSet<String>,
+    line_offsets: &[usize],
+    issues: &mut Vec<LintIssue>,
+) {
+    use tdsl_parser::ast::Statement;
+
+    let referenced = collect_referenced_lane_ids(file);
+    if lane_ids.iter().all(|id| referenced.contains(id)) {
+        return;
+    }
+
+    // 宣言位置を報告するため、宣言側をもう一度なぞる（ID の決め方は
+    // `collect_lane_ids` と同じ規則で揃えること）。
+    let mut auto = 0usize;
+    for stmt in &file.statements {
+        let line = line_from_offset(line_offsets, stmt.span.start);
+        match &stmt.node {
+            Statement::Lane(lane) => {
+                let id = resolve_lane_id(lane, &mut auto);
+                if !referenced.contains(&id) {
+                    issues.push(unused_lane_issue(&id, line));
+                }
+            }
+            Statement::Group(group) => {
+                for lane in &group.lanes {
+                    let id = resolve_lane_id(lane, &mut auto);
+                    if !referenced.contains(&id) {
+                        issues.push(unused_lane_issue(&id, line));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn unused_lane_issue(id: &str, line: usize) -> LintIssue {
+    LintIssue {
+        code: "unused_lane".to_string(),
+        severity: LintSeverity::Warning,
+        line,
+        message: format!(
+            "lane `{id}` is declared but never referenced (it renders as an empty band)"
+        ),
+        fixable: false,
+    }
 }
 
 /// `TimeValue::Date(y, m, d)` のカレンダー妥当性を検証し、不正な場合は warning を追加する。
@@ -247,6 +308,44 @@ fn lint_item_common(
             });
         }
     }
+}
+
+/// ファイル内で**参照されている** lane ID を集める。
+///
+/// 直接の item（`span` / `event` / `event_range`）だけでなく、
+/// **`map` / `apply` / `template` の `lane` プロパティも数える**。
+/// これを外すと、import 主体のファイル（item を直接書かず map から生成する）で
+/// 全 lane が「未使用」になり、大量の偽陽性が出る（#756）。
+fn collect_referenced_lane_ids(file: &tdsl_parser::ast::File) -> std::collections::HashSet<String> {
+    use tdsl_parser::ast::{MapProp, Statement};
+
+    fn lanes_from_props(props: &[MapProp], out: &mut std::collections::HashSet<String>) {
+        for prop in props {
+            if let MapProp::Lane(id) = prop {
+                out.insert(id.clone());
+            }
+        }
+    }
+
+    let mut out = std::collections::HashSet::new();
+    for stmt in &file.statements {
+        match &stmt.node {
+            Statement::Span(s) => {
+                out.insert(s.lane_ref.clone());
+            }
+            Statement::Event(e) => {
+                out.insert(e.lane_ref.clone());
+            }
+            Statement::EventRange(er) => {
+                out.insert(er.lane_ref.clone());
+            }
+            Statement::Map(m) => lanes_from_props(&m.props, &mut out),
+            Statement::Template(tpl) => lanes_from_props(&tpl.props, &mut out),
+            Statement::Apply(a) => lanes_from_props(&a.overrides, &mut out),
+            _ => {}
+        }
+    }
+    out
 }
 
 fn collect_lane_ids(file: &tdsl_parser::ast::File) -> std::collections::HashSet<String> {
@@ -465,6 +564,103 @@ mod tests {
     use super::*;
 
     // ─── 検出ケース ──────────────────────────────────────────────────────────
+
+    // ─── unused_lane（#756）─────────────────────────────────────────────
+
+    /// 宣言されているが参照されていない lane を報告する。
+    /// `CLAUDE.md` は「未使用lane等の警告」と謳っていたが実装が無かった。
+    #[test]
+    fn lint_detects_unused_lane() {
+        let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "Used" as used { kind custom; order 1; }
+lane "Orphan" as orphan { kind custom; order 2; }
+span used 2001..2002 "S" { id "s1"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        let found: Vec<&LintIssue> = issues.iter().filter(|i| i.code == "unused_lane").collect();
+        assert_eq!(found.len(), 1, "got: {issues:?}");
+        assert!(found[0].message.contains("orphan"), "got: {found:?}");
+        assert!(
+            !found[0].fixable,
+            "未使用 lane を機械的に消すのは危険（これから item を足す予定を壊す）"
+        );
+        assert_eq!(found[0].severity, LintSeverity::Warning);
+    }
+
+    /// **`map` の `lane` 参照も「参照済み」として数える。**
+    /// これを外すと、item を直接書かず map から生成する import 主体のファイルで
+    /// 全 lane が未使用になり、大量の偽陽性が出る。
+    #[test]
+    fn map_lane_reference_counts_as_used() {
+        let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "L" as l { kind custom; order 1; }
+import Q7209 as wd { entity Q7209 as han; }
+map wd.han to span { lane l; start claim(P571).year; end claim(P576).year; }
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        assert!(
+            !issues.iter().any(|i| i.code == "unused_lane"),
+            "map から参照されている lane を未使用と報告した: {issues:?}"
+        );
+    }
+
+    /// `template` / `apply` の `lane` 参照も数える。
+    #[test]
+    fn template_and_apply_lane_references_count_as_used() {
+        let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "L" as l { kind custom; order 1; }
+template "tpl" as tpl to span { lane l; start claim(P571).year; end claim(P576).year; }
+import Q7209 as wd { entity Q7209 as han; }
+apply tpl to wd {}
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        assert!(
+            !issues.iter().any(|i| i.code == "unused_lane"),
+            "template/apply から参照されている lane を未使用と報告した: {issues:?}"
+        );
+    }
+
+    /// `group` 内の lane も対象にする。
+    #[test]
+    fn lint_detects_unused_lane_inside_group() {
+        let src = r#"
+timeline "T" { unit year; range 0..3000; }
+group "G" {
+  lane "A" as ga { kind custom; order 1; }
+  lane "B" as gb { kind custom; order 2; }
+}
+span ga 2001..2002 "S" { id "s1"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        let found: Vec<&LintIssue> = issues.iter().filter(|i| i.code == "unused_lane").collect();
+        assert_eq!(found.len(), 1, "got: {issues:?}");
+        assert!(found[0].message.contains("gb"), "got: {found:?}");
+    }
+
+    /// 全 lane が使われていれば何も出さない。
+    #[test]
+    fn lint_is_silent_when_all_lanes_are_used() {
+        let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a { kind custom; order 1; }
+lane "B" as b { kind custom; order 2; }
+span a 2001..2002 "S" { id "s1"; };
+event b 2003 "E" { id "e1"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        assert!(
+            !issues.iter().any(|i| i.code == "unused_lane"),
+            "全 lane が使われているのに報告した: {issues:?}"
+        );
+    }
 
     // ─── range の順序判定（#757）────────────────────────────────────────────
     //
