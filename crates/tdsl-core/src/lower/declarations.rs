@@ -10,16 +10,18 @@ impl LoweringContext {
     /// Pass 1: Collect timeline meta and lane declarations.
     pub(crate) fn pass1_declarations(&mut self, file: &ast::File, line_offsets: Option<&[usize]>) {
         for stmt in &file.statements {
+            // エラーに添える位置。push_error() がこれを読む（#760）。
+            self.current_span = Some(stmt.span);
             match &stmt.node {
                 ast::Statement::Timeline(t) => {
                     if self.meta.is_some() {
-                        self.errors.push(LoweringError::MultipleTimelines);
+                        self.push_error(LoweringError::MultipleTimelines);
                         continue;
                     }
                     if let Some(range) = &t.range
                         && let Err(err) = compare_time_values(&range.start, &range.end)
                     {
-                        self.errors.push(err);
+                        self.push_error(err);
                         continue;
                     }
                     let color_map = t
@@ -78,7 +80,7 @@ impl LoweringContext {
                         Some(value) => match TimelineUnit::parse(value) {
                             Some(unit) => unit,
                             None => {
-                                self.errors.push(LoweringError::UnknownTimelineUnit {
+                                self.push_error(LoweringError::UnknownTimelineUnit {
                                     value: value.to_string(),
                                     expected: supported_timeline_units(),
                                 });
@@ -122,8 +124,7 @@ impl LoweringContext {
                 ast::Statement::Template(t) => {
                     let key = t.alias.clone().unwrap_or_else(|| t.name.clone());
                     if self.templates.contains_key(&key) {
-                        self.errors
-                            .push(LoweringError::DuplicateTemplate(key.clone()));
+                        self.push_error(LoweringError::DuplicateTemplate(key.clone()));
                         continue;
                     }
                     self.templates.insert(key, t.clone());
@@ -131,8 +132,12 @@ impl LoweringContext {
                 _ => {}
             }
         }
+        // ループを抜けたら位置を捨てる。以降のエラー（NoTimeline 等、
+        // ファイル全体に対するもの）に直前 statement の位置を
+        // 添えてしまわないため（#760）。
+        self.current_span = None;
         if self.meta.is_none() {
-            self.errors.push(LoweringError::NoTimeline);
+            self.push_error(LoweringError::NoTimeline);
         }
     }
 }

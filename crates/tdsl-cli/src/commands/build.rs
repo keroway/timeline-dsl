@@ -113,12 +113,9 @@ pub(crate) fn load_ir(
         result
     };
 
-    let (ir, lower_warnings) = ir.map_err(|errs| {
-        errs.iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<_>>()
-            .join("\n")
-    })?;
+    // lowering エラーも check と同じ miette キャレット表示に揃える（#760）。
+    let (ir, lower_warnings) =
+        ir.map_err(|errs| super::check::render_lowering_errors(&errs, &source, &filename))?;
 
     // Lowering 由来の非致命的警告（マップ対象が未解決でアイテム未生成 等）。
     for w in &lower_warnings {

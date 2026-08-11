@@ -191,6 +191,26 @@ event a 2024-01-01T10:00Z "E" {};
 
 AST→IR変換（lowering）フェーズで発生するエラーです。構文は正しくても意味的に矛盾がある場合に報告されます。
 
+**表示（v1.29.0 以降: miette キャレット表示）**
+
+`tdsl check` / `tdsl build` は、構文エラー（E001）と同じくエラー箇所をキャレットで指します。以前はメッセージ文字列だけで、大きいファイルでは該当行を自分で探す必要がありました。
+
+```
+Error: tdsl::lowering_error
+
+  × Unknown lane reference: 'nosuchlane' — 利用可能なlane: l
+    ╭─[timeline.tdsl:14:1]
+ 13 │
+ 14 │ event nosuchlane 2005 "unknown lane" { id "e1"; };
+    · ─────────────────────────┬────────────────────────
+    ·                          ╰── ここに問題があります
+ 15 │
+    ╰────
+  help: エラーカタログ docs/error-catalog.md を確認してください
+```
+
+**位置を特定できないエラーはスニペットを出しません。** `E104: timelineブロックなし` のようにファイル全体に対するエラーは、指すべき statement が存在しないため、メッセージと help だけを表示します（位置不明を先頭行と偽らないため）。
+
 ### E101: 未定義のlane参照
 
 **メッセージ**: `Unknown lane reference: {id}`

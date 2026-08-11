@@ -73,3 +73,51 @@ pub enum LoweringError {
     )]
     MixedOffsetComparison(String, String),
 }
+
+/// `LoweringError` に発生元のソース位置を添えたもの。
+///
+/// `LoweringError` 自体は全 variant が素の文字列で位置を持たず、CLI は
+/// `to_string()` を join するだけだった。パースエラーは v1.14 で miette の
+/// キャレット表示になった一方、lowering エラー（E101〜）はメッセージのみで、
+/// 大きいファイルでは該当行を探す手段が無い（#760）。
+///
+/// **variant ごとにフィールドを足すのではなくラッパにした理由**: 生成箇所が
+/// 24 箇所あり、そのすべてに span を配るとエラーの定義自体が肥大する。
+/// 加えて `Display` を委譲すれば、`e.to_string()` で表示している既存の
+/// 呼び出し元（WASM / LSP / CLI の一部）はそのまま動く。
+#[derive(Debug)]
+pub struct SpannedLoweringError {
+    /// 元のエラー。
+    pub error: LoweringError,
+    /// 発生元のバイト範囲。位置を特定できない場合（ファイル全体に対する
+    /// `NoTimeline` 等）は `None`。**「不明」を「先頭」と偽らない。**
+    pub span: Option<tdsl_parser::ast::Span>,
+}
+
+impl SpannedLoweringError {
+    /// 位置付きで構築する。
+    pub fn new(error: LoweringError, span: Option<tdsl_parser::ast::Span>) -> Self {
+        Self { error, span }
+    }
+}
+
+impl std::fmt::Display for SpannedLoweringError {
+    /// 元のエラーへ委譲する。**位置情報を文字列に混ぜない** —
+    /// 混ぜると `to_string()` を使う既存の呼び出し元の出力が変わってしまう。
+    /// 位置は miette 表示側（`LoweringDiagnostic`）が使う。
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.error, f)
+    }
+}
+
+impl std::error::Error for SpannedLoweringError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.error)
+    }
+}
+
+impl From<LoweringError> for SpannedLoweringError {
+    fn from(error: LoweringError) -> Self {
+        Self { error, span: None }
+    }
+}

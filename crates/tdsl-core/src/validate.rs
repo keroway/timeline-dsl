@@ -168,7 +168,7 @@ pub fn validate_static_references(file: &ast::File) -> Vec<ReferenceDiagnostic> 
                 if !import_aliases.contains(alias) {
                     diags.push(ReferenceDiagnostic {
                         message: format!("Map references undeclared import alias: {alias}"),
-                        span: stmt.span.clone(),
+                        span: stmt.span,
                     });
                 }
             }
@@ -179,7 +179,7 @@ pub fn validate_static_references(file: &ast::File) -> Vec<ReferenceDiagnostic> 
                             "Apply references undeclared import alias: {}",
                             a.import_alias
                         ),
-                        span: stmt.span.clone(),
+                        span: stmt.span,
                     });
                 }
                 if !template_keys.contains(a.template_alias.as_str()) {
@@ -188,7 +188,7 @@ pub fn validate_static_references(file: &ast::File) -> Vec<ReferenceDiagnostic> 
                             "Apply references undeclared template: {}",
                             a.template_alias
                         ),
-                        span: stmt.span.clone(),
+                        span: stmt.span,
                     });
                 }
             }

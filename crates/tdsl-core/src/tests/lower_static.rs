@@ -141,7 +141,7 @@ fn lower_rejects_unknown_timeline_unit() {
     let errors = result.unwrap_err();
     assert!(errors.iter().any(|e| {
         matches!(
-            e,
+            &e.error,
             error::LoweringError::UnknownTimelineUnit { value, .. } if value == "dey"
         )
     }));
@@ -160,7 +160,7 @@ fn lower_detects_unknown_lane() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, error::LoweringError::UnknownLane(_)))
+            .any(|e| matches!(&e.error, error::LoweringError::UnknownLane(_)))
     );
 }
 
@@ -631,7 +631,7 @@ fn lower_detects_no_timeline() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, error::LoweringError::NoTimeline))
+            .any(|e| matches!(&e.error, error::LoweringError::NoTimeline))
     );
 }
 
@@ -648,7 +648,7 @@ fn lower_detects_multiple_timelines() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, error::LoweringError::MultipleTimelines))
+            .any(|e| matches!(&e.error, error::LoweringError::MultipleTimelines))
     );
 }
 
@@ -697,7 +697,7 @@ fn lower_duplicate_item_id_is_error() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, error::LoweringError::DuplicateItemId(_)))
+            .any(|e| matches!(&e.error, error::LoweringError::DuplicateItemId(_)))
     );
 }
 
@@ -797,7 +797,7 @@ fn lower_static_duplicate_template_is_error() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, error::LoweringError::DuplicateTemplate(_)))
+            .any(|e| matches!(&e.error, error::LoweringError::DuplicateTemplate(_)))
     );
 }
 
@@ -1241,4 +1241,87 @@ fn lower_minute_precision_without_second_or_offset_still_works() {
         }
         _ => panic!("expected event"),
     }
+}
+
+// ─── lowering エラーの位置情報（#760）─────────────────────────────────────
+
+/// エラーが指す範囲のソース断片を返す。位置が無ければ `None`。
+fn error_snippet<'a>(err: &crate::error::SpannedLoweringError, src: &'a str) -> Option<&'a str> {
+    err.span.map(|s| &src[s.start..s.end])
+}
+
+#[test]
+fn lowering_error_carries_the_offending_statement_span() {
+    // 該当行を探す手段が無かった（#760）ため、エラーが「どの statement か」を
+    // 指せることを検証する。行番号ではなくソース断片で見る（行番号は
+    // インデントの変更で壊れるが、断片は内容そのものだから）。
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a {}
+event nosuchlane 2005 "unknown lane" { id "e1"; };
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let errs = lower::lower_static(&file).expect_err("unknown lane must fail");
+    assert_eq!(errs.len(), 1, "got: {errs:?}");
+
+    let snippet = error_snippet(&errs[0], src).expect("エラーに位置が付いていない");
+    assert!(
+        snippet.contains("nosuchlane"),
+        "違う statement を指している: {snippet:?}"
+    );
+}
+
+#[test]
+fn duplicate_id_error_points_at_the_second_occurrence() {
+    // 重複はあとから来た方を直すのが自然なので、2 つ目を指すこと。
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a {}
+span a 2001..2002 "first" { id "dup"; };
+span a 2003..2004 "second" { id "dup"; };
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let errs = lower::lower_static(&file).expect_err("duplicate id must fail");
+    let snippet = error_snippet(&errs[0], src).expect("エラーに位置が付いていない");
+    assert!(snippet.contains("second"), "got: {snippet:?}");
+}
+
+#[test]
+fn file_level_error_has_no_span() {
+    // `NoTimeline` はファイル全体に対するエラーで、指すべき statement が無い。
+    // ここで直前の statement の位置が漏れていると、無関係な行にキャレットが出る
+    // （実装中に実際にこの状態になった。current_span をループ後に戻していなかった）。
+    let src = r#"
+lane "A" as a {}
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let errs = lower::lower_static(&file).expect_err("missing timeline must fail");
+    let no_timeline = errs
+        .iter()
+        .find(|e| matches!(e.error, crate::error::LoweringError::NoTimeline))
+        .expect("NoTimeline が無い");
+    assert!(
+        no_timeline.span.is_none(),
+        "位置不明のエラーに位置が付いている: {:?}",
+        no_timeline.span
+    );
+}
+
+#[test]
+fn display_is_unchanged_by_the_span_wrapper() {
+    // `to_string()` で表示している呼び出し元（WASM / LSP）の出力を変えないこと。
+    // 位置は miette 表示側だけが使う。
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a {}
+event nosuchlane 2005 "E" { id "e1"; };
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let errs = lower::lower_static(&file).expect_err("unknown lane must fail");
+    assert_eq!(errs[0].to_string(), errs[0].error.to_string());
+    assert!(
+        !errs[0].to_string().contains("..") || !errs[0].to_string().contains("byte"),
+        "Display にオフセットが混ざっている: {}",
+        errs[0]
+    );
 }

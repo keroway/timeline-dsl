@@ -338,7 +338,7 @@ async fn lower_apply_unknown_template_is_error() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, error::LoweringError::UnknownTemplate(_)))
+            .any(|e| matches!(&e.error, error::LoweringError::UnknownTemplate(_)))
     );
 }
 
@@ -1122,13 +1122,13 @@ async fn unknown_lane_stops_before_wikidata_fetch() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, error::LoweringError::UnknownLane(_))),
+            .any(|e| matches!(&e.error, error::LoweringError::UnknownLane(_))),
         "UnknownLane エラーが含まれていること"
     );
     assert!(
         !errors
             .iter()
-            .any(|e| matches!(e, error::LoweringError::Wikidata(_))),
+            .any(|e| matches!(&e.error, error::LoweringError::Wikidata(_))),
         "Wikidata フェッチは UnknownLane エラー検出後は実行されないこと"
     );
 }

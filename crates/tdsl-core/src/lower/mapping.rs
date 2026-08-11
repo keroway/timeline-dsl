@@ -19,6 +19,8 @@ impl LoweringContext {
     /// Pass 4: Apply map blocks and apply blocks to generate items from imported entities.
     pub(crate) fn pass4_apply_maps(&mut self, file: &ast::File) {
         for stmt in &file.statements {
+            // エラーに添える位置。push_error() がこれを読む（#760）。
+            self.current_span = Some(stmt.span);
             if let ast::Statement::Apply(apply) = &stmt.node {
                 self.process_apply_block(apply);
                 continue;
@@ -27,8 +29,7 @@ impl LoweringContext {
                 // Parse source_ref: "wd.han_dynasty" -> import_alias="wd", entity_key="han_dynasty"
                 let parts: Vec<&str> = m.source_ref.splitn(2, '.').collect();
                 if parts.len() != 2 {
-                    self.errors
-                        .push(LoweringError::UnresolvedImport(m.source_ref.clone()));
+                    self.push_error(LoweringError::UnresolvedImport(m.source_ref.clone()));
                     continue;
                 }
                 let (import_alias, entity_key) = (parts[0], parts[1]);
@@ -40,8 +41,7 @@ impl LoweringContext {
                 let entities = match self.import_entities.get(import_alias) {
                     Some(entities) => entities,
                     None => {
-                        self.errors
-                            .push(LoweringError::UnresolvedImport(import_alias.to_string()));
+                        self.push_error(LoweringError::UnresolvedImport(import_alias.to_string()));
                         continue;
                     }
                 };
@@ -64,20 +64,23 @@ impl LoweringContext {
                     continue;
                 }
 
-                self.errors.push(LoweringError::UnresolvedEntity(format!(
+                self.push_error(LoweringError::UnresolvedEntity(format!(
                     "{}.{}",
                     import_alias, entity_key
                 )));
             }
         }
+        // ループを抜けたら位置を捨てる。以降のエラー（NoTimeline 等、
+        // ファイル全体に対するもの）に直前 statement の位置を
+        // 添えてしまわないため（#760）。
+        self.current_span = None;
     }
 
     pub(crate) fn process_apply_block(&mut self, apply: &ast::ApplyBlock) {
         let template = match self.templates.get(&apply.template_alias).cloned() {
             Some(t) => t,
             None => {
-                self.errors
-                    .push(LoweringError::UnknownTemplate(apply.template_alias.clone()));
+                self.push_error(LoweringError::UnknownTemplate(apply.template_alias.clone()));
                 return;
             }
         };
@@ -85,8 +88,7 @@ impl LoweringContext {
         let entities = match self.import_entities.get(&apply.import_alias).cloned() {
             Some(e) => e,
             None => {
-                self.errors
-                    .push(LoweringError::UnresolvedImport(apply.import_alias.clone()));
+                self.push_error(LoweringError::UnresolvedImport(apply.import_alias.clone()));
                 return;
             }
         };
@@ -198,7 +200,7 @@ impl LoweringContext {
         // Validate lane existence
         if !lane_ref.is_empty() && !self.lanes_map.contains_key(&lane_ref) {
             let err = self.make_unknown_mapped_lane_error(&lane_ref);
-            self.errors.push(err);
+            self.push_error(err);
             return;
         }
 
