@@ -7,13 +7,26 @@ error-catalog はエラーの説明が目的なので、**意図的に壊れた�
 「全コードブロックが `tdsl check` を通ること」を条件にすると、誤り例まで直させることになり
 カタログとして成立しなくなる。
 
-そこで各コードフェンス内を `# 正しい` 行で区切り、**それ以降だけ**を検証する。
-`# 正しい` が無いフェンス（誤り例だけを示すもの）は対象外。
+そこで各コードフェンス内を `// 正しい` 行で区切り、**それ以降だけ**を検証する。
+`// 正しい` が無いフェンス（誤り例だけを示すもの）は対象外。
+
+## なぜ `#` ではなく `//` か
+
+この DSL のコメントは `//` と `/* ... */` だけで、**`#` はコメントではない**
+（`grammar.pest` の `COMMENT` ルール）。以前は区切りに `#` を使い、この
+スクリプトが `#` 行を除去してからパースしていた。結果として:
+
+- チェッカーは全件緑
+- 一方で**利用者がフェンスをそのままコピーすると構文エラー**
+
+という状態を作っていた（PR #791 のレビューで発覚）。**チェッカーが入力を
+正規化して落としている行は、その分だけ検証されていない。** 区切り自体を
+DSL の正当なコメントにすれば、除去処理そのものが不要になり前提が 1 つ減る。
 
 ## 前提
 
-`# 誤り` / `# 正しい` というコメント行を区切りとして使う、というカタログの既存の書式に
-依存している。この規約を変えるときはこのスクリプトも合わせて変更すること。
+`// 誤り` / `// 正しい` というコメント行を区切りとして使う、というカタログの
+書式に依存している。この規約を変えるときはこのスクリプトも合わせて変更すること。
 
 使い方: python3 scripts/check-doc-examples.py [--bin <tdsl>] [<markdown>...]
 """
@@ -49,11 +62,14 @@ _TIMELINE = """timeline "doc-example" {
 
 PREAMBLE = _TIMELINE + "\n\n" + _LANE_DECLS + "\n"
 
-TDSL_START = re.compile(r"^\s*(timeline|lane|span|event|import|map)\b")
+# `re.M` が要る。これが無いと**先頭行が文でないと一致しない**ため、
+# 説明コメントで始まる例（`// 正しい（…` の続き等）が丸ごと検証対象から
+# 外れる。区切りマーカー以外のコメントを落とすのをやめた際に判明した。
+TDSL_START = re.compile(r"^\s*(timeline|lane|span|event|import|map)\b", re.M)
 
 
 def extract_correct_examples(md: Path) -> list[tuple[int, str]]:
-    """(開始行, ソース) の一覧を返す。`# 正しい` 以降のみを取り出す。"""
+    """(開始行, ソース) の一覧を返す。`// 正しい` 以降のみを取り出す。"""
     lines = md.read_text(encoding="utf-8").split("\n")
     out: list[tuple[int, str]] = []
     body: list[str] = []
@@ -76,15 +92,18 @@ def extract_correct_examples(md: Path) -> list[tuple[int, str]]:
 
 
 def _correct_part(body: list[str]) -> str:
-    """`# 正しい` 以降の行だけを、コメントを除いて返す。
+    """`// 正しい` 以降の行だけを返す。
 
     `{ ... }` を含む例は「省略記法を示すための擬似コード」なのでスキップする。
     実際にパースできる形へ書き換えると、伝えたい 1 点がブロックの中身に埋もれる。
     """
     for idx, line in enumerate(body):
-        if line.strip().startswith("# 正しい"):
+        if line.strip().startswith("// 正しい"):
             rest = body[idx + 1 :]
-            src = "\n".join(l for l in rest if not l.strip().startswith("#")).strip()
+            # コメント行は落とさない。`//` は DSL の正当なコメントなので、
+            # **フェンスの中身をそのままパーサへ渡す**。落とすと
+            # 「落とした行が実は不正だった」を検出できなくなる。
+            src = "\n".join(rest).strip()
             if "{ ... }" in src or "{...}" in src:
                 return ""
             return src
