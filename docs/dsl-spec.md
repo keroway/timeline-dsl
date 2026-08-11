@@ -623,6 +623,7 @@ tdsl render input.tdsl --output timeline.html [--format html|svg|pdf|png] [--int
   - `pdf`: PDF ファイル（`svg2pdf` / `usvg` 経由、CJK フォント対応）
   - `png`: PNG ラスタ画像（`--dpi` で解像度を調整可能）
 - **インタラクティブモード**（`--interactive`）: ズーム・パン・全文検索・凡例・詳細パネルを追加。`color_map` で定義した色が自動適用される
+  - 凡例パネルには lane 表示トグル（チェックボックス）に加え、`timeline.color_map` に登録されたタグの絞り込みトグルが表示される（issue #755）。タグトグルは OR セマンティクス（チェックしたタグを1つも持たない item を非表示にする）で、lane トグルとは AND で合成される（どちらかで非表示なら item は非表示）。全タグのチェックを外した場合は絞り込み自体を無効化する（全 item を表示）。`color_map` が空の場合はタグ凡例セクション自体が出力されない。
 - **レイアウト**:
   - 横軸: 時間（`timeline.range` を使用）
   - 縦軸: lane を `order` 昇順に縦積み

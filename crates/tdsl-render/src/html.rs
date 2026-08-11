@@ -430,6 +430,22 @@ pub fn wrap_html_interactive(
         ));
     }
 
+    // Generate tag legend HTML from color_map (svg.rs render_static_legend の
+    // タグ凡例と同様、color_map に登録されたタグのみを対象にする — IR 全 item を
+    // 走査した未知タグの収集は別 issue のスコープとする)。
+    let mut tag_colors: Vec<_> = opts.color_map.iter().collect();
+    tag_colors.sort_by(|a, b| a.0.cmp(b.0));
+    if !tag_colors.is_empty() {
+        legend_html.push_str(r#"<div class="tdsl-legend-section-title">タグ</div>"#);
+        for (tag, color) in tag_colors {
+            let tag_escaped = escape_html(tag);
+            let color_escaped = escape_html(color);
+            legend_html.push_str(&format!(
+                r#"<label class="tdsl-legend-item"><input type="checkbox" checked data-tag-toggle="{tag_escaped}"> <span class="tdsl-legend-swatch" style="background:{color_escaped}"></span> {tag_escaped}</label>"#,
+            ));
+        }
+    }
+
     let table_block = match table_html {
         Some(t) => format!("\n<div class=\"tdsl-table-wrap\">\n{t}\n</div>"),
         None => String::new(),
@@ -536,6 +552,19 @@ const INTERACTIVE_CSS: &str = r#"
   cursor: pointer;
   user-select: none;
 }
+.tdsl-legend-section-title {
+  margin-top: 10px;
+  font-weight: 600;
+  color: #555;
+  font-size: 11px;
+}
+.tdsl-legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
 #tdsl-canvas {
   flex: 1;
   overflow: auto;
@@ -606,6 +635,10 @@ const INTERACTIVE_CSS: &str = r#"
 }
 /* Lane hide */
 .tdsl-item.tdsl-lane-hidden {
+  display: none;
+}
+/* Tag filter hide (#755) */
+.tdsl-item.tdsl-tag-hidden {
   display: none;
 }
 "#;
@@ -780,6 +813,40 @@ const INTERACTIVE_JS: &str = r#"(() => {
     }
   }
 
+  // ── Tag filter toggles ───────────────────────────────────────────────────
+  // OR セマンティクス: チェックされたタグを1つも持たない item を隠す。
+  // ただし全チェックが外れた場合に全 item が隠れるのは直感に反するため、
+  // 1つもチェックされていない状態は「タグ絞り込み無効」として扱う（#755）。
+  const tagToggles = document.querySelectorAll("[data-tag-toggle]");
+  if (tagToggles.length) {
+    const itemTagsMap = new Map();
+    for (const el of allItems) {
+      const raw = el.getAttribute("data-tags") || "";
+      const tags = raw.split(",").map((t) => t.trim()).filter(Boolean);
+      itemTagsMap.set(el, tags);
+    }
+
+    const applyTagFilter = () => {
+      const checked = Array.from(tagToggles)
+        .filter((cb) => cb.checked)
+        .map((cb) => cb.getAttribute("data-tag-toggle"));
+      const noneChecked = checked.length === 0;
+      for (const el of allItems) {
+        if (noneChecked) {
+          el.classList.remove("tdsl-tag-hidden");
+          continue;
+        }
+        const tags = itemTagsMap.get(el) || [];
+        const hasCheckedTag = tags.some((t) => checked.includes(t));
+        el.classList.toggle("tdsl-tag-hidden", !hasCheckedTag);
+      }
+    };
+
+    for (const cb of tagToggles) {
+      cb.addEventListener("change", applyTagFilter);
+    }
+  }
+
   // ── Utility ─────────────────────────────────────────────────────────────
   function escapeHtml(s) {
     return String(s)
@@ -817,6 +884,49 @@ mod tests {
         assert!(!html.contains("fonts.gstatic.com"));
         assert!(!html.contains("https://"));
         assert!(html.contains("Hiragino Sans"));
+    }
+
+    #[test]
+    fn interactive_html_includes_tag_legend_when_color_map_present() {
+        let opts = RenderOptions {
+            color_map: [("dynasty".to_string(), "#cc0000".to_string())]
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        };
+        let html = wrap_html_interactive("<svg></svg>", "test title", &opts, &[], None);
+        assert!(
+            html.contains(r#"data-tag-toggle="dynasty""#),
+            "expected a data-tag-toggle checkbox for the 'dynasty' tag, got:\n{html}"
+        );
+        assert!(
+            html.contains("#cc0000"),
+            "expected the color_map color to be used for the tag swatch"
+        );
+        assert!(
+            html.contains("tdsl-tag-hidden"),
+            "expected the tdsl-tag-hidden CSS class to be defined"
+        );
+        assert!(
+            html.contains("data-tag-toggle"),
+            "expected the JS to reference data-tag-toggle"
+        );
+    }
+
+    #[test]
+    fn interactive_html_omits_tag_legend_when_color_map_empty() {
+        let opts = RenderOptions::default();
+        let html = wrap_html_interactive("<svg></svg>", "test title", &opts, &[], None);
+        // JS (INTERACTIVE_JS) always references the `data-tag-toggle` selector
+        // as static code, so assert no *checkbox* input is emitted instead.
+        assert!(
+            !html.contains(r#"data-tag-toggle=""#),
+            "no tag checkbox input should be emitted when color_map is empty"
+        );
+        assert!(
+            !html.contains(r#"<div class="tdsl-legend-section-title">タグ</div>"#),
+            "no tag section title element should be emitted when color_map is empty"
+        );
     }
 
     #[test]
