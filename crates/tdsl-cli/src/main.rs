@@ -829,7 +829,32 @@ fn main() {
             fix,
             format,
         } => commands::resolve_tdsl_inputs(&inputs).and_then(|files| {
-            commands::run_over_inputs(&files, |path| commands::lint::cmd_lint(path, fix, format))
+            // JSON 出力は全件を 1 つの配列にまとめて出す。ファイルごとに print
+            // するとオブジェクトが連結され、単一の JSON 文書として不正になる
+            // （#750）。**失敗したファイルのレポートも配列に残す。**
+            let mut reports = Vec::new();
+            let json = matches!(format, LintOutputFormat::Json);
+            let result = commands::run_over_inputs(&files, |path| {
+                let sink = if json { Some(&mut reports) } else { None };
+                commands::lint::cmd_lint(path, fix, format, sink)
+            });
+            if json {
+                // **単一ファイル指定時は従来どおりオブジェクトを出す。**
+                // 常に配列にすると、既存の消費側（`jq '.issue_count'` など）が
+                // 黙って壊れる。複数入力は新しい使い方なので配列でよい。
+                // **`reports` は空になりうる。** パースエラーで落ちたファイルは
+                // レポートを積まないため、`reports[0]` を直接引くと panic する
+                // （実際に踏んだ）。単一ファイルでも要素が無ければ何も出さない。
+                let rendered = match (files.len(), reports.as_slice()) {
+                    (1, [only]) => Some(serde_json::to_string_pretty(only)),
+                    (1, []) => None,
+                    _ => Some(serde_json::to_string_pretty(&reports)),
+                };
+                if let Some(rendered) = rendered {
+                    println!("{}", rendered.map_err(|e| e.to_string())?);
+                }
+            }
+            result
         }),
         Commands::Cache { action } => commands::cache::cmd_cache(action),
         Commands::Decompile { input, output } => {

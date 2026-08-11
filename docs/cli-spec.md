@@ -133,7 +133,7 @@ tdsl merge base.tdsl extension.tdsl --output combined.json --pretty
 `.tdsl` ファイルの構文エラーおよび意味エラー（lane 未定義参照、date 範囲矛盾など）を確認します。エラーがなければ終了コード 0 を返します。
 
 ```
-tdsl check [OPTIONS] <FILE>
+tdsl check [OPTIONS] <FILE>...
 ```
 
 ### 引数
@@ -150,7 +150,18 @@ tdsl check [OPTIONS] <FILE>
 - 対象が 2 件以上のときは `=== <path> ===` の見出しを付ける。単一ファイル指定時の出力は従来どおり
 - 処理順はパス名でソートする（ファイルシステムの列挙順に依存させない）
 - **対象が 0 件ならエラー。** パスの打ち間違いが「問題なし」として通らないようにする
-- glob 展開はシェルに任せる（`tdsl check src/**/*.tdsl` はシェルが展開する）
+- glob 展開はシェルに任せる。**`**` の再帰展開はシェル依存**で、POSIX sh では展開されず、bash も `shopt -s globstar` が必要（zsh は既定で有効）。シェルに依存せず再帰したい場合は**ディレクトリを直接渡す**のが確実:
+
+```sh
+# 確実（ディレクトリを渡して再帰探索させる）
+tdsl check src
+
+# シェル依存（zsh は可、bash は shopt -s globstar が必要、POSIX sh は不可）
+tdsl check src/**/*.tdsl
+
+# find を使う場合
+find src -name '*.tdsl' -exec tdsl check {} +
+```
 
 `check` は lowering の Pass 1/2 のみを実行し、**import 解決（Pass 3）と map 適用（Pass 4）は行わない**。
 `import` / `map` / `apply` を含むファイルではアイテムが生成されないため、その旨を警告と完了行の両方に出す。

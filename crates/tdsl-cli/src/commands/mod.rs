@@ -60,13 +60,34 @@ fn collect_tdsl_files(
     dir: &std::path::Path,
     out: &mut Vec<std::path::PathBuf>,
 ) -> Result<(), String> {
+    // 実体パスを訪問済みとして記録し、シンボリックリンク経由で同じ
+    // ディレクトリへ戻ってきたら打ち切る。**これが無いと、親を指す
+    // シンボリックリンクがあるだけで無限に潜る**（実際に
+    // `sub/loop/sub/loop/...` と再帰し続けることを確認した）。
+    let mut visited = std::collections::HashSet::new();
+    collect_tdsl_files_inner(dir, out, &mut visited)
+}
+
+fn collect_tdsl_files_inner(
+    dir: &std::path::Path,
+    out: &mut Vec<std::path::PathBuf>,
+    visited: &mut std::collections::HashSet<std::path::PathBuf>,
+) -> Result<(), String> {
+    // canonicalize でシンボリックリンクを解決した実体を鍵にする。
+    // 失敗した場合（権限など）は元のパスで代用し、走査自体は続ける。
+    let key = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+    if !visited.insert(key) {
+        // 既に見たディレクトリ。同じ実体を二度処理しない。
+        return Ok(());
+    }
+
     let entries = std::fs::read_dir(dir)
         .map_err(|e| format!("Failed to read directory {}: {e}", dir.display()))?;
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read {}: {e}", dir.display()))?;
         let path = entry.path();
         if path.is_dir() {
-            collect_tdsl_files(&path, out)?;
+            collect_tdsl_files_inner(&path, out, visited)?;
         } else if path.extension().is_some_and(|ext| ext == "tdsl") {
             out.push(path);
         }
@@ -261,6 +282,27 @@ mod tests {
         let odd = tmp.write("timeline.txt", "");
         let got = resolve_tdsl_inputs(std::slice::from_ref(&odd)).expect("should resolve");
         assert_eq!(got, vec![odd]);
+    }
+
+    /// **親を指すシンボリックリンクで無限再帰しない。**
+    /// 対策が無いと `sub/loop/sub/loop/...` と潜り続ける（実際に確認した）。
+    #[test]
+    fn resolve_inputs_does_not_loop_on_directory_symlinks() {
+        let tmp = TempDir::new("symlink");
+        tmp.write("a.tdsl", "");
+        let sub = tmp.0.join("sub");
+        std::fs::create_dir_all(&sub).expect("create sub");
+
+        // 親を指すシンボリックリンク。Windows では作成できないことがあるので、
+        // 失敗したらこのテストはスキップする（対策の要否は POSIX 側で確認する）。
+        #[cfg(unix)]
+        {
+            if std::os::unix::fs::symlink(&tmp.0, sub.join("loop")).is_err() {
+                return;
+            }
+            let got = resolve_tdsl_inputs(std::slice::from_ref(&tmp.0)).expect("should resolve");
+            assert_eq!(got.len(), 1, "同じファイルを重複して拾っている: {got:?}");
+        }
     }
 
     /// **1 件も見つからなければエラー。** 0 件を成功で返すと、パスの

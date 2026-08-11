@@ -58,6 +58,17 @@ echo "[e2e] check: .tdsl が 1 件も無いディレクトリは非ゼロ終了�
 mkdir -p "${TMP_DIR}/no-tdsl"
 assert_fails cargo run -q -p tdsl-cli -- check "${TMP_DIR}/no-tdsl"
 
+echo "[e2e] lint --format json: 複数入力は単一の JSON 配列になる (#750)"
+cargo run -q -p tdsl-cli -- lint --format json "${TMP_DIR}/multi" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); assert isinstance(d, list), type(d); assert len(d) == 2, len(d)"
+
+echo "[e2e] lint --format json: 単一入力は従来どおりオブジェクト (#750)"
+cargo run -q -p tdsl-cli -- lint --format json "${TMP_DIR}/multi/one.tdsl" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); assert isinstance(d, dict), type(d)"
+
+echo "[e2e] lint --format json: パースエラー単体でも panic しない (#750)"
+assert_fails cargo run -q -p tdsl-cli -- lint --format json tests/fixtures/invalid_syntax.tdsl
+
 echo "[e2e] fmt/lint: ディレクトリ入力を受け付ける (#750)"
 cargo run -q -p tdsl-cli -- fmt --check "${TMP_DIR}/multi"
 cargo run -q -p tdsl-cli -- lint "${TMP_DIR}/multi"

@@ -4,7 +4,7 @@ use tdsl_core::lint::{LintIssue, LintSeverity, apply_lint_fixes, lint_issues};
 use crate::LintOutputFormat;
 
 #[derive(Debug, Clone, Serialize)]
-struct LintReportOutput {
+pub(crate) struct LintReportOutput {
     file: String,
     fix_applied: usize,
     issue_count: usize,
@@ -12,10 +12,18 @@ struct LintReportOutput {
     issues: Vec<LintIssue>,
 }
 
+/// 1 ファイルを lint する。
+///
+/// `json_sink` が `Some` のとき、JSON 形式のレポートは**その場で出力せず**
+/// ここへ積む。複数ファイルを処理する場合に各ファイル分の JSON を逐次
+/// print すると、オブジェクトが連結されて**単一の JSON 文書として不正**に
+/// なるため（#750 のレビュー指摘）。呼び出し側が全件処理後に配列として
+/// 一度だけ直列化する。
 pub(crate) fn cmd_lint(
     input: &std::path::Path,
     fix: bool,
     format: LintOutputFormat,
+    json_sink: Option<&mut Vec<LintReportOutput>>,
 ) -> Result<(), String> {
     let source = super::read_source(input)?;
     let mut file = tdsl_parser::parse(&source).map_err(|e| e.to_string())?;
@@ -74,10 +82,13 @@ pub(crate) fn cmd_lint(
                 ok: issues.is_empty(),
                 issues,
             };
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
-            );
+            match json_sink {
+                Some(sink) => sink.push(report),
+                None => println!(
+                    "{}",
+                    serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
+                ),
+            }
         }
     }
 
