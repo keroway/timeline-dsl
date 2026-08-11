@@ -101,6 +101,11 @@ const STATIC_KEYWORDS = [
   { label: 'tags', type: 'property' as const },
   { label: 'id', type: 'property' as const },
   { label: 'origin', type: 'property' as const },
+  // note / link / color は文法・IR・ハイライトに揃っているのに
+  // 補完だけ欠けていた（#753。LSP 側と同じ穴）。
+  { label: 'note', type: 'property' as const },
+  { label: 'link', type: 'property' as const },
+  { label: 'color', type: 'property' as const },
   { label: 'filter', type: 'property' as const },
   { label: 'lane', type: 'property' as const },
 ]
