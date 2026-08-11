@@ -152,6 +152,7 @@ fn build_lane(pair: Pair<'_, Rule>) -> Result<LaneDecl> {
         alias: None,
         kind: None,
         order: None,
+        color: None,
     };
 
     for item in inner {
@@ -164,6 +165,9 @@ fn build_lane(pair: Pair<'_, Rule>) -> Result<LaneDecl> {
             }
             Rule::order_prop => {
                 decl.order = Some(parse_int(&item.into_inner().next().unwrap())?);
+            }
+            Rule::color_option => {
+                decl.color = Some(extract_string_literal(&item.into_inner().next().unwrap()));
             }
             _ => {}
         }

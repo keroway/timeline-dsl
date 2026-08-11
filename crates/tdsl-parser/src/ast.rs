@@ -249,6 +249,13 @@ pub struct LaneDecl {
     pub alias: Option<String>,
     pub kind: Option<String>,
     pub order: Option<i64>,
+    /// lane の色（`color "#4a9eff";`）。未指定なら `None`。
+    ///
+    /// レンダラは lane の並び順から色を機械的に割り当てるため、lane を 1 つ
+    /// 足したり `order` を変えると**既存 lane の色が全部ずれる**。
+    /// バージョン管理下で長期運用する `.tdsl` では、色の非決定性が
+    /// そのまま図の非決定性になる（#747）。
+    pub color: Option<String>,
 }
 
 /// `group "名前" { lane ... }` 宣言のAST表現。

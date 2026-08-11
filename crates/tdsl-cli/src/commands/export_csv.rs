@@ -266,6 +266,7 @@ mod tests {
                 kind: "custom".to_string(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -477,6 +478,7 @@ mod tests {
                 kind: "custom".to_string(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::EventRange {

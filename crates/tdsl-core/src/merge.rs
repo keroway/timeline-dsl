@@ -293,6 +293,7 @@ mod tests {
             kind: "custom".to_string(),
             order,
             group: None,
+            color: None,
             source_span: None,
         }
     }

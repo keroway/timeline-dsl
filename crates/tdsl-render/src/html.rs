@@ -929,6 +929,7 @@ mod tests {
                 kind: "dynasty".into(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -1015,6 +1016,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Event {
@@ -1078,6 +1080,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![

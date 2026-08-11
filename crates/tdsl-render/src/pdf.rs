@@ -738,6 +738,7 @@ mod tests {
                 kind: "dynasty".into(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -1245,6 +1246,7 @@ mod tests {
             kind: "dynasty".into(),
             order: 10,
             group: Some("グループ1".into()),
+            color: None,
             source_span: None,
         }];
         ir
@@ -1521,6 +1523,7 @@ mod tests {
             kind: "dynasty".into(),
             order: 10,
             group: None,
+            color: None,
             source_span: None,
         }];
         let template = ir.items[0].clone();
@@ -1675,6 +1678,7 @@ mod tests {
                 order: i as i64,
                 group: None,
                 source_span: None,
+                color: None,
             })
             .collect();
         ir.items = (0..lane_count)
@@ -1975,6 +1979,7 @@ mod tests {
             kind: "custom".into(),
             order: 1,
             group: None,
+            color: None,
             source_span: None,
         }];
         let span = (range.1 - range.0) / row_count as i64;

@@ -132,9 +132,14 @@ pub fn decompile(ir: &TimelineIr) -> String {
     for lane in &ir.lanes {
         out.push('\n');
         let label = escape(&lane.label);
+        // color を落とすと IR → DSL の往復で lane 色が消える（#747）。
+        let color = match &lane.color {
+            Some(c) => format!(r#" color "{}";"#, escape(c)),
+            None => String::new(),
+        };
         write!(
             out,
-            r#"lane "{label}" as {} {{ kind {}; order {}; }}"#,
+            r#"lane "{label}" as {} {{ kind {}; order {};{color} }}"#,
             lane.id, lane.kind, lane.order
         )
         .unwrap();
@@ -350,6 +355,7 @@ mod tests {
                 kind: "dynasty".to_string(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -543,6 +549,7 @@ mod tests {
                 kind: "custom".to_string(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![],
@@ -573,6 +580,7 @@ mod tests {
                 kind: "custom".to_string(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -724,6 +732,7 @@ mod tests {
                 kind: "custom".to_string(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::EventRange {

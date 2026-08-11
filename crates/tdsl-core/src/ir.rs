@@ -211,6 +211,13 @@ pub struct Lane {
     /// 所属するグループ名（`group` ブロックで宣言された場合のみ Some）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+    /// lane に明示指定された色（`color "#4a9eff";`）。未指定なら `None`。
+    ///
+    /// レンダラは lane の並び順からパレット色を機械的に割り当てるため、
+    /// lane を 1 つ足したり `order` を変えると既存 lane の色が全部ずれる。
+    /// これを固定する手段（#747）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
     /// DSL ソース上の lane 宣言位置（Goto Definition 用）。ソーステキストを渡した場合のみ付与。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_span: Option<SourceSpan>,

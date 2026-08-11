@@ -34,6 +34,7 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 <lane>         ::= "lane" <string> ["as" <identifier>] "{" { <lane_prop> } "}"
 <lane_prop>    ::= "kind" <identifier> ";"
                  | "order" <number> ";"
+                 | "color" <string> ";"
 
 <group>        ::= "group" <string> "{" <lane> { <lane> } "}"
 
@@ -171,6 +172,14 @@ lane "漢" as han { kind dynasty; order 20; }
 | `as <id>` | 任意 | 内部識別子。省略時はラベルからスラッグを自動生成 |
 | `kind` | 任意 | 分類（既知値: `custom`, `dynasty`, `person`, `country`, `event`）。未知の値は検証警告（独自分類は `custom` 推奨） |
 | `order` | 任意 | 初期表示順（整数） |
+| `color` | 任意 | lane の色を固定する（`"#4a9eff"` / `"rebeccapurple"` 等）。**省略時は lane の並び順からパレットを機械的に割り当てるため、lane を 1 つ足したり `order` を変えると既存 lane の色がずれる。** 色を固定したい場合に指定する。値の検証は item の `color` と同じで、不正値はエラー（パレットへフォールバックしない） |
+
+色の解決優先順位は `item.color` > `timeline.color_map`（タグ経由） > `lane.color` > パレット。
+
+```tdsl
+lane "漢" as han { kind dynasty; order 20; color "#c0392b"; }
+```
+
 
 ### group
 

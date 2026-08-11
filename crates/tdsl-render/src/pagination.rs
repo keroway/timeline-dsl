@@ -259,6 +259,7 @@ mod tests {
             order,
             group: group.map(str::to_string),
             source_span: None,
+            color: None,
         }
     }
 

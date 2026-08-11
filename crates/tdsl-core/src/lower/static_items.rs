@@ -37,7 +37,7 @@ fn is_safe_color_value(value: &str) -> bool {
     first.is_ascii_alphabetic() && chars.all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
-fn validate_color(color: &Option<String>) -> Result<Option<String>, LoweringError> {
+pub(crate) fn validate_color(color: &Option<String>) -> Result<Option<String>, LoweringError> {
     match color {
         Some(value) => {
             let trimmed = value.trim();

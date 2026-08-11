@@ -134,6 +134,7 @@ mod tests {
                 kind: "dynasty".into(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {

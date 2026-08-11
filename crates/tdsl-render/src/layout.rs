@@ -606,6 +606,17 @@ impl<'a> LayoutModel<'a> {
             .iter()
             .enumerate()
             .map(|(idx, lane)| {
+                // lane に明示指定された色が最優先（#747）。
+                // パレットは「並び順 % パレット長」で決まるため、lane を 1 つ
+                // 足したり order を変えると既存 lane の色が全部ずれる。
+                // 明示色はその影響を受けない。
+                //
+                // **明示色には CSS 変数を被せない。** 変数は「パレットの N 番目」を
+                // 上書きするための仕組みで、意図して固定した色を外から差し替える
+                // 経路にしてしまうと、指定した意味が失われる。
+                if let Some(explicit) = &lane.color {
+                    return (lane.id.clone(), explicit.clone());
+                }
                 let palette_idx = idx % LANE_PALETTE.len();
                 let hex = LANE_PALETTE[palette_idx];
                 let color = if opts.use_css_vars {
@@ -2731,6 +2742,7 @@ mod tests {
             kind: "custom".into(),
             order: 0,
             group: None,
+            color: None,
             source_span: None,
         }
     }
@@ -3209,6 +3221,7 @@ mod tests {
                 kind: "custom".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -3288,6 +3301,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -3349,6 +3363,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::EventRange {
@@ -3412,6 +3427,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -3477,6 +3493,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -3564,6 +3581,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -3649,6 +3667,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -3740,6 +3759,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: Some("G".into()),
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -3847,6 +3867,7 @@ mod tests {
                 kind: "custom".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -3898,6 +3919,7 @@ mod tests {
                 kind: "custom".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -3930,6 +3952,7 @@ mod tests {
                 order: i as i64,
                 group: None,
                 source_span: None,
+                color: None,
             })
             .collect();
         let items: Vec<Item> = lanes
@@ -3977,6 +4000,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -4090,6 +4114,7 @@ mod tests {
                     kind: "k".into(),
                     order: 20,
                     group: None,
+                    color: None,
                     source_span: None,
                 },
                 Lane {
@@ -4098,6 +4123,7 @@ mod tests {
                     kind: "k".into(),
                     order: 10,
                     group: None,
+                    color: None,
                     source_span: None,
                 },
             ],
@@ -4278,6 +4304,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Event {
