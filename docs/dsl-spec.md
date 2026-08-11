@@ -176,7 +176,7 @@ lane "漢" as han { kind dynasty; order 20; }
 
 色の解決優先順位は `item.color` > `timeline.color_map`（タグ経由） > `lane.color` > パレット。
 
-```
+```tdsl
 lane "漢" as han { kind dynasty; order 20; color "#c0392b"; }
 ```
 
