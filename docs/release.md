@@ -14,6 +14,7 @@
 | `crates/tdsl-core/Cargo.toml` | `tdsl-parser` / `tdsl-wikidata` の内部依存 `version = "X.Y.Z"` 要求（2箇所） |
 | `crates/tdsl-render/Cargo.toml` | `tdsl-core` / `tdsl-parser` の内部依存 `version = "X.Y.Z"` 要求（dev-deps 含め3箇所） |
 | `editors/vscode/package.json` | `"version"` フィールド |
+| `editors/vscode/package-lock.json` | ルートの `version` と `packages[""].version`。`cd editors/vscode && npm install --package-lock-only` で揃う（v2.0.0 の PR #808 でこの行が無かったため取りこぼし、自動レビューに指摘された） |
 | `editors/vscode/CHANGELOG.md` | `## [Unreleased]` の直下に `## [X.Y.Z] - YYYY-MM-DD` セクションを追加 |
 | `CHANGELOG.md`（本体） | `## [Unreleased]` の直下に `## [X.Y.Z] - YYYY-MM-DD` セクションを追加。末尾の compare リンク一覧にも `[X.Y.Z]: .../compare/v<前バージョン>...vX.Y.Z` を追加すること |
 
