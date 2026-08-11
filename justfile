@@ -9,6 +9,7 @@ build:
 test:
     cargo test --workspace --all-targets
 
+# CI (.github/workflows/ci.yml の Clippy ステップ) と同一のコマンドにすること。
 lint:
     cargo clippy --workspace --all-targets -- -D warnings
 
