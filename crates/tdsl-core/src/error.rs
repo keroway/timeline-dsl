@@ -123,3 +123,46 @@ impl From<LoweringError> for SpannedLoweringError {
         Self { error, span: None }
     }
 }
+
+impl LoweringError {
+    /// `docs/error-catalog.md` に対応する安定した診断コードを返す。
+    ///
+    /// CI で特定の診断だけを許容/禁止できるようにするための識別子（#748）。
+    /// **カタログの見出し（`### E101: …`）と 1 対 1 で対応させること。**
+    /// 対応が崩れていないかは `error_codes_match_catalog` テストが検証する。
+    ///
+    /// `Parse` と `Wikidata` は他レイヤ由来のエラーを包んだものなので、
+    /// lowering の E1xx 体系には含めない（`None` を返す）。
+    pub fn code(&self) -> Option<&'static str> {
+        Some(match self {
+            Self::Parse(_) => return None,
+            #[cfg(feature = "wikidata")]
+            Self::Wikidata(_) => return None,
+            Self::UnknownLane(_) => "E101",
+            Self::DuplicateLane(_) => "E102",
+            Self::DuplicateItemId(_) => "E103",
+            Self::NoTimeline => "E104",
+            Self::MultipleTimelines => "E105",
+            Self::UnresolvedImport(_) => "E106",
+            Self::UnresolvedEntity(_) => "E107",
+            Self::UnknownMappedLane(_) => "E108",
+            Self::DuplicateTemplate(_) => "E109",
+            Self::UnknownTemplate(_) => "E110",
+            Self::InvalidItemLink(_) => "E111",
+            Self::InvalidItemColor(_) => "E112",
+            Self::MixedOffsetComparison(_, _) => "E113",
+            Self::FieldPriorityTypeMismatch { .. } => "E114",
+            Self::DuplicateImportAlias(_) => "E115",
+            // `UnknownTimelineUnit` は E1xx を割り当てていない（カタログにも
+            // 節が無い）。コードを付けるならカタログ側の追記とセットで行う。
+            Self::UnknownTimelineUnit { .. } => return None,
+        })
+    }
+}
+
+impl SpannedLoweringError {
+    /// 元のエラーの診断コード。
+    pub fn code(&self) -> Option<&'static str> {
+        self.error.code()
+    }
+}

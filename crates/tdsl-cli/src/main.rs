@@ -88,6 +88,14 @@ enum Commands {
         /// offline-only behaviour explicit on the command line)
         #[arg(long)]
         offline: bool,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = CheckOutputFormat::Text)]
+        format: CheckOutputFormat,
+
+        /// Exit non-zero when any warning is reported. CI-friendly.
+        #[arg(long, default_value_t = false)]
+        deny_warnings: bool,
     },
 
     /// Dump the parsed AST (for debugging)
@@ -522,6 +530,14 @@ enum LintOutputFormat {
     Json,
 }
 
+/// `check --format` の出力形式。`lint` と同じ選択肢に揃える（#748）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+enum CheckOutputFormat {
+    #[default]
+    Text,
+    Json,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
 enum ThemeArg {
     #[default]
@@ -680,11 +696,32 @@ fn main() {
             },
             wikidata_timeout,
         ),
-        Commands::Check { inputs, offline } => {
-            commands::resolve_tdsl_inputs(&inputs).and_then(|files| {
-                commands::run_over_inputs(&files, |path| commands::check::cmd_check(path, offline))
-            })
-        }
+        Commands::Check {
+            inputs,
+            offline,
+            format,
+            deny_warnings,
+        } => commands::resolve_tdsl_inputs(&inputs).and_then(|files| {
+            // JSON は全件を 1 つの配列にまとめる（単一入力はオブジェクト）。
+            // 理由は lint と同じ（#750）。
+            let mut reports = Vec::new();
+            let json = matches!(format, CheckOutputFormat::Json);
+            let result = commands::run_over_inputs(&files, |path| {
+                let sink = if json { Some(&mut reports) } else { None };
+                commands::check::cmd_check(path, offline, format, deny_warnings, sink)
+            });
+            if json {
+                let rendered = match (files.len(), reports.as_slice()) {
+                    (1, [only]) => Some(serde_json::to_string_pretty(only)),
+                    (1, []) => None,
+                    _ => Some(serde_json::to_string_pretty(&reports)),
+                };
+                if let Some(rendered) = rendered {
+                    println!("{}", rendered.map_err(|e| e.to_string())?);
+                }
+            }
+            result
+        }),
         Commands::Ast { input } => commands::check::cmd_ast(&input),
         Commands::Fetch { qid, lang } => commands::fetch::cmd_fetch(&qid, &lang, wikidata_timeout),
         Commands::Search {

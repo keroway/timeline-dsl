@@ -592,6 +592,26 @@ span dynasty -206..9 "秦" {};
 するために報告されます（CLAUDE.md「No silent fallback」原則）。`tdsl build` /
 `tdsl check` が `Warning:` として stderr に出力します。
 
+### W208: アイテムの時刻でオフセット付き値となし値が混在
+
+**メッセージ**: `{Span|EventRange|Event} "{id}" mixes a UTC-offset time value with a value that has no offset; cannot determine start/end order (ADR 0003 D2, make both sides consistent)`
+
+**原因**: 1 つのアイテムの中で、UTC オフセット付きの時刻とオフセットなしの時刻が混ざっています。オフセットなしをどのタイムゾーンとみなすかは決まっていない（暗黙に UTC とはみなさない）ため、前後関係や範囲内かどうかを判定できません。
+
+**修正方法**: 両方にオフセットを付けるか、両方から外して表記を揃えてください。lowering 側の同種エラーは E113 です。
+
+---
+
+### W209: timeline.range でオフセット付き値となし値が混在
+
+**メッセージ**: `Timeline range mixes a UTC-offset time value with a value that has no offset; cannot determine range coherence (ADR 0003 D2, make both sides consistent)`
+
+**原因**: `timeline` の `range` の始点と終点で、UTC オフセットの有無が食い違っています。
+
+**修正方法**: W208 と同じく、両端の表記を揃えてください。
+
+---
+
 ### W210: マッピング対象が必須フィールド未解決でアイテム未生成
 
 **メッセージ**:
