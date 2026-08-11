@@ -85,8 +85,39 @@
           "type": "string",
           "default": "",
           "description": "`tdsl` バイナリへの絶対パス。空の場合は PATH から `tdsl` を解決する。"
+        },
+        "timelineDsl.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Language Server との通信をトレースする（不具合報告時のログ取得用）。"
         }
       }
+    },
+    "commands": [
+      {
+        "command": "timelineDsl.openPreview",
+        "title": "Timeline DSL: Open Preview to the Side",
+        "category": "Timeline DSL"
+      },
+      {
+        "command": "timelineDsl.restartServer",
+        "title": "Timeline DSL: Restart Language Server",
+        "category": "Timeline DSL"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "timelineDsl.openPreview",
+          "when": "editorLangId == tdsl"
+        }
+      ]
     }
   }
 }

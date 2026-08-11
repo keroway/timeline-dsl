@@ -410,6 +410,8 @@ See [docs/ci-integration.md](docs/ci-integration.md) for full usage details.
 
 An extension is available under `editors/vscode/`. It color-codes keywords, strings, comments, QIDs, and more in `.tdsl` files.
 
+With the `tdsl` binary on `PATH`, it also provides language-server features and two commands: **Open Preview to the Side** (renders the current file to SVG in a Webview, refreshed on save) and **Restart Language Server**.
+
 **Install from Marketplace:**
 
 Press `Ctrl+P` (macOS: `Cmd+P`) in VS Code and run:

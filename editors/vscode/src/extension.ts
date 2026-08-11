@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as vscode from "vscode";
+import { PreviewController } from "./preview";
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -79,6 +80,66 @@ export function activate(context: vscode.ExtensionContext): void {
   // context.subscriptions に登録することで拡張無効化時に自動的に stop() される
   context.subscriptions.push(client);
   void client.start();
+
+  registerCommands(context, resolved.path);
+}
+
+/**
+ * コマンドを登録する（#754）。
+ *
+ * **バイナリが解決できているときだけ呼ぶ。** 解決できていない場合は
+ * `activate` が早期 return しており、コマンドを登録しても「押しても
+ * 何も起きない」状態になるため。
+ */
+function registerCommands(
+  context: vscode.ExtensionContext,
+  binaryPath: string,
+): void {
+  const preview = new PreviewController(binaryPath);
+  context.subscriptions.push({ dispose: () => preview.dispose() });
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("timelineDsl.openPreview", async () => {
+      const editor = vscode.window.activeTextEditor;
+      // 無音で何も起きないのは禁止（#754）。理由を出す。
+      if (!editor || editor.document.languageId !== "tdsl") {
+        void vscode.window.showErrorMessage(
+          "Timeline DSL: プレビューは .tdsl ファイルを開いた状態で実行してください。",
+        );
+        return;
+      }
+      if (editor.document.isUntitled) {
+        void vscode.window.showErrorMessage(
+          "Timeline DSL: プレビューには保存済みのファイルが必要です（`tdsl render` がパスを受け取るため）。",
+        );
+        return;
+      }
+      await preview.open(editor.document);
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("timelineDsl.restartServer", async () => {
+      if (!client) {
+        void vscode.window.showErrorMessage(
+          "Timeline DSL: Language Server が起動していません。",
+        );
+        return;
+      }
+      await client.restart();
+      void vscode.window.showInformationMessage(
+        "Timeline DSL: Language Server を再起動しました。",
+      );
+    }),
+  );
+
+  // 保存時に再描画する。入力のたびではなく保存契機にするのは、
+  // 子プロセスの起動回数を抑えるため（debounce も PreviewController 側にある）。
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument((doc) => {
+      preview.scheduleRefresh(doc);
+    }),
+  );
 }
 
 export function deactivate(): Thenable<void> | undefined {
