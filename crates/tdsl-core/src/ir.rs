@@ -443,3 +443,38 @@ pub fn days_in_month(year: i64, month: u8) -> u8 {
 fn is_leap_year(year: i64) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
+
+/// 時刻を分解して持つフィールド群（年 + 月日時分秒 + UTC オフセット）。
+///
+/// IR の `Item` は `start_month` / `start_day` / … のように時刻を平坦な
+/// フィールドとして持つため、これを扱う関数は**同型の `Option<u8>` が
+/// 5 連続する引数列**になりがちだった。取り違えてもコンパイラは検出できず、
+/// `#[allow(clippy::too_many_arguments)]` を付けて回る状態になっていた
+/// （`implementation-strict.md` §2-6 は `#[allow(clippy::*)]` の安易な追加を
+/// NO-GO としている）。#772 で CLI 側に適用した「同型引数連続 → 名前付き
+/// 構造体化」を、時刻分解引数にも広げたもの（#805）。
+///
+/// **IR のフィールドそのものは変えない。** 平坦なフィールドは JSON
+/// スキーマの一部で、変えると後方互換が壊れる。ここは関数の引数を束ねる
+/// ためだけの型。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TimeParts {
+    pub year: i64,
+    pub month: Option<u8>,
+    pub day: Option<u8>,
+    pub hour: Option<u8>,
+    pub minute: Option<u8>,
+    pub second: Option<u8>,
+    /// UTC オフセット（分）。`None` はオフセット指定なし。
+    pub offset_minutes: Option<i16>,
+}
+
+impl TimeParts {
+    /// 年精度だけの時刻。
+    pub fn from_year(year: i64) -> Self {
+        Self {
+            year,
+            ..Default::default()
+        }
+    }
+}

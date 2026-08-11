@@ -5,17 +5,32 @@ use tdsl_wikidata::{WikidataClient, WikidataEntity};
 
 use crate::{ScaffoldLaneMode, ScaffoldTargetType};
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn cmd_scaffold_wikidata(
-    qids: &str,
-    timeline: &str,
-    output: Option<&std::path::Path>,
-    lang: &str,
-    target: ScaffoldTargetType,
-    lane_mode: ScaffoldLaneMode,
-    single_lane_label: &str,
-    wikidata_timeout: std::time::Duration,
-) -> Result<(), String> {
+/// `scaffold wikidata` の CLI 引数をまとめたもの。
+///
+/// `&str` が 4 つ連続しており、取り違えてもコンパイラは検出できなかった
+/// （#805。#772 で `render` に適用したのと同じ是正）。
+pub(crate) struct ScaffoldCliOptions<'a> {
+    pub qids: &'a str,
+    pub timeline: &'a str,
+    pub output: Option<&'a std::path::Path>,
+    pub lang: &'a str,
+    pub target: ScaffoldTargetType,
+    pub lane_mode: ScaffoldLaneMode,
+    pub single_lane_label: &'a str,
+    pub wikidata_timeout: std::time::Duration,
+}
+
+pub(crate) fn cmd_scaffold_wikidata(opts: ScaffoldCliOptions<'_>) -> Result<(), String> {
+    let ScaffoldCliOptions {
+        qids,
+        timeline,
+        output,
+        lang,
+        target,
+        lane_mode,
+        single_lane_label,
+        wikidata_timeout,
+    } = opts;
     let qids = parse_qids(qids)?;
     let langs = super::parse_langs(lang);
     let timeline = timeline.trim();

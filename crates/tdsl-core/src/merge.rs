@@ -17,6 +17,8 @@ pub fn merge_irs(irs: Vec<TimelineIr>) -> (TimelineIr, MergeWarnings) {
 
     let mut warnings = Vec::new();
     let mut iter = irs.into_iter();
+    // 直前の assert! で空でないことを保証済みなので next() は必ず Some
+    // （implementation-strict.md §4.1: 例外的に使う場合は理由を 1 行）。
     let first = iter.next().unwrap();
 
     let mut meta = first.meta;

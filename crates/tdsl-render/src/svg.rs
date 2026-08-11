@@ -595,7 +595,15 @@ fn render_axis_horizontal(s: &mut String, layout: &LayoutModel) -> std::fmt::Res
     // Second minor ticks (unit=second only, #614, ADR 0003).
     let pixels_per_second = layout.opts.scale / (365.25 * 24.0 * 60.0 * 60.0);
     for (year, month, day, hour, minute, second) in layout.second_ticks() {
-        let x = layout.second_frac_to_x(year, month, day, hour, minute, second);
+        let x = layout.second_frac_to_x(tdsl_core::ir::TimeParts {
+            year,
+            month: Some(month),
+            day: Some(day),
+            hour: Some(hour),
+            minute: Some(minute),
+            second: Some(second),
+            offset_minutes: None,
+        });
         writeln!(
             s,
             r#"  <line class="tdsl-axis-second-tick" role="presentation" x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>"#,

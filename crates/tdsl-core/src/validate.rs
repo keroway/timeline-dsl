@@ -1,3 +1,4 @@
+use crate::ir::TimeParts;
 use crate::ir::{LaneKind, SourceSpan, TimelineIr, known_lane_kinds};
 use tdsl_parser::ast;
 
@@ -49,23 +50,29 @@ fn normalize_ir_time_utc(
 /// - 片方のみ offset 付きの場合は曖昧な比較として `None` を返す
 ///   （`validate.rs` は警告のみを扱うため、lowering の `MixedOffsetComparison`
 ///   エラーとは異なり、呼び出し側が専用の警告メッセージを生成する）。
-#[allow(clippy::too_many_arguments)]
-fn compare_ir_time(
-    a_year: i64,
-    a_month: Option<u8>,
-    a_day: Option<u8>,
-    a_hour: Option<u8>,
-    a_minute: Option<u8>,
-    a_second: Option<u8>,
-    a_offset: Option<i16>,
-    b_year: i64,
-    b_month: Option<u8>,
-    b_day: Option<u8>,
-    b_hour: Option<u8>,
-    b_minute: Option<u8>,
-    b_second: Option<u8>,
-    b_offset: Option<i16>,
-) -> Option<std::cmp::Ordering> {
+///
+/// 以前は 14 引数（a_* / b_* の月日時分秒がそれぞれ同型で連続）を位置渡し
+/// しており、取り違えてもコンパイラが検出できなかった。`TimeParts` にまとめ、
+/// `#[allow(clippy::too_many_arguments)]` を撤去した（#805）。
+fn compare_ir_time(a: TimeParts, b: TimeParts) -> Option<std::cmp::Ordering> {
+    let (a_year, a_month, a_day, a_hour, a_minute, a_second, a_offset) = (
+        a.year,
+        a.month,
+        a.day,
+        a.hour,
+        a.minute,
+        a.second,
+        a.offset_minutes,
+    );
+    let (b_year, b_month, b_day, b_hour, b_minute, b_second, b_offset) = (
+        b.year,
+        b.month,
+        b.day,
+        b.hour,
+        b.minute,
+        b.second,
+        b.offset_minutes,
+    );
     match (a_offset, b_offset) {
         (Some(off_a), Some(off_b)) => {
             let norm_a =
@@ -83,16 +90,17 @@ fn compare_ir_time(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn format_time(
-    year: i64,
-    month: Option<u8>,
-    day: Option<u8>,
-    hour: Option<u8>,
-    minute: Option<u8>,
-    second: Option<u8>,
-    offset_minutes: Option<i16>,
-) -> String {
+/// 分解された時刻を人間可読な文字列にする。
+fn format_time(t: TimeParts) -> String {
+    let (year, month, day, hour, minute, second, offset_minutes) = (
+        t.year,
+        t.month,
+        t.day,
+        t.hour,
+        t.minute,
+        t.second,
+        t.offset_minutes,
+    );
     let base = match (month, day, hour, minute) {
         (Some(m), Some(d), Some(h), Some(min)) => {
             format!("{year:04}-{m:02}-{d:02}T{h:02}:{min:02}")
@@ -291,40 +299,44 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                 ..
             } => {
                 match compare_ir_time(
-                    *start,
-                    *start_month,
-                    *start_day,
-                    *start_hour,
-                    *start_minute,
-                    *start_second,
-                    *start_offset_minutes,
-                    *end,
-                    *end_month,
-                    *end_day,
-                    *end_hour,
-                    *end_minute,
-                    *end_second,
-                    *end_offset_minutes,
+                    TimeParts {
+                        year: *start,
+                        month: *start_month,
+                        day: *start_day,
+                        hour: *start_hour,
+                        minute: *start_minute,
+                        second: *start_second,
+                        offset_minutes: *start_offset_minutes,
+                    },
+                    TimeParts {
+                        year: *end,
+                        month: *end_month,
+                        day: *end_day,
+                        hour: *end_hour,
+                        minute: *end_minute,
+                        second: *end_second,
+                        offset_minutes: *end_offset_minutes,
+                    },
                 ) {
                     Some(std::cmp::Ordering::Greater) => {
-                        let start_text = format_time(
-                            *start,
-                            *start_month,
-                            *start_day,
-                            *start_hour,
-                            *start_minute,
-                            *start_second,
-                            *start_offset_minutes,
-                        );
-                        let end_text = format_time(
-                            *end,
-                            *end_month,
-                            *end_day,
-                            *end_hour,
-                            *end_minute,
-                            *end_second,
-                            *end_offset_minutes,
-                        );
+                        let start_text = format_time(TimeParts {
+                            year: *start,
+                            month: *start_month,
+                            day: *start_day,
+                            hour: *start_hour,
+                            minute: *start_minute,
+                            second: *start_second,
+                            offset_minutes: *start_offset_minutes,
+                        });
+                        let end_text = format_time(TimeParts {
+                            year: *end,
+                            month: *end_month,
+                            day: *end_day,
+                            hour: *end_hour,
+                            minute: *end_minute,
+                            second: *end_second,
+                            offset_minutes: *end_offset_minutes,
+                        });
                         diags.push(ValidationDiagnostic {
                             code: "W202",
                             message: format!(
@@ -365,40 +377,44 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                 ..
             } => {
                 match compare_ir_time(
-                    *start,
-                    *start_month,
-                    *start_day,
-                    *start_hour,
-                    *start_minute,
-                    *start_second,
-                    *start_offset_minutes,
-                    *end,
-                    *end_month,
-                    *end_day,
-                    *end_hour,
-                    *end_minute,
-                    *end_second,
-                    *end_offset_minutes,
+                    TimeParts {
+                        year: *start,
+                        month: *start_month,
+                        day: *start_day,
+                        hour: *start_hour,
+                        minute: *start_minute,
+                        second: *start_second,
+                        offset_minutes: *start_offset_minutes,
+                    },
+                    TimeParts {
+                        year: *end,
+                        month: *end_month,
+                        day: *end_day,
+                        hour: *end_hour,
+                        minute: *end_minute,
+                        second: *end_second,
+                        offset_minutes: *end_offset_minutes,
+                    },
                 ) {
                     Some(std::cmp::Ordering::Greater) => {
-                        let start_text = format_time(
-                            *start,
-                            *start_month,
-                            *start_day,
-                            *start_hour,
-                            *start_minute,
-                            *start_second,
-                            *start_offset_minutes,
-                        );
-                        let end_text = format_time(
-                            *end,
-                            *end_month,
-                            *end_day,
-                            *end_hour,
-                            *end_minute,
-                            *end_second,
-                            *end_offset_minutes,
-                        );
+                        let start_text = format_time(TimeParts {
+                            year: *start,
+                            month: *start_month,
+                            day: *start_day,
+                            hour: *start_hour,
+                            minute: *start_minute,
+                            second: *start_second,
+                            offset_minutes: *start_offset_minutes,
+                        });
+                        let end_text = format_time(TimeParts {
+                            year: *end,
+                            month: *end_month,
+                            day: *end_day,
+                            hour: *end_hour,
+                            minute: *end_minute,
+                            second: *end_second,
+                            offset_minutes: *end_offset_minutes,
+                        });
                         diags.push(ValidationDiagnostic {
                             code: "W202",
                             message: format!(
@@ -426,39 +442,43 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
     // Check range coherence（月日・秒・offset精度を考慮、ADR 0003 D2）— アイテムに紐付かないため span: None
     let (range_start, range_end) = ir.meta.range;
     let range_coherence = compare_ir_time(
-        range_start,
-        ir.meta.range_start_month,
-        ir.meta.range_start_day,
-        ir.meta.range_start_hour,
-        ir.meta.range_start_minute,
-        ir.meta.range_start_second,
-        ir.meta.range_start_offset_minutes,
-        range_end,
-        ir.meta.range_end_month,
-        ir.meta.range_end_day,
-        ir.meta.range_end_hour,
-        ir.meta.range_end_minute,
-        ir.meta.range_end_second,
-        ir.meta.range_end_offset_minutes,
+        TimeParts {
+            year: range_start,
+            month: ir.meta.range_start_month,
+            day: ir.meta.range_start_day,
+            hour: ir.meta.range_start_hour,
+            minute: ir.meta.range_start_minute,
+            second: ir.meta.range_start_second,
+            offset_minutes: ir.meta.range_start_offset_minutes,
+        },
+        TimeParts {
+            year: range_end,
+            month: ir.meta.range_end_month,
+            day: ir.meta.range_end_day,
+            hour: ir.meta.range_end_hour,
+            minute: ir.meta.range_end_minute,
+            second: ir.meta.range_end_second,
+            offset_minutes: ir.meta.range_end_offset_minutes,
+        },
     );
-    let range_start_text = format_time(
-        range_start,
-        ir.meta.range_start_month,
-        ir.meta.range_start_day,
-        ir.meta.range_start_hour,
-        ir.meta.range_start_minute,
-        ir.meta.range_start_second,
-        ir.meta.range_start_offset_minutes,
-    );
-    let range_end_text = format_time(
-        range_end,
-        ir.meta.range_end_month,
-        ir.meta.range_end_day,
-        ir.meta.range_end_hour,
-        ir.meta.range_end_minute,
-        ir.meta.range_end_second,
-        ir.meta.range_end_offset_minutes,
-    );
+    let range_start_text = format_time(TimeParts {
+        year: range_start,
+        month: ir.meta.range_start_month,
+        day: ir.meta.range_start_day,
+        hour: ir.meta.range_start_hour,
+        minute: ir.meta.range_start_minute,
+        second: ir.meta.range_start_second,
+        offset_minutes: ir.meta.range_start_offset_minutes,
+    });
+    let range_end_text = format_time(TimeParts {
+        year: range_end,
+        month: ir.meta.range_end_month,
+        day: ir.meta.range_end_day,
+        hour: ir.meta.range_end_hour,
+        minute: ir.meta.range_end_minute,
+        second: ir.meta.range_end_second,
+        offset_minutes: ir.meta.range_end_offset_minutes,
+    });
     match range_coherence {
         Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal) => {
             diags.push(ValidationDiagnostic {
@@ -500,49 +520,57 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                 ..
             } => {
                 let after_start = compare_ir_time(
-                    *time,
-                    *time_month,
-                    *time_day,
-                    *time_hour,
-                    *time_minute,
-                    *time_second,
-                    *time_offset_minutes,
-                    range_start,
-                    ir.meta.range_start_month,
-                    ir.meta.range_start_day,
-                    ir.meta.range_start_hour,
-                    ir.meta.range_start_minute,
-                    ir.meta.range_start_second,
-                    ir.meta.range_start_offset_minutes,
+                    TimeParts {
+                        year: *time,
+                        month: *time_month,
+                        day: *time_day,
+                        hour: *time_hour,
+                        minute: *time_minute,
+                        second: *time_second,
+                        offset_minutes: *time_offset_minutes,
+                    },
+                    TimeParts {
+                        year: range_start,
+                        month: ir.meta.range_start_month,
+                        day: ir.meta.range_start_day,
+                        hour: ir.meta.range_start_hour,
+                        minute: ir.meta.range_start_minute,
+                        second: ir.meta.range_start_second,
+                        offset_minutes: ir.meta.range_start_offset_minutes,
+                    },
                 );
                 let before_end = compare_ir_time(
-                    *time,
-                    *time_month,
-                    *time_day,
-                    *time_hour,
-                    *time_minute,
-                    *time_second,
-                    *time_offset_minutes,
-                    range_end,
-                    ir.meta.range_end_month,
-                    ir.meta.range_end_day,
-                    ir.meta.range_end_hour,
-                    ir.meta.range_end_minute,
-                    ir.meta.range_end_second,
-                    ir.meta.range_end_offset_minutes,
+                    TimeParts {
+                        year: *time,
+                        month: *time_month,
+                        day: *time_day,
+                        hour: *time_hour,
+                        minute: *time_minute,
+                        second: *time_second,
+                        offset_minutes: *time_offset_minutes,
+                    },
+                    TimeParts {
+                        year: range_end,
+                        month: ir.meta.range_end_month,
+                        day: ir.meta.range_end_day,
+                        hour: ir.meta.range_end_hour,
+                        minute: ir.meta.range_end_minute,
+                        second: ir.meta.range_end_second,
+                        offset_minutes: ir.meta.range_end_offset_minutes,
+                    },
                 );
                 match (after_start, before_end) {
                     (Some(a), Some(b)) => {
                         if a == std::cmp::Ordering::Less || b == std::cmp::Ordering::Greater {
-                            let time_text = format_time(
-                                *time,
-                                *time_month,
-                                *time_day,
-                                *time_hour,
-                                *time_minute,
-                                *time_second,
-                                *time_offset_minutes,
-                            );
+                            let time_text = format_time(TimeParts {
+                                year: *time,
+                                month: *time_month,
+                                day: *time_day,
+                                hour: *time_hour,
+                                minute: *time_minute,
+                                second: *time_second,
+                                offset_minutes: *time_offset_minutes,
+                            });
                             diags.push(ValidationDiagnostic {
                                 code: "W205",
                                 message: format!(
@@ -607,20 +635,24 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                     "EventRange"
                 };
                 let start_end_order = compare_ir_time(
-                    *start,
-                    *start_month,
-                    *start_day,
-                    *start_hour,
-                    *start_minute,
-                    *start_second,
-                    *start_offset_minutes,
-                    *end,
-                    *end_month,
-                    *end_day,
-                    *end_hour,
-                    *end_minute,
-                    *end_second,
-                    *end_offset_minutes,
+                    TimeParts {
+                        year: *start,
+                        month: *start_month,
+                        day: *start_day,
+                        hour: *start_hour,
+                        minute: *start_minute,
+                        second: *start_second,
+                        offset_minutes: *start_offset_minutes,
+                    },
+                    TimeParts {
+                        year: *end,
+                        month: *end_month,
+                        day: *end_day,
+                        hour: *end_hour,
+                        minute: *end_minute,
+                        second: *end_second,
+                        offset_minutes: *end_offset_minutes,
+                    },
                 );
                 if start_end_order.is_none() {
                     // Already reported (as a mixed-offset warning) by the start > end check above.
@@ -631,68 +663,84 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                     continue;
                 }
                 let end_after_range_start = compare_ir_time(
-                    *end,
-                    *end_month,
-                    *end_day,
-                    *end_hour,
-                    *end_minute,
-                    *end_second,
-                    *end_offset_minutes,
-                    range_start,
-                    ir.meta.range_start_month,
-                    ir.meta.range_start_day,
-                    ir.meta.range_start_hour,
-                    ir.meta.range_start_minute,
-                    ir.meta.range_start_second,
-                    ir.meta.range_start_offset_minutes,
+                    TimeParts {
+                        year: *end,
+                        month: *end_month,
+                        day: *end_day,
+                        hour: *end_hour,
+                        minute: *end_minute,
+                        second: *end_second,
+                        offset_minutes: *end_offset_minutes,
+                    },
+                    TimeParts {
+                        year: range_start,
+                        month: ir.meta.range_start_month,
+                        day: ir.meta.range_start_day,
+                        hour: ir.meta.range_start_hour,
+                        minute: ir.meta.range_start_minute,
+                        second: ir.meta.range_start_second,
+                        offset_minutes: ir.meta.range_start_offset_minutes,
+                    },
                 );
                 let start_before_range_end = compare_ir_time(
-                    *start,
-                    *start_month,
-                    *start_day,
-                    *start_hour,
-                    *start_minute,
-                    *start_second,
-                    *start_offset_minutes,
-                    range_end,
-                    ir.meta.range_end_month,
-                    ir.meta.range_end_day,
-                    ir.meta.range_end_hour,
-                    ir.meta.range_end_minute,
-                    ir.meta.range_end_second,
-                    ir.meta.range_end_offset_minutes,
+                    TimeParts {
+                        year: *start,
+                        month: *start_month,
+                        day: *start_day,
+                        hour: *start_hour,
+                        minute: *start_minute,
+                        second: *start_second,
+                        offset_minutes: *start_offset_minutes,
+                    },
+                    TimeParts {
+                        year: range_end,
+                        month: ir.meta.range_end_month,
+                        day: ir.meta.range_end_day,
+                        hour: ir.meta.range_end_hour,
+                        minute: ir.meta.range_end_minute,
+                        second: ir.meta.range_end_second,
+                        offset_minutes: ir.meta.range_end_offset_minutes,
+                    },
                 );
                 let start_after_range_start = compare_ir_time(
-                    *start,
-                    *start_month,
-                    *start_day,
-                    *start_hour,
-                    *start_minute,
-                    *start_second,
-                    *start_offset_minutes,
-                    range_start,
-                    ir.meta.range_start_month,
-                    ir.meta.range_start_day,
-                    ir.meta.range_start_hour,
-                    ir.meta.range_start_minute,
-                    ir.meta.range_start_second,
-                    ir.meta.range_start_offset_minutes,
+                    TimeParts {
+                        year: *start,
+                        month: *start_month,
+                        day: *start_day,
+                        hour: *start_hour,
+                        minute: *start_minute,
+                        second: *start_second,
+                        offset_minutes: *start_offset_minutes,
+                    },
+                    TimeParts {
+                        year: range_start,
+                        month: ir.meta.range_start_month,
+                        day: ir.meta.range_start_day,
+                        hour: ir.meta.range_start_hour,
+                        minute: ir.meta.range_start_minute,
+                        second: ir.meta.range_start_second,
+                        offset_minutes: ir.meta.range_start_offset_minutes,
+                    },
                 );
                 let end_before_range_end = compare_ir_time(
-                    *end,
-                    *end_month,
-                    *end_day,
-                    *end_hour,
-                    *end_minute,
-                    *end_second,
-                    *end_offset_minutes,
-                    range_end,
-                    ir.meta.range_end_month,
-                    ir.meta.range_end_day,
-                    ir.meta.range_end_hour,
-                    ir.meta.range_end_minute,
-                    ir.meta.range_end_second,
-                    ir.meta.range_end_offset_minutes,
+                    TimeParts {
+                        year: *end,
+                        month: *end_month,
+                        day: *end_day,
+                        hour: *end_hour,
+                        minute: *end_minute,
+                        second: *end_second,
+                        offset_minutes: *end_offset_minutes,
+                    },
+                    TimeParts {
+                        year: range_end,
+                        month: ir.meta.range_end_month,
+                        day: ir.meta.range_end_day,
+                        hour: ir.meta.range_end_hour,
+                        minute: ir.meta.range_end_minute,
+                        second: ir.meta.range_end_second,
+                        offset_minutes: ir.meta.range_end_offset_minutes,
+                    },
                 );
                 match (
                     end_after_range_start,

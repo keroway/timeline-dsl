@@ -745,16 +745,18 @@ fn main() {
                 target,
                 lane_mode,
                 single_lane_label,
-            } => commands::scaffold::cmd_scaffold_wikidata(
-                &qids,
-                &timeline,
-                output.as_deref(),
-                &lang,
-                target,
-                lane_mode,
-                &single_lane_label,
-                wikidata_timeout,
-            ),
+            } => {
+                commands::scaffold::cmd_scaffold_wikidata(commands::scaffold::ScaffoldCliOptions {
+                    qids: &qids,
+                    timeline: &timeline,
+                    output: output.as_deref(),
+                    lang: &lang,
+                    target,
+                    lane_mode,
+                    single_lane_label: &single_lane_label,
+                    wikidata_timeout,
+                })
+            }
         },
         Commands::Render {
             input,
