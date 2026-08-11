@@ -54,6 +54,18 @@ pub enum LoweringError {
     #[error("Map references unknown lane: {0}")]
     UnknownMappedLane(String),
 
+    /// 同じ alias の `import` ブロックが 2 つある。
+    ///
+    /// 以前は 2 つ目が 1 つ目のエンティティ群を `HashMap::insert` で黙って
+    /// 置換していた。`as` を省略すると alias は `source_type`（通常
+    /// `wikidata`）になるため、**alias 省略の import を 2 つ書くだけで踏む**。
+    /// lane / template は同条件をエラーにしており、import だけが
+    /// silent fallback だった（#761）。
+    #[error(
+        "Duplicate import alias: {0} (use `import <QID> as <alias>` to give each import block a distinct alias)"
+    )]
+    DuplicateImportAlias(String),
+
     #[error("Duplicate template alias: {0}")]
     DuplicateTemplate(String),
 

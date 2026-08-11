@@ -1325,3 +1325,89 @@ event nosuchlane 2005 "E" { id "e1"; };
         errs[0]
     );
 }
+
+// ─── import alias の重複（#761）──────────────────────────────────────────
+
+/// 同じ alias の import ブロックが 2 つあると、以前は 2 つ目が 1 つ目の
+/// エンティティ群を `HashMap::insert` で黙って置換していた。
+/// lane / template は同条件をエラーにしており、import だけが silent fallback だった。
+#[test]
+fn duplicate_import_alias_is_rejected() {
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a {}
+import Q7209 as wd { entity Q7209 as han; }
+import Q8686 as wd { entity Q8686 as tang; }
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let errs = lower::lower_static(&file).expect_err("duplicate import alias must fail");
+    assert!(
+        errs.iter().any(|e| matches!(
+            &e.error,
+            error::LoweringError::DuplicateImportAlias(a) if a == "wd"
+        )),
+        "got: {errs:?}"
+    );
+}
+
+/// `as` を省略すると alias は `source_type`（= QID）になる。
+/// 同じ QID を 2 回 import すると衝突する。
+///
+/// 起票時は「省略時の alias は `wikidata` になるので、省略した import を
+/// 2 つ書くだけで踏む」とされていたが、実測では `source_type` は QID そのもの
+/// だった（`import Q7209 {}` → alias `Q7209`）。QID が違えば衝突しない。
+/// 実際に踏むのは**同じ QID を 2 回**書いた場合。
+#[test]
+fn duplicate_import_alias_is_rejected_when_as_is_omitted() {
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a {}
+import Q7209 { entity Q7209 as han; }
+import Q7209 { entity Q7209 as han2; }
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let errs = lower::lower_static(&file).expect_err("duplicate QID import must fail");
+    assert!(
+        errs.iter().any(|e| matches!(
+            &e.error,
+            error::LoweringError::DuplicateImportAlias(a) if a == "Q7209"
+        )),
+        "got: {errs:?}"
+    );
+}
+
+/// 別々の QID を alias 省略で import するのは正当。ここを弾くと既存の
+/// ファイルが壊れる（退行防止）。
+#[test]
+fn distinct_import_sources_are_accepted() {
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a {}
+import Q7209 { entity Q7209 as han; }
+import Q8686 { entity Q8686 as tang; }
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    assert!(
+        lower::lower_static(&file).is_ok(),
+        "異なる QID の import を誤って拒否した"
+    );
+}
+
+/// エラーが 2 つ目の import ブロックを指すこと（直すのは後から来た方）。
+#[test]
+fn duplicate_import_alias_error_points_at_the_second_block() {
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a {}
+import Q7209 as wd { entity Q7209 as han; }
+import Q8686 as wd { entity Q8686 as tang; }
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let errs = lower::lower_static(&file).expect_err("duplicate import alias must fail");
+    let dup = errs
+        .iter()
+        .find(|e| matches!(&e.error, error::LoweringError::DuplicateImportAlias(_)))
+        .expect("DuplicateImportAlias が無い");
+    let snippet = dup.span.map(|s| &src[s.start..s.end]).expect("位置が無い");
+    assert!(snippet.contains("Q8686"), "1 つ目を指している: {snippet:?}");
+}
