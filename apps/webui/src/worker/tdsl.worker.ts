@@ -29,6 +29,8 @@ function toJsRenderOptions(opts: RenderOptions = {}): JsRenderOptions {
   if (opts.showEventLabels !== undefined)
     jsOpts.show_event_labels = opts.showEventLabels
   if (opts.laneHeight !== undefined) jsOpts.lane_height = opts.laneHeight
+  if (opts.layoutStyle !== undefined) jsOpts.layout_style = opts.layoutStyle
+  if (opts.showLegend !== undefined) jsOpts.show_legend = opts.showLegend
   return jsOpts
 }
 

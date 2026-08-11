@@ -87,6 +87,14 @@ export type Dictionary = {
   settingsShowEventLabels: string
   settingsShowEventLabelsOn: string
   settingsShowEventLabelsOff: string
+  settingsLayoutStyle: string
+  settingsLayoutStyleTimeline: string
+  settingsLayoutStyleGroupBands: string
+  settingsLayoutStyleGantt: string
+  settingsLayoutStyleZigzag: string
+  settingsShowLegend: string
+  settingsShowLegendOn: string
+  settingsShowLegendOff: string
   settingsPngBg: string
   settingsPngBgWhite: string
   settingsPngBgTransparent: string
@@ -211,6 +219,8 @@ export type Dictionary = {
   settingsThemeLightLabel: string
   settingsSvgPreviewSection: string
   settingsShowEventLabelsTitle: string
+  settingsLayoutStyleTitle: string
+  settingsShowLegendTitle: string
   settingsAutoSaveTitle: string
   settingsAutoSaveOnHint: string
   settingsAutoSaveOffHint: string
@@ -347,6 +357,14 @@ const ja: Dictionary = {
   settingsSvgThemePrint: '印刷',
   settingsSvgThemePastel: 'パステル',
   settingsShowEventLabels: 'イベントラベル常時表示',
+  settingsLayoutStyle: 'レイアウト方式',
+  settingsLayoutStyleTimeline: '通常',
+  settingsLayoutStyleGroupBands: 'グループ帯',
+  settingsLayoutStyleGantt: 'ガント',
+  settingsLayoutStyleZigzag: 'ジグザグ',
+  settingsShowLegend: '凡例パネル',
+  settingsShowLegendOn: 'ON',
+  settingsShowLegendOff: 'OFF',
   settingsShowEventLabelsOn: 'ON',
   settingsShowEventLabelsOff: 'OFF',
   settingsPngBg: 'PNG背景',
@@ -477,6 +495,9 @@ const ja: Dictionary = {
   settingsSvgPreviewSection: 'SVG プレビュー設定',
   settingsShowEventLabelsTitle:
     'Event / event_range のラベルをドット・バー近傍に常時描画します（一覧表示・印刷向け）',
+  settingsLayoutStyleTitle:
+    'タイムラインの描画方式。ジグザグは lane が 3 つ以上あるとエラーになります',
+  settingsShowLegendTitle: 'lane とタグの色を示す凡例パネルを描画します',
   settingsAutoSaveTitle:
     '編集内容をブラウザに自動保存します（リロード後も復元）',
   settingsAutoSaveOnHint: 'リロード後に復元されます',
@@ -614,6 +635,14 @@ const en: Dictionary = {
   settingsSvgThemePrint: 'Print',
   settingsSvgThemePastel: 'Pastel',
   settingsShowEventLabels: 'Always-on Event Labels',
+  settingsLayoutStyle: 'Layout style',
+  settingsLayoutStyleTimeline: 'Timeline',
+  settingsLayoutStyleGroupBands: 'Group bands',
+  settingsLayoutStyleGantt: 'Gantt',
+  settingsLayoutStyleZigzag: 'Zigzag',
+  settingsShowLegend: 'Legend panel',
+  settingsShowLegendOn: 'ON',
+  settingsShowLegendOff: 'OFF',
   settingsShowEventLabelsOn: 'ON',
   settingsShowEventLabelsOff: 'OFF',
   settingsPngBg: 'PNG Background',
@@ -744,6 +773,9 @@ const en: Dictionary = {
   settingsSvgPreviewSection: 'SVG preview settings',
   settingsShowEventLabelsTitle:
     'Always render Event / event_range labels near the dot/bar (useful for lists/printing)',
+  settingsLayoutStyleTitle:
+    'Timeline layout style. Zigzag reports an error when there are 3 or more lanes',
+  settingsShowLegendTitle: 'Render a legend panel showing lane and tag colors',
   settingsAutoSaveTitle:
     'Automatically save edits to the browser (restored after reload)',
   settingsAutoSaveOnHint: 'Restored after reload',
