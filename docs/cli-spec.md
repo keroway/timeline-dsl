@@ -987,7 +987,7 @@ tdsl lsp
 | `textDocument/didOpen` | ドキュメントを開いたときに診断を実行 |
 | `textDocument/didChange` | ドキュメント変更時に診断を再実行（FULL sync） |
 | `textDocument/didClose` | ドキュメントを閉じたときに診断をクリア |
-| `textDocument/completion` | DSL キーワード補完候補を返す（文脈非依存・全キーワード） |
+| `textDocument/completion` | カーソル位置のブロック構造に応じた補完候補を返す。ブロックごとのキーワード（`timeline` / `lane` / `group` / `map` / `template` / `import` / `apply` / item オプション）に加え、**値の位置では宣言済み ID を補完する**（`span` / `event` / `event_range` の直後は lane ID、`map` の直後と `apply <template> to` の直後は import alias、`apply` の直後は template ID）。値補完は offline のみで、Wikidata の entity key は対象外（補完のために暗黙にネットワークへ出ない）。`as` を省略した宣言は ID を推測しない |
 | `textDocument/hover` | lane ID → lane 情報（ラベル・kind・order）/ QID → キャッシュ済みエンティティ情報（offline） |
 | `textDocument/definition` | lane 参照位置 → lane 宣言位置へのジャンプ |
 | `textDocument/codeAction` | `tdsl lint --fix` 相当の自動修正を quick fix として提示（全文置換・offline） |

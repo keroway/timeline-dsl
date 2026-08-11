@@ -28,6 +28,11 @@ pub enum CompletionContext {
     Import,
     /// `span/event/event_range { }` 内
     ItemOptions,
+    /// `apply <template> to <import> { }` 内。
+    ///
+    /// `grammar.pest` の `apply_override` は `lane` のみを受理するため、
+    /// `map` と同じ候補を出すと通らないキーワードを勧めることになる（#753）。
+    ApplyBody,
 }
 
 /// 全 DSL キーワードのコード補完候補リストを返す（後方互換 API）。
@@ -93,6 +98,11 @@ pub fn detect_context(text_before_cursor: &str) -> CompletionContext {
                     Some("lane") => CompletionContext::LaneProps,
                     Some("group") => CompletionContext::GroupBody,
                     Some("map") => CompletionContext::Map,
+                    // `template` の中身は `map_prop` と同一（grammar.pest）。
+                    // ここが抜けていたため、template ブロック内で
+                    // TopLevel 補完（timeline, lane, …）が出ていた（#753）。
+                    Some("template") => CompletionContext::Map,
+                    Some("apply") => CompletionContext::ApplyBody,
                     Some("import") => CompletionContext::Import,
                     Some("span") | Some("event") | Some("event_range") => {
                         CompletionContext::ItemOptions
@@ -244,12 +254,117 @@ fn text_before_cursor(text: &str, line: u32, character: u32) -> String {
     result
 }
 
+/// ソースから宣言済みの lane ID を集める（パース不要の軽量スキャン）。
+///
+/// 補完は**編集途中の壊れたソース**に対しても呼ばれるため、パーサに通さない。
+/// 途中まで書かれた `lane "A" as a {` でも `a` を拾えることが要件。
+fn declared_lane_ids(text: &str) -> Vec<String> {
+    scan_declarations(text, "lane")
+}
+
+/// import alias（`import <src> as <alias>`）を集める。
+fn declared_import_aliases(text: &str) -> Vec<String> {
+    scan_declarations(text, "import")
+}
+
+/// template ID（`template "..." as <id>`）を集める。
+fn declared_template_ids(text: &str) -> Vec<String> {
+    scan_declarations(text, "template")
+}
+
+/// `<keyword> ... as <ident>` の `<ident>` を行単位で集める。
+///
+/// `as` を省略した宣言（`lane "A" { }` / `import Q7209 { }`）は ID が
+/// ラベルや source 名から導出されるため、ここでは拾わない。**推測で
+/// 候補を出すより、確実なものだけを出す**（間違った候補は打ち間違いを誘う）。
+fn scan_declarations(text: &str, keyword: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let mut parts = line.split_whitespace();
+        // **先頭トークンの完全一致で判定する。** `starts_with` だと
+        // `lanes are documented as invalid` のような非宣言行も拾い、
+        // `invalid` を候補に出してしまう（CodeRabbit の指摘）。
+        if parts.next() != Some(keyword) {
+            continue;
+        }
+        while let Some(tok) = parts.next() {
+            if tok == "as"
+                && let Some(id) = parts.next()
+            {
+                let id = id.trim_end_matches(['{', '}', ';']);
+                if !id.is_empty() && !out.iter().any(|e| e == id) {
+                    out.push(id.to_string());
+                }
+                break;
+            }
+        }
+    }
+    out
+}
+
+/// 宣言済み ID を `VALUE` kind の補完候補にする。
+fn make_value_items(ids: &[String], detail: &str) -> Vec<CompletionItem> {
+    ids.iter()
+        .map(|id| CompletionItem {
+            label: id.clone(),
+            kind: Some(CompletionItemKind::VALUE),
+            detail: Some(detail.to_string()),
+            ..Default::default()
+        })
+        .collect()
+}
+
+/// 「値を書く位置」なら候補を返す。キーワード補完より優先する。
+///
+/// 対象は 3 つ:
+///
+/// - `span` / `event` / `event_range` の直後 → 宣言済み lane ID
+/// - `apply <template> to ` の直後 → import alias（その手前は template ID）
+/// - `map ` の直後 → import alias（`alias.key` の alias 部分）
+///
+/// **offline のみ。** entity key の補完は Wikidata 取得が要るのでここでは扱わない
+/// （補完のために暗黙にネットワークへ出ない）。
+fn value_completions(text: &str, before: &str) -> Option<Vec<CompletionItem>> {
+    // 現在行の、カーソルまでの部分だけを見る。
+    let current_line = before.rsplit('\n').next().unwrap_or("");
+    let trimmed = current_line.trim_start();
+
+    // 末尾が空白のときだけ「次のトークンを書き始める位置」とみなす。
+    // `span l` の途中（`l` を入力中）は既存のキーワード補完に任せる。
+    let at_new_token = current_line.ends_with(char::is_whitespace);
+    if !at_new_token {
+        return None;
+    }
+
+    let words: Vec<&str> = trimmed.split_whitespace().collect();
+    match words.as_slice() {
+        // `span ` / `event ` / `event_range ` の直後は lane 参照。
+        ["span"] | ["event"] | ["event_range"] => {
+            Some(make_value_items(&declared_lane_ids(text), "lane"))
+        }
+        // `apply ` の直後は template、`apply <t> to ` の直後は import。
+        ["apply"] => Some(make_value_items(&declared_template_ids(text), "template")),
+        ["apply", _, "to"] => Some(make_value_items(&declared_import_aliases(text), "import")),
+        // `map ` の直後は import alias。
+        ["map"] => Some(make_value_items(&declared_import_aliases(text), "import")),
+        _ => None,
+    }
+}
+
 /// コンテキスト依存の補完候補を返す。
 ///
 /// カーソル位置のテキストを解析し、DSL のブロック構造から補完候補を絞り込む。
 /// ドキュメントが取得できない場合は `keyword_completions()` をフォールバックとして使う。
 pub fn contextual_completions(text: &str, line: u32, character: u32) -> Vec<CompletionItem> {
     let before = text_before_cursor(text, line, character);
+
+    // 値の位置（キーワードではなく ID を書く場所）を先に判定する。
+    // ここでキーワード候補を出すと、`span ` の直後に `timeline` などが
+    // 並んで邪魔になる（#753）。
+    if let Some(items) = value_completions(text, &before) {
+        return items;
+    }
+
     let ctx = detect_context(&before);
 
     match ctx {
@@ -268,7 +383,7 @@ pub fn contextual_completions(text: &str, line: u32, character: u32) -> Vec<Comp
         CompletionContext::Timeline => {
             make_keyword_items(&["unit", "range", "calendar", "color_map", "title"])
         }
-        CompletionContext::LaneProps => make_keyword_items(&["kind", "order"]),
+        CompletionContext::LaneProps => make_keyword_items(&["kind", "order", "color"]),
         CompletionContext::GroupBody => make_keyword_items(&["lane"]),
         CompletionContext::Map => {
             let mut items = make_keyword_items(&[
@@ -296,7 +411,12 @@ pub fn contextual_completions(text: &str, line: u32, character: u32) -> Vec<Comp
         CompletionContext::Import => {
             make_keyword_items(&["entity", "query", "policy", "field_priority"])
         }
-        CompletionContext::ItemOptions => make_keyword_items(&["tags", "source", "id", "origin"]),
+        // `note` / `link` / `color` は文法・IR・ハイライト（keywords.json）に
+        // 揃っているのに補完だけ欠けていた（#753）。
+        CompletionContext::ItemOptions => {
+            make_keyword_items(&["tags", "source", "id", "origin", "note", "link", "color"])
+        }
+        CompletionContext::ApplyBody => make_keyword_items(&["lane"]),
     }
 }
 
@@ -652,5 +772,135 @@ mod tests {
             Some("label@${1:ja}"),
             "label@ の insertText が `label@${{1:ja}}` であること"
         );
+    }
+}
+
+#[cfg(test)]
+mod completion_context_tests {
+    use super::*;
+
+    fn labels(items: &[CompletionItem]) -> Vec<String> {
+        items.iter().map(|i| i.label.clone()).collect()
+    }
+
+    /// カーソルをテキスト末尾に置いて補完を取る。
+    fn complete(text: &str) -> Vec<CompletionItem> {
+        let line = text.lines().count().saturating_sub(1) as u32;
+        let col = text.lines().last().map(str::len).unwrap_or(0) as u32;
+        contextual_completions(text, line, col)
+    }
+
+    // ─── template / apply の文脈（#753）──────────────────────────────────
+
+    /// `template` の中身は `map_prop` と同一なので Map 候補を出す。
+    /// 以前はここが抜けており、TopLevel 候補（timeline, lane, …）が出ていた。
+    #[test]
+    fn template_body_offers_map_completions() {
+        let text = "template \"tpl\" as t to span {\n  ";
+        let got = labels(&complete(text));
+        assert!(got.iter().any(|l| l == "start"), "got: {got:?}");
+        assert!(
+            !got.iter().any(|l| l == "timeline"),
+            "TopLevel 候補が出ている: {got:?}"
+        );
+    }
+
+    /// `apply` の中身は `lane` のみ（grammar.pest の `apply_override`）。
+    /// Map 候補を出すと通らないキーワードを勧めることになる。
+    #[test]
+    fn apply_body_offers_only_lane() {
+        let text = "apply t to wd {\n  ";
+        let got = labels(&complete(text));
+        assert_eq!(got, vec!["lane".to_string()], "got: {got:?}");
+    }
+
+    // ─── item オプションの欠落（#753）────────────────────────────────────
+
+    /// `note` / `link` / `color` は文法・IR・ハイライトに揃っているのに
+    /// 補完だけ欠けていた。
+    #[test]
+    fn item_options_include_note_link_color() {
+        let text = "span l 2001..2002 \"S\" {\n  ";
+        let got = labels(&complete(text));
+        for expected in ["tags", "source", "id", "origin", "note", "link", "color"] {
+            assert!(
+                got.iter().any(|l| l == expected),
+                "{expected} が無い: {got:?}"
+            );
+        }
+    }
+
+    /// lane の `color`（#747 で追加）も補完に出る。
+    #[test]
+    fn lane_props_include_color() {
+        let text = "lane \"L\" as l {\n  ";
+        let got = labels(&complete(text));
+        assert!(got.iter().any(|l| l == "color"), "got: {got:?}");
+    }
+
+    // ─── 値の補完（#753 提案 3）─────────────────────────────────────────
+
+    #[test]
+    fn span_offers_declared_lane_ids() {
+        let text =
+            "lane \"A\" as alpha { kind custom; }\nlane \"B\" as beta { kind custom; }\nspan ";
+        let got = labels(&complete(text));
+        assert!(
+            got.iter().any(|l| l == "alpha") && got.iter().any(|l| l == "beta"),
+            "got: {got:?}"
+        );
+        assert!(
+            !got.iter().any(|l| l == "timeline"),
+            "キーワードが混ざっている: {got:?}"
+        );
+    }
+
+    #[test]
+    fn apply_offers_template_then_import() {
+        let text = "template \"T\" as tpl to span { lane a; }\nimport Q7209 as wd { entity Q7209 as han; }\napply ";
+        assert!(labels(&complete(text)).iter().any(|l| l == "tpl"));
+
+        let text2 = format!("{text}tpl to ");
+        assert!(labels(&complete(&text2)).iter().any(|l| l == "wd"));
+    }
+
+    #[test]
+    fn map_offers_import_aliases() {
+        let text = "import Q7209 as wd { entity Q7209 as han; }\nmap ";
+        assert!(labels(&complete(text)).iter().any(|l| l == "wd"));
+    }
+
+    /// **入力途中はキーワード補完に任せる。** `span al` のように書きかけの
+    /// 位置で値候補だけを返すと、フィルタが効かず使いにくい。
+    #[test]
+    fn partial_token_falls_back_to_keyword_completion() {
+        let text = "lane \"A\" as alpha { kind custom; }\nspan al";
+        let got = labels(&complete(text));
+        assert!(
+            !got.iter().any(|l| l == "alpha"),
+            "書きかけで値候補を出している: {got:?}"
+        );
+    }
+
+    /// **先頭トークンが完全一致する行だけを宣言とみなす。**
+    /// `starts_with` で判定すると `lanes are documented as invalid` のような
+    /// 非宣言行も拾い、無効な ID を候補に出してしまう。
+    #[test]
+    fn non_declaration_lines_are_not_scanned() {
+        let text = "lanes are documented as invalid\nlane \"A\" as alpha { kind custom; }\nspan ";
+        let got = labels(&complete(text));
+        assert!(
+            !got.iter().any(|l| l == "invalid"),
+            "非宣言行から候補を拾っている: {got:?}"
+        );
+        assert!(got.iter().any(|l| l == "alpha"), "got: {got:?}");
+    }
+
+    /// `as` を省略した宣言は ID を推測しない（間違った候補は打ち間違いを誘う）。
+    #[test]
+    fn declarations_without_as_are_not_guessed() {
+        let text = "lane \"日本\" { kind custom; }\nspan ";
+        let got = labels(&complete(text));
+        assert!(got.is_empty(), "推測した候補が出ている: {got:?}");
     }
 }
