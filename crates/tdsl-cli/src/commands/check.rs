@@ -1,5 +1,17 @@
 /// .tdsl ファイルの構文・意味エラーをチェックする。
-pub(crate) fn cmd_check(input: &std::path::Path) -> Result<(), String> {
+///
+/// **`check` は常に offline（Pass 1/2 のみ）で動く。** import 解決（Pass 3）と
+/// map 適用（Pass 4）は走らないため、`import` / `map` / `apply` を含む
+/// ファイルではアイテムが生成されない。その旨を警告と完了行の両方で出す（#751）。
+///
+/// `offline` は現時点で唯一の動作なので受け取っても分岐しないが、
+/// **フラグとして明示しておくことで「なぜアイテムが 0 件なのか」が
+/// コマンドラインからも読める**（将来オンライン `check` を足す余地も残る）。
+pub(crate) fn cmd_check(input: &std::path::Path, offline: bool) -> Result<(), String> {
+    // 現状 check はオンライン経路を持たないため、`--offline` の有無で
+    // 挙動は変わらない。指定されていないときに黙って offline 扱いするのではなく、
+    // 下の完了行で毎回「offline」と明示する。
+    let _ = offline;
     let source = super::read_source(input)?;
     let filename = input.display().to_string();
     let file = tdsl_parser::parse(&source).map_err(|e| {
@@ -19,8 +31,35 @@ pub(crate) fn cmd_check(input: &std::path::Path) -> Result<(), String> {
         eprintln!("Warning: {w}");
     }
 
-    eprintln!("OK: {} lanes, {} items", ir.lanes.len(), ir.items.len());
+    // 未解決ブロックがあるときは完了行にも出す。警告は他の警告に埋もれるが、
+    // 完了行は必ず最後に出るため見落としにくい。
+    let unresolved = count_unresolved_blocks(&file);
+    if unresolved > 0 {
+        eprintln!(
+            "OK: {} lanes, {} items ({} block(s) unresolved: offline lowering does not run import/map)",
+            ir.lanes.len(),
+            ir.items.len(),
+            unresolved
+        );
+    } else {
+        eprintln!("OK: {} lanes, {} items", ir.lanes.len(), ir.items.len());
+    }
     Ok(())
+}
+
+/// offline lowering で処理されないブロック（`import` / `map` / `apply`）の総数。
+fn count_unresolved_blocks(file: &tdsl_parser::ast::File) -> usize {
+    file.statements
+        .iter()
+        .filter(|stmt| {
+            matches!(
+                stmt.node,
+                tdsl_parser::ast::Statement::Import(_)
+                    | tdsl_parser::ast::Statement::Map(_)
+                    | tdsl_parser::ast::Statement::Apply(_)
+            )
+        })
+        .count()
 }
 
 /// パースした AST をデバッグ形式で表示する。

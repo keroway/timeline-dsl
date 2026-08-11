@@ -1411,3 +1411,68 @@ import Q8686 as wd { entity Q8686 as tang; }
     let snippet = dup.span.map(|s| &src[s.start..s.end]).expect("位置が無い");
     assert!(snippet.contains("Q8686"), "1 つ目を指している: {snippet:?}");
 }
+
+// ─── offline lowering の未解決ブロック警告（#751）────────────────────────
+
+/// `import` / `map` は Pass 3/4 の担当で、静的 lowering では一切実行されない。
+/// 以前はその旨がどこにも出ず、`tdsl check` が `OK: … 0 items` と表示して
+/// exit 0 していた。「アイテムが 0 件なのは書き方が悪いのか offline だからか」を
+/// 利用者が区別できないため、警告として明示する。
+#[test]
+fn offline_lowering_warns_about_unresolved_import_and_map() {
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a {}
+import Q7209 as wd { entity Q7209 as han; }
+map wd.han to span { lane a; start claim(P571).year; end claim(P576).year; }
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let (ir, warnings) = lower::lower_static_with_diagnostics(&file, None).unwrap();
+
+    assert_eq!(ir.items.len(), 0, "offline では item は生成されない");
+    let joined = warnings.join("\n");
+    assert!(
+        joined.contains("1 import block(s)") && joined.contains("1 map block(s)"),
+        "未解決ブロックの内訳が出ていない: {warnings:?}"
+    );
+    assert!(
+        joined.contains("offline"),
+        "offline が原因だと分かる文言が無い: {warnings:?}"
+    );
+}
+
+/// `apply` も同じく Pass 4 の担当なので数える。
+#[test]
+fn offline_lowering_warns_about_unresolved_apply() {
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a {}
+template "tpl" as tpl to span { lane a; start claim(P571).year; end claim(P576).year; }
+import Q7209 as wd { entity Q7209 as han; }
+apply tpl to wd {}
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let (_, warnings) = lower::lower_static_with_diagnostics(&file, None).unwrap();
+    assert!(
+        warnings.join("\n").contains("1 apply block(s)"),
+        "apply が数えられていない: {warnings:?}"
+    );
+}
+
+/// **import / map / apply が無いファイルでは警告を出さない。**
+/// ここを出すと、通常のファイルで毎回ノイズが出て警告全体が読まれなくなる。
+#[test]
+fn offline_lowering_is_silent_without_import_blocks() {
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a {}
+span a 2001..2002 "S" { id "s1"; };
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let (ir, warnings) = lower::lower_static_with_diagnostics(&file, None).unwrap();
+    assert_eq!(ir.items.len(), 1);
+    assert!(
+        warnings.is_empty(),
+        "import が無いのに警告が出た: {warnings:?}"
+    );
+}

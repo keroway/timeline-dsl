@@ -81,6 +81,11 @@ enum Commands {
     Check {
         #[arg(value_name = "FILE")]
         input: PathBuf,
+
+        /// Skip Wikidata resolution (currently the only mode; makes the
+        /// offline-only behaviour explicit on the command line)
+        #[arg(long)]
+        offline: bool,
     },
 
     /// Dump the parsed AST (for debugging)
@@ -671,7 +676,7 @@ fn main() {
             },
             wikidata_timeout,
         ),
-        Commands::Check { input } => commands::check::cmd_check(&input),
+        Commands::Check { input, offline } => commands::check::cmd_check(&input, offline),
         Commands::Ast { input } => commands::check::cmd_ast(&input),
         Commands::Fetch { qid, lang } => commands::fetch::cmd_fetch(&qid, &lang, wikidata_timeout),
         Commands::Search {

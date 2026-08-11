@@ -258,6 +258,15 @@ tdsl check china_scaffold.tdsl
 エラーがなければ次のステップへ進みます。エラーが表示された場合は、エラーメッセージに示されている行番号を参考にファイルを修正してください。
 
 > `tdsl check` は静的なパース・意味検証のみを行い、Wikidata にはアクセスしません。Wikidata データの取得は `tdsl build` / `tdsl render` 実行時に行われます（`--offline` を指定した場合はスキップ）。
+>
+> **scaffold が生成したファイルは `import` / `map` を含むため、`check` の結果は `0 items` になります。** これは異常ではありません。`check` は次のように未解決ブロック数を明示します:
+>
+> ```
+> Warning: 1 import block(s) and 1 map block(s) were not resolved (offline lowering); ...
+> OK: 2 lanes, 0 items (2 block(s) unresolved: offline lowering does not run import/map)
+> ```
+>
+> 実際にアイテムが生成されるのは次の B-5（`tdsl render`）以降です。
 
 ### B-5. HTML で可視化する（tdsl render）
 
