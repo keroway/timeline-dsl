@@ -27,7 +27,7 @@ use crate::document_symbols::compute_document_symbols;
 use crate::find_references::compute_references;
 use crate::formatting::compute_formatting;
 use crate::goto_definition::compute_goto_definition;
-use crate::hover::compute_hover;
+use crate::hover::compute_hover_with;
 use crate::rename::{compute_prepare_rename, compute_rename};
 
 /// 1 ドキュメントの保持状態（全文 + LSP バージョン）。
@@ -52,6 +52,38 @@ struct Backend {
     /// `initialize` で受け取った capability から設定し、Code Action の `WorkspaceEdit`
     /// 構築方法（versioned documentChanges / 非バージョンの changes）を切り替える。
     supports_document_changes: AtomicBool,
+    /// QID → キャッシュ済みエンティティ（未取得なら `None`）のメモ。
+    ///
+    /// hover は QID にカーソルを置くたびに呼ばれ、その都度キャッシュ
+    /// ディレクトリを読みに行っていた（#770）。**見つからなかったことも
+    /// 記憶する**（`Option` を値に持つ）— キャッシュ未取得の QID こそ
+    /// フォールバックの全走査に落ちて最も高くつくため。
+    ///
+    /// 有効期間はセッション中。`read_cached_entity` は元々 TTL を無視して
+    /// 「古くても取得済み情報を見せる」設計なので、セッション内で固定しても
+    /// 表示の性質は変わらない。エディタを開き直せば読み直される。
+    entity_cache: Mutex<HashMap<String, Option<tdsl_wikidata::WikidataEntity>>>,
+}
+
+/// メモ経由で引き当てる。**取得できなかったことも記憶する。**
+///
+/// `Backend::cached_entity` の中身をここへ出しているのは、`Backend` の構築に
+/// `Client`（稼働中の LSP サービス）が要り、メモ化の挙動を単体で検証できない
+/// ため。fetch を注入可能にして「2 回目は fetch が呼ばれない」を固定する。
+fn lookup_memoized(
+    cache: &Mutex<HashMap<String, Option<tdsl_wikidata::WikidataEntity>>>,
+    qid: &str,
+    fetch: impl FnOnce(&str) -> Option<tdsl_wikidata::WikidataEntity>,
+) -> Option<tdsl_wikidata::WikidataEntity> {
+    if let Some(hit) = cache.lock().unwrap_or_else(|p| p.into_inner()).get(qid) {
+        return hit.clone();
+    }
+    let fetched = fetch(qid);
+    cache
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .insert(qid.to_string(), fetched.clone());
+    fetched
 }
 
 impl Backend {
@@ -60,6 +92,7 @@ impl Backend {
             client,
             // Mutex::new は常に成功するため、初期化時の unwrap は安全
             documents: Mutex::new(HashMap::new()),
+            entity_cache: Mutex::new(HashMap::new()),
             // initialize で client capability に基づき更新する（既定は安全側の false）
             supports_document_changes: AtomicBool::new(false),
         }
@@ -89,6 +122,17 @@ impl Backend {
     /// 指定 URI のドキュメント本文を取得する。
     ///
     /// 12 箇所に散っていた「ロックを取って `get` して `clone`」を 1 箇所に集約する。
+    /// QID のエンティティを、セッション内メモ経由で取得する（#770）。
+    ///
+    /// 未取得（`None`）もそのまま記憶する。キャッシュに無い QID は
+    /// `read_cached_entity` のフォールバック全走査に落ちて最も高くつくため、
+    /// そこを毎回払わないことがこの変更の主目的。
+    fn cached_entity(&self, qid: &str) -> Option<tdsl_wikidata::WikidataEntity> {
+        lookup_memoized(&self.entity_cache, qid, |q| {
+            tdsl_wikidata::read_cached_entity(&tdsl_wikidata::default_cache_dir(), q)
+        })
+    }
+
     fn document_text(&self, uri: &str) -> Option<String> {
         self.documents_lock().get(uri).map(|d| d.text.clone())
     }
@@ -169,7 +213,9 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
         let source = self.document_text(uri.as_str());
         match source {
-            Some(src) => Ok(compute_hover(&src, position)),
+            Some(src) => Ok(compute_hover_with(&src, position, |qid| {
+                self.cached_entity(qid)
+            })),
             None => Ok(None),
         }
     }
@@ -417,6 +463,62 @@ pub async fn run_server() {
 
 #[cfg(test)]
 mod tests {
+
+    // ─── QID 引き当てのメモ化（#770）────────────────────────────────────
+
+    fn dummy_entity(id: &str) -> tdsl_wikidata::WikidataEntity {
+        tdsl_wikidata::WikidataEntity {
+            id: id.to_string(),
+            labels: Default::default(),
+            claims: Default::default(),
+        }
+    }
+
+    /// 2 回目以降は fetch を呼ばない。hover は QID にカーソルを置くたびに
+    /// 呼ばれるため、ここが効かないとキャッシュディレクトリを毎回読みに行く。
+    #[test]
+    fn memoized_lookup_fetches_only_once_per_qid() {
+        let cache = std::sync::Mutex::new(std::collections::HashMap::new());
+        let calls = std::cell::Cell::new(0);
+
+        for _ in 0..5 {
+            let got = super::lookup_memoized(&cache, "Q42", |q| {
+                calls.set(calls.get() + 1);
+                Some(dummy_entity(q))
+            });
+            assert_eq!(got.expect("見つかるべき").id, "Q42");
+        }
+        assert_eq!(calls.get(), 1, "fetch が複数回呼ばれた");
+    }
+
+    /// **見つからなかったことも記憶する。** キャッシュ未取得の QID は
+    /// フォールバックの全走査に落ちて最も高くつくため、ここを毎回払わない
+    /// ことがこの変更の主目的。
+    #[test]
+    fn memoized_lookup_remembers_misses() {
+        let cache = std::sync::Mutex::new(std::collections::HashMap::new());
+        let calls = std::cell::Cell::new(0);
+
+        for _ in 0..5 {
+            let got = super::lookup_memoized(&cache, "Q999999", |_| {
+                calls.set(calls.get() + 1);
+                None
+            });
+            assert!(got.is_none());
+        }
+        assert_eq!(calls.get(), 1, "miss が記憶されていない");
+    }
+
+    /// QID ごとに独立して記憶する（取り違えない）。
+    #[test]
+    fn memoized_lookup_is_keyed_by_qid() {
+        let cache = std::sync::Mutex::new(std::collections::HashMap::new());
+        let a = super::lookup_memoized(&cache, "Q1", |q| Some(dummy_entity(q)));
+        let b = super::lookup_memoized(&cache, "Q2", |q| Some(dummy_entity(q)));
+        assert_eq!(a.unwrap().id, "Q1");
+        assert_eq!(b.unwrap().id, "Q2");
+    }
+
     use super::{DocumentChangesSupport, resolve_document_changes_support};
     use tower_lsp::lsp_types::{
         ClientCapabilities, InitializeParams, WorkspaceClientCapabilities,
