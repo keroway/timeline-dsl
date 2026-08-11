@@ -12,84 +12,85 @@ pub(crate) struct PdfCliOptions {
     pub pagination: bool,
 }
 
-#[allow(clippy::too_many_arguments)]
+/// `render` コマンドの CLI 引数をまとめたもの。
+///
+/// 以前は `cmd_render` → `do_render` → `cmd_render_watch` の 3 関数が
+/// 26 個の引数を**位置渡しでリレー**しており、`#[allow(clippy::too_many_arguments)]`
+/// が 3 箇所付いていた（implementation-strict.md §2-6 は `#[allow(clippy::*)]` の
+/// 安易な追加を NO-GO としている）。
+///
+/// とくに `scale` / `lane_height` / `left_gutter` / `top_margin` は
+/// **同型の `f64` が 4 連続**で並んでおり、取り違えてもコンパイラは検出できない。
+/// 名前付きフィールドにすることで、渡し間違いが型ではなく名前で防げる。
+///
+/// PDF 系は既に `PdfCliOptions` に畳まれていたので、同じパターンを残りにも広げた形。
+pub(crate) struct RenderCliOptions<'a> {
+    pub format: RenderFormat,
+    pub scale: f64,
+    pub lane_height: f64,
+    pub left_gutter: f64,
+    pub top_margin: f64,
+    pub theme: ThemeArg,
+    pub custom_css_path: Option<&'a std::path::Path>,
+    pub dpi: Option<u32>,
+    pub png_scale: Option<f64>,
+    pub interactive: bool,
+    pub offline: bool,
+    pub cache_opts: tdsl_wikidata::CacheOptions,
+    pub color_map_raw: Option<&'a str>,
+    pub orientation: OrientationArg,
+    pub grid: GridStyleArg,
+    pub layout_style: LayoutStyleArg,
+    pub wikidata_timeout: std::time::Duration,
+    pub show_table: bool,
+    pub show_legend: bool,
+    pub show_event_labels: bool,
+    pub pdf_cli: PdfCliOptions,
+    pub chart_pagination: Option<usize>,
+    pub chart_pagination_range: Option<usize>,
+}
+
 pub(crate) fn cmd_render(
     input: &std::path::Path,
     output: Option<&std::path::Path>,
-    format: RenderFormat,
-    scale: f64,
-    lane_height: f64,
-    left_gutter: f64,
-    top_margin: f64,
-    theme: ThemeArg,
-    custom_css_path: Option<&std::path::Path>,
-    dpi: Option<u32>,
-    png_scale: Option<f64>,
-    interactive: bool,
-    offline: bool,
-    cache_opts: tdsl_wikidata::CacheOptions,
-    color_map_raw: Option<&str>,
-    orientation: OrientationArg,
-    grid: GridStyleArg,
-    layout_style: LayoutStyleArg,
-    wikidata_timeout: std::time::Duration,
     watch: bool,
-    show_table: bool,
-    show_legend: bool,
-    show_event_labels: bool,
-    pdf_cli: PdfCliOptions,
-    chart_pagination: Option<usize>,
-    chart_pagination_range: Option<usize>,
+    opts: RenderCliOptions<'_>,
 ) -> Result<(), String> {
     if watch {
-        if chart_pagination.is_some() {
+        if opts.chart_pagination.is_some() {
             return Err("--chart-pagination is not supported with --watch".to_string());
         }
-        if chart_pagination_range.is_some() {
+        if opts.chart_pagination_range.is_some() {
             return Err("--chart-pagination-range is not supported with --watch".to_string());
         }
         let out_path = output.ok_or(
             "--watch requires --output <file>; stdout is not supported in watch mode".to_string(),
         )?;
-        match format {
+        match opts.format {
             RenderFormat::Png | RenderFormat::Pdf => {
                 return Err("--watch supports --format html or svg only (not png/pdf)".to_string());
             }
             _ => {}
         }
-        if !offline {
+        if !opts.offline {
             eprintln!(
                 "Note: watch mode re-fetches Wikidata on every change. Consider --offline for faster iteration."
             );
         }
         // pdf_cli is not passed to watch mode as pdf is not supported there.
-        return cmd_render_watch(
-            input,
-            out_path,
-            format,
-            scale,
-            lane_height,
-            left_gutter,
-            top_margin,
-            theme,
-            custom_css_path,
-            interactive,
-            offline,
-            cache_opts,
-            color_map_raw,
-            orientation,
-            grid,
-            layout_style,
-            wikidata_timeout,
-            show_table,
-            show_legend,
-            show_event_labels,
-        );
+        return cmd_render_watch(input, out_path, opts);
     }
 
-    do_render(
-        input,
-        output,
+    do_render(input, output, opts)
+}
+
+fn do_render(
+    input: &std::path::Path,
+    output: Option<&std::path::Path>,
+    opts: RenderCliOptions<'_>,
+) -> Result<(), String> {
+    // 分割代入で従来どおりの名前を使う（本文の変更を最小にするため）。
+    let RenderCliOptions {
         format,
         scale,
         lane_height,
@@ -113,37 +114,8 @@ pub(crate) fn cmd_render(
         pdf_cli,
         chart_pagination,
         chart_pagination_range,
-    )
-}
+    } = opts;
 
-#[allow(clippy::too_many_arguments)]
-fn do_render(
-    input: &std::path::Path,
-    output: Option<&std::path::Path>,
-    format: RenderFormat,
-    scale: f64,
-    lane_height: f64,
-    left_gutter: f64,
-    top_margin: f64,
-    theme: ThemeArg,
-    custom_css_path: Option<&std::path::Path>,
-    dpi: Option<u32>,
-    png_scale: Option<f64>,
-    interactive: bool,
-    offline: bool,
-    cache_opts: tdsl_wikidata::CacheOptions,
-    color_map_raw: Option<&str>,
-    orientation: OrientationArg,
-    grid: GridStyleArg,
-    layout_style: LayoutStyleArg,
-    wikidata_timeout: std::time::Duration,
-    show_table: bool,
-    show_legend: bool,
-    show_event_labels: bool,
-    pdf_cli: PdfCliOptions,
-    chart_pagination: Option<usize>,
-    chart_pagination_range: Option<usize>,
-) -> Result<(), String> {
     // #660 (ADR-0005 D2): --chart-pagination is validated before any rendering
     // work happens, mirroring the --pdf-pagination "explicit error, not a
     // silent no-op" pattern (implementation-strict.md §1).
@@ -354,67 +326,73 @@ fn today_pdf_date() -> Option<tdsl_render::PdfDate> {
     })
 }
 
-#[allow(clippy::too_many_arguments)]
+/// watch モードは PDF / チャート分割を扱わないため、`opts` の該当フィールドは
+/// 使わない（呼び出し側 `cmd_render` が事前に拒否している）。
 fn cmd_render_watch(
     input: &std::path::Path,
     output: &std::path::Path,
-    format: RenderFormat,
-    scale: f64,
-    lane_height: f64,
-    left_gutter: f64,
-    top_margin: f64,
-    theme: ThemeArg,
-    custom_css_path: Option<&std::path::Path>,
-    interactive: bool,
-    offline: bool,
-    cache_opts: tdsl_wikidata::CacheOptions,
-    color_map_raw: Option<&str>,
-    orientation: OrientationArg,
-    grid: GridStyleArg,
-    layout_style: LayoutStyleArg,
-    wikidata_timeout: std::time::Duration,
-    show_table: bool,
-    show_legend: bool,
-    show_event_labels: bool,
+    opts: RenderCliOptions<'_>,
 ) -> Result<(), String> {
+    let RenderCliOptions {
+        format,
+        scale,
+        lane_height,
+        left_gutter,
+        top_margin,
+        theme,
+        custom_css_path,
+        interactive,
+        offline,
+        cache_opts,
+        color_map_raw,
+        orientation,
+        grid,
+        layout_style,
+        wikidata_timeout,
+        show_table,
+        show_legend,
+        show_event_labels,
+        ..
+    } = opts;
     let render_once = |cache_opts: tdsl_wikidata::CacheOptions| {
-        // Watch mode does not support PDF format (guarded before this call).
-        // Pass a default PdfCliOptions; it is never used.
         do_render(
             input,
             Some(output),
-            format,
-            scale,
-            lane_height,
-            left_gutter,
-            top_margin,
-            theme,
-            custom_css_path,
-            None,
-            None,
-            interactive,
-            offline,
-            cache_opts,
-            color_map_raw,
-            orientation,
-            grid,
-            layout_style,
-            wikidata_timeout,
-            show_table,
-            show_legend,
-            show_event_labels,
-            PdfCliOptions {
-                size: tdsl_render::PdfPageSize::A4,
-                landscape: false,
-                margin_mm: 10.0,
-                title: None,
-                pagination: false,
+            RenderCliOptions {
+                format,
+                scale,
+                lane_height,
+                left_gutter,
+                top_margin,
+                theme,
+                custom_css_path,
+                dpi: None,
+                png_scale: None,
+                interactive,
+                offline,
+                cache_opts,
+                color_map_raw,
+                orientation,
+                grid,
+                layout_style,
+                wikidata_timeout,
+                show_table,
+                show_legend,
+                show_event_labels,
+                // watch モードは PDF を扱わない（cmd_render が事前に拒否する）。
+                // 値は使われないが、構造体なので既定値を明示して渡す。
+                pdf_cli: PdfCliOptions {
+                    size: tdsl_render::PdfPageSize::A4,
+                    landscape: false,
+                    margin_mm: 10.0,
+                    title: None,
+                    pagination: false,
+                },
+                // --chart-pagination / --chart-pagination-range は --watch と
+                // 併用できず、cmd_render が呼び出し前に拒否している。
+                chart_pagination: None,
+                chart_pagination_range: None,
             },
-            // --chart-pagination / --chart-pagination-range are rejected
-            // together with --watch before cmd_render_watch is ever called
-            // (see cmd_render).
-            None,
-            None,
         )
     };
 
