@@ -21,7 +21,15 @@ pub(crate) struct LoweringContext {
     pub(crate) item_imported_by_id: HashMap<String, bool>,
     #[cfg(feature = "wikidata")]
     pub(crate) import_record_index_by_item_id: HashMap<String, usize>,
-    pub(crate) errors: Vec<LoweringError>,
+    pub(crate) errors: Vec<crate::error::SpannedLoweringError>,
+    /// いま処理している statement のソース範囲。各パスの statement ループが
+    /// 先頭で設定し、`push_error()` がこれをエラーに添える（#760）。
+    ///
+    /// 生成箇所ごとに span を引き回さずに済ませるための仕組み。statement を
+    /// 跨がない箇所（ファイル全体に対する `NoTimeline` 等）では `None` のままにし、
+    /// **位置不明を直前の statement の位置と偽らない**よう、ループを抜けるときに
+    /// 明示的に `None` へ戻すこと。
+    pub(crate) current_span: Option<tdsl_parser::ast::Span>,
     /// Non-fatal lowering diagnostics (e.g. a mapped entity that produced no item
     /// because a required field could not be resolved). Surfaced by callers that
     /// opt into the `*_with_diagnostics` lowering APIs; never silently dropped
@@ -63,6 +71,7 @@ impl LoweringContext {
             #[cfg(feature = "wikidata")]
             import_record_index_by_item_id: HashMap::new(),
             errors: Vec::new(),
+            current_span: None,
             warnings: Vec::new(),
             lane_auto_id: 0,
             #[cfg(feature = "wikidata")]
@@ -77,7 +86,20 @@ impl LoweringContext {
         }
     }
 
-    pub(crate) fn finish(mut self) -> Result<(TimelineIr, Vec<String>), Vec<LoweringError>> {
+    /// エラーを、いま処理中の statement の位置を添えて記録する。
+    ///
+    /// 直接 `self.push_error(..)` せずこれを通すこと。位置を付け忘れた
+    /// エラーが混ざると、miette 表示がある箇所と無い箇所がまだらになる。
+    pub(crate) fn push_error(&mut self, error: impl Into<LoweringError>) {
+        self.errors.push(crate::error::SpannedLoweringError::new(
+            error.into(),
+            self.current_span,
+        ));
+    }
+
+    pub(crate) fn finish(
+        mut self,
+    ) -> Result<(TimelineIr, Vec<String>), Vec<crate::error::SpannedLoweringError>> {
         if !self.errors.is_empty() {
             return Err(self.errors);
         }
@@ -93,7 +115,11 @@ impl LoweringContext {
         let mut seen = std::collections::HashSet::new();
         self.sources.retain(|s| seen.insert(s.id.clone()));
 
-        let meta = self.meta.ok_or_else(|| vec![LoweringError::NoTimeline])?;
+        let meta = self.meta.ok_or_else(|| {
+            vec![crate::error::SpannedLoweringError::from(
+                LoweringError::NoTimeline,
+            )]
+        })?;
 
         Ok((
             TimelineIr {
@@ -109,8 +135,7 @@ impl LoweringContext {
 
     pub(crate) fn register_static_id(&mut self, id: &str) -> bool {
         if self.item_index_by_id.contains_key(id) {
-            self.errors
-                .push(LoweringError::DuplicateItemId(id.to_string()));
+            self.push_error(LoweringError::DuplicateItemId(id.to_string()));
             return false;
         }
         let idx = self.items.len();
@@ -135,7 +160,7 @@ impl LoweringContext {
         if let Some(idx) = self.item_index_by_id.get(&id).copied() {
             match policy {
                 ast::ReimportPolicy::MergeBySource => {
-                    self.errors.push(LoweringError::DuplicateItemId(id));
+                    self.push_error(LoweringError::DuplicateItemId(id));
                 }
                 ast::ReimportPolicy::KeepManual => {
                     // Keep existing item when IDs conflict.
@@ -147,7 +172,7 @@ impl LoweringContext {
                         self.items[idx] = item;
                         self.upsert_import_record(&id, qid);
                     } else {
-                        self.errors.push(LoweringError::DuplicateItemId(id));
+                        self.push_error(LoweringError::DuplicateItemId(id));
                     }
                 }
                 ast::ReimportPolicy::FieldPriority(config) => {
@@ -160,7 +185,7 @@ impl LoweringContext {
                         // 型不一致は既存を置換せずエラーにする（#762）。
                         // 置換すると `label manual` 等の設定が無視され、
                         // 「手動データを守る」という field_priority の意図と逆になる。
-                        Err(err) => self.errors.push(err),
+                        Err(err) => self.push_error(err),
                     }
                 }
             }
@@ -211,7 +236,7 @@ impl LoweringContext {
             }
         });
         if self.lanes_map.contains_key(&id) {
-            self.errors.push(LoweringError::DuplicateLane(id.clone()));
+            self.push_error(LoweringError::DuplicateLane(id.clone()));
             return;
         }
         let source_span = line_offsets.map(|lo| {

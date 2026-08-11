@@ -24,6 +24,8 @@ impl LoweringContext {
         client: &dyn WikidataClient,
     ) {
         for stmt in &file.statements {
+            // エラーに添える位置。push_error() がこれを読む（#760）。
+            self.current_span = Some(stmt.span);
             if let ast::Statement::Import(imp) = &stmt.node {
                 let import_alias = imp.alias.clone().unwrap_or_else(|| imp.source_type.clone());
                 self.import_sources
@@ -46,7 +48,7 @@ impl LoweringContext {
                                     entities.insert(key, entity);
                                 }
                                 Err(e) => {
-                                    self.errors.push(LoweringError::Wikidata(e));
+                                    self.push_error(LoweringError::Wikidata(e));
                                 }
                             }
                         }
@@ -68,7 +70,7 @@ impl LoweringContext {
                                                 entities.insert(key, entity);
                                             }
                                             Err(e) => {
-                                                self.errors.push(LoweringError::Wikidata(e));
+                                                self.push_error(LoweringError::Wikidata(e));
                                             }
                                         }
                                     }
@@ -82,7 +84,7 @@ impl LoweringContext {
                                     }
                                 }
                                 Err(e) => {
-                                    self.errors.push(LoweringError::Wikidata(e));
+                                    self.push_error(LoweringError::Wikidata(e));
                                 }
                             }
                         }
@@ -93,5 +95,9 @@ impl LoweringContext {
                 self.import_groups.insert(import_alias, groups);
             }
         }
+        // ループを抜けたら位置を捨てる。以降のエラー（NoTimeline 等、
+        // ファイル全体に対するもの）に直前 statement の位置を
+        // 添えてしまわないため（#760）。
+        self.current_span = None;
     }
 }

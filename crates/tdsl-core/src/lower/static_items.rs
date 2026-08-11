@@ -55,11 +55,13 @@ impl LoweringContext {
     /// Pass 2: Lower static items (span, event, event_range).
     pub(crate) fn pass2_static_items(&mut self, file: &ast::File, line_offsets: Option<&[usize]>) {
         for stmt in &file.statements {
+            // エラーに添える位置。push_error() がこれを読む（#760）。
+            self.current_span = Some(stmt.span);
             match &stmt.node {
                 ast::Statement::Span(s) => {
                     if !self.lanes_map.contains_key(&s.lane_ref) {
                         let err = self.make_unknown_lane_error(&s.lane_ref);
-                        self.errors.push(err);
+                        self.push_error(err);
                         continue;
                     }
                     let id = s.props.id.clone().unwrap_or_else(|| {
@@ -71,14 +73,14 @@ impl LoweringContext {
                     let link = match validate_link(&s.props.link) {
                         Ok(link) => link,
                         Err(err) => {
-                            self.errors.push(err);
+                            self.push_error(err);
                             continue;
                         }
                     };
                     let color = match validate_color(&s.props.color) {
                         Ok(color) => color,
                         Err(err) => {
-                            self.errors.push(err);
+                            self.push_error(err);
                             continue;
                         }
                     };
@@ -86,7 +88,7 @@ impl LoweringContext {
                         // 比較自体の結果(start>end等)は validate.rs の診断に任せるが、
                         // offset付き/なしの混在比較(MixedOffsetComparison)は曖昧さを残さず
                         // lowering 段階で明示エラーとする(ADR 0003 D2)。
-                        self.errors.push(err);
+                        self.push_error(err);
                         continue;
                     }
                     self.add_source_from_ref(&s.props.source);
@@ -130,7 +132,7 @@ impl LoweringContext {
                 ast::Statement::Event(e) => {
                     if !self.lanes_map.contains_key(&e.lane_ref) {
                         let err = self.make_unknown_lane_error(&e.lane_ref);
-                        self.errors.push(err);
+                        self.push_error(err);
                         continue;
                     }
                     let id = e.props.id.clone().unwrap_or_else(|| {
@@ -142,14 +144,14 @@ impl LoweringContext {
                     let link = match validate_link(&e.props.link) {
                         Ok(link) => link,
                         Err(err) => {
-                            self.errors.push(err);
+                            self.push_error(err);
                             continue;
                         }
                     };
                     let color = match validate_color(&e.props.color) {
                         Ok(color) => color,
                         Err(err) => {
-                            self.errors.push(err);
+                            self.push_error(err);
                             continue;
                         }
                     };
@@ -186,7 +188,7 @@ impl LoweringContext {
                 ast::Statement::EventRange(er) => {
                     if !self.lanes_map.contains_key(&er.lane_ref) {
                         let err = self.make_unknown_lane_error(&er.lane_ref);
-                        self.errors.push(err);
+                        self.push_error(err);
                         continue;
                     }
                     let id = er.props.id.clone().unwrap_or_else(|| {
@@ -198,20 +200,20 @@ impl LoweringContext {
                     let link = match validate_link(&er.props.link) {
                         Ok(link) => link,
                         Err(err) => {
-                            self.errors.push(err);
+                            self.push_error(err);
                             continue;
                         }
                     };
                     let color = match validate_color(&er.props.color) {
                         Ok(color) => color,
                         Err(err) => {
-                            self.errors.push(err);
+                            self.push_error(err);
                             continue;
                         }
                     };
                     if let Err(err) = compare_time_values(&er.start, &er.end) {
                         // Span と同様、MixedOffsetComparison のみを lowering 段階で明示エラーとする。
-                        self.errors.push(err);
+                        self.push_error(err);
                         continue;
                     }
                     self.add_source_from_ref(&er.props.source);
@@ -255,5 +257,9 @@ impl LoweringContext {
                 _ => {}
             }
         }
+        // ループを抜けたら位置を捨てる。以降のエラー（NoTimeline 等、
+        // ファイル全体に対するもの）に直前 statement の位置を
+        // 添えてしまわないため（#760）。
+        self.current_span = None;
     }
 }

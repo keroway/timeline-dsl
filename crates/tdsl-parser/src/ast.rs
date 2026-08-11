@@ -1,5 +1,7 @@
 /// Source span for error reporting.
-#[derive(Debug, Clone, PartialEq, Eq)]
+// `usize` 2 つの値型なので Copy にしておく。lowering がエラーへ位置を
+// 添えるとき（#760）に共有参照から取り出すため。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
     pub start: usize,
     pub end: usize,

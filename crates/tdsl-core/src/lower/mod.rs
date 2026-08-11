@@ -8,13 +8,14 @@ use tdsl_parser::ast;
 #[cfg(feature = "wikidata")]
 use tdsl_wikidata::WikidataClient;
 
-use crate::error::LoweringError;
 use crate::ir::TimelineIr;
 
 use context::LoweringContext;
 
 /// Lower a parsed AST into the canonical IR (static items only, no Wikidata).
-pub fn lower_static(file: &ast::File) -> Result<TimelineIr, Vec<LoweringError>> {
+pub fn lower_static(
+    file: &ast::File,
+) -> Result<TimelineIr, Vec<crate::error::SpannedLoweringError>> {
     lower_static_with_source(file, None)
 }
 
@@ -23,7 +24,7 @@ pub fn lower_static(file: &ast::File) -> Result<TimelineIr, Vec<LoweringError>> 
 pub fn lower_static_with_source(
     file: &ast::File,
     source: Option<&str>,
-) -> Result<TimelineIr, Vec<LoweringError>> {
+) -> Result<TimelineIr, Vec<crate::error::SpannedLoweringError>> {
     lower_static_with_diagnostics(file, source).map(|(ir, _)| ir)
 }
 
@@ -32,7 +33,7 @@ pub fn lower_static_with_source(
 pub fn lower_static_with_diagnostics(
     file: &ast::File,
     source: Option<&str>,
-) -> Result<(TimelineIr, Vec<String>), Vec<LoweringError>> {
+) -> Result<(TimelineIr, Vec<String>), Vec<crate::error::SpannedLoweringError>> {
     let line_offsets = source.map(build_line_offsets);
     let mut ctx = LoweringContext::new();
     ctx.pass1_declarations(file, line_offsets.as_deref());
@@ -45,7 +46,7 @@ pub fn lower_static_with_diagnostics(
 pub async fn lower_with_wikidata(
     file: &ast::File,
     client: &dyn WikidataClient,
-) -> Result<TimelineIr, Vec<LoweringError>> {
+) -> Result<TimelineIr, Vec<crate::error::SpannedLoweringError>> {
     lower_with_wikidata_and_source(file, client, None).await
 }
 
@@ -56,7 +57,7 @@ pub async fn lower_with_wikidata_and_source(
     file: &ast::File,
     client: &dyn WikidataClient,
     source: Option<&str>,
-) -> Result<TimelineIr, Vec<LoweringError>> {
+) -> Result<TimelineIr, Vec<crate::error::SpannedLoweringError>> {
     lower_with_wikidata_and_diagnostics(file, client, source)
         .await
         .map(|(ir, _)| ir)
@@ -69,7 +70,7 @@ pub async fn lower_with_wikidata_and_diagnostics(
     file: &ast::File,
     client: &dyn WikidataClient,
     source: Option<&str>,
-) -> Result<(TimelineIr, Vec<String>), Vec<LoweringError>> {
+) -> Result<(TimelineIr, Vec<String>), Vec<crate::error::SpannedLoweringError>> {
     let line_offsets = source.map(build_line_offsets);
     let mut ctx = LoweringContext::new();
     ctx.pass1_declarations(file, line_offsets.as_deref());
