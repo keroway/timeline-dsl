@@ -38,36 +38,53 @@ impl LoweringContext {
                     .get(import_alias)
                     .unwrap_or(&ast::ReimportPolicy::MergeBySource);
 
-                let entities = match self.import_entities.get(import_alias) {
-                    Some(entities) => entities,
-                    None => {
-                        self.push_error(LoweringError::UnresolvedImport(import_alias.to_string()));
-                        continue;
-                    }
-                };
-
-                if let Some(entity) = entities.get(entity_key) {
-                    self.apply_map_to_entity(m, &entity.clone(), policy);
+                if !self.import_entities.contains_key(import_alias) {
+                    self.push_error(LoweringError::UnresolvedImport(import_alias.to_string()));
                     continue;
                 }
 
-                if let Some(entity_groups) = self.import_groups.get(import_alias)
-                    && let Some(keys) = entity_groups.get(entity_key)
-                {
-                    let mapped_entities: Vec<WikidataEntity> = keys
-                        .iter()
-                        .filter_map(|k| entities.get(k).cloned())
-                        .collect();
-                    for entity in &mapped_entities {
+                // `apply_map_to_entity` は `&mut self` を取るため、`self.import_entities`
+                // を借りたままでは呼べない。以前はそれを回避するために
+                // **エンティティ全体（全 claims / labels）を clone** していた（#763）。
+                //
+                // 代わりに表ごと一時的に `self` から外す。処理後に必ず戻すこと
+                // （戻し忘れると以降の map ブロックが「import が無い」になる）。
+                // `apply_map_to_entity` はこの表を読まないので、外している間に
+                // 参照されることはない。
+                // `mem::take` は**外側の表ごと**持ち去るので、変数に受けてから
+                // 1 件だけ抜く。一時値のまま `.remove()` すると、残りの
+                // import alias が黙って捨てられる（実装中に一度この状態を作った）。
+                let mut all_imports = std::mem::take(&mut self.import_entities);
+                let entities = all_imports
+                    .remove(import_alias)
+                    .expect("直前の contains_key で存在を確認済み");
+                let group_keys = self
+                    .import_groups
+                    .get(import_alias)
+                    .and_then(|g| g.get(entity_key))
+                    .cloned();
+
+                let mut resolved = false;
+                if let Some(entity) = entities.get(entity_key) {
+                    self.apply_map_to_entity(m, entity, policy);
+                    resolved = true;
+                } else if let Some(keys) = group_keys {
+                    for entity in keys.iter().filter_map(|k| entities.get(k)) {
                         self.apply_map_to_entity(m, entity, policy);
                     }
-                    continue;
+                    resolved = true;
                 }
 
-                self.push_error(LoweringError::UnresolvedEntity(format!(
-                    "{}.{}",
-                    import_alias, entity_key
-                )));
+                // 外した表を戻す。抜いた 1 件を戻してから、外側ごと復元する。
+                all_imports.insert(import_alias.to_string(), entities);
+                self.import_entities = all_imports;
+
+                if !resolved {
+                    self.push_error(LoweringError::UnresolvedEntity(format!(
+                        "{}.{}",
+                        import_alias, entity_key
+                    )));
+                }
             }
         }
         // ループを抜けたら位置を捨てる。以降のエラー（NoTimeline 等、
@@ -85,13 +102,17 @@ impl LoweringContext {
             }
         };
 
-        let entities = match self.import_entities.get(&apply.import_alias).cloned() {
-            Some(e) => e,
-            None => {
-                self.push_error(LoweringError::UnresolvedImport(apply.import_alias.clone()));
-                return;
-            }
-        };
+        // map 経路と同じく、エンティティ表を clone せず一時的に `self` から外す。
+        // SPARQL の上限は 50 件で、map ブロックごとに全複製すると
+        // entity 数 × map 数に比例したコピーになる（#763）。
+        if !self.import_entities.contains_key(&apply.import_alias) {
+            self.push_error(LoweringError::UnresolvedImport(apply.import_alias.clone()));
+            return;
+        }
+        let mut all_imports = std::mem::take(&mut self.import_entities);
+        let entities = all_imports
+            .remove(&apply.import_alias)
+            .expect("直前の contains_key で存在を確認済み");
 
         let policy = *self
             .import_policies
@@ -113,6 +134,11 @@ impl LoweringContext {
         for entity in entities.values() {
             self.apply_map_to_entity(&synthetic_map, entity, policy);
         }
+
+        // 外した表を戻す。戻し忘れると以降の apply / map が
+        // 「import が無い」になる（テストで固定済み）。
+        all_imports.insert(apply.import_alias.clone(), entities);
+        self.import_entities = all_imports;
     }
 
     pub(crate) fn apply_map_to_entity(
