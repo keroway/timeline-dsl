@@ -331,14 +331,14 @@ mod tests {
                 match &start.fallbacks[0] {
                     ast::MapFallback::Claim(c) => {
                         assert_eq!(c.claim.property, "P580");
-                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                        assert_eq!(c.accessor, Some(ast::ClaimAccessor::Year));
                     }
                     _ => panic!("expected Claim"),
                 }
                 match &start.fallbacks[1] {
                     ast::MapFallback::Claim(c) => {
                         assert_eq!(c.claim.property, "P571");
-                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                        assert_eq!(c.accessor, Some(ast::ClaimAccessor::Year));
                     }
                     _ => panic!("expected Claim"),
                 }
@@ -389,7 +389,7 @@ mod tests {
                 match &time.fallbacks[0] {
                     ast::MapFallback::Claim(c) => {
                         assert_eq!(c.claim.property, "P571");
-                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                        assert_eq!(c.accessor, Some(ast::ClaimAccessor::Year));
                     }
                     _ => panic!("expected Claim"),
                 }
@@ -1574,7 +1574,7 @@ mod tests {
                 match &start.fallbacks[0] {
                     ast::MapFallback::Claim(c) => {
                         assert_eq!(c.claim.property, "P569");
-                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                        assert_eq!(c.accessor, Some(ast::ClaimAccessor::Year));
                         assert_eq!(c.offset, Some(1));
                     }
                     _ => panic!("expected Claim"),
@@ -1738,7 +1738,7 @@ mod tests {
                 match &start.fallbacks[0] {
                     ast::MapFallback::Claim(c) => {
                         assert_eq!(c.claim.property, "P569");
-                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                        assert_eq!(c.accessor, Some(ast::ClaimAccessor::Year));
                     }
                     _ => panic!("expected Claim"),
                 }
@@ -2071,7 +2071,7 @@ timeline "t" {
             ast::MapFallback::Claim(c) => {
                 assert_eq!(c.claim.property, "P39");
                 assert_eq!(c.qualifier.as_deref(), Some("P580"));
-                assert_eq!(c.accessor.as_deref(), Some("year"));
+                assert_eq!(c.accessor, Some(ast::ClaimAccessor::Year));
                 assert_eq!(c.offset, None);
             }
             _ => panic!("expected Claim"),
@@ -2090,7 +2090,7 @@ timeline "t" {
             ast::MapFallback::Claim(c) => {
                 assert_eq!(c.claim.property, "P39");
                 assert_eq!(c.qualifier.as_deref(), Some("P582"));
-                assert_eq!(c.accessor.as_deref(), Some("year"));
+                assert_eq!(c.accessor, Some(ast::ClaimAccessor::Year));
             }
             _ => panic!("expected Claim"),
         }
@@ -2154,7 +2154,7 @@ timeline "t" {
                     ast::MapFallback::Claim(c) => {
                         assert_eq!(c.claim.property, "P571");
                         assert_eq!(c.qualifier, None);
-                        assert_eq!(c.accessor.as_deref(), Some("year"));
+                        assert_eq!(c.accessor, Some(ast::ClaimAccessor::Year));
                     }
                     _ => panic!("expected Claim"),
                 }
@@ -2203,5 +2203,57 @@ timeline "t" {
             src, formatted,
             "format must be idempotent for qualifier syntax"
         );
+    }
+    // ─── claim accessor の enum 化（#758）────────────────────────────────
+
+    /// typo の accessor を受理してはいけない。
+    ///
+    /// 以前は `claim_accessor = { "." ~ ident }` が任意の ident を通し、
+    /// lowering が未知 accessor を黙って `None` にしていた。その結果
+    /// `.yaer` はパースを通り、「required `start`/`end` could not be
+    /// resolved」という**原因を誤誘導する汎用 warning** とともにアイテムが
+    /// 消えるだけだった。
+    #[test]
+    fn unknown_claim_accessor_is_rejected() {
+        let src = r#"
+            map wd.x to span {
+                lane l;
+                start claim(P571).yaer;
+            }
+        "#;
+        let err = parse(src).expect_err("typo accessor must be rejected");
+        match &err {
+            error::ParseError::UnknownClaimAccessor {
+                value, expected, ..
+            } => {
+                assert_eq!(value, "yaer");
+                // 有効値の一覧を出す。何が使えるか分からないエラーは直せない。
+                assert!(expected.contains("year"), "expected list: {expected}");
+                assert!(expected.contains("second"), "expected list: {expected}");
+            }
+            other => panic!("想定外のエラー: {other:?}"),
+        }
+    }
+
+    /// エラーが typo そのものを指すこと（miette のキャレット表示に使う）。
+    #[test]
+    fn unknown_claim_accessor_error_points_at_the_typo() {
+        let src = "map wd.x to span {\n  lane l;\n  start claim(P571).yaer;\n}\n";
+        let err = parse(src).expect_err("typo accessor must be rejected");
+        let loc = err.source_location(src).expect("位置情報が付いていない");
+        assert_eq!(loc.line, 3, "typo と違う行を指している: {loc:?}");
+    }
+
+    /// 有効な accessor はすべて受理し、enum へ落ちること。
+    #[test]
+    fn all_valid_claim_accessors_are_accepted() {
+        for name in ast::ClaimAccessor::NAMES {
+            let src = format!("map wd.x to span {{ lane l; start claim(P571).{name}; }}");
+            let file = parse(&src).unwrap_or_else(|e| panic!("`.{name}` が拒否された: {e:?}"));
+            let acc = ast::ClaimAccessor::from_name(name).expect("NAMES と from_name が不整合");
+            // Display と from_name が同じ表記を使うこと（フォーマッタの往復性）。
+            assert_eq!(acc.to_string(), name);
+            assert_eq!(file.statements.len(), 1);
+        }
     }
 }

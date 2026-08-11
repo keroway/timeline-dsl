@@ -448,9 +448,69 @@ pub struct ClaimExpr {
     /// Qualifier property to access (e.g. `"P580"` for `.qualifier(P580)`).
     /// When `Some`, the qualifier snak of the main claim is resolved instead of the mainsnak.
     pub qualifier: Option<String>,
-    pub accessor: Option<String>,
+    /// `.year` 等の accessor。未指定なら `None`（年精度として扱う）。
+    pub accessor: Option<ClaimAccessor>,
     /// Year offset applied after claim resolution (e.g. `+1`, `-30`).
     pub offset: Option<i32>,
+}
+
+/// `claim(P571).year` の `.year` にあたる accessor。
+///
+/// 以前は素の `String` で、`grammar.pest` の `claim_accessor = { "." ~ ident }` が
+/// 任意の ident を受理していた。未知の accessor は lowering の
+/// `eval_claim_expr` が黙って `None` にするため、`.yaer` のような typo が
+/// パースを通り、「required `start`/`end` could not be resolved」という
+/// **原因を誤誘導する汎用 warning** だけを残してアイテムが消えていた（#758）。
+///
+/// 有効値を型で閉じ、未知の accessor はパース時に拒否する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClaimAccessor {
+    Year,
+    Month,
+    Day,
+    Hour,
+    Minute,
+    Second,
+}
+
+impl ClaimAccessor {
+    /// 受理する accessor 名の一覧。エラーメッセージと解析の唯一の出所にする
+    /// （2 箇所に書くと、追加したとき片方だけ更新される）。
+    pub const NAMES: [&'static str; 6] = ["year", "month", "day", "hour", "minute", "second"];
+
+    /// accessor 名から解析する。未知の名前は `None`。
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "year" => Some(Self::Year),
+            "month" => Some(Self::Month),
+            "day" => Some(Self::Day),
+            "hour" => Some(Self::Hour),
+            "minute" => Some(Self::Minute),
+            "second" => Some(Self::Second),
+            _ => None,
+        }
+    }
+}
+
+impl ClaimAccessor {
+    /// accessor 名を返す。`Display` と `from_name` が同じ表記を使うことで、
+    /// フォーマッタの出力を再パースできる（往復性）。
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Year => "year",
+            Self::Month => "month",
+            Self::Day => "day",
+            Self::Hour => "hour",
+            Self::Minute => "minute",
+            Self::Second => "second",
+        }
+    }
+}
+
+impl std::fmt::Display for ClaimAccessor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

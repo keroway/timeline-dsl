@@ -638,8 +638,20 @@ fn build_claim_expr(pair: Pair<'_, Rule>) -> Result<ClaimExpr> {
                 qualifier = Some(child.into_inner().next().unwrap().as_str().to_string());
             }
             Rule::claim_accessor => {
-                // claim_accessor = { "." ~ ident }
-                accessor = Some(child.into_inner().next().unwrap().as_str().to_string());
+                // claim_accessor = { "." ~ ident } は任意の ident を受理するため、
+                // ここで有効値に閉じる。未知の accessor を通すと lowering が
+                // 黙って None にし、typo が「解決できなかった」という
+                // 原因を誤誘導する warning に化ける（#758）。
+                let ident = child.into_inner().next().unwrap();
+                let span = ident.as_span();
+                let name = ident.as_str();
+                accessor = Some(ClaimAccessor::from_name(name).ok_or_else(|| {
+                    ParseError::UnknownClaimAccessor {
+                        value: name.to_string(),
+                        expected: ClaimAccessor::NAMES.join(", "),
+                        location: format!("{}:{}", span.start(), span.end()),
+                    }
+                })?);
             }
             Rule::claim_offset => {
                 // as_str() gives "+1" or "-30"; parse directly as i32

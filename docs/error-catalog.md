@@ -187,6 +187,32 @@ event a 2024-01-01T10:00Z "E" {};
 
 ---
 
+### E009: 不明な claim accessor
+
+**メッセージ**: `Unknown claim accessor '{value}' (expected one of: year, month, day, hour, minute, second)`
+
+**原因**: `map` ブロックの `claim(...)` に続く accessor が、有効な 6 つのいずれでもありません。典型的には `.year` の打ち間違いです。
+
+**修正方法**: `year` / `month` / `day` / `hour` / `minute` / `second` のいずれかを指定してください。
+
+```tdsl
+# 誤り（"year" の typo）
+map wd.dynasty to span {
+    lane han;
+    start claim(P571).yaer;
+}
+
+# 正しい
+map wd.dynasty to span {
+    lane han;
+    start claim(P571).year;
+}
+```
+
+**なぜエラーにするか（v1.29.0 以降）**: 以前は文法が任意の識別子を受理し、未知の accessor は lowering が黙って解決失敗にしていました。その結果 typo はパースを通り、「required `start`/`end` could not be resolved」という**原因を誤誘導する汎用 warning** とともにアイテムが生成されないだけでした。打ち間違いは打ち間違いとして、その位置を指して報告します。
+
+---
+
 ## 意味エラー（tdsl-core: lowering）
 
 AST→IR変換（lowering）フェーズで発生するエラーです。構文は正しくても意味的に矛盾がある場合に報告されます。
