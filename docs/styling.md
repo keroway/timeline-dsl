@@ -146,6 +146,20 @@ horizontal / vertical の両 orientation で同様に動作します。重なり
 |---|---|---|
 | `.tdsl-tooltip` | ホバー時に表示されるツールチップ | `background`, `border`, `border-radius`（デフォルト: 6px）, `color`, `font-size`, `box-shadow` |
 
+### インタラクティブモード限定（`--interactive`）
+
+`--interactive` を指定した場合のみ出力される凡例パネルの絞り込みトグル用クラスです（issue #755）。lane トグルは #tdsl-legend 内に元から存在しますが、タグトグルは `timeline.color_map` にタグが登録されている場合のみ出力されます。
+
+| クラス | 対象 | 主なプロパティ |
+|---|---|---|
+| `.tdsl-legend-item` | lane / タグ絞り込みチェックボックスの行 | `display`, `gap`, `padding`, `cursor` |
+| `.tdsl-legend-section-title` | 凡例パネル内の「タグ」セクション見出し | `font-weight`, `color`, `font-size` |
+| `.tdsl-legend-swatch` | タグ絞り込み行の色スウォッチ（`color_map` の色を反映） | `background`（インラインスタイルで設定）, `width`, `height`, `border-radius` |
+| `.tdsl-lane-hidden` | lane トグルで非表示にした `.tdsl-item` に付与 | `display: none` |
+| `.tdsl-tag-hidden` | タグトグルで非表示にした `.tdsl-item` に付与 | `display: none` |
+
+lane トグルとタグトグルは AND で合成されます（`.tdsl-lane-hidden` と `.tdsl-tag-hidden` のどちらか一方でも付けば非表示）。タグトグルは OR セマンティクス（チェックしたタグを1つも持たない item を隠す）で、全チェックを外すと絞り込み自体が無効化されます（全 item 表示に戻る）。
+
 ---
 
 ## カスタマイズ例

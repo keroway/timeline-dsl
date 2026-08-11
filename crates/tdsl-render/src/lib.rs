@@ -406,6 +406,27 @@ mod tests {
         );
     }
 
+    #[test]
+    fn render_html_interactive_includes_tag_filter_toggle_for_color_map_tags() {
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            interactive: true,
+            color_map: [("dynasty".to_string(), "#cc0000".to_string())]
+                .into_iter()
+                .collect(),
+            ..RenderOptions::default()
+        };
+        let html = render_html(&ir, opts).unwrap();
+        assert!(
+            html.contains(r#"data-tag-toggle="dynasty""#),
+            "interactive mode must include a data-tag-toggle checkbox for tags in color_map"
+        );
+        assert!(
+            html.contains(r#"data-tags="dynasty""#),
+            "SVG items must carry data-tags so the tag toggle JS can read it"
+        );
+    }
+
     // ─── render_svg_only golden tests ────────────────────────────────────
 
     #[test]
