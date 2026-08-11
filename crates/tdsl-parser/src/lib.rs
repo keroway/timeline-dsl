@@ -2256,4 +2256,71 @@ timeline "t" {
             assert_eq!(file.statements.len(), 1);
         }
     }
+    // ─── claim offset のパース（#759）────────────────────────────────────
+
+    fn parse_claim_offset(expr: &str) -> Result<Option<i32>, error::ParseError> {
+        let src = format!("map wd.x to span {{ lane l; start claim(P571){expr}; }}");
+        let file = parse(&src)?;
+        let ast::Statement::Map(m) = &file.statements[0].node else {
+            panic!("map statement を期待");
+        };
+        let start = m
+            .props
+            .iter()
+            .find_map(|p| match p {
+                ast::MapProp::Start(e) => Some(e),
+                _ => None,
+            })
+            .expect("start が無い");
+        let ast::MapFallback::Claim(c) = &start.fallbacks[0] else {
+            panic!("claim を期待");
+        };
+        Ok(c.offset)
+    }
+
+    /// i32 に収まらない offset は拒否する。
+    ///
+    /// 以前は `.ok()` で握りつぶしており、`+99999999999` と書くと
+    /// **offset だけが黙って消えた**。年シフトが無かったことになるが
+    /// エラーも警告も出ないため気づけない。
+    #[test]
+    fn claim_offset_overflow_is_rejected() {
+        for expr in [".year+99999999999", ".year+2147483648", ".year-2147483649"] {
+            let err = parse_claim_offset(expr).expect_err(&format!("{expr} は拒否されるべき"));
+            assert!(
+                matches!(err, error::ParseError::InvalidInt { .. }),
+                "{expr}: 想定外のエラー {err:?}"
+            );
+        }
+    }
+
+    /// i32 の境界値は受理する（弾きすぎない）。
+    #[test]
+    fn claim_offset_accepts_i32_bounds() {
+        assert_eq!(
+            parse_claim_offset(".year+2147483647").unwrap(),
+            Some(i32::MAX)
+        );
+        assert_eq!(
+            parse_claim_offset(".year-2147483648").unwrap(),
+            Some(i32::MIN)
+        );
+    }
+
+    /// **負の offset が accessor に飲み込まれない**こと。
+    ///
+    /// `ident` は `-` を含むため、`claim_accessor = { "." ~ ident }` だと
+    /// `.year-30` の accessor が `year-30` になり、offset が消えていた。
+    /// accessor を英字のみの専用字句にして分離した。
+    #[test]
+    fn negative_claim_offset_is_not_swallowed_by_the_accessor() {
+        assert_eq!(parse_claim_offset(".year-30").unwrap(), Some(-30));
+        assert_eq!(parse_claim_offset(".month-5").unwrap(), Some(-5));
+    }
+
+    #[test]
+    fn positive_claim_offset_and_no_offset() {
+        assert_eq!(parse_claim_offset(".year+30").unwrap(), Some(30));
+        assert_eq!(parse_claim_offset(".year").unwrap(), None);
+    }
 }

@@ -93,6 +93,7 @@ Timeline DSL（`.tdsl`）は年表データを宣言的に記述するための�
 
 <claim_expr>   ::= "claim(" <property_id> ")" ["." "qualifier(" <property_id> ")"] ["." <accessor>] [<claim_offset>]
 <accessor>     ::= "year" | "month" | "day" | "hour" | "minute" | "second"
+<claim_offset> ::= ("+" | "-") <digit>+   ; 年シフト。i32 の範囲内
 <map_expr>     ::= (<claim_expr> | <number>) { "??" (<claim_expr> | <number>) }
 <lang_expr>    ::= <label_ref> { "??" <label_ref> }
 <label_ref>    ::= "label@" <lang_code>

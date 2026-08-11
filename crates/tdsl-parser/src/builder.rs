@@ -654,8 +654,24 @@ fn build_claim_expr(pair: Pair<'_, Rule>) -> Result<ClaimExpr> {
                 })?);
             }
             Rule::claim_offset => {
-                // as_str() gives "+1" or "-30"; parse directly as i32
-                offset = child.as_str().parse::<i32>().ok();
+                // as_str() gives "+1" or "-30"; parse directly as i32.
+                //
+                // 以前は `.ok()` で握りつぶしており、i32 に収まらない値
+                // (`+99999999999` 等)を書くと **offset だけが黙って消えた**。
+                // 年シフトが無かったことになるが、エラーも警告も出ないため
+                // 気づけない(#759)。同じファイルの `build_map_expr` は
+                // 整数リテラルを `InvalidInt` で弾いており、非対称だった。
+                let span = child.as_span();
+                offset =
+                    Some(
+                        child
+                            .as_str()
+                            .parse::<i32>()
+                            .map_err(|_| ParseError::InvalidInt {
+                                value: child.as_str().to_string(),
+                                location: format!("{}:{}", span.start(), span.end()),
+                            })?,
+                    );
             }
             _ => {}
         }
