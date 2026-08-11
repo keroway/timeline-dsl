@@ -869,16 +869,19 @@ impl<'a> LayoutModel<'a> {
 
     /// X coordinate for a (year, month, day, hour, minute, second) fractional
     /// position (#614, ADR 0003).
-    #[allow(clippy::too_many_arguments)]
-    pub fn second_frac_to_x(
-        &self,
-        year: i64,
-        month: u8,
-        day: u8,
-        hour: u8,
-        minute: u8,
-        second: u8,
-    ) -> f64 {
+    /// 秒精度の時刻を X 座標へ変換する。
+    ///
+    /// 同型の `u8` が 5 連続する引数列だったため `TimeParts` で受ける（#805）。
+    /// 秒精度が前提なので、欠けているフィールドは 0 として扱う。
+    pub fn second_frac_to_x(&self, t: tdsl_core::ir::TimeParts) -> f64 {
+        let (year, month, day, hour, minute, second) = (
+            t.year,
+            t.month.unwrap_or(0),
+            t.day.unwrap_or(0),
+            t.hour.unwrap_or(0),
+            t.minute.unwrap_or(0),
+            t.second.unwrap_or(0),
+        );
         let frac = to_year_frac_with_second(
             year,
             Some(month),
@@ -2392,12 +2395,15 @@ fn item_tooltip(item: &Item) -> String {
                 "{}〜{}",
                 format_date(*start, *start_month, *start_day, *start_hour, *start_minute),
                 open_ended_end_label(
-                    *end,
-                    *end_month,
-                    *end_day,
-                    *end_hour,
-                    *end_minute,
-                    *end_open
+                    tdsl_core::ir::TimeParts {
+                        year: *end,
+                        month: *end_month,
+                        day: *end_day,
+                        hour: *end_hour,
+                        minute: *end_minute,
+                        ..Default::default()
+                    },
+                    *end_open,
                 ),
             ));
             push_common(
@@ -2477,12 +2483,15 @@ fn item_tooltip(item: &Item) -> String {
                 "{}〜{}",
                 format_date(*start, *start_month, *start_day, *start_hour, *start_minute),
                 open_ended_end_label(
-                    *end,
-                    *end_month,
-                    *end_day,
-                    *end_hour,
-                    *end_minute,
-                    *end_open
+                    tdsl_core::ir::TimeParts {
+                        year: *end,
+                        month: *end_month,
+                        day: *end_day,
+                        hour: *end_hour,
+                        minute: *end_minute,
+                        ..Default::default()
+                    },
+                    *end_open,
                 ),
             ));
             push_common(
@@ -2504,15 +2513,9 @@ fn item_tooltip(item: &Item) -> String {
 
 /// #550: render `end` as "進行中" (ongoing) in the tooltip when the item is
 /// open-ended (`end_open`), instead of the resolved placeholder year.
-#[allow(clippy::too_many_arguments)]
-fn open_ended_end_label(
-    year: i64,
-    month: Option<u8>,
-    day: Option<u8>,
-    hour: Option<u8>,
-    minute: Option<u8>,
-    end_open: bool,
-) -> String {
+/// 終端が open（進行中）かどうかを見てラベルを返す。
+fn open_ended_end_label(t: tdsl_core::ir::TimeParts, end_open: bool) -> String {
+    let (year, month, day, hour, minute) = (t.year, t.month, t.day, t.hour, t.minute);
     if end_open {
         "進行中".to_string()
     } else {

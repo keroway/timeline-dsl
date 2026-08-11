@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use crate::ir::TimeParts;
 use crate::ir::{Item, TimelineIr};
 
 fn escape(s: &str) -> String {
@@ -21,17 +22,19 @@ fn is_valid_ident(s: &str) -> bool {
 
 /// #550: render `now` instead of the resolved end year/precision when
 /// `end_open` is set.
-#[allow(clippy::too_many_arguments)]
-fn format_open_ended_end(
-    year: i64,
-    month: Option<u8>,
-    day: Option<u8>,
-    hour: Option<u8>,
-    minute: Option<u8>,
-    second: Option<u8>,
-    offset_minutes: Option<i16>,
-    end_open: bool,
-) -> String {
+/// 終端が open（`now`）かどうかを見て、終端の表記を返す。
+///
+/// 時刻の分解フィールドは `TimeParts` にまとめる（#805）。
+fn format_open_ended_end(t: TimeParts, end_open: bool) -> String {
+    let (year, month, day, hour, minute, second, offset_minutes) = (
+        t.year,
+        t.month,
+        t.day,
+        t.hour,
+        t.minute,
+        t.second,
+        t.offset_minutes,
+    );
     if end_open {
         "now".to_string()
     } else {
@@ -187,13 +190,15 @@ pub fn decompile(ir: &TimelineIr) -> String {
                     *start_offset_minutes,
                 );
                 let end_s = format_open_ended_end(
-                    *end,
-                    *end_month,
-                    *end_day,
-                    *end_hour,
-                    *end_minute,
-                    *end_second,
-                    *end_offset_minutes,
+                    TimeParts {
+                        year: *end,
+                        month: *end_month,
+                        day: *end_day,
+                        hour: *end_hour,
+                        minute: *end_minute,
+                        second: *end_second,
+                        offset_minutes: *end_offset_minutes,
+                    },
                     *end_open,
                 );
                 writeln!(
@@ -272,13 +277,15 @@ pub fn decompile(ir: &TimelineIr) -> String {
                     *start_offset_minutes,
                 );
                 let end_s = format_open_ended_end(
-                    *end,
-                    *end_month,
-                    *end_day,
-                    *end_hour,
-                    *end_minute,
-                    *end_second,
-                    *end_offset_minutes,
+                    TimeParts {
+                        year: *end,
+                        month: *end_month,
+                        day: *end_day,
+                        hour: *end_hour,
+                        minute: *end_minute,
+                        second: *end_second,
+                        offset_minutes: *end_offset_minutes,
+                    },
                     *end_open,
                 );
                 writeln!(
