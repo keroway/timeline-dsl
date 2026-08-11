@@ -386,6 +386,34 @@ pub(crate) const TABLE_ROW_HEIGHT: f64 = 22.0;
 pub(crate) const LEGEND_ROW_HEIGHT: f64 = 22.0;
 /// Vertical gap (px) between stacked blocks below the timeline body.
 pub(crate) const TABLE_TOP_GAP: f64 = 20.0;
+/// Bottom margin (px) reserved on a table page so the "i / N" footer never
+/// overlaps the last row (#767; previously an unnamed `24.0` duplicated in
+/// three pagination paths).
+pub(crate) const TABLE_FOOTER_MARGIN: f64 = 24.0;
+
+/// Build a lane-id → lane-label lookup closure.
+///
+/// Falls back to the raw lane id when the lane is not declared, so a table can
+/// still be rendered for an IR that references an unknown lane.
+///
+/// 以前は `pagination.rs` / `time_range_pagination.rs` / `pdf.rs` の 3 箇所に
+/// 同じクロージャがコピペされていた（#767）。`pdf.rs` の共有版は `pdf` feature
+/// 配下のモジュール私有だったため、SVG 側 2 軸がそれぞれ再実装していた。
+pub(crate) fn lane_label_lookup(ir: &TimelineIr) -> impl Fn(&str) -> String + '_ {
+    move |lane_id: &str| -> String {
+        ir.lanes
+            .iter()
+            .find(|lane| lane.id == lane_id)
+            .map(|lane| lane.label.clone())
+            .unwrap_or_else(|| lane_id.to_string())
+    }
+}
+
+/// Height (px) of a single table page holding every row plus the header row
+/// and the footer margin.
+pub(crate) fn single_table_page_height(row_count: usize) -> f64 {
+    TABLE_ROW_HEIGHT * (row_count as f64 + 1.0) + TABLE_FOOTER_MARGIN
+}
 
 /// Pre-computed layout: every coordinate needed by the renderer.
 pub struct LayoutModel<'a> {

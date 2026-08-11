@@ -30,7 +30,9 @@ use std::collections::HashSet;
 use tdsl_core::ir::{Item, Lane, TimelineIr};
 
 use crate::RenderError;
-use crate::layout::{LayoutModel, RenderOptions, TABLE_ROW_HEIGHT, collect_table_rows};
+use crate::layout::{
+    LayoutModel, RenderOptions, collect_table_rows, lane_label_lookup, single_table_page_height,
+};
 use crate::svg::{render_svg, render_table_page_svg};
 
 /// Kind of a rendered [`ChartPage`].
@@ -76,6 +78,13 @@ pub enum PaginationError {
     /// (implementation-strict.md: "Explicit error over silent fallback").
     #[error("item references unknown lane {lane:?}")]
     UnknownLane { lane: String },
+    /// The IR declares no lanes at all.
+    ///
+    /// 以前はチャートページ 0 枚 + **幅 0 のテーブルページ**が黙って出力されていた
+    /// （`chart_width` が `0.0` 初期化のまま使われるため）。描画結果を見るまで
+    /// 気づけないので明示エラーにする（#767）。
+    #[error("timeline has no lanes to paginate")]
+    NoLanes,
     #[error("SVG rendering failed: {0}")]
     Render(#[from] RenderError),
 }
@@ -124,6 +133,10 @@ pub fn paginate_svg_by_lane_groups(
         });
     }
 
+    if ir.lanes.is_empty() {
+        return Err(PaginationError::NoLanes);
+    }
+
     let mut pages = Vec::with_capacity(chunks.len());
     // Tracks the chart page width so the trailing table page (if any) can
     // share the same page width; all chart pages have the same width because
@@ -158,18 +171,11 @@ pub fn paginate_svg_by_lane_groups(
     }
 
     if opts.show_table {
-        let lane_label_lookup = |lane_id: &str| -> String {
-            ir.lanes
-                .iter()
-                .find(|lane| lane.id == lane_id)
-                .map(|lane| lane.label.clone())
-                .unwrap_or_else(|| lane_id.to_string())
-        };
-        let table_rows = collect_table_rows(ir, lane_label_lookup);
+        let table_rows = collect_table_rows(ir, lane_label_lookup(ir));
         // Single table page (multi-page table splitting is #661 scope);
         // height simply grows to fit every row plus the header row and a
         // footer margin so the "1 / 1" footer never overlaps the last row.
-        let table_height = TABLE_ROW_HEIGHT * (table_rows.len() as f64 + 1.0) + 24.0;
+        let table_height = single_table_page_height(table_rows.len());
         let table_svg =
             render_table_page_svg(&table_rows, chart_width as f32, table_height as f32, 1, 1)?;
         pages.push(ChartPage {
@@ -411,6 +417,33 @@ mod tests {
         let err = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 0)
             .expect_err("lanes_per_page=0 must be a hard error, not a silent no-op");
         assert!(matches!(err, PaginationError::InvalidLanesPerPage));
+    }
+
+    /// #767: lane が 1 本も無い IR は、チャートページ 0 枚 + 幅 0 のテーブルページを
+    /// 黙って出力していた。描画結果を見るまで気づけないので明示エラーにする。
+    #[test]
+    fn no_lanes_is_rejected_explicitly() {
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "t".into(),
+                unit: "year".into(),
+                range: (1900, 2000),
+                calendar: "proleptic_gregorian".into(),
+                color_map: std::collections::HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let err = paginate_svg_by_lane_groups(&ir, &RenderOptions::default(), 2)
+            .expect_err("an IR without lanes must be a hard error, not a zero-width table page");
+        assert!(
+            matches!(err, PaginationError::NoLanes),
+            "unexpected error: {err:?}"
+        );
     }
 
     /// An item referencing a lane ID absent from `ir.lanes` must fail loudly

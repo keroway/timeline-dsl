@@ -20,7 +20,10 @@ use tdsl_core::ir::TimelineIr;
 use thiserror::Error;
 
 use crate::RenderError;
-use crate::layout::{LayoutModel, RenderOptions, TABLE_ROW_HEIGHT, collect_table_rows};
+use crate::layout::{
+    LayoutModel, RenderOptions, TABLE_ROW_HEIGHT, collect_table_rows, lane_label_lookup,
+    single_table_page_height,
+};
 use crate::pagination::{self, PaginationError};
 use crate::svg;
 
@@ -390,7 +393,7 @@ fn append_table_pages(
             content_h,
         )?);
     } else {
-        let table_height = TABLE_ROW_HEIGHT * (table_rows.len() as f64 + 1.0) + 24.0;
+        let table_height = single_table_page_height(table_rows.len());
         pages.push(svg::render_table_page_svg(
             &table_rows,
             content_w,
@@ -400,18 +403,6 @@ fn append_table_pages(
         )?);
     }
     Ok(())
-}
-
-/// Build a lane-id → lane-label lookup closure shared by every table
-/// rendering path in this module.
-fn lane_label_lookup(ir: &TimelineIr) -> impl Fn(&str) -> String + '_ {
-    move |lane_id: &str| -> String {
-        ir.lanes
-            .iter()
-            .find(|lane| lane.id == lane_id)
-            .map(|lane| lane.label.clone())
-            .unwrap_or_else(|| lane_id.to_string())
-    }
 }
 
 /// Split `table_rows` across as many table pages as fit `content_h` per page
