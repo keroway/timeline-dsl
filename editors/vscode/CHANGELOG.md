@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-12
+
 ### Added
 
 - `Timeline DSL: Open Preview to the Side` コマンド（#754）: 現在の `.tdsl` を `tdsl render --format svg` でレンダリングし、エディタの横の Webview に表示する。保存時に再描画（debounce 300ms）。`tdsl render --watch` を常駐させず**保存ごとに単発実行**する — 常駐プロセスはウィンドウを閉じたとき・ワークスペースを切り替えたとき・拡張が再読み込みされたときに確実に止める必要があり、取りこぼすとプロセスが残るため。Webview はスクリプトを許可しない（`default-src 'none'`）
