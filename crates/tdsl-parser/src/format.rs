@@ -196,7 +196,7 @@ fn write_lane(out: &mut String, b: &LaneDecl) {
     if let Some(alias) = &b.alias {
         write!(out, " as {alias}").unwrap();
     }
-    let has_body = b.kind.is_some() || b.order.is_some();
+    let has_body = b.kind.is_some() || b.order.is_some() || b.color.is_some();
     if !has_body {
         writeln!(out, " {{}}").unwrap();
         return;
@@ -207,6 +207,10 @@ fn write_lane(out: &mut String, b: &LaneDecl) {
     }
     if let Some(order) = b.order {
         writeln!(out, "{INDENT}order {order};").unwrap();
+    }
+    if let Some(color) = &b.color {
+        // 落とすと fmt の往復で lane 色が消える（#747）。
+        writeln!(out, "{INDENT}color \"{}\";", escape_string(color)).unwrap();
     }
     writeln!(out, "}}").unwrap();
 }
@@ -576,6 +580,22 @@ mod tests {
             out,
             "timeline \"T\" {\n  title \"T\";\n  unit year;\n  range 1900..2000;\n  calendar proleptic_gregorian;\n}\n"
         );
+    }
+
+    /// lane の `color` を落とさないこと（#747）。
+    ///
+    /// 落とすと `tdsl fmt` を通すだけで lane 色が消え、**整形しただけで
+    /// 図が変わる**。往復で保たれることをここで固定する。
+    #[test]
+    fn format_lane_keeps_color() {
+        let src = r##"lane "L" as l { kind custom; order 1; color "#ff00aa"; }"##;
+        let out = fmt(src);
+        assert!(
+            out.contains(r##"color "#ff00aa";"##),
+            "color が消えた: {out}"
+        );
+        // 整形結果を再度整形しても変わらない（冪等）。
+        assert_eq!(fmt(&out), out);
     }
 
     #[test]

@@ -411,6 +411,7 @@ mod tests {
             order: 1,
             group: None,
             source_span: None,
+            color: None,
         }
     }
 
@@ -937,6 +938,7 @@ mod tests {
             order: 1,
             group: Some(group.to_string()),
             source_span: None,
+            color: None,
         }
     }
 

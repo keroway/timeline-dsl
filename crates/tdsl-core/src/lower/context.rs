@@ -253,6 +253,17 @@ impl LoweringContext {
                 col_end,
             }
         });
+        // 色の検証は item の `color` と同じ関数を使う（#747）。
+        // 別実装にすると、受理する書式が二重定義になって食い違う。
+        // **不正値はエラーにする。** 黙ってパレットへフォールバックすると、
+        // 打ち間違いが「なぜかこの色にならない」という形で残る。
+        let color = match super::static_items::validate_color(&l.color) {
+            Ok(c) => c,
+            Err(err) => {
+                self.push_error(err);
+                None
+            }
+        };
         let lane = Lane {
             id: id.clone(),
             label: l.label.clone(),
@@ -262,6 +273,7 @@ impl LoweringContext {
                 .unwrap_or_else(|| LaneKind::Custom.as_str().to_string()),
             order: l.order.unwrap_or(0),
             group: group.map(|s| s.to_string()),
+            color,
             source_span,
         };
         self.lane_order.push(id.clone());

@@ -50,6 +50,7 @@ fn make_ir(n: usize) -> TimelineIr {
             kind: "custom".into(),
             order: 1,
             group: None,
+            color: None,
             source_span: None,
         }],
         items,

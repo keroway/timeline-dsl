@@ -1476,3 +1476,65 @@ span a 2001..2002 "S" { id "s1"; };
         "import が無いのに警告が出た: {warnings:?}"
     );
 }
+
+// ─── lane の color 指定（#747）──────────────────────────────────────────
+
+/// lane に指定した色が IR に載ること。
+#[test]
+fn lane_color_is_lowered() {
+    let src = r##"
+timeline "T" { unit year; range 0..3000; }
+lane "Fixed" as fixed { kind custom; order 1; color "#ff00aa"; }
+lane "Auto" as auto { kind custom; order 2; }
+"##;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).unwrap();
+    let fixed = ir
+        .lanes
+        .iter()
+        .find(|l| l.id == "fixed")
+        .expect("fixed lane");
+    let auto = ir.lanes.iter().find(|l| l.id == "auto").expect("auto lane");
+    assert_eq!(fixed.color.as_deref(), Some("#ff00aa"));
+    assert_eq!(auto.color, None, "未指定は None のまま");
+}
+
+/// **不正な色値はエラーにする。** 黙ってパレットへフォールバックすると、
+/// 打ち間違いが「なぜかこの色にならない」という形でしか現れない。
+#[test]
+fn invalid_lane_color_is_rejected() {
+    let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "L" as l { kind custom; order 1; color "javascript:alert(1)"; }
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let errs = lower::lower_static(&file).expect_err("不正な色は拒否されるべき");
+    assert!(
+        errs.iter()
+            .any(|e| matches!(&e.error, error::LoweringError::InvalidItemColor(_))),
+        "got: {errs:?}"
+    );
+}
+
+/// item の色と同じ検証を使っていること（書式の二重定義を避ける）。
+#[test]
+fn lane_color_accepts_the_same_formats_as_item_color() {
+    for value in [
+        "#abc",
+        "#aabbcc",
+        "#aabbccdd",
+        "rebeccapurple",
+        "light-blue",
+    ] {
+        let src = format!(
+            r##"
+timeline "T" {{ unit year; range 0..3000; }}
+lane "L" as l {{ kind custom; order 1; color "{value}"; }}
+"##
+        );
+        let file = tdsl_parser::parse(&src).unwrap();
+        let ir =
+            lower::lower_static(&file).unwrap_or_else(|e| panic!("`{value}` が拒否された: {e:?}"));
+        assert_eq!(ir.lanes[0].color.as_deref(), Some(value));
+    }
+}

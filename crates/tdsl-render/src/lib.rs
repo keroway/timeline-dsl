@@ -134,6 +134,7 @@ mod tests {
                 kind: "dynasty".into(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -213,6 +214,7 @@ mod tests {
                     kind: "dynasty".into(),
                     order: 20,
                     group: None,
+                    color: None,
                     source_span: None,
                 },
                 Lane {
@@ -221,6 +223,7 @@ mod tests {
                     kind: "dynasty".into(),
                     order: 10,
                     group: None,
+                    color: None,
                     source_span: None,
                 },
             ],
@@ -273,6 +276,7 @@ mod tests {
                 kind: "custom".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Event {
@@ -318,6 +322,7 @@ mod tests {
                 kind: "custom".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::EventRange {
@@ -421,6 +426,7 @@ mod tests {
                 kind: "dynasty".into(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -506,6 +512,7 @@ mod tests {
                 kind: "conflict".into(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -624,6 +631,7 @@ mod tests {
                     kind: "k".into(),
                     order: 1,
                     group: None,
+                    color: None,
                     source_span: None,
                 },
                 Lane {
@@ -632,6 +640,7 @@ mod tests {
                     kind: "k".into(),
                     order: 2,
                     group: None,
+                    color: None,
                     source_span: None,
                 },
             ],
@@ -729,6 +738,7 @@ mod tests {
                 kind: "k".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -821,6 +831,7 @@ mod tests {
                     kind: "custom".into(),
                     order: 1,
                     group: Some("グループ1".into()),
+                    color: None,
                     source_span: None,
                 },
                 Lane {
@@ -829,6 +840,7 @@ mod tests {
                     kind: "custom".into(),
                     order: 2,
                     group: Some("グループ1".into()),
+                    color: None,
                     source_span: None,
                 },
                 Lane {
@@ -837,6 +849,7 @@ mod tests {
                     kind: "custom".into(),
                     order: 10,
                     group: None,
+                    color: None,
                     source_span: None,
                 },
             ],
@@ -923,6 +936,7 @@ mod tests {
                 kind: "custom".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -968,6 +982,7 @@ mod tests {
                 order: i as i64,
                 group: None,
                 source_span: None,
+                color: None,
             })
             .collect();
         let items: Vec<Item> = lanes
@@ -1328,6 +1343,7 @@ mod tests {
                 kind: "dynasty".into(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -1400,6 +1416,7 @@ mod tests {
                 kind: "dynasty".into(),
                 order: 10,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![Item::Span {
@@ -1492,6 +1509,7 @@ mod tests {
                 kind: "custom".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![
@@ -1574,6 +1592,7 @@ mod tests {
                 kind: "custom".into(),
                 order: 1,
                 group: None,
+                color: None,
                 source_span: None,
             }],
             items: vec![

@@ -37,7 +37,9 @@ lane_decl = {
 }
 
 lane_prop = _{
-    kind_prop | order_prop
+    // color_option は item 側と同じ規則を再利用する（`color "..." ;`）。
+    // 別ルールにすると値の書式が二重定義になる（#747）。
+    kind_prop | order_prop | color_option
 }
 kind_prop  = { "kind" ~ ident ~ ";" }
 order_prop = { "order" ~ integer ~ ";" }

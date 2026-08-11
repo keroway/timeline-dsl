@@ -54,6 +54,7 @@ fn validate_warns_on_span_start_gt_end() {
             kind: "dynasty".into(),
             order: 1,
             group: None,
+            color: None,
             source_span: None,
         }],
         items: vec![ir::Item::Span {
@@ -112,6 +113,7 @@ fn validate_warns_on_event_range_start_gt_end() {
             kind: "dynasty".into(),
             order: 1,
             group: None,
+            color: None,
             source_span: None,
         }],
         items: vec![ir::Item::EventRange {
@@ -221,6 +223,7 @@ fn validate_no_warning_on_valid_span() {
             kind: "dynasty".into(),
             order: 1,
             group: None,
+            color: None,
             source_span: None,
         }],
         items: vec![ir::Item::Span {
