@@ -1346,3 +1346,66 @@ async fn lower_with_wikidata_second_accessor_uses_fallback_below_precision_14() 
         other => panic!("expected event, got: {other:?}"),
     }
 }
+
+// ─── 複数 import × 複数 map（#763）──────────────────────────────────────
+
+/// **import が 2 つ以上あるとき、片方の map 処理でもう片方が失われないこと。**
+///
+/// #763 で `apply_map_to_entity` の借用衝突を `entity.clone()` ではなく
+/// `mem::take` で解消したが、実装中に**外側の表を一時値のまま `.remove()` して
+/// 残りの import を捨てる**バグを一度作った。既存テストは import が 1 つの
+/// ケースしか無く、これを検出できなかった。
+#[tokio::test]
+async fn multiple_imports_survive_mapping_each_other() {
+    let src = r#"
+        timeline "T" { unit year; range -500..1000; }
+        lane "L" as l { kind custom; order 1; }
+
+        import Q7183 as first { entity Q7183 as qin; }
+        import Q7209 as second { entity Q7209 as han; }
+
+        map first.qin to span {
+            lane l;
+            start claim(P571).year;
+            end claim(P576).year;
+            label label@ja;
+        }
+
+        map second.han to span {
+            lane l;
+            start claim(P571).year;
+            end claim(P576).year;
+            label label@ja;
+        }
+    "#;
+
+    let file = tdsl_parser::parse(src).unwrap();
+
+    let mut entities = HashMap::new();
+    entities.insert("Q7183".to_string(), make_entity("Q7183", "秦", -221, -206));
+    entities.insert("Q7209".to_string(), make_entity("Q7209", "漢", -206, 220));
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+
+    let labels: Vec<&str> = ir
+        .items
+        .iter()
+        .map(|item| match item {
+            ir::Item::Span { label, .. } => label.as_str(),
+            _ => panic!("expected span"),
+        })
+        .collect();
+    assert!(
+        labels.contains(&"秦"),
+        "1 つ目の import が失われた: {labels:?}"
+    );
+    assert!(
+        labels.contains(&"漢"),
+        "2 つ目の import が失われた: {labels:?}"
+    );
+    assert_eq!(ir.items.len(), 2, "got: {labels:?}");
+}
