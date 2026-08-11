@@ -36,6 +36,33 @@ grep -Fq '"title"' "$TMP_DIR/static.json"
 echo "[e2e] check: valid static file"
 cargo run -q -p tdsl-cli -- check examples/china_dynasties.tdsl
 
+# ---- 診断コード / --format json / --deny-warnings (#748) ---------------------
+# 警告に安定したコードが付き、機械可読に取得できること。
+WARN_FILE="${TMP_DIR}/warnings.tdsl"
+cat > "${WARN_FILE}" <<'TDSL'
+timeline "T" { title "T"; unit year; range 2000..2010; }
+lane "A" as a { kind unknown_kind; order 1; }
+span a 2005..2001 "reversed" { id "s1"; };
+event a 1900 "outside" { id "e1"; };
+TDSL
+
+echo "[e2e] check: 警告に診断コードが付く (#748)"
+# 診断は stderr に出る。`cargo run -q` 自身の出力と混ざらないよう
+# stderr だけを取り出して検査する。
+cargo run -q -p tdsl-cli -- check "${WARN_FILE}" 2>"${TMP_DIR}/warn.err" || true
+grep -q 'Warning \[W20' "${TMP_DIR}/warn.err" \
+  || { echo "診断コードが出ていない:"; cat "${TMP_DIR}/warn.err"; exit 1; }
+
+echo "[e2e] check --format json: code/line を機械可読で返す (#748)"
+cargo run -q -p tdsl-cli -- check --format json "${WARN_FILE}" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); assert not d['ok']; assert d['warning_count'] >= 3, d; codes={x['code'] for x in d['diagnostics']}; assert 'W202' in codes, codes; assert all(x.get('line') for x in d['diagnostics']), d"
+
+echo "[e2e] check --deny-warnings: 警告があれば非ゼロ終了 (#748)"
+assert_fails cargo run -q -p tdsl-cli -- check --deny-warnings "${WARN_FILE}"
+
+echo "[e2e] check: 既定では警告のみなら成功 (#748)"
+cargo run -q -p tdsl-cli -- check "${WARN_FILE}"
+
 # ---- 複数ファイル / ディレクトリ入力 (#750) ----------------------------------
 # ディレクトリを渡すと配下の *.tdsl を再帰的に処理する。1 件でも失敗すれば
 # 非ゼロ終了するが、最初の失敗で打ち切らず全件処理する。

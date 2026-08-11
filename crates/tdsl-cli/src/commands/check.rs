@@ -1,3 +1,29 @@
+use crate::CheckOutputFormat;
+/// `check --format json` の 1 ファイル分のレポート。
+///
+/// `lint --format json` の `LintReportOutput` と同じ形（`file` / `ok` /
+/// カウント + 診断の配列）に寄せてある（#748）。
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct CheckReportOutput {
+    pub file: String,
+    pub lanes: usize,
+    pub items: usize,
+    pub unresolved_blocks: usize,
+    pub warning_count: usize,
+    pub ok: bool,
+    pub diagnostics: Vec<CheckDiagnostic>,
+}
+
+/// 1 件の診断。`code` は `docs/error-catalog.md` に対応する安定した識別子。
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct CheckDiagnostic {
+    pub code: &'static str,
+    pub severity: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
+    pub message: String,
+}
+
 /// .tdsl ファイルの構文・意味エラーをチェックする。
 ///
 /// **`check` は常に offline（Pass 1/2 のみ）で動く。** import 解決（Pass 3）と
@@ -7,7 +33,13 @@
 /// `offline` は現時点で唯一の動作なので受け取っても分岐しないが、
 /// **フラグとして明示しておくことで「なぜアイテムが 0 件なのか」が
 /// コマンドラインからも読める**（将来オンライン `check` を足す余地も残る）。
-pub(crate) fn cmd_check(input: &std::path::Path, offline: bool) -> Result<(), String> {
+pub(crate) fn cmd_check(
+    input: &std::path::Path,
+    offline: bool,
+    format: CheckOutputFormat,
+    deny_warnings: bool,
+    json_sink: Option<&mut Vec<CheckReportOutput>>,
+) -> Result<(), String> {
     // 現状 check はオンライン経路を持たないため、`--offline` の有無で
     // 挙動は変わらない。指定されていないときに黙って offline 扱いするのではなく、
     // 下の完了行で毎回「offline」と明示する。
@@ -19,22 +51,66 @@ pub(crate) fn cmd_check(input: &std::path::Path, offline: bool) -> Result<(), St
         // miette 出力済みのためメッセージは空にして重複を避ける
         String::new()
     })?;
-    let (ir, lower_warnings) = tdsl_core::lower::lower_static_with_diagnostics(&file, None)
-        .map_err(|errs| render_lowering_errors(&errs, &source, &filename))?;
+    // `source` を渡すと各アイテムに source_span（行番号）が付き、
+    // 診断に行番号を載せられる（#748）。以前は None を渡していたため
+    // JSON の `line` が常に欠落していた。
+    let (ir, lower_warnings) =
+        tdsl_core::lower::lower_static_with_diagnostics(&file, Some(&source))
+            .map_err(|errs| render_lowering_errors(&errs, &source, &filename))?;
 
+    // 診断コードを添えて出す（#748）。CI で特定の警告だけを許容/禁止できる
+    // ようにするため、機械可読な識別子を出力に含める。
+    let mut diagnostics: Vec<CheckDiagnostic> = Vec::new();
     for w in &lower_warnings {
-        eprintln!("Warning: {w}");
+        // lowering の非致命的警告。offline の未解決ブロック（W211）が該当する。
+        diagnostics.push(CheckDiagnostic {
+            code: "W211",
+            severity: "warning",
+            line: None,
+            message: w.clone(),
+        });
+    }
+    for d in tdsl_core::validate::validate_with_spans(&ir) {
+        diagnostics.push(CheckDiagnostic {
+            code: d.code,
+            severity: "warning",
+            line: d.span.as_ref().map(|s| s.line as usize),
+            message: d.message,
+        });
     }
 
-    let warnings = tdsl_core::validate::validate(&ir);
-    for w in &warnings {
-        eprintln!("Warning: {w}");
+    if matches!(format, CheckOutputFormat::Text) {
+        for d in &diagnostics {
+            match d.line {
+                Some(line) => eprintln!("Warning [{}] line {line}: {}", d.code, d.message),
+                None => eprintln!("Warning [{}]: {}", d.code, d.message),
+            }
+        }
     }
 
     // 未解決ブロックがあるときは完了行にも出す。警告は他の警告に埋もれるが、
     // 完了行は必ず最後に出るため見落としにくい。
     let unresolved = count_unresolved_blocks(&file);
-    if unresolved > 0 {
+    let warning_count = diagnostics.len();
+
+    if matches!(format, CheckOutputFormat::Json) {
+        let report = CheckReportOutput {
+            file: input.display().to_string(),
+            lanes: ir.lanes.len(),
+            items: ir.items.len(),
+            unresolved_blocks: unresolved,
+            warning_count: diagnostics.len(),
+            ok: diagnostics.is_empty(),
+            diagnostics,
+        };
+        match json_sink {
+            Some(sink) => sink.push(report),
+            None => println!(
+                "{}",
+                serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
+            ),
+        }
+    } else if unresolved > 0 {
         eprintln!(
             "OK: {} lanes, {} items ({} block(s) unresolved: offline lowering does not run import/map)",
             ir.lanes.len(),
@@ -43,6 +119,15 @@ pub(crate) fn cmd_check(input: &std::path::Path, offline: bool) -> Result<(), St
         );
     } else {
         eprintln!("OK: {} lanes, {} items", ir.lanes.len(), ir.items.len());
+    }
+
+    // `--deny-warnings` は警告があれば非ゼロ終了する。既定では従来どおり
+    // 警告のみなら成功（`lint` の ERROR/WARN の扱いと揃えている、#766）。
+    if deny_warnings && warning_count > 0 {
+        return Err(format!(
+            "{warning_count} warning(s) in {} (--deny-warnings)",
+            input.display()
+        ));
     }
     Ok(())
 }

@@ -142,6 +142,33 @@ tdsl check [OPTIONS] <FILE>...
 |---|---|
 | `<FILE>...` | 入力 `.tdsl` ファイル、またはディレクトリ（**再帰的に `*.tdsl` を探索**）。複数指定可 |
 | `--offline` | Wikidata 解決を行わないことを明示する（現時点では唯一の動作。付けても付けなくても挙動は同じ） |
+| `--format {text,json}` | 出力形式（既定 `text`）。`json` は `code` / `severity` / `line` / `message` を含む機械可読な診断を標準出力へ出す |
+| `--deny-warnings` | 警告があれば非ゼロ終了する。既定では警告のみなら成功（CI で「警告ゼロ」を強制したい場合に使う） |
+
+**診断コード**
+
+警告には `docs/error-catalog.md` に対応する安定したコードが付く。CI で特定の警告だけを許容/禁止する判断に使える。
+
+```
+Warning [W204] line 2: Lane "a" uses unknown kind: unknown_kind (...)
+Warning [W202] line 3: Span "s1" has start (2005) > end (2001)
+```
+
+`--format json` は `lint --format json` と同じ形（`file` / `ok` / カウント + 診断の配列）に寄せてある。複数入力時は配列、単一入力時はオブジェクト。
+
+```json
+{
+  "file": "timeline.tdsl",
+  "lanes": 1,
+  "items": 2,
+  "unresolved_blocks": 0,
+  "warning_count": 3,
+  "ok": false,
+  "diagnostics": [
+    { "code": "W202", "severity": "warning", "line": 3, "message": "Span \"s1\" has start (2005) > end (2001)" }
+  ]
+}
+```
 
 **複数入力の扱い（`check` / `lint` / `fmt` 共通）**
 

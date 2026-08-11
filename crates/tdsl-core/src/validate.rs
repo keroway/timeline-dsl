@@ -204,7 +204,15 @@ pub fn validate_static_references(file: &ast::File) -> Vec<ReferenceDiagnostic> 
 /// `span` が `None` の場合はドキュメント先頭などの妥当なデフォルト位置を使用する。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValidationDiagnostic {
+    /// `docs/error-catalog.md` に対応する安定した診断コード（`"W205"` 等）。
+    ///
+    /// CI で特定の警告だけを許容/禁止できるようにするための識別子（#748）。
+    /// **カタログの見出し（`### W205: …`）と 1 対 1 で対応させること。**
+    pub code: &'static str,
     /// 警告メッセージ（既存 `validate()` と同じ文字列）。
+    ///
+    /// **コードは混ぜない。** 混ぜると `validate()` の戻り値を使っている
+    /// 既存の呼び出し元の出力が変わる。表示側がコードを添える。
     pub message: String,
     /// 対応するアイテムの `source_span`。アイテムに紐付かない警告は `None`。
     pub span: Option<SourceSpan>,
@@ -223,6 +231,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
     for lane in &ir.lanes {
         if LaneKind::parse(&lane.kind).is_none() {
             diags.push(ValidationDiagnostic {
+                code: "W204",
                 message: format!(
                     "Lane \"{}\" uses unknown kind: {} (known kinds: {}; use custom for user-defined categories)",
                     lane.id,
@@ -252,6 +261,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
         };
         if !lane_ids.contains(lane) {
             diags.push(ValidationDiagnostic {
+                code: "W201",
                 message: format!("Item references unknown lane: {lane}"),
                 span,
             });
@@ -316,6 +326,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                             *end_offset_minutes,
                         );
                         diags.push(ValidationDiagnostic {
+                            code: "W202",
                             message: format!(
                                 "Span \"{id}\" has start ({start_text}) > end ({end_text})"
                             ),
@@ -325,6 +336,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                     Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal) => {}
                     None => {
                         diags.push(ValidationDiagnostic {
+                            code: "W208",
                             message: format!(
                                 "Span \"{id}\" mixes a UTC-offset time value with a value that has no offset; cannot determine start/end order (ADR 0003 D2, make both sides consistent)"
                             ),
@@ -388,6 +400,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                             *end_offset_minutes,
                         );
                         diags.push(ValidationDiagnostic {
+                            code: "W202",
                             message: format!(
                                 "EventRange \"{id}\" has start ({start_text}) > end ({end_text})"
                             ),
@@ -397,6 +410,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                     Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal) => {}
                     None => {
                         diags.push(ValidationDiagnostic {
+                            code: "W208",
                             message: format!(
                                 "EventRange \"{id}\" mixes a UTC-offset time value with a value that has no offset; cannot determine start/end order (ADR 0003 D2, make both sides consistent)"
                             ),
@@ -448,6 +462,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
     match range_coherence {
         Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal) => {
             diags.push(ValidationDiagnostic {
+                code: "W203",
                 message: format!("Timeline range is invalid: {range_start_text}..{range_end_text}"),
                 span: None,
             });
@@ -458,6 +473,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
         Some(std::cmp::Ordering::Less) => {}
         None => {
             diags.push(ValidationDiagnostic {
+                code: "W209",
                 message: "Timeline range mixes a UTC-offset time value with a value that has no offset; cannot determine range coherence (ADR 0003 D2, make both sides consistent)".to_string(),
                 span: None,
             });
@@ -528,6 +544,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                                 *time_offset_minutes,
                             );
                             diags.push(ValidationDiagnostic {
+                                code: "W205",
                                 message: format!(
                                     "Event \"{id}\" at {time_text} is outside timeline.range and will not be rendered"
                                 ),
@@ -537,6 +554,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                     }
                     _ => {
                         diags.push(ValidationDiagnostic {
+                            code: "W208",
                             message: format!(
                                 "Event \"{id}\" mixes a UTC-offset time value with a value that has no offset when compared against timeline.range; cannot determine containment (ADR 0003 D2, make both sides consistent)"
                             ),
@@ -689,6 +707,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                             || e_vs_re == std::cmp::Ordering::Greater;
                         if entirely_outside {
                             diags.push(ValidationDiagnostic {
+                                code: "W206",
                                 message: format!(
                                     "{kind} \"{id}\" is entirely outside timeline.range and will not be rendered"
                                 ),
@@ -696,6 +715,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                             });
                         } else if partially_outside {
                             diags.push(ValidationDiagnostic {
+                                code: "W207",
                                 message: format!(
                                     "{kind} \"{id}\" is partially outside timeline.range and will be clipped"
                                 ),
@@ -705,6 +725,7 @@ pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
                     }
                     _ => {
                         diags.push(ValidationDiagnostic {
+                            code: "W208",
                             message: format!(
                                 "{kind} \"{id}\" mixes a UTC-offset time value with a value that has no offset when compared against timeline.range; cannot determine containment (ADR 0003 D2, make both sides consistent)"
                             ),

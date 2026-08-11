@@ -561,3 +561,100 @@ apply missing_tmpl to missing_import { lane d; }
     assert!(diags.iter().any(|d| d.message.contains("missing_import")));
     assert!(diags.iter().any(|d| d.message.contains("missing_tmpl")));
 }
+
+// ─── 診断コードとカタログの対応（#748）──────────────────────────────────
+
+/// `docs/error-catalog.md` の見出しから診断コードを抜き出す。
+fn catalog_codes(prefix: char) -> std::collections::HashSet<String> {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/error-catalog.md");
+    let text = std::fs::read_to_string(path).expect("error-catalog.md を読めない");
+    text.lines()
+        .filter_map(|l| l.strip_prefix("### "))
+        .filter_map(|l| l.split(':').next())
+        .map(str::trim)
+        .filter(|c| {
+            c.starts_with(prefix) && c.len() == 4 && c[1..].chars().all(|d| d.is_ascii_digit())
+        })
+        .map(str::to_string)
+        .collect()
+}
+
+/// **実装が返すコードは、すべてカタログに節がある。**
+///
+/// コードだけ足してカタログを書き忘れると、利用者は `E116` を検索しても
+/// 何も見つけられない。逆にカタログにあって実装が返さないコードは、
+/// 将来の予約や別レイヤの担当なので許容する（片方向の検査）。
+#[test]
+fn lowering_error_codes_exist_in_catalog() {
+    use crate::error::LoweringError;
+
+    let catalog = catalog_codes('E');
+    // 各 variant の代表値を作ってコードを集める。variant を足したときに
+    // ここへ追記し忘れても、下の網羅性テストが検出する。
+    let samples: Vec<LoweringError> = vec![
+        LoweringError::UnknownLane("x".into()),
+        LoweringError::DuplicateLane("x".into()),
+        LoweringError::DuplicateItemId("x".into()),
+        LoweringError::NoTimeline,
+        LoweringError::MultipleTimelines,
+        LoweringError::UnresolvedImport("x".into()),
+        LoweringError::UnresolvedEntity("x".into()),
+        LoweringError::UnknownMappedLane("x".into()),
+        LoweringError::DuplicateTemplate("x".into()),
+        LoweringError::UnknownTemplate("x".into()),
+        LoweringError::InvalidItemLink("x".into()),
+        LoweringError::InvalidItemColor("x".into()),
+        LoweringError::MixedOffsetComparison("a".into(), "b".into()),
+        LoweringError::FieldPriorityTypeMismatch {
+            id: "x".into(),
+            existing: "span",
+            incoming: "event",
+        },
+        LoweringError::DuplicateImportAlias("x".into()),
+    ];
+
+    for err in &samples {
+        let code = err.code().unwrap_or_else(|| panic!("code が無い: {err:?}"));
+        assert!(
+            catalog.contains(code),
+            "{code} が docs/error-catalog.md に無い（実装だけ足してカタログを書き忘れている）"
+        );
+    }
+}
+
+/// validate が返す W コードも、すべてカタログに節がある。
+///
+/// 実際に validate を走らせて出たコードだけを見る（実装の網羅ではなく
+/// **到達可能なコード**を対象にする）。
+#[test]
+fn validation_codes_exist_in_catalog() {
+    let catalog = catalog_codes('W');
+
+    // W2xx が出る入力をまとめて 1 ファイルに入れる。
+    //
+    // W208 / W209（オフセット混在）は**この経路では到達しない** — 同じ条件を
+    // lowering が E113 として先に弾き、validate まで来ないため（実際に
+    // 入力を足して確認した）。到達しない入力を無理に入れるとテスト自体が
+    // 落ちるので、ここでは到達可能なコードだけを対象にする。
+    let src = r#"
+timeline "T" { unit year; range 2000..2010; }
+lane "A" as a { kind unknown_kind; }
+span a 2005..2001 "reversed" { id "s1"; };
+event a 1900 "outside" { id "e1"; };
+span a 1800..1850 "far outside" { id "s2"; };
+span a 1990..2005 "clipped" { id "s3"; };
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static(&file).expect("lower");
+    let diags = validate::validate_with_spans(&ir);
+    assert!(!diags.is_empty(), "W2xx が 1 件も出ていない");
+
+    for d in &diags {
+        assert!(
+            catalog.contains(d.code),
+            "{} が docs/error-catalog.md に無い: {}",
+            d.code,
+            d.message
+        );
+    }
+}
