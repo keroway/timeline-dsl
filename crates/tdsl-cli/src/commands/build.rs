@@ -95,7 +95,8 @@ pub(crate) fn load_ir(
         tdsl_core::lower::lower_static_with_diagnostics(&file, None)
     } else {
         let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-        let http_client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
+        let http_client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout)
+            .map_err(|e| e.to_string())?;
         let client = tdsl_wikidata::CachedWikidataClient::new(http_client, cache_opts);
         let spinner = ProgressBar::new_spinner();
         spinner.set_style(

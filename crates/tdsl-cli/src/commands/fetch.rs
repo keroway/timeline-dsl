@@ -10,7 +10,8 @@ pub(crate) fn cmd_fetch(
 ) -> Result<(), String> {
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     rt.block_on(async {
-        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
+        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout)
+            .map_err(|e| e.to_string())?;
         let langs_owned = super::parse_langs(lang);
         let langs: Vec<&str> = langs_owned.iter().map(String::as_str).collect();
         let entity = WikidataClient::get_entity(&client, qid, &langs)
@@ -70,7 +71,8 @@ pub(crate) fn cmd_search(
 
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     rt.block_on(async {
-        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
+        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout)
+            .map_err(|e| e.to_string())?;
         let hits = WikidataClient::search_entities(&client, query, lang.trim(), limit)
             .await
             .map_err(|e| e.to_string())?;
@@ -115,7 +117,8 @@ pub(crate) fn cmd_inspect(
 ) -> Result<(), String> {
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     rt.block_on(async {
-        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
+        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout)
+            .map_err(|e| e.to_string())?;
         let langs_owned = super::parse_langs(lang);
         let langs: Vec<&str> = langs_owned.iter().map(String::as_str).collect();
         let entity = WikidataClient::get_entity(&client, qid, &langs)
@@ -155,7 +158,8 @@ pub(crate) fn cmd_resolve(
     let langs_owned = super::parse_langs(lang);
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let report = rt.block_on(async {
-        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout);
+        let client = tdsl_wikidata::client::HttpWikidataClient::with_timeout(wikidata_timeout)
+            .map_err(|e| e.to_string())?;
         let langs: Vec<&str> = langs_owned.iter().map(String::as_str).collect();
         let entity =
             WikidataClient::get_entity_by_sitelink(&client, &page.site, &page.title, &langs)
