@@ -248,6 +248,13 @@ test -s "$TMP_DIR/manual.json"
 cargo run -q -p tdsl-cli -- render "$TMP_DIR/manual.tdsl" --output "$TMP_DIR/manual.html"
 test -s "$TMP_DIR/manual.html"
 
+# ---- ドキュメントのコード例 --------------------------------------------------
+# error-catalog.md の「正しい」例が現行文法でパースできること (#764)。
+# ドキュメントドリフトは CI で検知しないと必ず放置される。
+echo "[e2e] docs: error-catalog.md の「正しい」例がパースできる (#764)"
+cargo build -q -p tdsl-cli
+python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl docs/error-catalog.md
+
 # ---- tdsl lint 終了コード ----------------------------------------------------
 # ERROR が残っている場合に非ゼロを返すこと (#766)。ここが 0 のままだと
 # JSON をパースしない限り CI で lint をゲートにできない。

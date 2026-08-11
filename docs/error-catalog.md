@@ -50,8 +50,8 @@ tdsl::parse_error
 span dynasty { ... }   # laneキーワードより前にlane参照を置けない
 
 # 正しい例
-lane "王朝" as dynasty
-span dynasty 206..-9 "秦" { ... }
+lane "王朝" as dynasty { kind custom; order 1; }
+span dynasty -206..-9 "秦" {};
 ```
 
 ---
@@ -66,10 +66,10 @@ span dynasty 206..-9 "秦" { ... }
 
 ```
 # 誤り
-span dynasty 200bc..0 "秦"
+span dynasty 200bc..0 "秦" {};
 
 # 正しい
-span dynasty -206..-9 "秦"
+span dynasty -206..-9 "秦" {};
 ```
 
 ---
@@ -203,11 +203,11 @@ AST→IR変換（lowering）フェーズで発生するエラーです。構文�
 
 ```
 # 誤り（"dynasty" が未定義）
-span dynasty -206..-9 "秦"
+span dynasty -206..-9 "秦" {};
 
 # 正しい
-lane "王朝" as dynasty
-span dynasty -206..-9 "秦"
+lane "王朝" as dynasty { kind custom; order 1; }
+span dynasty -206..-9 "秦" {};
 ```
 
 ---
@@ -232,12 +232,12 @@ span dynasty -206..-9 "秦"
 
 ```
 # 誤り（id "qin" が重複）
-span dynasty -206..-9 "秦" { id: qin }
-span dynasty -206..-9 "秦（再掲）" { id: qin }
+span dynasty -206..-9 "秦" { id "qin"; };
+span dynasty -206..-9 "秦（再掲）" { id "qin"; };
 
 # 正しい
-span dynasty -206..-9 "秦" { id: qin }
-span dynasty -206..-9 "秦（再掲）" { id: qin_2 }
+span dynasty -206..-9 "秦" { id "qin"; };
+span dynasty -206..-9 "秦（再掲）" { id "qin_2"; };
 ```
 
 ---
@@ -251,10 +251,18 @@ span dynasty -206..-9 "秦（再掲）" { id: qin_2 }
 **修正方法**: ファイルの先頭に `timeline` ブロックを追加してください。
 
 ```tdsl
+# 誤り（timeline に名前が無く、`:` を使い `;` も無い）
 timeline {
   title: "私の年表"
   unit: year
   range: -500..2000
+}
+
+# 正しい
+timeline "私の年表" {
+  title "私の年表";
+  unit year;
+  range -500..2000;
 }
 ```
 
@@ -389,11 +397,11 @@ span a 2024-01-01T10:00:00..2024-01-02T10:00 "S" {};
 
 ```
 # 誤り（同じ id "x1" で種別が違う）
-event lane 1950 "手書きのイベント" { id: x1 }
+event lane 1950 "手書きのイベント" { id "x1"; };
 # → Wikidata インポートが span として同じ id を生成するとエラー
 
 # 正しい（id を分ける、または種別を揃える）
-event lane 1950 "手書きのイベント" { id: x1_manual }
+event lane 1950 "手書きのイベント" { id "x1_manual"; };
 ```
 
 **補足**: このエラーは以前は発生せず、取り込み側が既存アイテムを**黙って丸ごと置換**していました。
@@ -423,10 +431,10 @@ IR生成後の整合性チェックで発生する警告です。ビルドは続
 
 ```
 # 誤り
-span dynasty 9..-206 "秦"
+span dynasty 9..-206 "秦" {};
 
 # 正しい
-span dynasty -206..9 "秦"
+span dynasty -206..9 "秦" {};
 ```
 
 ---
@@ -677,11 +685,11 @@ span dynasty -206..-9 "秦" {
 
 ```tdsl
 # 誤り（2月は最大29日まで。2024年は閏年だが30日は存在しない）
-event events 2024-02-30 "存在しない日付"
+event events 2024-02-30 "存在しない日付" {};
 
 # 正しい
-event events 2024-02-29 "2024年は閏年"
-event events 2024-03-01 "3月1日"
+event events 2024-02-29 "2024年は閏年" {};
+event events 2024-03-01 "3月1日" {};
 ```
 
 **備考**: パーサは日付の値域（月は 1〜12、日は 1〜31）のみを検証します。カレンダー上の実在確認（うるう年判定・月末日確認）は lint の責務です。月精度のみの指定（例: `2024-02`）は検証対象外です。
