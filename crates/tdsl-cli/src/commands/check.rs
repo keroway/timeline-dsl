@@ -43,11 +43,8 @@ pub(crate) fn cmd_ast(input: &std::path::Path) -> Result<(), String> {
 ///
 /// **位置が無いエラー（`NoTimeline` 等、ファイル全体に対するもの）は
 /// スニペット無しで出す。** 位置不明を先頭行と偽らない。
-///
-/// `Display` / `Error` は手で実装する。miette の `Diagnostic` derive は
-/// `std::error::Error` を要求するが、そのためだけに tdsl-cli へ
-/// thiserror を新規依存として足さない。
-#[derive(Debug, miette::Diagnostic)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("{message}")]
 #[diagnostic(
     code(tdsl::lowering_error),
     help("エラーカタログ docs/error-catalog.md を確認してください")
@@ -59,14 +56,6 @@ pub(crate) struct LoweringDiagnostic {
     #[label("ここに問題があります")]
     span: Option<miette::SourceSpan>,
 }
-
-impl std::fmt::Display for LoweringDiagnostic {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for LoweringDiagnostic {}
 
 impl LoweringDiagnostic {
     pub(crate) fn new(

@@ -195,7 +195,7 @@ AST→IR変換（lowering）フェーズで発生するエラーです。構文�
 
 `tdsl check` / `tdsl build` は、構文エラー（E001）と同じくエラー箇所をキャレットで指します。以前はメッセージ文字列だけで、大きいファイルでは該当行を自分で探す必要がありました。
 
-```
+```text
 Error: tdsl::lowering_error
 
   × Unknown lane reference: 'nosuchlane' — 利用可能なlane: l
