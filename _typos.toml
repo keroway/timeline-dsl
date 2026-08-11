@@ -3,3 +3,6 @@
 [default.extend-words]
 # "unparsable" の異形（英語として正しい綴りの一つ）
 unparseable = "unparseable"
+# `.year` の打ち間違い例。docs/error-catalog.md の E009 が「typo を
+# パースエラーとして拒否する」ことを説明するために**意図的に**使っている。
+yaer = "yaer"
