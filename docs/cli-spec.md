@@ -141,6 +141,15 @@ tdsl check [OPTIONS] <FILE>
 | 引数 | 説明 |
 |---|---|
 | `<FILE>` | 入力 `.tdsl` ファイルのパス |
+| `--offline` | Wikidata 解決を行わないことを明示する（現時点では唯一の動作。付けても付けなくても挙動は同じ） |
+
+`check` は lowering の Pass 1/2 のみを実行し、**import 解決（Pass 3）と map 適用（Pass 4）は行わない**。
+`import` / `map` / `apply` を含むファイルではアイテムが生成されないため、その旨を警告と完了行の両方に出す。
+
+```
+Warning: 1 import block(s) and 1 map block(s) were not resolved (offline lowering); ...
+OK: 1 lanes, 0 items (2 block(s) unresolved: offline lowering does not run import/map)
+```
 
 ### 実行例
 

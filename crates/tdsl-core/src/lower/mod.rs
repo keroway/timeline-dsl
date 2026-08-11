@@ -38,7 +38,50 @@ pub fn lower_static_with_diagnostics(
     let mut ctx = LoweringContext::new();
     ctx.pass1_declarations(file, line_offsets.as_deref());
     ctx.pass2_static_items(file, line_offsets.as_deref());
+    warn_unresolved_blocks(file, &mut ctx.warnings);
     ctx.finish()
+}
+
+/// offline lowering（Pass 1/2 のみ）で**処理されずに残ったブロック**を警告として積む。
+///
+/// `import` / `map` / `apply` は Pass 3/4 が担当するため、静的 lowering では
+/// 一切実行されない。以前はその旨がどこにも出ず、import だけで構成された
+/// ファイルに対して `tdsl check` が `OK: 2 lanes, 0 items` と表示して exit 0
+/// していた（#751）。LSP は同じ状況を Information 診断で出しており、
+/// **CLI が LSP より寛容**という逆転が起きていた。
+///
+/// 「アイテムが 0 件なのは書き方が悪いのか、offline だからなのか」を
+/// 利用者が区別できるようにするのが目的。
+pub(crate) fn warn_unresolved_blocks(file: &ast::File, warnings: &mut Vec<String>) {
+    let mut imports = 0usize;
+    let mut maps = 0usize;
+    let mut applies = 0usize;
+    for stmt in &file.statements {
+        match &stmt.node {
+            ast::Statement::Import(_) => imports += 1,
+            ast::Statement::Map(_) => maps += 1,
+            ast::Statement::Apply(_) => applies += 1,
+            _ => {}
+        }
+    }
+    if imports == 0 && maps == 0 && applies == 0 {
+        return;
+    }
+
+    let mut parts = Vec::new();
+    if imports > 0 {
+        parts.push(format!("{imports} import block(s)"));
+    }
+    if maps > 0 {
+        parts.push(format!("{maps} map block(s)"));
+    }
+    if applies > 0 {
+        parts.push(format!("{applies} apply block(s)"));
+    }
+    warnings.push(format!(
+        "{} were not resolved (offline lowering); run 'tdsl build' without --offline to fetch Wikidata and validate imported items",
+        parts.join(" and ")
+    ));
 }
 
 /// Lower a parsed AST into the canonical IR with Wikidata resolution.

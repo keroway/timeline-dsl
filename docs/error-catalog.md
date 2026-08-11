@@ -612,6 +612,25 @@ statement が解決できなかったかを示します（例: `Q7209 (P39#2)`�
 `??` でフォールバックを与えるか、`label@en` 等の取得言語を追加してください。
 対象エンティティが本当にその情報を持たない場合は `map` 対象から除外します。
 
+
+### W211: offline lowering で import / map / apply が未解決
+
+**メッセージ**: `{N} import block(s) and {M} map block(s) were not resolved (offline lowering); run 'tdsl build' without --offline to fetch Wikidata and validate imported items`
+
+**原因**: `tdsl check`（および `tdsl build --offline`）は lowering の Pass 1/2 のみを実行し、**import 解決（Pass 3）と map 適用（Pass 4）を行いません**。そのため `import` / `map` / `apply` ブロックから生成されるはずのアイテムは 0 件になります。
+
+**修正方法**: エラーではありません。Wikidata 由来のアイテムまで検証したい場合は `--offline` を付けずに `tdsl build` を実行してください。
+
+```tdsl
+// 正しい（この書き方自体に問題は無い。offline では item が生成されないだけ）
+timeline "T" { title "T"; unit year; range 0..3000; }
+lane "L" as l { kind custom; order 1; }
+import Q7209 as wd { entity Q7209 as han; }
+map wd.han to span { lane l; start claim(P571).year; end claim(P576).year; }
+```
+
+**補足（v1.29.0 以降）**: 以前はこの状況で警告が一切出ず、`OK: 1 lanes, 0 items` と表示して exit 0 していました。「アイテムが 0 件なのは書き方が悪いのか offline だからなのか」を利用者が区別できず、LSP が同じ状況を Information 診断で出していたため **CLI が LSP より寛容**という逆転が起きていました。完了行にも `(N block(s) unresolved: ...)` を付けています。
+
 ---
 
 ## Wikidataエラー（tdsl-wikidata）
