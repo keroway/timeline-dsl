@@ -270,12 +270,36 @@ pub fn cache_status(cache_dir: &Path) -> std::io::Result<CacheStatus> {
     })
 }
 
+/// 直接パス構築で試す言語キー。`cache_path_for_entity` の `langs.join("-")` と
+/// 同じ表記にすること（片方だけ変えると直接構築が外れ、毎回フォールバックの
+/// 全走査に落ちる — 遅くなるだけで結果は正しいため、気づきにくい）。
+const KNOWN_LANGS_KEYS: &[&str] = &["ja-en"];
+
 /// 指定 QID のキャッシュ済みエンティティを読み出す（オフライン・ネットワーク不要）。
 ///
 /// `<cache_dir>/get_<qid>_<langs>.json` のうち最初に見つかった有効なファイルを返す。
 /// hover 表示用途のため **TTL は無視** する（古くても取得済み情報を見せる）。
 /// キャッシュ未取得・ディレクトリ不在・パース失敗時は `None`。
 pub fn read_cached_entity(cache_dir: &Path, qid: &str) -> Option<WikidataEntity> {
+    // まず既知の言語キーでパスを直接組み立てる。ファイル名の規則は
+    // `cache_path_for_entity` が決めており（`get_<qid>_<langs.join("-")>.json`）、
+    // 実際に使われる言語セットは `["ja", "en"]` のみ。
+    //
+    // 以前は最初から `read_dir` で全エントリを線形走査しており、hover は
+    // QID にカーソルを置くたびにこれを呼ぶため、キャッシュが数千ファイルに
+    // 育つと応答が目に見えて遅くなっていた（#770）。
+    for langs_key in KNOWN_LANGS_KEYS {
+        let path = cache_dir.join(format!("get_{qid}_{langs_key}.json"));
+        if let Ok(data) = std::fs::read(&path)
+            && let Ok(entity) = serde_json::from_slice::<WikidataEntity>(&data)
+        {
+            return Some(entity);
+        }
+    }
+
+    // フォールバックの全走査は残す。将来ほかの言語セットで取得された
+    // キャッシュがあっても読めなくならないため（**削ると、規約から外れた
+    // ファイルを黙って「無い」ことにしてしまう**）。
     let prefix = format!("get_{qid}_");
     let entries = std::fs::read_dir(cache_dir).ok()?;
     for entry in entries.flatten() {
@@ -604,6 +628,49 @@ mod tests {
         let nonexistent = tmp.path().join("no_such_dir");
         let result = super::read_cached_entity(&nonexistent, "Q42");
         assert!(result.is_none(), "ディレクトリが存在しなければ None を返す");
+    }
+
+    /// 既知の言語キーのファイルは、ディレクトリ走査に頼らず直接引ける（#770）。
+    ///
+    /// 「走査していないこと」を直接は観測できないので、**走査では見つからない
+    /// 状況を作って**確かめる: `read_dir` が失敗するようディレクトリを
+    /// 読めなくする…のは移植性が低いため、ここでは代わりに
+    /// 「大量のダミーがあっても正しい 1 件を返す」ことと、
+    /// 命名規則から外れたファイルはフォールバックで拾えることを固定する。
+    #[test]
+    fn read_cached_entity_finds_known_langs_key_among_many_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        for i in 0..50 {
+            std::fs::write(
+                tmp.path().join(format!("get_Q{}_ja-en.json", 900000 + i)),
+                r#"{"id":"other","labels":{},"claims":{}}"#,
+            )
+            .unwrap();
+        }
+        std::fs::write(
+            tmp.path().join("get_Q42_ja-en.json"),
+            r#"{"id":"Q42","labels":{},"claims":{}}"#,
+        )
+        .unwrap();
+
+        let got = super::read_cached_entity(tmp.path(), "Q42").expect("見つかるべき");
+        assert_eq!(got.id, "Q42");
+    }
+
+    /// 既知の言語キーから外れたファイル名でも、フォールバックの全走査で拾える。
+    /// **直接構築だけにするとここが黙って「無い」ことになる**ため、
+    /// フォールバックを削っていないことを固定する。
+    #[test]
+    fn read_cached_entity_falls_back_to_scan_for_unknown_langs_key() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("get_Q42_fr-de.json"),
+            r#"{"id":"Q42","labels":{},"claims":{}}"#,
+        )
+        .unwrap();
+
+        let got = super::read_cached_entity(tmp.path(), "Q42").expect("走査で拾えるべき");
+        assert_eq!(got.id, "Q42");
     }
 
     #[test]
