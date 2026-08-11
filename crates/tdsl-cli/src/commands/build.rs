@@ -100,6 +100,9 @@ pub(crate) fn load_ir(
         let client = tdsl_wikidata::CachedWikidataClient::new(http_client, cache_opts);
         let spinner = ProgressBar::new_spinner();
         spinner.set_style(
+            // テンプレートは定数リテラルで、パースが失敗しうるのは
+            // 書式が不正なときだけ。実行時入力に依存しないため unwrap でよい
+            // （implementation-strict.md §4.1: 例外的に使う場合は理由を 1 行）。
             indicatif::ProgressStyle::with_template("{spinner} {msg}")
                 .unwrap()
                 .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),

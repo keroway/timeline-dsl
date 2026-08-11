@@ -127,6 +127,9 @@ fn render_scaffold_tdsl(
     let (range_start, range_end) = estimate_range(&rows);
     let escaped_timeline = super::escape_tdsl_string(timeline_title);
 
+    // 以降の writeln! は書き込み先が String で、std::fmt::Write の実装は
+    // 決して失敗しない（infallible）。返る Result を握り潰す unwrap は
+    // その意味で安全（implementation-strict.md §4.1: 理由を 1 行残す）。
     let mut s = String::new();
     writeln!(
         s,

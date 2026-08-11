@@ -147,6 +147,9 @@ fn render_init_tdsl(
     range_end: i64,
     lane_specs: &[InitLaneSpec],
 ) -> String {
+    // 以降の write!/writeln! は書き込み先が String で、std::fmt::Write の実装は
+    // 決して失敗しない（infallible）。返る Result を握り潰す unwrap は
+    // その意味で安全（implementation-strict.md §4.1: 理由を 1 行残す）。
     let mut out = String::new();
     let escaped_title = super::escape_tdsl_string(title);
     writeln!(
