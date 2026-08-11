@@ -23,8 +23,14 @@ pub fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue
     let mut seen_ids: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     let mut issues = Vec::new();
 
+    // 行番号は行頭オフセット表を 1 度だけ作って二分探索で引く。
+    // 以前は statement ごとにソース先頭から改行を数え直しており
+    // O(statements × source長) になっていた（#763）。lint は LSP の
+    // タイプごと診断から呼ばれるため、二乗コストがそのまま体感に出る。
+    let line_offsets = crate::lower::build_line_offsets(source);
+
     for stmt in &file.statements {
-        let line = line_from_offset(source, stmt.span.start);
+        let line = line_from_offset(&line_offsets, stmt.span.start);
         match &stmt.node {
             Statement::Span(s) => {
                 lint_item_common(
@@ -239,14 +245,12 @@ fn lane_slug(s: &str) -> String {
         .to_lowercase()
 }
 
-fn line_from_offset(source: &str, offset: usize) -> usize {
-    let len = source.len();
-    let clamped = offset.min(len);
-    source.as_bytes()[..clamped]
-        .iter()
-        .filter(|b| **b == b'\n')
-        .count()
-        + 1
+/// 行頭オフセット表から 1-indexed の行番号を引く。
+///
+/// `lower::offset_to_line_col` と同じ `partition_point` を使う。
+/// あちらは列も返すが、lint は行しか使わないのでここでは行だけを返す。
+fn line_from_offset(line_offsets: &[usize], offset: usize) -> usize {
+    line_offsets.partition_point(|&o| o <= offset).max(1)
 }
 
 pub fn apply_lint_fixes(file: &mut tdsl_parser::ast::File) -> usize {
@@ -896,5 +900,40 @@ event_range a 80..20 "R" { tags ["war", "war"]; };
         // event_range: tags fix(1) + swap(1) + id gen(1) = 3
         // total = 7
         assert_eq!(fixed, 7, "expected 7 total fixes, got {fixed}");
+    }
+
+    /// #763: 行番号の引き方を線形走査から二分探索へ変えた。
+    /// 旧実装と同じ値を返すことを、境界を含めて確かめる。
+    #[test]
+    fn line_from_offset_matches_linear_scan() {
+        fn linear(source: &str, offset: usize) -> usize {
+            let clamped = offset.min(source.len());
+            source.as_bytes()[..clamped]
+                .iter()
+                .filter(|b| **b == b'\n')
+                .count()
+                + 1
+        }
+
+        for source in [
+            "",
+            "a",
+            "a\n",
+            "\n",
+            "\n\n\n",
+            "one\ntwo\nthree",
+            "one\ntwo\nthree\n",
+            "日本語\n改行あり\n",
+        ] {
+            let offsets = crate::lower::build_line_offsets(source);
+            // 範囲外（len 超過）も含めて全オフセットを比較する。
+            for offset in 0..=source.len() + 3 {
+                assert_eq!(
+                    line_from_offset(&offsets, offset),
+                    linear(source, offset),
+                    "source={source:?} offset={offset}"
+                );
+            }
+        }
     }
 }
