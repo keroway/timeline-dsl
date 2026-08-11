@@ -280,11 +280,13 @@ fn declared_template_ids(text: &str) -> Vec<String> {
 fn scan_declarations(text: &str, keyword: &str) -> Vec<String> {
     let mut out = Vec::new();
     for line in text.lines() {
-        let trimmed = line.trim_start();
-        if !trimmed.starts_with(keyword) {
+        let mut parts = line.split_whitespace();
+        // **先頭トークンの完全一致で判定する。** `starts_with` だと
+        // `lanes are documented as invalid` のような非宣言行も拾い、
+        // `invalid` を候補に出してしまう（CodeRabbit の指摘）。
+        if parts.next() != Some(keyword) {
             continue;
         }
-        let mut parts = trimmed.split_whitespace();
         while let Some(tok) = parts.next() {
             if tok == "as"
                 && let Some(id) = parts.next()
@@ -878,6 +880,20 @@ mod completion_context_tests {
             !got.iter().any(|l| l == "alpha"),
             "書きかけで値候補を出している: {got:?}"
         );
+    }
+
+    /// **先頭トークンが完全一致する行だけを宣言とみなす。**
+    /// `starts_with` で判定すると `lanes are documented as invalid` のような
+    /// 非宣言行も拾い、無効な ID を候補に出してしまう。
+    #[test]
+    fn non_declaration_lines_are_not_scanned() {
+        let text = "lanes are documented as invalid\nlane \"A\" as alpha { kind custom; }\nspan ";
+        let got = labels(&complete(text));
+        assert!(
+            !got.iter().any(|l| l == "invalid"),
+            "非宣言行から候補を拾っている: {got:?}"
+        );
+        assert!(got.iter().any(|l| l == "alpha"), "got: {got:?}");
     }
 
     /// `as` を省略した宣言は ID を推測しない（間違った候補は打ち間違いを誘う）。
