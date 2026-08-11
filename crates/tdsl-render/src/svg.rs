@@ -1332,13 +1332,31 @@ fn render_gantt_period_label_fragment(
 
 /// Build data-* attributes for interactive mode as a string fragment (leading space included).
 /// Does NOT include `data-lane` (always emitted unconditionally in render_items).
+/// item の data 属性を組み立てる。
+///
+/// ## `link` を `<a>` でラップしない理由（#749 の設計判断）
+///
+/// item のグループは既に `role="group"` と `tabindex="0"` を持つ。これを
+/// `<a href=...>` で包むと**フォーカス可能な要素が入れ子になり**、Tab が
+/// 二重に止まってスクリーンリーダーの読み上げも冗長になる。既存の
+/// キーボード操作を壊してまで SVG 単体のクリックを足す価値は薄い。
+///
+/// 加えて PNG / PDF は `usvg` を通るためアンカーは描画結果に現れない。
+/// リンクを「押せる」形で提供するのはインタラクティブ HTML の詳細パネルの
+/// 役割とし、SVG は `data-link` を載せるところまでにする（埋め込みページの
+/// JS からは読める）。
 fn build_interactive_attrs(item: &Item) -> String {
-    let (id, label, type_str, source, source_span) = match item {
+    // note / link は #566 / #567 で文法・IR・検証まで実装済みだが、
+    // 出力側で一切使われていなかった（#749）。data 属性として載せることで、
+    // インタラクティブ HTML の詳細パネルや埋め込みページの JS から読める。
+    let (id, label, type_str, source, source_span, note, link) = match item {
         Item::Span {
             id,
             label,
             source,
             source_span,
+            note,
+            link,
             ..
         } => (
             id.as_str(),
@@ -1346,12 +1364,16 @@ fn build_interactive_attrs(item: &Item) -> String {
             "span",
             source.as_deref(),
             source_span.as_ref(),
+            note.as_deref(),
+            link.as_deref(),
         ),
         Item::Event {
             id,
             label,
             source,
             source_span,
+            note,
+            link,
             ..
         } => (
             id.as_str(),
@@ -1359,12 +1381,16 @@ fn build_interactive_attrs(item: &Item) -> String {
             "event",
             source.as_deref(),
             source_span.as_ref(),
+            note.as_deref(),
+            link.as_deref(),
         ),
         Item::EventRange {
             id,
             label,
             source,
             source_span,
+            note,
+            link,
             ..
         } => (
             id.as_str(),
@@ -1372,6 +1398,8 @@ fn build_interactive_attrs(item: &Item) -> String {
             "event_range",
             source.as_deref(),
             source_span.as_ref(),
+            note.as_deref(),
+            link.as_deref(),
         ),
     };
     let mut attrs = format!(
@@ -1385,6 +1413,14 @@ fn build_interactive_attrs(item: &Item) -> String {
     }
     if let Some(ss) = source_span {
         attrs.push_str(&format!(r#" data-line="{}""#, ss.line));
+    }
+    if let Some(n) = note {
+        attrs.push_str(&format!(r#" data-note="{}""#, escape_xml_attr(n)));
+    }
+    if let Some(l) = link {
+        // URL は lowering が `http`/`https` に限定して検証済み
+        // （`InvalidItemLink`）。ここでは属性としてのエスケープだけ行う。
+        attrs.push_str(&format!(r#" data-link="{}""#, escape_xml_attr(l)));
     }
     attrs
 }
@@ -1648,6 +1684,86 @@ mod tests {
     use super::*;
     use crate::layout::{GridStyle, Orientation, RenderOptions, format_date, format_year};
     use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
+
+    // ─── note / link の出力（#749）──────────────────────────────────────
+
+    /// `note` / `link` を持つ item が data 属性として出ること。
+    ///
+    /// この 2 つは文法・IR・検証まで実装済みだったのに**出力側で一切
+    /// 使われていなかった**（`grep data-note` が 0 件）。
+    #[test]
+    fn note_and_link_are_emitted_as_data_attributes() {
+        let mut ir = sample_ir();
+        if let Item::Span { note, link, .. } = &mut ir.items[0] {
+            *note = Some("これはメモ".into());
+            *link = Some("https://example.com/doc".into());
+        }
+        let opts = RenderOptions {
+            interactive: true,
+            ..Default::default()
+        };
+        let svg = render_svg(&LayoutModel::compute(&ir, opts).unwrap()).unwrap();
+        assert!(svg.contains(r#"data-note="これはメモ""#), "got: {svg}");
+        assert!(
+            svg.contains(r#"data-link="https://example.com/doc""#),
+            "got: {svg}"
+        );
+    }
+
+    /// 未指定なら属性を出さない（空文字の属性を撒かない）。
+    #[test]
+    fn absent_note_and_link_emit_no_attributes() {
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            interactive: true,
+            ..Default::default()
+        };
+        let svg = render_svg(&LayoutModel::compute(&ir, opts).unwrap()).unwrap();
+        assert!(!svg.contains("data-note="), "got: {svg}");
+        assert!(!svg.contains("data-link="), "got: {svg}");
+    }
+
+    /// 属性値はエスケープされること（`"` や `<` を含む note で壊れない）。
+    #[test]
+    fn note_attribute_is_escaped() {
+        let mut ir = sample_ir();
+        if let Item::Span { note, .. } = &mut ir.items[0] {
+            *note = Some(r#"引用 "test" と <tag>"#.into());
+        }
+        let opts = RenderOptions {
+            interactive: true,
+            ..Default::default()
+        };
+        let svg = render_svg(&LayoutModel::compute(&ir, opts).unwrap()).unwrap();
+        assert!(
+            !svg.contains(r#"data-note="引用 "test""#),
+            "生の \" が属性に入っている: {svg}"
+        );
+        assert!(
+            svg.contains("&quot;") || svg.contains("&#34;"),
+            "got: {svg}"
+        );
+    }
+
+    /// **`link` を `<a>` でラップしない**（設計判断、#749）。
+    /// item グループは既に `tabindex="0"` を持つため、包むとフォーカス可能な
+    /// 要素が入れ子になり Tab が二重に止まる。
+    #[test]
+    fn link_does_not_wrap_item_in_anchor() {
+        let mut ir = sample_ir();
+        if let Item::Span { link, .. } = &mut ir.items[0] {
+            *link = Some("https://example.com/doc".into());
+        }
+        let opts = RenderOptions {
+            interactive: true,
+            ..Default::default()
+        };
+        let svg = render_svg(&LayoutModel::compute(&ir, opts).unwrap()).unwrap();
+        assert!(
+            !svg.contains("<a "),
+            "item がアンカーで包まれている（a11y 上の判断に反する）: {svg}"
+        );
+    }
 
     fn sample_ir() -> TimelineIr {
         TimelineIr {

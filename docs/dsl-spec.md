@@ -264,8 +264,10 @@ span / event / event_range に付与できるオプション。
 | `source` | データソース（Wikidata等） | `source wd:Q7209;` |
 | `id` | 要素の安定識別子 | `id "span:han";` |
 | `origin` | 由来の識別子 | `origin imported;` |
-| `note` | アイテム説明文。ツールチップ等に表示 | `note "出典メモ";` |
-| `link` | 参照URL。lowering時に `http://` / `https://` のみ許可 | `link "https://example.com";` |
+| `note` | アイテム説明文。ツールチップと SVG の `data-note` 属性、インタラクティブ HTML の詳細パネル「メモ」行に出る | `note "出典メモ";` |
+| `link` | 参照URL。lowering時に `http://` / `https://` のみ許可。SVG の `data-link` 属性と、インタラクティブ HTML の詳細パネル「参照リンク」行（クリック可能なアンカー）に出る | `link "https://example.com";` |
+
+> `link` を持つ item の SVG グループは **`<a>` で包まない**。グループは既に `role="group"` と `tabindex="0"` を持つため、包むとフォーカス可能な要素が入れ子になり Tab が二重に止まる。PNG / PDF は `usvg` を通るためアンカーは描画結果に現れない。リンクを押せる形で提供するのはインタラクティブ HTML（`--interactive`）の役割で、SVG は `data-link` を載せるところまで（埋め込みページの JS からは読める）。
 | `color` | アイテム個別色。`color_map` や lane 色より優先 | `color "#3366cc";` |
 
 ### import
