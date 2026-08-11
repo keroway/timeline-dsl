@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-12
+
 ### Added
 
 - **インタラクティブ HTML の凡例にタグ絞り込みトグルを追加**（#755）: `--interactive` の凡例パネル（`#tdsl-legend`）はこれまで lane 表示トグルのみで、`timeline.color_map` で定義したタグによる絞り込みができなかった。`color_map` に登録されたタグごとにチェックボックス（`data-tag-toggle="<tag>"`、色スウォッチ付き、初期状態 checked）を追加し、SVG item に既に埋め込まれている `data-tags` 属性を読んで絞り込む。セマンティクスは OR（チェックしたタグを1つも持たない item を非表示）で、全チェックを外した場合は絞り込み自体を無効化する（誤って全 item が消える事故を避けるため）。lane トグルとは AND で合成（`.tdsl-lane-hidden` と新設の `.tdsl-tag-hidden` のどちらかが付けば非表示）。`color_map` が空の場合はタグ凡例セクション自体を出力しない。非インタラクティブな静的 HTML（`wrap_html`）には影響しない
@@ -18,18 +20,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`check` / `lint` / `fmt` が複数ファイル・ディレクトリ入力に対応**（#750）: 引数を `Vec<PathBuf>` にし、ディレクトリを渡すと配下の `*.tdsl` を再帰的に処理する。これまでは単一ファイルのみで、複数 `.tdsl` を持つリポジトリの CI は `for f in **/*.tdsl; do tdsl fmt --check "$f" || exit 1; done` のようなシェルループを書く必要があった。1 件でも失敗すれば非ゼロ終了するが、**最初の失敗で打ち切らず全件処理してから要約を出す**（CI では「どのファイルが落ちたか」を一度に知りたいため）。対象が 2 件以上のときは `=== <path> ===` の見出しを付け、単一ファイル指定時の出力は従来どおり（後方互換）。処理順はパス名でソートし、ファイルシステムの列挙順に依存させない（診断の出力順が実行ごとに変わると CI のログ差分が読めなくなる）。**対象が 0 件ならエラー**（パスの打ち間違いが「問題なし」として通らないようにするため）。glob 展開はシェルに任せる方針で、新規依存（walkdir / glob）は追加していない
 - **`tdsl lint` に `unused_lane` ルールを追加**（#756）: 宣言されているが `span` / `event` / `event_range` からも `map` / `template` / `apply` の `lane` プロパティからも参照されていない lane を WARN で報告する。アイテムが 1 つも乗らない lane は空帯として描画され続けるが、従来は誰も警告しなかった（`CLAUDE.md` の「未使用lane等の警告」という記述に対して実装が存在しない乖離もあった）。`map` / `template` / `apply` の参照も「参照済み」として数えるため、item を直接書かず import から生成するファイルでも偽陽性は出ない（既存 examples 18 件で確認）。`group` 内の lane も対象。`fixable: false`（「これから item を足すために先に宣言した」ケースを機械的に壊さないため）。あわせて `CLAUDE.md` のコンパイルパイプラインの記述を、実装場所（validate ではなく lint）に合わせて修正した
 - **offline lowering で未解決のまま残る `import` / `map` / `apply` ブロックを明示警告する**（#751）: `tdsl check` と `tdsl build --offline` は lowering の Pass 1/2 のみを実行し、import 解決（Pass 3）と map 適用（Pass 4）を行わない。従来はその旨がどこにも出ず、import だけで構成されたファイルに対して `OK: 2 lanes, 0 items` と表示して exit 0 していたため、「アイテムが 0 件なのは書き方が悪いのか offline だからなのか」を利用者が区別できなかった（LSP は同じ状況を Information 診断で出しており、CLI が LSP より寛容という逆転が起きていた）。`lower_static_with_diagnostics` が未解決ブロック数を warning として積み、`check` の完了行にも `(N block(s) unresolved: offline lowering does not run import/map)` を付ける。`import` / `map` / `apply` を含まないファイルでは警告を出さない（通常ファイルでのノイズ化を避けるため）。あわせて `tdsl check --offline` フラグを追加した（現時点では唯一の動作だが、コマンドラインから offline であることが読めるようにするため。オンライン `check` 自体はスコープ外）。新エラーコード W211
-- **`--chart-pagination-range <N>`: タイムライン本体（チャート部分）を時間範囲軸で複数ページに分割するオプションを追加**（ADR-0005 D3 / #733, #736, #734）: `tdsl render --chart-pagination-range <N>` で、`meta.range` を `N` 個の連続する非空の整数年区間に均等分割し、区間ごとに1ページを描画できるようになった。既存の `--chart-pagination <N>`（lane グループ軸、issue #660）とは独立したフラグで、両者は併用できない（明示エラー）。lane グループ軸と異なり、各ページの `TimelineIr` は全 lane/item を保持したまま `meta.range`（およびサブ年精度フィールド、ページ境界では意味を持たないためクリアされる）だけが書き換わる。区間境界をまたぐ `span`/`event_range` は既存の `primary_axis_segment` クランプでクリップされ、クリップされた辺に継続マーカー（三角形の `<polygon>`。`role="img"` の `aria-label`/`<title>` 付き。横書き/縦書き両対応。CSS フック `tdsl-item-continues-from-previous-page` / `tdsl-item-continues-to-next-page` / `tdsl-continuation-marker-from-previous-page` / `tdsl-continuation-marker-to-next-page`）を描画し、境界をまたぐ item がある場合は stderr にも警告を出力する（silent no-op にしない、implementation-strict.md §1）。マーカー描画は `tdsl_render::RenderOptions::show_boundary_clip_markers`（新規、デフォルト `false`）による opt-in で、`--chart-pagination-range` の内部レンダリングのみが有効化するため、ページ分割と無関係な狭い `range` 指定の通常レンダリングは従来どおりマーカーなしでクリップされる（後方互換）。group band / gantt / zigzag / open-ended range の4機能はこの軸では追加の分岐処理が不要（`lanes`/`items` がページごとにフィルタされないため）。`--output` が必須で、`--watch` との併用は明示エラー。`--format svg`（`<stem>.pageN.svg` の複数ファイル、#733）と `--format pdf`（単一 PDF 内の複数ページ、`--chart-pagination` の PDF 統合と同じページ構成規則、#736）の両方に対応。`tdsl_render::PdfOptions` に `chart_pagination_range: Option<usize>` を追加し、`render_pdf_with_warnings` の戻り値は `(Vec<u8>, Vec<String>)` から `(Vec<u8>, PdfWarnings)` に変更（`PdfWarnings` は `group_bands_split_across_pages` と `items_crossing_boundaries` の2フィールドを持つ。#708 で既に破壊的変更を含む Unreleased につき同一の SemVer メジャーへ合流）
+- **`--chart-pagination-range <N>`: タイムライン本体（チャート部分）を時間範囲軸で複数ページに分割するオプションを追加**（ADR-0005 D3 / #733, #736, #734）: `tdsl render --chart-pagination-range <N>` で、`meta.range` を `N` 個の連続する非空の整数年区間に均等分割し、区間ごとに1ページを描画できるようになった。既存の `--chart-pagination <N>`（lane グループ軸、issue #660）とは独立したフラグで、両者は併用できない（明示エラー）。lane グループ軸と異なり、各ページの `TimelineIr` は全 lane/item を保持したまま `meta.range`（およびサブ年精度フィールド、ページ境界では意味を持たないためクリアされる）だけが書き換わる。区間境界をまたぐ `span`/`event_range` は既存の `primary_axis_segment` クランプでクリップされ、クリップされた辺に継続マーカー（三角形の `<polygon>`。`role="img"` の `aria-label`/`<title>` 付き。横書き/縦書き両対応。CSS フック `tdsl-item-continues-from-previous-page` / `tdsl-item-continues-to-next-page` / `tdsl-continuation-marker-from-previous-page` / `tdsl-continuation-marker-to-next-page`）を描画し、境界をまたぐ item がある場合は stderr にも警告を出力する（silent no-op にしない、implementation-strict.md §1）。マーカー描画は `tdsl_render::RenderOptions::show_boundary_clip_markers`（新規、デフォルト `false`）による opt-in で、`--chart-pagination-range` の内部レンダリングのみが有効化するため、ページ分割と無関係な狭い `range` 指定の通常レンダリングは従来どおりマーカーなしでクリップされる（後方互換）。group band / gantt / zigzag / open-ended range の4機能はこの軸では追加の分岐処理が不要（`lanes`/`items` がページごとにフィルタされないため）。`--output` が必須で、`--watch` との併用は明示エラー。`--format svg`（`<stem>.pageN.svg` の複数ファイル、#733）と `--format pdf`（単一 PDF 内の複数ページ、`--chart-pagination` の PDF 統合と同じページ構成規則、#736）の両方に対応。`tdsl_render::PdfOptions` に `chart_pagination_range: Option<usize>` を追加し、`render_pdf_with_warnings` の戻り値は `(Vec<u8>, Vec<String>)` から `(Vec<u8>, PdfWarnings)` に変更（`PdfWarnings` は `group_bands_split_across_pages` と `items_crossing_boundaries` の2フィールドを持つ。#708 と同じ 2.0.0 に含まれる）
+
+- **VS Code 拡張にプレビュー Webview と LSP 再起動コマンドを追加**（#754）: `contributes` に `commands` が 1 つも無く、年表を見るにはターミナルで `tdsl render` を実行してブラウザで開く必要があった。保存/変更イベント駆動で単発の `tdsl render` を回す Webview プレビューと、LSP の再起動コマンド、トレース設定を追加した（`--watch` は使わない。子プロセスのライフサイクル管理が拡張側の責務になり、終了経路を 1 つでも取りこぼすとプロセスが残るため）
 
 ### Changed
 
-- **BREAKING（次回メジャーリリース予定）: `tdsl-render` の render API が `RenderError` を返すよう変更**（#708）: `--layout-style zigzag` が 2 lane を超える場合に通常レイアウトへフォールバックせず明示エラーにするため、`render_html` / `render_svg_only` のエラー型を `std::fmt::Error` から `RenderError` に変更した。`PaginationError::Render` の payload も `RenderError` に変更し、`PdfError::Render(RenderError)` を追加した。外部利用者は従来の書式エラーを `RenderError::Fmt`、未対応レイアウトを `RenderError::UnsupportedLayout` として処理すること。次のリリースタグは SemVer に従い 2.0.0 とする。
-- **BREAKING（同上 2.0.0 へ合流）: `tdsl_render::render_pdf_with_warnings` の戻り値を `(Vec<u8>, Vec<String>)` から `(Vec<u8>, PdfWarnings)` に変更**（#736、詳細は Added の `--chart-pagination-range` PDF 統合を参照）: 外部利用者は `warnings.group_bands_split_across_pages`（従来の `Vec<String>` 相当）と `warnings.items_crossing_boundaries` をそれぞれ参照すること。
+- **BREAKING: `tdsl-render` の render API が `RenderError` を返すよう変更**（#708）: `--layout-style zigzag` が 2 lane を超える場合に通常レイアウトへフォールバックせず明示エラーにするため、`render_html` / `render_svg_only` のエラー型を `std::fmt::Error` から `RenderError` に変更した。`PaginationError::Render` の payload も `RenderError` に変更し、`PdfError::Render(RenderError)` を追加した。外部利用者は従来の書式エラーを `RenderError::Fmt`、未対応レイアウトを `RenderError::UnsupportedLayout` として処理すること。
+- **BREAKING: `tdsl_render::render_pdf_with_warnings` の戻り値を `(Vec<u8>, Vec<String>)` から `(Vec<u8>, PdfWarnings)` に変更**（#736、詳細は Added の `--chart-pagination-range` PDF 統合を参照）: 外部利用者は `warnings.group_bands_split_across_pages`（従来の `Vec<String>` 相当）と `warnings.items_crossing_boundaries` をそれぞれ参照すること。
 
 ### Fixed
 
 - **`osv-scan` CI が既知脆弱性で継続的に失敗していたのを修正**（#731）: `apps/webui` の `brace-expansion`（GHSA-mh99-v99m-4gvg / GHSA-rgw5-rvv9-x895、DoS）と `nanoid`（GHSA-2v37-7h3g-55p8、無限ループ）は `package.json` の `overrides` で修正版に固定した。`Cargo.lock` の `rustybuzz` 0.20.1（RUSTSEC-2026-0206）・`ttf-parser` 0.25.1（RUSTSEC-2026-0192）は CVE ではなく RustSec の unmaintained 判定（今後も修正版は出ない）で、`tdsl-render` の推移的依存（`usvg`/`resvg`/`fontdb` 経由）を直接置き換えるには major upgrade が必要なため本PRのスコープ外とし、`osv-scanner.toml` に理由と `ignoreUntil = 2026-11-08`（silent renewal を避けるための再確認期限）を明記した上で一時的に ignore 対象とした
 - **WASM 出力の SVG/HTML に `data-line` 等の interactive 属性が一切埋め込まれていなかったのを修正**（#700）: `render_svg_from_source` / `render_svg_from_source_with_options` / `render_html_from_source` / `render_html_from_source_with_options` はいずれも `RenderOptions::interactive` を常に `false` のまま `tdsl-render` へ渡していたため、`data-id` / `data-label` / `data-type` / `data-source` / `data-line` が出力されず、`tdsl_wasm.d.ts` の docstring（「`data-line` が埋め込まれる」）と実際の出力が乖離していた。WASM バインディングはブラウザでのインタラクティブプレビュー専用（WebUI のカーソル↔プレビュー双方向ジャンプ等）であるため、`render_options_for_ir` で常に `interactive: true` を設定するよう修正した
 - **SVG アイテムの `aria-label` を英語に固定 / lane 色カスタムプロパティのスコープを `:root` から `:where(.tdsl-root)` に変更**（#701）: `item_aria_label` が `"スパン"` / `"イベント"` / `"期間イベント"` / `"レーン"` を日本語ハードコードで出力しており、`obsidian-tdsl` 側が UI 文言を英語に統一済み（#82）であることと食い違っていたため `"Span"` / `"Event"` / `"Event range"` / `"Lane"` に修正した。また `<style>` 内の lane 色カスタムプロパティ（`--tdsl-lane-N`）の定義に `:root` セレクタを使っていたため、SVG を `<img>` ではなく `DOMParser` + `document.adoptNode` でインライン DOM として挿入するホスト（`obsidian-tdsl` 等）でホストページの `<html>` 全体を汚染していた問題を、`:where(.tdsl-root)`（生成される `<svg>` 自身のクラスに限定しつつ `:where()` で詳細度をゼロにしたセレクタ）にスコープを限定することで修正した。`timeline-dsl-lp` の semantic-token ブリッジ（DESIGN.md、`.tdsl-root { --tdsl-lane-N: var(--tdsl-lane-warm) }` 等）のようにホスト側が既に `.tdsl-root` で lane 色を上書きしている場合、詳細度をゼロにしたことでスタイルシートの読み込み順に関わらず確実にホスト側の定義が優先されるようになる（後方互換）
+
+- **`lint` が ERROR を検出しても終了コード 0 を返していたのを修正**（#766）: CI で `tdsl lint` を回しても、ERROR 相当の指摘があるまま成功として通っていた
+- **未知 lane の silent drop と degenerate range の既定値握りつぶしをエラーに変更**（#765）: 存在しない lane を参照する item が黙って捨てられ、`range` が退化している場合は既定値で埋められていた。どちらも出力が静かに変わるため、気づかずに誤った図を公開しうる
+- **`field_priority` の型不一致を silent replace からエラーに変更**（#762）: 想定と違う型が来たとき、黙って別の値へ置き換えていた
+- **`claim` の offset が 2 つの経路で黙って消えるのを修正**（#759）: `claim(P571).year+30` の offset が、エラーも警告も出さずに失われていた。年シフトが効いていないことに気づけない
+- **`claim` の accessor を enum 化し、typo の silent skip をやめる**（#758）: 綴りを間違えた accessor が黙って無視されていた
+- **`import` alias の重複を拒否する**（#761）: 同じ alias を 2 回宣言すると、後勝ちで silent overwrite していた
+- **`lint --fix` が offset 付きの正しい span を「逆転」と誤判定して破壊するのを修正**（#757）
+- **Wikidata クライアントの `.expect()` を解消し、`Retry-After` に上限を設ける**（#768）: 公開コンストラクタがライブラリ層で panic しえた。また `Retry-After` に極端な値が入ると無制限に待つ状態だった
+- **`E114` のメッセージの余分な空白と誤った修正案内を修正**（#777 の自動レビュー指摘より）
+- **lowering エラーに位置情報を持たせ、miette 表示へ接続**（#760）: 従来はエラーに行番号が付かず、どこが原因か出力から辿れなかった
+- **`tdsl-preview` の PR コメント検索をページネーション対応に修正**（#704）: コメントが 1 ページを超えるとプレビュー用コメントを見つけられず、重複投稿していた
+
+### Performance
+
+- **`mapping` の全データ複製を `mem::take` で解消**（#763）: `apply` / `query`（一括インポート）で、エンティティ数 × map 数に比例した全データ複製が起きていた
+- **`lint` の行番号計算を O(n·m) から二分探索へ**（#763）
+- **LSP hover の QID 引き当てを直接パス構築＋セッション内メモ化に変更**（#770）: `read_cached_entity` がキャッシュディレクトリ全体を毎回線形走査しており、キャッシュが数千ファイルに育つと hover の応答が目に見えて遅くなっていた。同期 fs I/O が tokio の async ハンドラ内で走っていた点も解消
+
+### Security
+
+- **Claude Code の permissions からワイルドカード付き Bash 許可を削除**（#745、配布元 keroway/agent-assets#163）
 
 ## [1.28.0] - 2026-07-26
 
@@ -630,6 +656,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[2.0.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.28.0...v2.0.0
 [1.28.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.27.0...v1.28.0
 [1.27.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.26.0...v1.27.0
 [1.26.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.25.0...v1.26.0
