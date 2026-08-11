@@ -154,7 +154,12 @@ map_operand       = _{ claim_expr | integer }
 claim_offset      = @{ ("+" | "-") ~ ASCII_DIGIT+ }
 claim_expr        = { claim_call ~ claim_qualifier? ~ claim_accessor? ~ claim_offset? }
 claim_qualifier   = { "." ~ "qualifier" ~ "(" ~ property_id ~ ")" }
-claim_accessor    = { "." ~ ident }
+// accessor には `ident` を使わない。`ident` は `-` を含むため
+// `.year-30` の `-30` まで貪欲に飲み込み、accessor が `year-30` になって
+// **負の offset が消えていた**(#759)。英字のみの専用字句にして
+// `claim_offset` へ渡す。
+accessor_ident    = @{ ASCII_ALPHA+ }
+claim_accessor    = { "." ~ accessor_ident }
 claim_call        = { "claim" ~ "(" ~ property_id ~ ")" }
 
 label_expr = { label_ref ~ ("??" ~ label_ref)* }
