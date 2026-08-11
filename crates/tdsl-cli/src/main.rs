@@ -79,8 +79,10 @@ enum Commands {
 
     /// Check a .tdsl file for syntax and semantic errors
     Check {
-        #[arg(value_name = "FILE")]
-        input: PathBuf,
+        /// Input .tdsl files or directories (directories are searched
+        /// recursively for *.tdsl)
+        #[arg(value_name = "FILE", required = true, num_args = 1..)]
+        inputs: Vec<PathBuf>,
 
         /// Skip Wikidata resolution (currently the only mode; makes the
         /// offline-only behaviour explicit on the command line)
@@ -387,9 +389,10 @@ enum Commands {
     /// blocks are kept (content is not lost) but relocated to the nearest block boundary.
     /// `tdsl decompile` cannot restore comments because it starts from the IR.
     Fmt {
-        /// Input .tdsl file path
-        #[arg(value_name = "FILE")]
-        input: PathBuf,
+        /// Input .tdsl files or directories (directories are searched
+        /// recursively for *.tdsl)
+        #[arg(value_name = "FILE", required = true, num_args = 1..)]
+        inputs: Vec<PathBuf>,
 
         /// Exit non-zero when the file is not formatted (do not modify the file). CI-friendly.
         #[arg(long, default_value_t = false, conflicts_with = "write")]
@@ -402,9 +405,10 @@ enum Commands {
 
     /// Lint a .tdsl file and optionally apply safe fixes
     Lint {
-        /// Input .tdsl file path
-        #[arg(value_name = "FILE")]
-        input: PathBuf,
+        /// Input .tdsl files or directories (directories are searched
+        /// recursively for *.tdsl)
+        #[arg(value_name = "FILE", required = true, num_args = 1..)]
+        inputs: Vec<PathBuf>,
 
         /// Apply safe fixes in-place
         #[arg(long, default_value_t = false)]
@@ -676,7 +680,11 @@ fn main() {
             },
             wikidata_timeout,
         ),
-        Commands::Check { input, offline } => commands::check::cmd_check(&input, offline),
+        Commands::Check { inputs, offline } => {
+            commands::resolve_tdsl_inputs(&inputs).and_then(|files| {
+                commands::run_over_inputs(&files, |path| commands::check::cmd_check(path, offline))
+            })
+        }
         Commands::Ast { input } => commands::check::cmd_ast(&input),
         Commands::Fetch { qid, lang } => commands::fetch::cmd_fetch(&qid, &lang, wikidata_timeout),
         Commands::Search {
@@ -810,11 +818,19 @@ fn main() {
             wikidata_timeout,
         ),
         Commands::Fmt {
-            input,
+            inputs,
             check,
             write,
-        } => commands::fmt::cmd_fmt(&input, check, write),
-        Commands::Lint { input, fix, format } => commands::lint::cmd_lint(&input, fix, format),
+        } => commands::resolve_tdsl_inputs(&inputs).and_then(|files| {
+            commands::run_over_inputs(&files, |path| commands::fmt::cmd_fmt(path, check, write))
+        }),
+        Commands::Lint {
+            inputs,
+            fix,
+            format,
+        } => commands::resolve_tdsl_inputs(&inputs).and_then(|files| {
+            commands::run_over_inputs(&files, |path| commands::lint::cmd_lint(path, fix, format))
+        }),
         Commands::Cache { action } => commands::cache::cmd_cache(action),
         Commands::Decompile { input, output } => {
             commands::decompile::cmd_decompile(input.as_deref(), output.as_deref())

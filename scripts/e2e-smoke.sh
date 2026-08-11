@@ -36,6 +36,32 @@ grep -Fq '"title"' "$TMP_DIR/static.json"
 echo "[e2e] check: valid static file"
 cargo run -q -p tdsl-cli -- check examples/china_dynasties.tdsl
 
+# ---- 複数ファイル / ディレクトリ入力 (#750) ----------------------------------
+# ディレクトリを渡すと配下の *.tdsl を再帰的に処理する。1 件でも失敗すれば
+# 非ゼロ終了するが、最初の失敗で打ち切らず全件処理する。
+echo "[e2e] check: ディレクトリを再帰的に処理する (#750)"
+MULTI_DIR="${TMP_DIR}/multi/sub"
+mkdir -p "${MULTI_DIR}"
+cp examples/china_dynasties.tdsl "${TMP_DIR}/multi/one.tdsl"
+cp examples/world_wars.tdsl "${MULTI_DIR}/two.tdsl"
+cargo run -q -p tdsl-cli -- check "${TMP_DIR}/multi"
+
+echo "[e2e] check: 複数ファイルを個別に指定できる (#750)"
+cargo run -q -p tdsl-cli -- check "${TMP_DIR}/multi/one.tdsl" "${MULTI_DIR}/two.tdsl"
+
+echo "[e2e] check: 1 件でも失敗すれば非ゼロ終了する (#750)"
+cp tests/fixtures/invalid_syntax.tdsl "${TMP_DIR}/multi/bad.tdsl"
+assert_fails cargo run -q -p tdsl-cli -- check "${TMP_DIR}/multi"
+rm "${TMP_DIR}/multi/bad.tdsl"
+
+echo "[e2e] check: .tdsl が 1 件も無いディレクトリは非ゼロ終了する (#750)"
+mkdir -p "${TMP_DIR}/no-tdsl"
+assert_fails cargo run -q -p tdsl-cli -- check "${TMP_DIR}/no-tdsl"
+
+echo "[e2e] fmt/lint: ディレクトリ入力を受け付ける (#750)"
+cargo run -q -p tdsl-cli -- fmt --check "${TMP_DIR}/multi"
+cargo run -q -p tdsl-cli -- lint "${TMP_DIR}/multi"
+
 # ---- tdsl check (abnormal) --------------------------------------------------
 echo "[e2e] check: syntax error file exits non-zero"
 assert_fails cargo run -q -p tdsl-cli -- check tests/fixtures/invalid_syntax.tdsl
