@@ -405,6 +405,8 @@ apply dynasty_span to wd {
 
 `editors/vscode/` に VS Code 拡張があります。`.tdsl` ファイルのキーワード・文字列・コメント・QIDなどを色分けします。
 
+`tdsl` バイナリが PATH 上にあれば、言語サーバ機能に加えて 2 つのコマンドが使えます: **Open Preview to the Side**（現在のファイルを SVG にレンダリングして Webview に表示。保存時に再描画）と **Restart Language Server**。
+
 **インストール方法（Marketplace）:**
 
 VS Code 上で `Ctrl+P`（macOS: `Cmd+P`）を押して以下を実行:

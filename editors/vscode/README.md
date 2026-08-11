@@ -52,6 +52,18 @@ See the [installation guide](https://github.com/keroway/timeline-dsl#installatio
 | Setting | Default | Description |
 |---|---|---|
 | `timelineDsl.serverPath` | `""` | Path to the `tdsl` binary. If empty, the binary is resolved from `PATH`. |
+| `timelineDsl.trace.server` | `"off"` | Trace LSP communication (`off` / `messages` / `verbose`). Use this when filing a bug report. |
+
+### Commands — requires `tdsl` binary
+
+| Command | Description |
+|---|---|
+| `Timeline DSL: Open Preview to the Side` | Render the current `.tdsl` file with `tdsl render --format svg` and show it in a Webview beside the editor. The preview refreshes on save. |
+| `Timeline DSL: Restart Language Server` | Restart the language server without reloading the window. |
+
+The preview runs `tdsl render` **once per refresh** rather than keeping `tdsl render --watch` alive: a long-lived child process would have to be torn down on every window close, workspace switch, and extension reload, and a missed teardown leaves the process running.
+
+The preview requires a **saved** file (the CLI takes a path). Scripts are disabled in the Webview (`default-src 'none'`); interactive features live in the WebUI.
 
 ## Example
 
