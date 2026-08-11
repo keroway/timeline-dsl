@@ -15,6 +15,14 @@ pub enum ParseError {
     #[error("Unknown map target type '{0}' (expected one of: span, event, event_range)")]
     UnknownTargetType(String),
 
+    #[error("Unknown claim accessor '{value}' (expected one of: {expected})")]
+    UnknownClaimAccessor {
+        value: String,
+        expected: String,
+        /// バイト範囲 `"start:end"`。miette のキャレット表示に使う。
+        location: String,
+    },
+
     #[error("Unexpected rule {rule} at {location}")]
     UnexpectedRule { rule: String, location: String },
 
@@ -99,7 +107,10 @@ impl ParseDiagnostic {
             | ParseError::InvalidMonth { location, .. }
             | ParseError::InvalidDay { location, .. }
             | ParseError::InvalidSecond { location, .. }
-            | ParseError::InvalidOffset { location, .. } => parse_byte_range_to_span(location, src),
+            | ParseError::InvalidOffset { location, .. }
+            | ParseError::UnknownClaimAccessor { location, .. } => {
+                parse_byte_range_to_span(location, src)
+            }
             ParseError::UnknownPolicy(_) | ParseError::UnknownTargetType(_) => None,
         }
     }
@@ -167,7 +178,8 @@ impl ParseError {
             | ParseError::InvalidMonth { location, .. }
             | ParseError::InvalidDay { location, .. }
             | ParseError::InvalidSecond { location, .. }
-            | ParseError::InvalidOffset { location, .. } => byte_range_to_loc(location, src),
+            | ParseError::InvalidOffset { location, .. }
+            | ParseError::UnknownClaimAccessor { location, .. } => byte_range_to_loc(location, src),
             ParseError::UnknownPolicy(_) | ParseError::UnknownTargetType(_) => None,
         }
     }

@@ -441,13 +441,13 @@ pub(crate) fn eval_claim_expr(
     match dv {
         DataValue::Time { value } => {
             let tp = time_value_to_timepoint(value).ok()?;
-            let mut result = match expr.accessor.as_deref() {
-                Some("month") => tp.month.map(|_| tp)?,
-                Some("day") => tp.day.map(|_| tp)?,
-                Some("hour") => tp.hour.map(|_| tp)?,
-                Some("minute") => tp.minute.map(|_| tp)?,
-                Some("second") => tp.second.map(|_| tp)?,
-                Some("year") | None => TimePoint {
+            let mut result = match expr.accessor {
+                Some(ast::ClaimAccessor::Month) => tp.month.map(|_| tp)?,
+                Some(ast::ClaimAccessor::Day) => tp.day.map(|_| tp)?,
+                Some(ast::ClaimAccessor::Hour) => tp.hour.map(|_| tp)?,
+                Some(ast::ClaimAccessor::Minute) => tp.minute.map(|_| tp)?,
+                Some(ast::ClaimAccessor::Second) => tp.second.map(|_| tp)?,
+                Some(ast::ClaimAccessor::Year) | None => TimePoint {
                     year: tp.year,
                     month: None,
                     day: None,
@@ -456,7 +456,8 @@ pub(crate) fn eval_claim_expr(
                     second: None,
                     precision: tp.precision,
                 },
-                _ => return None,
+                // 未知 accessor の `_ => return None` は不要になった。
+                // accessor は enum になり、パース時に拒否される（#758）。
             };
             if let Some(off) = expr.offset {
                 result.year += i64::from(off);
