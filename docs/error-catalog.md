@@ -455,6 +455,39 @@ event lane 1950 "手書きのイベント" { id "x1_manual"; };
 
 ---
 
+### E115: import エイリアスの重複
+
+**メッセージ**: `Duplicate import alias: {alias} (use \`import <QID> as <alias>\` to give each import block a distinct alias)`
+
+**原因**: 同じエイリアスの `import` ブロックが 2 つ以上あります。`as` を省略した場合のエイリアスは **import 元の名前そのもの**（`import Q7209 { ... }` なら `Q7209`）なので、**同じ QID を 2 回 import** しても衝突します。
+
+**修正方法**: `import <QID> as <alias>` で各ブロックに別々のエイリアスを付けるか、同じ import 元をまとめて 1 ブロックにしてください。
+
+```tdsl
+# 誤り（同じ QID を 2 回。どちらも alias が "Q7209" になる）
+import Q7209 { entity Q7209 as han; }
+import Q7209 { entity Q7209 as han2; }
+
+# 正しい（1 ブロックにまとめる）
+import Q7209 { entity Q7209 as han; entity Q7209 as han2; }
+```
+
+```tdsl
+# 誤り（明示した alias が重複）
+import Q7209 as wd { entity Q7209 as han; }
+import Q8686 as wd { entity Q8686 as tang; }
+
+# 正しい
+import Q7209 as han_src { entity Q7209 as han; }
+import Q8686 as tang_src { entity Q8686 as tang; }
+```
+
+**補足（v1.29.0 以降）**: 以前は 2 つ目の import ブロックが 1 つ目のエンティティ群を**黙って置換**していました。lane（E102）・template（E109）は同条件をエラーにしており、import だけが silent fallback になっていたのを揃えたものです。
+
+異なる import 元を `as` 省略で並べるのは正当で、引き続きエラーになりません（`import Q7209 {}` と `import Q8686 {}` は別エイリアス）。
+
+---
+
 ## バリデーション警告（tdsl-core: validate）
 
 IR生成後の整合性チェックで発生する警告です。ビルドは続行されますが、出力が意図と異なる可能性があります。

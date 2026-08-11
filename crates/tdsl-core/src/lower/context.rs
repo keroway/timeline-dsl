@@ -21,6 +21,10 @@ pub(crate) struct LoweringContext {
     pub(crate) item_imported_by_id: HashMap<String, bool>,
     #[cfg(feature = "wikidata")]
     pub(crate) import_record_index_by_item_id: HashMap<String, usize>,
+    /// Pass 1 で見た import alias。重複検出に使う（#761）。
+    /// Pass 3 の `import_entities` は wikidata feature 有りでしか作られないため、
+    /// offline でも効くよう独立して持つ。
+    pub(crate) import_aliases_seen: std::collections::HashSet<String>,
     pub(crate) errors: Vec<crate::error::SpannedLoweringError>,
     /// いま処理している statement のソース範囲。各パスの statement ループが
     /// 先頭で設定し、`push_error()` がこれをエラーに添える（#760）。
@@ -70,6 +74,7 @@ impl LoweringContext {
             item_imported_by_id: HashMap::new(),
             #[cfg(feature = "wikidata")]
             import_record_index_by_item_id: HashMap::new(),
+            import_aliases_seen: std::collections::HashSet::new(),
             errors: Vec::new(),
             current_span: None,
             warnings: Vec::new(),

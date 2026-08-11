@@ -121,6 +121,15 @@ impl LoweringContext {
                         self.lower_lane_decl(l, Some(&g.label), &stmt.span, line_offsets);
                     }
                 }
+                ast::Statement::Import(imp) => {
+                    // alias は「`as` 指定 ?? source_type」。Pass 3 の
+                    // `import_alias` と同じ規則で揃えること（片方だけ変えると
+                    // 検出漏れになる）。
+                    let alias = imp.alias.clone().unwrap_or_else(|| imp.source_type.clone());
+                    if !self.import_aliases_seen.insert(alias.clone()) {
+                        self.push_error(LoweringError::DuplicateImportAlias(alias));
+                    }
+                }
                 ast::Statement::Template(t) => {
                     let key = t.alias.clone().unwrap_or_else(|| t.name.clone());
                     if self.templates.contains_key(&key) {
