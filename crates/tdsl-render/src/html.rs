@@ -727,6 +727,8 @@ const INTERACTIVE_JS: &str = r#"(() => {
       const type_  = el.getAttribute("data-type")   || "";
       const lane   = el.getAttribute("data-lane")   || "";
       const source = el.getAttribute("data-source") || "";
+      const note   = el.getAttribute("data-note")   || "";
+      const link   = el.getAttribute("data-link")   || "";
       let html = "<dl>";
       if (label)  html += "<dt>ラベル</dt><dd>" + escapeHtml(label) + "</dd>";
       if (type_)  html += "<dt>種別</dt><dd>"   + escapeHtml(type_) + "</dd>";
@@ -738,6 +740,12 @@ const INTERACTIVE_JS: &str = r#"(() => {
         } else {
           html += "<dt>出典</dt><dd>" + escapeHtml(source) + "</dd>";
         }
+      }
+      if (note) html += "<dt>メモ</dt><dd>" + escapeHtml(note) + "</dd>";
+      if (link) {
+        // URL は lowering が http/https に限定して検証済み（InvalidItemLink）。
+        // それでも rel="noopener" は外さない — 出力 HTML は第三者に配布されうる。
+        html += "<dt>参照リンク</dt><dd><a href='" + escapeHtml(link) + "' target='_blank' rel='noopener noreferrer'>" + escapeHtml(link) + "</a></dd>";
       }
       html += "</dl>";
       detailContent.innerHTML = html;
