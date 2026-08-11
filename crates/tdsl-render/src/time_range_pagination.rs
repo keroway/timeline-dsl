@@ -36,7 +36,9 @@
 use tdsl_core::ir::{Item, TimelineIr};
 
 use crate::RenderError;
-use crate::layout::{LayoutModel, RenderOptions, TABLE_ROW_HEIGHT, collect_table_rows};
+use crate::layout::{
+    LayoutModel, RenderOptions, collect_table_rows, lane_label_lookup, single_table_page_height,
+};
 use crate::pagination::{ChartPage, PageKind};
 use crate::svg::{render_svg, render_table_page_svg};
 
@@ -367,15 +369,8 @@ pub fn paginate_svg_by_time_range(
     }
 
     if opts.show_table {
-        let lane_label_lookup = |lane_id: &str| -> String {
-            ir.lanes
-                .iter()
-                .find(|lane| lane.id == lane_id)
-                .map(|lane| lane.label.clone())
-                .unwrap_or_else(|| lane_id.to_string())
-        };
-        let table_rows = collect_table_rows(ir, lane_label_lookup);
-        let table_height = TABLE_ROW_HEIGHT * (table_rows.len() as f64 + 1.0) + 24.0;
+        let table_rows = collect_table_rows(ir, lane_label_lookup(ir));
+        let table_height = single_table_page_height(table_rows.len());
         let table_svg =
             render_table_page_svg(&table_rows, chart_width as f32, table_height as f32, 1, 1)?;
         pages.push(ChartPage {
