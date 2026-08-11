@@ -138,7 +138,11 @@ pub fn format_offset_suffix(offset_minutes: i16) -> String {
 /// ADR 0003 D2 に準拠した、offset の有無を考慮した時刻比較。
 ///
 /// - offset 付き同士は `offset_minutes` を差し引いて UTC 相当の暦時刻に正規化して比較する。
-/// - offset なし同士は、従来どおり暦時刻の値そのもので比較する（`to_sortable()` 相当）。
+/// - offset なし同士は暦時刻の値そのもので比較する。**時分秒まで見る**
+///   （`to_sortable()` は年月日しか返さないため使わない）。validate 側の
+///   `compare_ir_time` は以前から時分秒まで見ており、ここだけ粗いと
+///   「同一日内で時刻だけ逆転した range」を lint が見逃して validate だけが
+///   報告する、という非一貫が生じる（#757）。
 /// - 片方のみ offset 付きの場合は曖昧な比較として明示エラー（`MixedOffsetComparison`）を返す。
 ///   offset なしを暗黙に UTC とみなすことはしない（CLAUDE.md「No silent fallback」原則）。
 pub(crate) fn compare_time_values(
@@ -151,12 +155,30 @@ pub(crate) fn compare_time_values(
             let norm_b = normalize_sortable_utc(b, off_b);
             Ok(norm_a.cmp(&norm_b))
         }
-        (None, None) => Ok(a.to_sortable().cmp(&b.to_sortable())),
+        (None, None) => Ok(civil_sortable(a).cmp(&civil_sortable(b))),
         _ => Err(crate::error::LoweringError::MixedOffsetComparison(
             a.to_string(),
             b.to_string(),
         )),
     }
+}
+
+/// offset なしの civil time を、時分秒まで含めた比較用タプルへ落とす。
+///
+/// `TimeValue::to_sortable()` は `(年, 月, 日)` しか返さないため、
+/// これで比較すると同一日内の時刻の前後関係が消える。validate の
+/// `compare_ir_time` が使う `sortable_tuple` と同じ粒度に揃えるための関数（#757）。
+/// 未指定の下位フィールドは 0 として扱う（`2024` < `2024-01-01T00:00` ではなく等価）。
+fn civil_sortable(t: &ast::TimeValue) -> (i64, u8, u8, u8, u8, u8) {
+    let (y, m, d) = t.to_sortable();
+    (
+        y,
+        m,
+        d,
+        t.hour().unwrap_or(0),
+        t.minute().unwrap_or(0),
+        t.second().unwrap_or(0),
+    )
 }
 
 /// offset付き civil time を UTC 秒へ正規化する。日跨ぎ・月跨ぎ・BCEにも対応する

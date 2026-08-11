@@ -649,9 +649,45 @@ tdsl fetch Q7209 --lang ja
 
 **メッセージ**: `span range is reversed: {start}..{end}` / `event_range is reversed: {start}..{end}`
 
-**原因**: 開始年と終了年が逆になっています。
+**原因**: 開始と終了が逆になっています。
 
-**修正方法**: `tdsl lint --fix` で自動修正されます。
+順序判定は lowering / validate と同じ規則（ADR 0003 D2）で行います。**年月日だけでなく時分秒まで見て、UTC オフセット付きの値は UTC に正規化してから比較します**。したがって次のどちらも正しく扱われます。
+
+```tdsl
+# 正しい（UTC に直すと 2024-01-01T23:00Z .. 2024-01-02T01:00Z で正順。
+# 暦の日付だけを見ると逆転して見えるが、これは逆転ではない）
+span a 2024-01-02T08:00+09:00..2024-01-01T20:00-05:00 "S" { id "s1"; };
+```
+
+```tdsl
+# 誤り（同一日内で時刻だけ逆転している。日付だけを見ると検出できない）
+span a 2024-01-01T20:00..2024-01-01T08:00 "S" { id "s2"; };
+
+# 正しい
+span a 2024-01-01T08:00..2024-01-01T20:00 "S" { id "s2"; };
+```
+
+**修正方法**: `tdsl lint --fix` で自動修正されます（start と end を入れ替えます）。
+
+---
+
+### ERROR: mixed_offset_range — 片側だけ UTC オフセット付きで順序が決まらない
+
+**メッセージ**: `span range mixes a UTC-offset time value with one that has no offset; start/end order cannot be determined (ADR 0003 D2, make both sides consistent): {start}..{end}`
+
+**原因**: range の片側だけに UTC オフセットが付いています。オフセットなしの値をどのタイムゾーンとみなすかは決まっていないため（暗黙に UTC とはみなしません）、開始と終了の前後関係を判定できません。
+
+**修正方法**: **`tdsl lint --fix` では直せません**（`fixable: false`）。順序が決まらないものを入れ替えても正しくはならないため、書き手が両側の表記を揃える必要があります。
+
+```tdsl
+# 誤り（片側だけ +09:00）
+span a 2024-01-02T08:00+09:00..2024-01-01T20:00 "S" { id "s3"; };
+
+# 正しい（両側にオフセットを付ける）
+span a 2024-01-02T08:00+09:00..2024-01-01T20:00-05:00 "S" { id "s3"; };
+```
+
+同じ状況を `tdsl check`（validate）は `Span "..." mixes a UTC-offset time value with a value that has no offset` として報告します。
 
 ---
 

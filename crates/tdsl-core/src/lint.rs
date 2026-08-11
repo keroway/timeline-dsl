@@ -16,6 +16,70 @@ pub struct LintIssue {
     pub fixable: bool,
 }
 
+/// range の開始・終了の順序を判定し、issue があれば積む。
+///
+/// 以前はここで `TimeValue::to_sortable()` を直接比較していたが、これは
+/// **年月日しか見ず、時分秒と UTC オフセットを捨てる**。その結果:
+///
+/// - `2024-01-02T08:00+09:00..2024-01-01T20:00-05:00` は UTC では正順なのに
+///   逆転と誤判定され、`--fix` が swap して**正しいファイルを壊していた**
+///   （修正後は `tdsl check` が start > end を報告する状態になる）
+/// - 逆に同一日内で時刻だけ逆転した range は見逃していた
+///
+/// lowering / validate は ADR 0003 D2 に従って UTC 正規化し時分秒まで見る
+/// 比較をしており、lint だけが別の順序判定を持っていた。判定を
+/// `lower::compare_time_values` に一本化する（#757）。
+///
+/// 片側だけ offset 付きの比較は原理的に順序が決まらないため、swap ではなく
+/// **修正不能な別コード `mixed_offset_range`** として報告する。
+fn lint_range_order(
+    kind: &str,
+    start: &tdsl_parser::ast::TimeValue,
+    end: &tdsl_parser::ast::TimeValue,
+    line: usize,
+    issues: &mut Vec<LintIssue>,
+) {
+    match crate::lower::compare_time_values(start, end) {
+        Ok(std::cmp::Ordering::Greater) => issues.push(LintIssue {
+            code: "start_gt_end".to_string(),
+            severity: LintSeverity::Error,
+            line,
+            message: format!("{kind} is reversed: {start}..{end}"),
+            fixable: true,
+        }),
+        Ok(_) => {}
+        Err(_) => issues.push(LintIssue {
+            code: "mixed_offset_range".to_string(),
+            severity: LintSeverity::Error,
+            line,
+            // 自動修正できない理由をメッセージ自体に書く。swap しても順序は
+            // 決まらないため、直せるのは書き手だけ。
+            message: format!(
+                "{kind} mixes a UTC-offset time value with one that has no offset; \
+                 start/end order cannot be determined (ADR 0003 D2, make both sides consistent): \
+                 {start}..{end}"
+            ),
+            fixable: false,
+        }),
+    }
+}
+
+/// `--fix` が start/end を swap してよいかを判定する。
+///
+/// **フル精度で確定的に逆転している場合だけ true を返す。** 片側だけ offset 付きで
+/// 順序が決まらないケース（`Err`）で swap すると、決まらないものを勝手に並べ替えて
+/// 別の不正なファイルを作ることになる。検出側は `mixed_offset_range` として
+/// `fixable: false` で報告し、ここでは触らない（#757）。
+fn should_swap_range(
+    start: &tdsl_parser::ast::TimeValue,
+    end: &tdsl_parser::ast::TimeValue,
+) -> bool {
+    matches!(
+        crate::lower::compare_time_values(start, end),
+        Ok(std::cmp::Ordering::Greater)
+    )
+}
+
 pub fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue> {
     use tdsl_parser::ast::Statement;
 
@@ -42,15 +106,7 @@ pub fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue
                     line,
                     &mut issues,
                 );
-                if s.start.to_sortable() > s.end.to_sortable() {
-                    issues.push(LintIssue {
-                        code: "start_gt_end".to_string(),
-                        severity: LintSeverity::Error,
-                        line,
-                        message: format!("span range is reversed: {}..{}", s.start, s.end),
-                        fixable: true,
-                    });
-                }
+                lint_range_order("span range", &s.start, &s.end, line, &mut issues);
                 lint_time_value(&s.start, line, &mut issues);
                 lint_time_value(&s.end, line, &mut issues);
             }
@@ -76,15 +132,7 @@ pub fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue
                     line,
                     &mut issues,
                 );
-                if er.start.to_sortable() > er.end.to_sortable() {
-                    issues.push(LintIssue {
-                        code: "start_gt_end".to_string(),
-                        severity: LintSeverity::Error,
-                        line,
-                        message: format!("event_range is reversed: {}..{}", er.start, er.end),
-                        fixable: true,
-                    });
-                }
+                lint_range_order("event_range", &er.start, &er.end, line, &mut issues);
                 lint_time_value(&er.start, line, &mut issues);
                 lint_time_value(&er.end, line, &mut issues);
             }
@@ -301,7 +349,7 @@ pub fn apply_lint_fixes(file: &mut tdsl_parser::ast::File) -> usize {
         match &mut stmt.node {
             Statement::Span(s) => {
                 fixed += fix_tags(&mut s.props.tags);
-                if s.start.to_sortable() > s.end.to_sortable() {
+                if should_swap_range(&s.start, &s.end) {
                     std::mem::swap(&mut s.start, &mut s.end);
                     fixed += 1;
                 }
@@ -325,7 +373,7 @@ pub fn apply_lint_fixes(file: &mut tdsl_parser::ast::File) -> usize {
             }
             Statement::EventRange(er) => {
                 fixed += fix_tags(&mut er.props.tags);
-                if er.start.to_sortable() > er.end.to_sortable() {
+                if should_swap_range(&er.start, &er.end) {
                     std::mem::swap(&mut er.start, &mut er.end);
                     fixed += 1;
                 }
@@ -417,6 +465,136 @@ mod tests {
     use super::*;
 
     // ─── 検出ケース ──────────────────────────────────────────────────────────
+
+    // ─── range の順序判定（#757）────────────────────────────────────────────
+    //
+    // 以前は `to_sortable()`（年月日のみ）で比較しており、時分秒と UTC offset を
+    // 捨てていた。以下 4 ケースは、どれか 1 つでも旧実装に戻すと落ちる。
+
+    fn span_src(range: &str) -> String {
+        format!(
+            r#"
+timeline "T" {{ unit year; range 0..3000; }}
+lane "A" as a {{ kind custom; }}
+span a {range} "S" {{ id "s1"; }};
+"#
+        )
+    }
+
+    /// UTC に直すと正順なので、逆転として報告してはならない。
+    /// 旧実装は年月日だけを見て 01-02 > 01-01 と判定し ERROR を出していた。
+    #[test]
+    fn lint_accepts_offset_range_that_is_ordered_in_utc() {
+        let src = span_src("2024-01-02T08:00+09:00..2024-01-01T20:00-05:00");
+        let file = tdsl_parser::parse(&src).unwrap();
+        let issues = lint_issues(&file, &src);
+        assert!(
+            !issues.iter().any(|i| i.code == "start_gt_end"),
+            "UTC では 23:00 < 01:00 で正順なのに逆転と報告された: {issues:?}"
+        );
+    }
+
+    /// 上と同じ入力で `--fix` が swap してはならない。
+    /// swap すると `tdsl check` が start > end を出す不正なファイルになる
+    /// （＝正しいファイルを壊す、この issue の最も深刻な症状）。
+    #[test]
+    fn fix_does_not_swap_offset_range_that_is_ordered_in_utc() {
+        let src = span_src("2024-01-02T08:00+09:00..2024-01-01T20:00-05:00");
+        let mut file = tdsl_parser::parse(&src).unwrap();
+        apply_lint_fixes(&mut file);
+        let tdsl_parser::ast::Statement::Span(s) = &file
+            .statements
+            .iter()
+            .find(|st| matches!(st.node, tdsl_parser::ast::Statement::Span(_)))
+            .expect("span statement")
+            .node
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            s.start.to_string(),
+            "2024-01-02T08:00+09:00",
+            "start が swap された"
+        );
+    }
+
+    /// 同一日内で時刻だけ逆転しているケース。旧実装は年月日が同じため見逃していた
+    /// （validate は報告しており、lint との非一貫が生じていた）。
+    #[test]
+    fn lint_detects_same_day_time_only_reversal() {
+        let src = span_src("2024-01-01T20:00..2024-01-01T08:00");
+        let file = tdsl_parser::parse(&src).unwrap();
+        let issues = lint_issues(&file, &src);
+        assert!(
+            issues.iter().any(|i| i.code == "start_gt_end"),
+            "同一日内の時刻逆転を見逃した: {issues:?}"
+        );
+    }
+
+    /// 片側だけ offset 付きは順序が決まらない。swap ではなく
+    /// 修正不能な別コードで報告する。
+    #[test]
+    fn lint_reports_mixed_offset_range_as_unfixable() {
+        let src = span_src("2024-01-02T08:00+09:00..2024-01-01T20:00");
+        let file = tdsl_parser::parse(&src).unwrap();
+        let issues = lint_issues(&file, &src);
+        let issue = issues
+            .iter()
+            .find(|i| i.code == "mixed_offset_range")
+            .unwrap_or_else(|| panic!("mixed_offset_range が無い: {issues:?}"));
+        assert!(
+            !issue.fixable,
+            "順序が決まらないものを fixable にしてはいけない"
+        );
+        assert!(
+            !issues.iter().any(|i| i.code == "start_gt_end"),
+            "順序不定を逆転として報告してはいけない: {issues:?}"
+        );
+
+        let mut file = tdsl_parser::parse(&src).unwrap();
+        apply_lint_fixes(&mut file);
+        let tdsl_parser::ast::Statement::Span(s) = &file
+            .statements
+            .iter()
+            .find(|st| matches!(st.node, tdsl_parser::ast::Statement::Span(_)))
+            .expect("span statement")
+            .node
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            s.start.to_string(),
+            "2024-01-02T08:00+09:00",
+            "順序が決まらない range を swap してはいけない"
+        );
+    }
+
+    /// 本当に逆転している範囲は、従来どおり検出し修正できること（退行防止）。
+    #[test]
+    fn lint_still_fixes_genuinely_reversed_range() {
+        let src = span_src("2025..2021");
+        let file = tdsl_parser::parse(&src).unwrap();
+        assert!(
+            lint_issues(&file, &src)
+                .iter()
+                .any(|i| i.code == "start_gt_end" && i.fixable),
+            "明らかな逆転を検出できていない"
+        );
+
+        let mut file = tdsl_parser::parse(&src).unwrap();
+        assert!(apply_lint_fixes(&mut file) > 0);
+        let tdsl_parser::ast::Statement::Span(s) = &file
+            .statements
+            .iter()
+            .find(|st| matches!(st.node, tdsl_parser::ast::Statement::Span(_)))
+            .expect("span statement")
+            .node
+        else {
+            unreachable!()
+        };
+        assert_eq!(s.start.to_string(), "2021");
+        assert_eq!(s.end.to_string(), "2025");
+    }
 
     #[test]
     fn lint_detects_unknown_lane() {
