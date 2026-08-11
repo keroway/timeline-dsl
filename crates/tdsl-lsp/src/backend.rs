@@ -65,6 +65,34 @@ impl Backend {
         }
     }
 
+    /// `documents` のロックを取得する。**poison していても回復して続行する。**
+    ///
+    /// 以前は 12 箇所で `.expect("documents lock poisoned")` していた（#771）。
+    /// コメントには「単一スレッド文脈では panic しない」とあったが不正確で、
+    /// `LspService` はマルチスレッド runtime 上で動く。どれか 1 ハンドラが
+    /// ロック保持中に panic すると Mutex が poison し、以後**すべての**リクエストが
+    /// `expect` で panic し続けてサーバが実質死ぬ。
+    ///
+    /// ここで扱うのはエディタが送ってくるドキュメント本文のキャッシュであり、
+    /// 途中まで書き込まれた不整合状態が残っても次の `didChange` で上書きされる。
+    /// **サーバごと止めるより、poison を無視して動き続ける方が損害が小さい。**
+    fn documents_lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, DocumentState>> {
+        self.documents.lock().unwrap_or_else(|poisoned| {
+            // 復旧したことを観測できるようにログへ残す（silent に握り潰さない）。
+            eprintln!(
+                "warning: documents mutex was poisoned; recovering and continuing (see #771)"
+            );
+            poisoned.into_inner()
+        })
+    }
+
+    /// 指定 URI のドキュメント本文を取得する。
+    ///
+    /// 12 箇所に散っていた「ロックを取って `get` して `clone`」を 1 箇所に集約する。
+    fn document_text(&self, uri: &str) -> Option<String> {
+        self.documents_lock().get(uri).map(|d| d.text.clone())
+    }
+
     /// 指定 URI のドキュメントを診断して `publishDiagnostics` を送信する。
     async fn run_diagnostics(&self, uri: Url, source: String, version: Option<i32>) {
         let diags = compute_diagnostics(&source);
@@ -139,11 +167,7 @@ impl LanguageServer for Backend {
     async fn hover(&self, params: HoverParams) -> LspResult<Option<Hover>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let source = {
-            // LSP サーバの単一スレッド文脈では panic しない
-            let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).map(|d| d.text.clone())
-        };
+        let source = self.document_text(uri.as_str());
         match source {
             Some(src) => Ok(compute_hover(&src, position)),
             None => Ok(None),
@@ -160,11 +184,7 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let position = params.text_document_position_params.position;
-        let source = {
-            // LSP サーバの単一スレッド文脈では panic しない
-            let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).map(|d| d.text.clone())
-        };
+        let source = self.document_text(uri.as_str());
         match source {
             Some(src) => Ok(compute_goto_definition(&src, position, &uri)),
             None => Ok(None),
@@ -174,11 +194,7 @@ impl LanguageServer for Backend {
     async fn completion(&self, params: CompletionParams) -> LspResult<Option<CompletionResponse>> {
         let uri = params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let text = {
-            // LSP サーバの単一スレッド文脈では panic しない
-            let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).map(|d| d.text.clone())
-        };
+        let text = self.document_text(uri.as_str());
         let completions = match text {
             Some(src) => contextual_completions(&src, position.line, position.character),
             None => keyword_completions(),
@@ -189,11 +205,7 @@ impl LanguageServer for Backend {
     async fn code_action(&self, params: CodeActionParams) -> LspResult<Option<CodeActionResponse>> {
         let uri = params.text_document.uri.clone();
         let range = params.range;
-        let doc = {
-            // LSP サーバの単一スレッド文脈では panic しない
-            let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).cloned()
-        };
+        let doc = self.documents_lock().get(uri.as_str()).cloned();
         let supports_document_changes = self.supports_document_changes.load(Ordering::Relaxed);
         match doc {
             Some(d) => Ok(Some(compute_code_actions(
@@ -212,11 +224,7 @@ impl LanguageServer for Backend {
         params: DocumentSymbolParams,
     ) -> LspResult<Option<DocumentSymbolResponse>> {
         let uri = params.text_document.uri;
-        let source = {
-            // LSP サーバの単一スレッド文脈では panic しない
-            let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).map(|d| d.text.clone())
-        };
+        let source = self.document_text(uri.as_str());
         match source {
             Some(src) => {
                 let syms = compute_document_symbols(&src);
@@ -230,11 +238,7 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let include_declaration = params.context.include_declaration;
-        let source = {
-            // LSP サーバの単一スレッド文脈では panic しない
-            let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).map(|d| d.text.clone())
-        };
+        let source = self.document_text(uri.as_str());
         match source {
             Some(src) => Ok(compute_references(
                 &src,
@@ -252,11 +256,7 @@ impl LanguageServer for Backend {
     ) -> LspResult<Option<PrepareRenameResponse>> {
         let uri = params.text_document.uri;
         let position = params.position;
-        let source = {
-            // LSP サーバの単一スレッド文脈では panic しない
-            let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).map(|d| d.text.clone())
-        };
+        let source = self.document_text(uri.as_str());
         match source {
             Some(src) => {
                 Ok(compute_prepare_rename(&src, position).map(PrepareRenameResponse::Range))
@@ -269,11 +269,7 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.clone();
         let position = params.text_document_position.position;
         let new_name = params.new_name.clone();
-        let source = {
-            // LSP サーバの単一スレッド文脈では panic しない
-            let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).map(|d| d.text.clone())
-        };
+        let source = self.document_text(uri.as_str());
         match source {
             Some(src) => match compute_rename(&src, position, &new_name, &uri) {
                 Ok(edit) => Ok(Some(edit)),
@@ -293,11 +289,7 @@ impl LanguageServer for Backend {
         params: DocumentFormattingParams,
     ) -> LspResult<Option<Vec<TextEdit>>> {
         let uri = params.text_document.uri;
-        let source = {
-            // LSP サーバの単一スレッド文脈では panic しない
-            let docs = self.documents.lock().expect("documents lock poisoned");
-            docs.get(uri.as_str()).map(|d| d.text.clone())
-        };
+        let source = self.document_text(uri.as_str());
         match source {
             Some(src) => Ok(compute_formatting(&src)),
             None => Ok(None),
@@ -315,8 +307,7 @@ impl LanguageServer for Backend {
 
         // documents マップを更新し、診断を実行する
         {
-            // Mutex のロック取得。LSP サーバの単一スレッド文脈では panic しない
-            let mut docs = self.documents.lock().expect("documents lock poisoned");
+            let mut docs = self.documents_lock();
             docs.insert(
                 uri.to_string(),
                 DocumentState {
@@ -346,7 +337,7 @@ impl LanguageServer for Backend {
         };
 
         {
-            let mut docs = self.documents.lock().expect("documents lock poisoned");
+            let mut docs = self.documents_lock();
             docs.insert(
                 uri.to_string(),
                 DocumentState {
@@ -363,7 +354,7 @@ impl LanguageServer for Backend {
         let uri = params.text_document.uri;
 
         {
-            let mut docs = self.documents.lock().expect("documents lock poisoned");
+            let mut docs = self.documents_lock();
             docs.remove(&uri.to_string());
         }
 
