@@ -232,6 +232,46 @@ export function SettingsModal({
             </div>
           </div>
           <div className="settings-section">
+            <div className="settings-label">{t('settingsLayoutStyle')}</div>
+            <select
+              className="settings-select"
+              value={settings.svgLayoutStyle}
+              title={t('settingsLayoutStyleTitle')}
+              onChange={(e) =>
+                updateSetting(
+                  'svgLayoutStyle',
+                  e.target.value as typeof settings.svgLayoutStyle
+                )
+              }
+            >
+              <option value="timeline">
+                {t('settingsLayoutStyleTimeline')}
+              </option>
+              <option value="group-bands">
+                {t('settingsLayoutStyleGroupBands')}
+              </option>
+              <option value="gantt">{t('settingsLayoutStyleGantt')}</option>
+              <option value="zigzag">{t('settingsLayoutStyleZigzag')}</option>
+            </select>
+          </div>
+          <div className="settings-section">
+            <div className="settings-label">{t('settingsShowLegend')}</div>
+            <div className="settings-row">
+              <button
+                type="button"
+                className={`btn${settings.svgShowLegend ? ' btn-active' : ''}`}
+                onClick={() =>
+                  updateSetting('svgShowLegend', !settings.svgShowLegend)
+                }
+                title={t('settingsShowLegendTitle')}
+              >
+                {settings.svgShowLegend
+                  ? t('settingsShowLegendOn')
+                  : t('settingsShowLegendOff')}
+              </button>
+            </div>
+          </div>
+          <div className="settings-section">
             <div className="settings-label">{t('settingsAutoSave')}</div>
             <div className="settings-row">
               <button

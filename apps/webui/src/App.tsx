@@ -74,12 +74,17 @@ function App() {
       grid: settings.svgGrid,
       theme: settings.svgTheme,
       showEventLabels: settings.svgShowEventLabels,
+      layoutStyle: settings.svgLayoutStyle,
+      showLegend: settings.svgShowLegend,
     }),
     [
       settings.svgOrientation,
       settings.svgGrid,
       settings.svgTheme,
       settings.svgShowEventLabels,
+      // 依存配列に入れ忘れると、設定を変えても再レンダリングされない（#752）。
+      settings.svgLayoutStyle,
+      settings.svgShowLegend,
     ]
   )
   const { svgContent, diagnostics, diagnosticsRef, isStalePreview } =

@@ -20,6 +20,10 @@ export interface RenderOptions {
   showTable?: boolean
   showEventLabels?: boolean
   laneHeight?: number
+  /** レイアウト方式。WASM 側は以前から対応していたが WebUI に露出していなかった（#752）。 */
+  layoutStyle?: 'timeline' | 'group-bands' | 'gantt' | 'zigzag'
+  /** lane / タグの色を示す静的な凡例パネルを描画する。 */
+  showLegend?: boolean
 }
 
 export {

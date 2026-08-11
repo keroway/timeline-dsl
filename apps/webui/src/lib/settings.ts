@@ -8,6 +8,7 @@ export type ThemePreference = 'auto' | 'light' | 'dark'
 export type SvgOrientation = 'horizontal' | 'vertical'
 export type SvgGrid = 'none' | 'decade' | 'year' | 'month'
 export type SvgTheme = 'default' | 'dark' | 'print' | 'pastel'
+export type SvgLayoutStyle = 'timeline' | 'group-bands' | 'gantt' | 'zigzag'
 
 export type Settings = {
   theme: ThemePreference
@@ -21,6 +22,8 @@ export type Settings = {
   svgGrid: SvgGrid
   svgTheme: SvgTheme
   svgShowEventLabels: boolean
+  svgLayoutStyle: SvgLayoutStyle
+  svgShowLegend: boolean
   locale: Locale
 }
 
@@ -43,6 +46,8 @@ export const SETTINGS_DEFAULTS: Settings = {
   svgGrid: 'none',
   svgTheme: 'default',
   svgShowEventLabels: false,
+  svgLayoutStyle: 'timeline',
+  svgShowLegend: false,
   locale: DEFAULT_LOCALE,
 }
 
@@ -82,6 +87,17 @@ export function readSettings(): Settings {
     }
     if (typeof merged.svgShowEventLabels !== 'boolean') {
       merged.svgShowEventLabels = SETTINGS_DEFAULTS.svgShowEventLabels
+    }
+    // 保存済み設定に未知の値が入っていても既定へ戻す（他の svg* と同じ扱い）。
+    if (
+      !['timeline', 'group-bands', 'gantt', 'zigzag'].includes(
+        merged.svgLayoutStyle
+      )
+    ) {
+      merged.svgLayoutStyle = SETTINGS_DEFAULTS.svgLayoutStyle
+    }
+    if (typeof merged.svgShowLegend !== 'boolean') {
+      merged.svgShowLegend = SETTINGS_DEFAULTS.svgShowLegend
     }
     if (!SUPPORTED_LOCALES.includes(merged.locale as Locale)) {
       merged.locale = SETTINGS_DEFAULTS.locale
