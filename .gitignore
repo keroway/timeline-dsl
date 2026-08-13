@@ -36,3 +36,8 @@ webui-*.png
 # Python のバイトコードキャッシュ（scripts/*.py の実行で生成される生成物）
 __pycache__/
 *.pyc
+
+# Codex CLI / agent-assets symlink (~/.agents) / pi のローカル生成物・個人状態。
+# いずれも絶対パスや個人環境固有の値を含みうる個人ローカル層で、
+# 共有すると他の環境で壊れる (keroway/agent-assets#186)
+.agents/
