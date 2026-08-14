@@ -1,0 +1,3 @@
+[default.extend-words]
+# crates/tdsl-parser/src/lib.rs の意図的な typo テスト文字列（#812）
+yaer = "yaer"
