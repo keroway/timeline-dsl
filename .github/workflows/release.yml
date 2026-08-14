@@ -315,28 +315,23 @@ jobs:
       contents: read
     steps:
       # keroway/homebrew-tap へのクロスリポジトリ操作には PAT（TAP_BUMP_TOKEN）が必要。
-      # secrets は `if:` で直接評価できないため、いったん env に載せてから
-      # 有無を step output に落とし、後続ステップを条件付きにして graceful に skip する。
+      # 未設定を skip として success 扱いにすると配達漏れが誰にも気づかれない
+      # （実際に v1.28.0 で発生した）。設定済みが前提のため、無ければ fail させる。
       - name: Check tap bump token
-        id: token
         env:
           TAP_BUMP_TOKEN: ${{ secrets.TAP_BUMP_TOKEN }}
         run: |
-          if [ -n "$TAP_BUMP_TOKEN" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::TAP_BUMP_TOKEN secret is not set; skipping Homebrew tap bump."
+          if [ -z "$TAP_BUMP_TOKEN" ]; then
+            echo "::error::TAP_BUMP_TOKEN secret is not set; Homebrew tap bump cannot run." >&2
+            exit 1
           fi
 
       - name: Download artifacts
-        if: steps.token.outputs.available == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           merge-multiple: true
 
       - name: Compute SHA256 hashes
-        if: steps.token.outputs.available == 'true'
         id: sha256
         run: |
           {
@@ -347,7 +342,6 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout formula repo
-        if: steps.token.outputs.available == 'true'
         # zizmor: ignore[artipacked] — 後続の `git push` が checkout の persist された
         # 認証情報（TAP_BUMP_TOKEN）に依存しているため意図的に persist-credentials を残す
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -357,7 +351,6 @@ jobs:
           path: homebrew-tap
 
       - name: Regenerate formula
-        if: steps.token.outputs.available == 'true'
         env:
           VERSION: ${{ github.ref_name }}
           SHA_LINUX: ${{ steps.sha256.outputs.linux_x86_64 }}
@@ -418,7 +411,6 @@ jobs:
       # 直 push ではなく PR を作成する（tap 側の CI / レビューを経由できるように）。
       # バージョン文字列は injection 対策として必ず env 経由で渡す。
       - name: Create tap bump PR
-        if: steps.token.outputs.available == 'true'
         working-directory: homebrew-tap
         env:
           GH_TOKEN: ${{ secrets.TAP_BUMP_TOKEN }}
