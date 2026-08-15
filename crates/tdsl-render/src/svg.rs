@@ -4,8 +4,9 @@ use tdsl_core::ir::Item;
 
 use crate::layout::{
     EVENT_LABEL_STACK_STEP, GridStyle, LANE_PALETTE, LEGEND_ROW_HEIGHT, LaidItem, LayoutModel,
-    LayoutStyle, TABLE_COL_LABEL, TABLE_COL_LANE, TABLE_COL_TAGS, TABLE_COL_TIME, TABLE_ROW_HEIGHT,
-    estimate_text_width_px, format_year, label_available_width_px, laid_item_label, month_abbr,
+    LayoutStyle, Locale, TABLE_COL_LABEL, TABLE_COL_LANE, TABLE_COL_TAGS, TABLE_COL_TIME,
+    TABLE_ROW_HEIGHT, estimate_text_width_px, format_year, label_available_width_px,
+    laid_item_label, month_abbr,
 };
 
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
@@ -768,7 +769,12 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     .find(|l| l.id == lane_id)
                     .map(|l| l.label.as_str())
                     .unwrap_or(lane_id);
-                let aria_label = escape_xml_attr(&item_aria_label(item, tooltip, lane_label));
+                let aria_label = escape_xml_attr(&item_aria_label(
+                    item,
+                    tooltip,
+                    lane_label,
+                    layout.opts.locale,
+                ));
                 let fill_style = format!("fill:{color};");
                 let tags = item_tags(item);
                 let mut data_attrs = format!(r#" data-lane="{}""#, escape_xml_attr(lane_id));
@@ -863,7 +869,12 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     .find(|l| l.id == lane_id)
                     .map(|l| l.label.as_str())
                     .unwrap_or(lane_id);
-                let aria_label = escape_xml_attr(&item_aria_label(item, tooltip, lane_label));
+                let aria_label = escape_xml_attr(&item_aria_label(
+                    item,
+                    tooltip,
+                    lane_label,
+                    layout.opts.locale,
+                ));
                 let fill_style = format!("fill:{color};fill-opacity:0.75;");
                 let tags = item_tags(item);
                 let mut data_attrs = format!(r#" data-lane="{}""#, escape_xml_attr(lane_id));
@@ -990,7 +1001,12 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                     .find(|l| l.id == lane_id)
                     .map(|l| l.label.as_str())
                     .unwrap_or(lane_id);
-                let aria_label = escape_xml_attr(&item_aria_label(item, tooltip, lane_label));
+                let aria_label = escape_xml_attr(&item_aria_label(
+                    item,
+                    tooltip,
+                    lane_label,
+                    layout.opts.locale,
+                ));
                 let dot_style = format!("fill:{color};");
                 let tags = item_tags(item);
                 let mut data_attrs = format!(r#" data-lane="{}""#, escape_xml_attr(lane_id));
@@ -1573,14 +1589,22 @@ fn render_continuation_marker_fragment(
 ///
 /// #701: fixed to English (was hardcoded Japanese) to match the surrounding
 /// tooling ecosystem's UI language convention (e.g. `obsidian-tdsl`, #82).
-fn item_aria_label(item: &Item, tooltip: &str, lane_label: &str) -> String {
-    let type_str = match item {
-        Item::Span { .. } => "Span",
-        Item::Event { .. } => "Event",
-        Item::EventRange { .. } => "Event range",
+///
+/// #815: the structural prefixes (`Event:` / `Span:` / `Event range:` /
+/// `Lane:`) are now selectable via `locale`, defaulting to English so #701's
+/// decision is preserved. Source-derived text (`tooltip`, `lane_label`) is
+/// emitted verbatim regardless of locale.
+fn item_aria_label(item: &Item, tooltip: &str, lane_label: &str, locale: Locale) -> String {
+    let (type_str, lane_prefix) = match (item, locale) {
+        (Item::Span { .. }, Locale::En) => ("Span", "Lane"),
+        (Item::Event { .. }, Locale::En) => ("Event", "Lane"),
+        (Item::EventRange { .. }, Locale::En) => ("Event range", "Lane"),
+        (Item::Span { .. }, Locale::Ja) => ("スパン", "レーン"),
+        (Item::Event { .. }, Locale::Ja) => ("イベント", "レーン"),
+        (Item::EventRange { .. }, Locale::Ja) => ("イベント範囲", "レーン"),
     };
     let info = tooltip.replace('\n', ", ");
-    format!("{type_str}: {info}, Lane: {lane_label}")
+    format!("{type_str}: {info}, {lane_prefix}: {lane_label}")
 }
 
 /// Escape for SVG/XML text content and attribute values.
@@ -2389,6 +2413,52 @@ mod tests {
         assert!(
             svg.contains("戦争"),
             "event_range aria-label must contain lane label"
+        );
+    }
+
+    #[test]
+    fn aria_attributes_use_english_prefixes_by_default() {
+        let ir = sample_ir();
+        let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
+        let svg = render_svg(&layout).unwrap();
+        assert!(svg.contains("Span:"));
+        assert!(svg.contains("Event:"));
+        assert!(svg.contains("Lane:"));
+        assert!(!svg.contains("スパン:"));
+        assert!(!svg.contains("イベント:"));
+        assert!(!svg.contains("レーン:"));
+    }
+
+    #[test]
+    fn aria_attributes_use_japanese_prefixes_when_locale_ja() {
+        // #815: locale=Ja swaps only the structural prefixes; source-derived
+        // text (title, lane label, years) must remain byte-for-byte identical.
+        let ir = sample_ir();
+        let opts = RenderOptions {
+            locale: crate::layout::Locale::Ja,
+            ..RenderOptions::default()
+        };
+        let layout = LayoutModel::compute(&ir, opts).unwrap();
+        let svg = render_svg(&layout).unwrap();
+        assert!(
+            svg.contains("スパン:"),
+            "ja locale must use 'スパン:' prefix for Span items: {svg}"
+        );
+        assert!(
+            svg.contains("イベント:"),
+            "ja locale must use 'イベント:' prefix for Event items: {svg}"
+        );
+        assert!(
+            svg.contains("レーン:"),
+            "ja locale must use 'レーン:' prefix for lane reference: {svg}"
+        );
+        assert!(
+            svg.contains("BC206"),
+            "source-derived year text must remain unaffected by locale: {svg}"
+        );
+        assert!(
+            !svg.contains("Span:"),
+            "ja locale must not leak the English 'Span:' prefix: {svg}"
         );
     }
 

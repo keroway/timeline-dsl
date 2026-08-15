@@ -28,6 +28,22 @@ pub enum Orientation {
     Vertical,
 }
 
+/// Locale used for structural (non-source) ARIA label text, e.g. the
+/// `Event:` / `Span:` / `Event range:` / `Lane:` prefixes emitted in SVG
+/// `<g aria-label="…">` attributes. Source-derived text (titles, lane
+/// labels, years, ids) is emitted verbatim regardless of locale.
+///
+/// Defaults to [`Locale::En`] to match the v2.0.0 English-unification
+/// decision (#701); it does not revert that default.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Locale {
+    /// English structural labels (default).
+    #[default]
+    En,
+    /// Japanese structural labels.
+    Ja,
+}
+
 /// Color/style theme for HTML output.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum Theme {
@@ -139,6 +155,10 @@ pub struct RenderOptions {
     /// [`crate::time_range_pagination::paginate_svg_by_time_range`] sets this
     /// to `true` for the per-page chart options it builds.
     pub show_boundary_clip_markers: bool,
+    /// Locale for structural ARIA label text (`Event:` / `Span:` /
+    /// `Event range:` / `Lane:` prefixes). Source-derived values (titles,
+    /// lane labels, years, ids) are unaffected. Defaults to [`Locale::En`].
+    pub locale: Locale,
 }
 
 /// Default lane height in pixels. Bar thickness and intra-lane padding scale
@@ -168,6 +188,7 @@ impl Default for RenderOptions {
             show_event_labels: false,
             use_css_vars: true,
             show_boundary_clip_markers: false,
+            locale: Locale::En,
         }
     }
 }
