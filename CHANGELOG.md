@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`tdsl-wasm` の `JsRenderOptions` に `locale` を追加し、SVG の ARIA ラベルの構造プレフィックスを日英で切り替え可能にした**（#815）: SVG の `<g aria-label="…">` に出力される `Event:` / `Span:` / `Event range:` / `Lane:` というプレフィックスは #701 で英語に固定していたが、埋め込み先（`obsidian-tdsl` 等）の UI 言語に合わせたいケースに対応できなかった。`locale: "en"`（既定）/ `"ja"` を追加し、`"ja"` では `イベント:` / `スパン:` / `イベント範囲:` / `レーン:` に切り替わる。タイトル・レーン名・年・id などソース由来の値はロケールに関係なく常にそのまま出力され、#701 の英語統一の決定自体は変更しない。WebUI（`apps/webui`）への配線は、npm パッケージ `@keroway/tdsl-wasm` がこの変更を含むバージョンを公開してから別途対応する（`apps/webui` は公開済み npm パッケージにのみ依存するため、このリリース内では型定義がまだ届かない）
+
 ## [2.0.0] - 2026-08-12
 
 ### Added

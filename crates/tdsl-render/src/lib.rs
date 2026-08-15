@@ -16,7 +16,8 @@ pub mod svg;
 pub mod time_range_pagination;
 
 pub use layout::{
-    GridStyle, LayoutModel, LayoutStyle, Orientation, RenderOptions, Theme, ZIGZAG_MAX_LANES,
+    GridStyle, LayoutModel, LayoutStyle, Locale, Orientation, RenderOptions, Theme,
+    ZIGZAG_MAX_LANES,
 };
 pub use pagination::{
     ChartPage, ChartPagination, PageKind, PaginationError, paginate_svg_by_lane_groups,

@@ -2,7 +2,7 @@ use wasm_bindgen::prelude::*;
 
 use tdsl_core::lower::lower_static_with_source;
 use tdsl_render::{
-    GridStyle, LayoutStyle, Orientation, RenderOptions, Theme, render_html, render_svg_only,
+    GridStyle, LayoutStyle, Locale, Orientation, RenderOptions, Theme, render_html, render_svg_only,
 };
 
 /// Initialize the panic hook for better error messages in the browser console.
@@ -619,10 +619,28 @@ map wd.han to span {
         opts.set_orientation("invalid".to_string());
         opts.set_grid("invalid".to_string());
         opts.set_theme("invalid".to_string());
+        opts.set_locale("invalid".to_string());
         let ro = js_opts_to_render_options(&opts, 2.0);
         assert_eq!(ro.orientation, Orientation::Horizontal);
         assert_eq!(ro.grid, GridStyle::None);
         assert_eq!(ro.theme, Theme::Default);
+        assert_eq!(ro.locale, tdsl_render::Locale::En);
+    }
+
+    #[test]
+    fn js_opts_locale_default_is_english() {
+        let opts = JsRenderOptions::new();
+        assert_eq!(opts.locale(), "en");
+        let ro = js_opts_to_render_options(&opts, 2.0);
+        assert_eq!(ro.locale, tdsl_render::Locale::En);
+    }
+
+    #[test]
+    fn js_opts_locale_ja_is_applied() {
+        let mut opts = JsRenderOptions::new();
+        opts.set_locale("ja".to_string());
+        let ro = js_opts_to_render_options(&opts, 2.0);
+        assert_eq!(ro.locale, tdsl_render::Locale::Ja);
     }
 
     #[test]
@@ -881,6 +899,13 @@ pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
 /// | `show_legend` | `true`, `false` | `false` |
 /// | `show_event_labels` | `true`, `false` | `false` |
 /// | `lane_height` | px per lane; `0` = renderer default (60) | `0` |
+/// | `locale` | `"en"`, `"ja"` | `"en"` |
+///
+/// `locale` only affects structural ARIA label text (`Event:` / `Span:` /
+/// `Event range:` / `Lane:` prefixes in SVG `<g aria-label="…">`
+/// attributes). Source-derived text (titles, lane labels, years, ids) is
+/// emitted verbatim regardless of locale. Unknown values fall back to
+/// `"en"`, matching the other string fields' fallback behavior.
 ///
 /// `lane_height` controls vertical density: the SVG height, each lane band, the
 /// bar thickness and intra-lane padding all follow it. Leave it at `0` (the
@@ -900,6 +925,7 @@ pub struct JsRenderOptions {
     grid: String,
     layout_style: String,
     theme: String,
+    locale: String,
 }
 
 impl Default for JsRenderOptions {
@@ -921,6 +947,7 @@ impl JsRenderOptions {
             grid: "none".to_string(),
             layout_style: "timeline".to_string(),
             theme: "default".to_string(),
+            locale: "en".to_string(),
         }
     }
 
@@ -968,6 +995,19 @@ impl JsRenderOptions {
     pub fn set_theme(&mut self, val: String) {
         self.theme = val;
     }
+
+    /// Locale for structural ARIA label text (#815): `"en"` (default) or
+    /// `"ja"`. Only affects the `Event:` / `Span:` / `Event range:` /
+    /// `Lane:` prefixes; source-derived text is unaffected.
+    #[wasm_bindgen(getter)]
+    pub fn locale(&self) -> String {
+        self.locale.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_locale(&mut self, val: String) {
+        self.locale = val;
+    }
 }
 
 fn render_options_for_ir(
@@ -1007,6 +1047,10 @@ fn js_opts_to_render_options(opts: &JsRenderOptions, scale: f64) -> RenderOption
         "pastel" => Theme::Pastel,
         _ => Theme::Default,
     };
+    let locale = match opts.locale.as_str() {
+        "ja" => Locale::Ja,
+        _ => Locale::En,
+    };
     let defaults = RenderOptions::default();
     // lane_height == 0 (or negative) means "use the renderer default" so that
     // existing callers that never touch the field keep the historical look.
@@ -1025,6 +1069,7 @@ fn js_opts_to_render_options(opts: &JsRenderOptions, scale: f64) -> RenderOption
         show_table: opts.show_table,
         show_legend: opts.show_legend,
         show_event_labels: opts.show_event_labels,
+        locale,
         ..defaults
     }
 }
