@@ -85,3 +85,63 @@ fn format_system_time(t: std::time::SystemTime) -> String {
     let y = if mo <= 2 { y + 1 } else { y };
     format!("{y:04}-{mo:02}-{d:02} {h:02}:{m:02}:{s:02} UTC")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, UNIX_EPOCH};
+
+    #[test]
+    fn human_bytes_zero() {
+        assert_eq!(human_bytes(0), "0 B");
+    }
+
+    #[test]
+    fn human_bytes_below_kib_boundary() {
+        assert_eq!(human_bytes(1023), "1023 B");
+    }
+
+    #[test]
+    fn human_bytes_at_kib_boundary() {
+        assert_eq!(human_bytes(1024), "1.0 KiB");
+    }
+
+    #[test]
+    fn human_bytes_below_mib_boundary() {
+        assert_eq!(human_bytes(1024 * 1024 - 1), "1024.0 KiB");
+    }
+
+    #[test]
+    fn human_bytes_at_mib_boundary() {
+        assert_eq!(human_bytes(1024 * 1024), "1.0 MiB");
+    }
+
+    #[test]
+    fn human_bytes_below_gib_boundary() {
+        assert_eq!(human_bytes(1024 * 1024 * 1024 - 1), "1024.0 MiB");
+    }
+
+    #[test]
+    fn human_bytes_at_gib_boundary() {
+        assert_eq!(human_bytes(1024 * 1024 * 1024), "1.0 GiB");
+    }
+
+    #[test]
+    fn format_system_time_unix_epoch() {
+        assert_eq!(format_system_time(UNIX_EPOCH), "1970-01-01 00:00:00 UTC");
+    }
+
+    #[test]
+    fn format_system_time_known_date() {
+        // 2024-01-01T00:00:00Z == 1704067200 seconds since the epoch.
+        let t = UNIX_EPOCH + Duration::from_secs(1_704_067_200);
+        assert_eq!(format_system_time(t), "2024-01-01 00:00:00 UTC");
+    }
+
+    #[test]
+    fn format_system_time_leap_day() {
+        // 2024-02-29T12:34:56Z == 1709210096 seconds since the epoch (2024 is a leap year).
+        let t = UNIX_EPOCH + Duration::from_secs(1_709_210_096);
+        assert_eq!(format_system_time(t), "2024-02-29 12:34:56 UTC");
+    }
+}
