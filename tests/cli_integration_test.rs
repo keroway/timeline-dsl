@@ -1063,6 +1063,72 @@ missions,event,,,1969,Apollo 11,,event:apollo,,wikidata\n",
     let _ = std::fs::remove_file(&csv_path);
 }
 
+// ---------------------------------------------------------------------------
+// cache: status / clear (#818)
+// ---------------------------------------------------------------------------
+//
+// `tdsl cache` has no CLI flag or env var to override the cache directory
+// (it always resolves via `tdsl_wikidata::default_cache_dir()`, i.e. the OS
+// standard cache dir). These tests therefore run against whatever the real
+// cache directory happens to contain rather than an isolated tempdir; they
+// only assert the commands complete successfully and print the expected
+// markers, without fetching from Wikidata or asserting on cache contents.
+//
+// All three invocations are driven from a single `#[test]` (rather than three
+// separate tests) because `cargo test` runs tests in parallel by default: a
+// concurrent `cache clear` can delete a file after `cache status` lists the
+// directory but before it stats each entry, causing a spurious ENOENT. Since
+// there is no way to give each test its own isolated cache directory, running
+// them sequentially within one test avoids that race with itself (other
+// integration tests never touch the cache directory).
+#[test]
+fn cache_status_and_clear_exit_zero() {
+    let status = tdsl_bin()
+        .args(["cache", "status"])
+        .output()
+        .expect("failed to run tdsl");
+    assert!(
+        status.status.success(),
+        "cache status exited non-zero: {}",
+        String::from_utf8_lossy(&status.stderr)
+    );
+    let status_stdout = String::from_utf8(status.stdout).expect("non-UTF-8 stdout");
+    assert!(
+        status_stdout.contains("Cache directory:"),
+        "cache status output should mention the cache directory: {status_stdout}"
+    );
+
+    let clear = tdsl_bin()
+        .args(["cache", "clear"])
+        .output()
+        .expect("failed to run tdsl");
+    assert!(
+        clear.status.success(),
+        "cache clear exited non-zero: {}",
+        String::from_utf8_lossy(&clear.stderr)
+    );
+    let clear_stdout = String::from_utf8(clear.stdout).expect("non-UTF-8 stdout");
+    assert!(
+        clear_stdout.contains("Deleted") && clear_stdout.contains("cache file"),
+        "cache clear output should report the deleted file count: {clear_stdout}"
+    );
+
+    let clear_older = tdsl_bin()
+        .args(["cache", "clear", "--older-than", "30"])
+        .output()
+        .expect("failed to run tdsl");
+    assert!(
+        clear_older.status.success(),
+        "cache clear --older-than exited non-zero: {}",
+        String::from_utf8_lossy(&clear_older.stderr)
+    );
+    let clear_older_stdout = String::from_utf8(clear_older.stdout).expect("non-UTF-8 stdout");
+    assert!(
+        clear_older_stdout.contains("older than 30 day(s)"),
+        "cache clear --older-than output should mention the age filter: {clear_older_stdout}"
+    );
+}
+
 /// Zigzag is unsupported for more than two lanes and must fail rather than
 /// silently rendering the regular timeline layout.
 #[test]

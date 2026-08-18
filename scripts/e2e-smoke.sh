@@ -15,9 +15,9 @@ assert_fails() {
   fi
 }
 
-echo "[e2e] verify CLI help includes all 14 documented commands"
+echo "[e2e] verify CLI help includes all 19 documented commands"
 cargo run -q -p tdsl-cli -- --help >"$TMP_DIR/help.txt"
-for cmd in build check ast fetch search inspect resolve scaffold render init import-csv export-csv lint fmt; do
+for cmd in build merge check ast fetch search inspect resolve scaffold render init import-csv export-csv fmt lint cache decompile completions lsp; do
   grep -Eq "[[:space:]]${cmd}[[:space:]]" "$TMP_DIR/help.txt"
 done
 
@@ -440,5 +440,46 @@ cargo run -q -p tdsl-cli -- search --help >/dev/null
 cargo run -q -p tdsl-cli -- inspect --help >/dev/null
 cargo run -q -p tdsl-cli -- resolve --help >/dev/null
 cargo run -q -p tdsl-cli -- scaffold --help >/dev/null
+
+# ---- tdsl merge (IR merge, symmetric with build's multi-file merge) ---------
+echo "[e2e] merge: two static files merge into a single IR JSON"
+cargo run -q -p tdsl-cli -- merge examples/china_dynasties.tdsl examples/apollo_11.tdsl --offline --pretty --output "$TMP_DIR/merged.json"
+test -s "$TMP_DIR/merged.json"
+grep -Fq '"lanes"' "$TMP_DIR/merged.json"
+
+# ---- tdsl decompile (JSON IR -> .tdsl, symmetric with build) ----------------
+echo "[e2e] decompile: JSON IR round-trips back to a parseable .tdsl"
+cargo run -q -p tdsl-cli -- build examples/china_dynasties.tdsl --offline --output "$TMP_DIR/decompile_in.json"
+cargo run -q -p tdsl-cli -- decompile "$TMP_DIR/decompile_in.json" --output "$TMP_DIR/decompiled.tdsl"
+test -s "$TMP_DIR/decompiled.tdsl"
+cargo run -q -p tdsl-cli -- check "$TMP_DIR/decompiled.tdsl"
+
+# ---- tdsl completions (shell completion script generation, #818) ------------
+echo "[e2e] completions: bash/zsh/fish scripts are generated and non-empty"
+for shell in bash zsh fish; do
+  cargo run -q -p tdsl-cli -- completions "$shell" >"$TMP_DIR/completions_${shell}.txt"
+  test -s "$TMP_DIR/completions_${shell}.txt"
+done
+grep -Fq "tdsl" "$TMP_DIR/completions_bash.txt"
+
+# ---- tdsl cache (status / clear, #818) ---------------------------------------
+# NOTE: `tdsl cache` has no CLI flag to override the cache directory (it always
+# resolves via the OS standard cache dir), so this only checks exit codes /
+# output markers against whatever the real cache directory holds. No Wikidata
+# fetch is performed (CI stays offline).
+echo "[e2e] cache: status exits 0 and reports the cache directory"
+cargo run -q -p tdsl-cli -- cache status >"$TMP_DIR/cache_status.txt"
+grep -Fq "Cache directory:" "$TMP_DIR/cache_status.txt"
+
+echo "[e2e] cache: clear exits 0 and reports the deleted file count"
+cargo run -q -p tdsl-cli -- cache clear >"$TMP_DIR/cache_clear.txt"
+grep -Fq "Deleted" "$TMP_DIR/cache_clear.txt"
+
+# ---- tdsl lsp (server startup, --help only) ----------------------------------
+# NOTE: `tdsl lsp` starts a long-running stdio server that doesn't exit on its
+# own, so this smoke test only verifies the CLI wires up its --help output
+# rather than driving the LSP protocol (covered by tdsl-lsp's own tests).
+echo "[e2e] lsp: --help exits 0"
+cargo run -q -p tdsl-cli -- lsp --help >/dev/null
 
 echo "[e2e] smoke completed"
