@@ -46,12 +46,24 @@ jobs:
 
             name=$(basename "$file" .tdsl)
             echo "Rendering: $file -> preview/${name}.svg"
-            ./target/release/tdsl render --format svg --offline \
-              -o "preview/${name}.svg" "$file" \
-              || echo "WARNING: failed to render $file"
+            render_failed=false
+            render_error=""
+            if ! render_error=$(./target/release/tdsl render --format svg --offline -o "preview/${name}.svg" "$file" 2>&1 >/dev/null); then
+              render_failed=true
+              echo "WARNING: failed to render $file"
+              echo "$render_error"
+            fi
 
             echo "Building IR for: $file"
-            ir_json=$(./target/release/tdsl build --pretty --offline "$file" 2>/dev/null || echo '{}')
+            build_failed=false
+            build_error=""
+            if ! ir_json=$(./target/release/tdsl build --pretty --offline "$file" 2>/tmp/build_stderr); then
+              build_failed=true
+              build_error=$(cat /tmp/build_stderr)
+              ir_json='{}'
+              echo "WARNING: failed to build IR for $file"
+              echo "$build_error"
+            fi
 
             items=$(echo "$ir_json" | jq '.items | length // 0')
             lanes=$(echo "$ir_json" | jq '.lanes | length // 0')
@@ -65,7 +77,11 @@ jobs:
               --argjson lanes "$lanes" \
               --argjson range_start "$range_start" \
               --argjson range_end "$range_end" \
-              '{file: $file, name: $name, items: $items, lanes: $lanes, range_start: $range_start, range_end: $range_end}')
+              --argjson render_failed "$render_failed" \
+              --argjson build_failed "$build_failed" \
+              --arg render_error "$render_error" \
+              --arg build_error "$build_error" \
+              '{file: $file, name: $name, items: $items, lanes: $lanes, range_start: $range_start, range_end: $range_end, render_failed: $render_failed, build_failed: $build_failed, render_error: $render_error, build_error: $build_error}')
 
             summary_entries=$(echo "$summary_entries" | jq --argjson entry "$entry" '. + [$entry]')
           done <<< "$changed_files"
@@ -103,12 +119,32 @@ jobs:
             let summaryTable = '';
             if (summaryEntries.length > 0) {
               const rows = summaryEntries.map(e => {
+                if (e.build_failed) {
+                  return `| \`${e.file}\` | ⚠️ ビルド失敗 | - | - |`;
+                }
                 const range = (typeof e.range_start === 'number' && typeof e.range_end === 'number')
                   ? `${e.range_start} 〜 ${e.range_end}`
                   : 'N/A';
-                return `| \`${e.file}\` | ${e.items} | ${e.lanes} | ${range} |`;
+                const renderNote = e.render_failed ? ' ⚠️ レンダリング失敗' : '';
+                return `| \`${e.file}\`${renderNote} | ${e.items} | ${e.lanes} | ${range} |`;
               }).join('\n');
               summaryTable = `| ファイル | アイテム数 | レーン数 | 期間 |\n|---|---|---|---|\n${rows}`;
+
+              const failures = summaryEntries.filter(e => e.build_failed || e.render_failed);
+              if (failures.length > 0) {
+                const details = failures.map(e => {
+                  const lines = [`<details><summary>⚠️ \`${e.file}\` のエラー詳細</summary>`, ''];
+                  if (e.build_failed) {
+                    lines.push('**build エラー:**', '```', (e.build_error || '(no output)').slice(0, 2000), '```');
+                  }
+                  if (e.render_failed) {
+                    lines.push('**render エラー:**', '```', (e.render_error || '(no output)').slice(0, 2000), '```');
+                  }
+                  lines.push('</details>');
+                  return lines.join('\n');
+                }).join('\n\n');
+                summaryTable += `\n\n${details}`;
+              }
             } else {
               summaryTable = '_(IR サマリなし)_';
             }
