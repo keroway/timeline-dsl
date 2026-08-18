@@ -553,6 +553,8 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 
 ### サブコマンド一覧
 
+全サブコマンドの正準な一覧・詳細は [`docs/cli-spec.md`](cli-spec.md#サブコマンド一覧) を参照。以下は代表的なものの抜粋。
+
 | コマンド | 目的 |
 |---|---|
 | `tdsl build <file>` | `.tdsl` をJSON IRに変換 |
@@ -560,6 +562,7 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 | `tdsl ast <file>` | ASTダンプ |
 | `tdsl render <file>` | HTML / SVG / PDF / PNG を生成（`--format html\|svg\|pdf\|png`、`--interactive`） |
 | `tdsl decompile <json>` | JSON IRを `.tdsl` ソースに逆変換 |
+| `tdsl merge <files...>` | 複数 `.tdsl` を統合してIR JSONを出力 |
 | `tdsl fetch <QID>` | Wikidataエンティティ確認 |
 | `tdsl search <query>` | Wikidata候補検索 |
 | `tdsl inspect <QID>` | 年表化適性の診断 |
@@ -567,9 +570,13 @@ label@ja ?? label@en // 日本語がなければ英語にフォールバック
 | `tdsl scaffold wikidata ...` | QID群から `.tdsl` 雛形生成 |
 | `tdsl init ...` | 手作業向け `.tdsl` テンプレ生成 |
 | `tdsl import-csv <csv>` | CSVから `span/event/event_range` 生成 |
+| `tdsl export-csv <json>` | IRをCSVに書き出す（`import-csv` と対称） |
+| `tdsl fmt <file>` | `.tdsl` ファイルを正準フォーマット |
 | `tdsl lint <file> [--fix]` | 品質チェックと安全な自動補正 |
 | `tdsl cache status` | ローカルキャッシュの状態を表示 |
 | `tdsl cache clear [--older-than <days>]` | キャッシュエントリを削除 |
+| `tdsl completions <shell>` | シェル補完スクリプトを生成 |
+| `tdsl lsp` | LSP サーバを stdio 経由で起動 |
 
 ### 最短フロー（Wikidata起点）
 
