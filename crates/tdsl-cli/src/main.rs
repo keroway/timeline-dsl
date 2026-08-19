@@ -166,7 +166,7 @@ enum Commands {
         target: ScaffoldTarget,
     },
 
-    /// Render a .tdsl file to a standalone HTML timeline
+    /// Render a .tdsl file to HTML, SVG, PNG, or PDF
     Render {
         /// Input .tdsl file path
         #[arg(value_name = "FILE")]
