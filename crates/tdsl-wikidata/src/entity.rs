@@ -169,10 +169,13 @@ pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::Wikid
         .map_err(|_| crate::WikidataError::TimeParseError(s.clone()))?;
 
     let month = if tv.precision >= 10 {
-        parts
-            .next()
-            .and_then(|m| m.parse::<u8>().ok())
-            .filter(|&m| (1..=12).contains(&m))
+        Some(
+            parts
+                .next()
+                .and_then(|m| m.parse::<u8>().ok())
+                .filter(|&m| (1..=12).contains(&m))
+                .ok_or_else(|| crate::WikidataError::TimeParseError(s.clone()))?,
+        )
     } else {
         None
     };
@@ -181,10 +184,13 @@ pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::Wikid
     let day = if tv.precision >= 11 {
         let raw_day = parts.next();
         time_part = raw_day.and_then(|d| d.split_once('T').map(|(_, t)| t));
-        raw_day
-            .and_then(|d| d.split('T').next())
-            .and_then(|d| d.parse::<u8>().ok())
-            .filter(|&d| (1..=31).contains(&d))
+        Some(
+            raw_day
+                .and_then(|d| d.split('T').next())
+                .and_then(|d| d.parse::<u8>().ok())
+                .filter(|&d| (1..=31).contains(&d))
+                .ok_or_else(|| crate::WikidataError::TimeParseError(s.clone()))?,
+        )
     } else {
         time_part = None;
         None
@@ -192,18 +198,24 @@ pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::Wikid
 
     let mut clock = time_part.unwrap_or("").trim_end_matches('Z').split(':');
     let hour = if tv.precision >= 12 {
-        clock
-            .next()
-            .and_then(|h| h.parse::<u8>().ok())
-            .filter(|&h| h <= 23)
+        Some(
+            clock
+                .next()
+                .and_then(|h| h.parse::<u8>().ok())
+                .filter(|&h| h <= 23)
+                .ok_or_else(|| crate::WikidataError::TimeParseError(s.clone()))?,
+        )
     } else {
         None
     };
     let minute = if tv.precision >= 13 {
-        clock
-            .next()
-            .and_then(|m| m.parse::<u8>().ok())
-            .filter(|&m| m <= 59)
+        Some(
+            clock
+                .next()
+                .and_then(|m| m.parse::<u8>().ok())
+                .filter(|&m| m <= 59)
+                .ok_or_else(|| crate::WikidataError::TimeParseError(s.clone()))?,
+        )
     } else {
         None
     };
@@ -211,10 +223,13 @@ pub fn time_value_to_timepoint(tv: &TimeValue) -> Result<TimePoint, crate::Wikid
     // grain. `>= 14` mirrors the `>= 10/11/12/13` pattern above for forward compatibility
     // with any coarser/finer precision values the API might report.
     let second = if tv.precision >= 14 {
-        clock
-            .next()
-            .and_then(|s| s.parse::<u8>().ok())
-            .filter(|&s| s <= 59)
+        Some(
+            clock
+                .next()
+                .and_then(|s| s.parse::<u8>().ok())
+                .filter(|&s| s <= 59)
+                .ok_or_else(|| crate::WikidataError::TimeParseError(s.clone()))?,
+        )
     } else {
         None
     };
@@ -370,6 +385,69 @@ mod tests {
             calendarmodel: String::new(),
         };
         assert!(time_value_to_year(&tv).is_err());
+    }
+
+    #[test]
+    fn parse_time_precision_month_invalid_returns_error() {
+        // precision=10 (month) but month=13 is out of range
+        let tv = TimeValue {
+            time: "+1868-13-01T00:00:00Z".to_string(),
+            precision: 10,
+            calendarmodel: String::new(),
+        };
+        assert!(time_value_to_timepoint(&tv).is_err());
+    }
+
+    #[test]
+    fn parse_time_precision_day_invalid_returns_error() {
+        // precision=11 (day) but day=00 is out of range
+        let tv = TimeValue {
+            time: "+1868-01-00T00:00:00Z".to_string(),
+            precision: 11,
+            calendarmodel: String::new(),
+        };
+        assert!(time_value_to_timepoint(&tv).is_err());
+
+        // precision=11 (day) but day=32 is out of range
+        let tv = TimeValue {
+            time: "+1868-01-32T00:00:00Z".to_string(),
+            precision: 11,
+            calendarmodel: String::new(),
+        };
+        assert!(time_value_to_timepoint(&tv).is_err());
+    }
+
+    #[test]
+    fn parse_time_precision_hour_invalid_returns_error() {
+        // precision=12 (hour) but hour=24 is out of range
+        let tv = TimeValue {
+            time: "+1868-01-01T24:00:00Z".to_string(),
+            precision: 12,
+            calendarmodel: String::new(),
+        };
+        assert!(time_value_to_timepoint(&tv).is_err());
+    }
+
+    #[test]
+    fn parse_time_precision_minute_invalid_returns_error() {
+        // precision=13 (minute) but minute=60 is out of range
+        let tv = TimeValue {
+            time: "+1868-01-01T00:60:00Z".to_string(),
+            precision: 13,
+            calendarmodel: String::new(),
+        };
+        assert!(time_value_to_timepoint(&tv).is_err());
+    }
+
+    #[test]
+    fn parse_time_precision_second_invalid_returns_error() {
+        // precision=14 (second) but second=60 is out of range
+        let tv = TimeValue {
+            time: "+1868-01-01T00:00:60Z".to_string(),
+            precision: 14,
+            calendarmodel: String::new(),
+        };
+        assert!(time_value_to_timepoint(&tv).is_err());
     }
 
     #[test]
