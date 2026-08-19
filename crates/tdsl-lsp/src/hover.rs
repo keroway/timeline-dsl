@@ -395,21 +395,6 @@ where
     None
 }
 
-/// hover 要求を処理して LSP Hover を返す（毎回キャッシュを読みに行く版）。
-///
-/// lane ID → lane 情報、QID → エンティティ情報（キャッシュ）。該当なしは None。
-/// キャッシュ読み出しには `tdsl_wikidata::default_cache_dir()` を使う。
-///
-/// **LSP サーバ本体はこれを使わない。** `Backend` は QID の引き当てを
-/// セッション内でメモ化しており（#770）、`compute_hover_with` に
-/// メモ経由の lookup を渡す。この関数は「メモを持たない単発の呼び出し」
-/// 向けに公開 API として残してある。
-pub fn compute_hover(source: &str, position: Position) -> Option<Hover> {
-    compute_hover_with(source, position, |qid| {
-        tdsl_wikidata::read_cached_entity(&tdsl_wikidata::default_cache_dir(), qid)
-    })
-}
-
 // ---------------------------------------------------------------------------
 // テスト
 // ---------------------------------------------------------------------------
