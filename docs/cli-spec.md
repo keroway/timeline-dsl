@@ -458,6 +458,7 @@ tdsl render [OPTIONS] <FILE>
 | `--layout-style <LAYOUT_STYLE>` | 高レベルレイアウトスタイル（`timeline` / `group-bands` / `gantt` / `zigzag`）。`--orientation` と直交。`timeline` = 通常レイアウト（デフォルト）。`group-bands` = レーンの `group` が連続する箇所に背景帯を描画（#543）。`gantt` = 月単位グリッドを強調表示（`--grid` 未指定時は自動で月グリッド相当を強制）し、`span` / `event_range` のバーに開始〜終了日の期間ラベルを常時表示するプロジェクト管理向けスタイル。同一レーン内で近接するラベルは自動的にスタッキングされ重なりを回避する（#564）。`zigzag` = レーン内アイテムを開始時刻順に上下交互に配置（#565）。レーン数が 2 以下のときのみ有効。それ以上の場合は描画前に明示的なエラーを返す（フォールバックしない）。`gantt` / `zigzag` はいずれも #549（バーの重なり回避サブ行スタッキング）とは異なるレイアウト軸であり、`zigzag` は特に #549 と互いに排他 | `timeline` |
 | `--watch` | 入力ファイルの変更を監視し、変更検出のたびに自動再レンダリングする。`--output` が必須。`html` / `svg` のみ対応（`png` / `pdf` は非対応） | — |
 | `--show-table` | 内容一覧の表を追加する（時期・ラベル・レーン・タグ列、時系列順）。`--format html` では HTML `<table>` として追加され、`svg` / `png` / `pdf` ではタイムライン本体の下に SVG `<rect>`/`<text>` で同等の表が描画される（#536）。デフォルトの PDF 出力（`--pdf-pagination` 未指定）は従来と同じ単一ページベクトル出力のままで、表を含む全体をページに収まるように拡大縮小する（ADR-0002 の単一ベクトルPDF方式）。`--pdf-pagination` と併用するとテーブルのみ複数ページに分割される（ADR-0004） | — |
+| `--show-legend` | レーン・タグの色を示す静的な凡例パネルを描画する。`--chart-pagination` 併用時は各チャートページに個別描画され、`--pdf-pagination` 併用時はタイムラインページのみに描画されテーブルページには影響しない（ADR-0004 D5） | 無効 |
 | `--show-event-labels` | イベント（`event` / `event_range`）のドット・バー近傍にラベルテキストを常時描画する。デフォルト無効（ホバー時のツールチップのみ） | — |
 | `--pdf-size <SIZE>` | PDF 用紙サイズ（`a4` / `a3` / `letter`）。`--format pdf` のみ有効 | `a4` |
 | `--pdf-landscape` | PDF を横向き（landscape）で出力する。`--format pdf` のみ有効 | — |
