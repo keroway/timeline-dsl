@@ -1,6 +1,6 @@
 # GitHub Actions 連携ガイド
 
-Timeline DSL は GitHub Actions composite action として公開されており、CI/CD パイプラインで `.tdsl` ファイルを SVG または HTML にレンダリングできます。
+Timeline DSL は GitHub Actions composite action として公開されており、CI/CD パイプラインで `.tdsl` ファイルを SVG / HTML / PNG / PDF にレンダリングできます。
 
 ## クイックスタート
 
@@ -35,7 +35,7 @@ jobs:
 | インプット | 必須 | デフォルト | 説明 |
 |---|---|---|---|
 | `file` | ✅ | — | レンダリングする `.tdsl` ファイルのパス |
-| `format` | — | `svg` | 出力フォーマット: `svg` または `html` |
+| `format` | — | `svg` | 出力フォーマット: `svg` / `html` / `png` / `pdf` |
 | `output` | — | `<basename>.<format>` | 出力ファイルパス |
 | `offline` | — | `false` | オフラインモード（Wikidata フェッチをスキップ） |
 | `interactive` | — | `false` | インタラクティブ HTML 出力（`format: html` 時のみ有効） |
@@ -133,6 +133,22 @@ jobs:
     format: svg
     output: timeline-dark.svg
     theme: dark
+
+- name: Upload to release
+  uses: softprops/action-gh-release@v2
+  with:
+    files: ${{ steps.render.outputs.output_path }}
+```
+
+### PNG 画像としてレンダリングしてリリースに添付
+
+```yaml
+- uses: keroway/timeline-dsl@v1
+  id: render
+  with:
+    file: timeline.tdsl
+    format: png
+    output: timeline.png
 
 - name: Upload to release
   uses: softprops/action-gh-release@v2
