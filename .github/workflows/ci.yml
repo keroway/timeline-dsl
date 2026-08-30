@@ -112,6 +112,10 @@ jobs:
         working-directory: editors/vscode
         run: npm ci
 
+      - name: Typecheck
+        working-directory: editors/vscode
+        run: npm run typecheck
+
       - name: Test
         working-directory: editors/vscode
         run: npm test
