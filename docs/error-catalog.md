@@ -632,6 +632,18 @@ statement が解決できなかったかを示します（例: `Q7209 (P39#2)`�
 `??` でフォールバックを与えるか、`label@en` 等の取得言語を追加してください。
 対象エンティティが本当にその情報を持たない場合は `map` 対象から除外します。
 
+**補足（機械可読な `code` 未提供）**: W201〜W209 / W211 は `ValidationDiagnostic` /
+`LoweringError::code()` を経由して `tdsl check --format json` の `code: "W2xx"` として
+取得できますが（#748）、**W210 だけは例外です**。W210 の警告文は
+`crates/tdsl-core/src/lower/mapping.rs` が `code` を持たない素の `String` として
+`lower_warnings` に積むだけで、これを JSON 化しているのは `check.rs` のみです。
+一方 `check` は常にオフライン（Pass 1/2 のみ）で動き、`map` を適用する Pass 4
+（`mapping.rs`）を実行しないため、W210 の警告文自体が `check` 経路に流れてきません。
+`build` はオンラインで Pass 4 を通るため W210 を出力できますが、`build` に
+`--format json` 診断出力が無く `Warning: ...` として stderr に出すだけです。
+つまり現状、W210 を `code: "W210"` として機械的に取得する手段はありません。CI で
+W210 だけを許可リストに載せたい場合は、この stderr のメッセージ文字列（`Mapped
+entity ... produced no ...`）を照合するしかありません（#840）。
 
 ### W211: offline lowering で import / map / apply が未解決
 
