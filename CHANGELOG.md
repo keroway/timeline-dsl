@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`scripts/check-doc-examples.py` に `docs/dsl-spec.md` を対象追加**（#844）: `check-doc-examples.py` は `docs/error-catalog.md` の「正しい」例のみを検証しており、DSL 仕様の本体である `docs/dsl-spec.md` のコード例には自動検証がかかっていなかった。`dsl-spec.md` は意図的な誤り例を含まないため、`// 正しい` マーカー規約を新設せず、`--mode simple`（新設）でフェンス全体をそのまま検証する簡易モードを追加した。`TDSL_START` が `event_range` を検出できていなかった既存の抜け（`event\b` の語境界判定が `_` で失敗する）も合わせて修正した。`filter` / `claim(...)` / `label@...` のような単体では文にならない式の断片は対象外のまま（`map` / `template` ブロック内での妥当性は別途検討、issue 本文参照）。`scripts/e2e-smoke.sh` に検証ステップを追加し、CI で継続的に検知する
 - **`tdsl-wasm` の `JsRenderOptions` に `locale` を追加し、SVG の ARIA ラベルの構造プレフィックスを日英で切り替え可能にした**（#815）: SVG の `<g aria-label="…">` に出力される `Event:` / `Span:` / `Event range:` / `Lane:` というプレフィックスは #701 で英語に固定していたが、埋め込み先（`obsidian-tdsl` 等）の UI 言語に合わせたいケースに対応できなかった。`locale: "en"`（既定）/ `"ja"` を追加し、`"ja"` では `イベント:` / `スパン:` / `イベント範囲:` / `レーン:` に切り替わる。タイトル・レーン名・年・id などソース由来の値はロケールに関係なく常にそのまま出力され、#701 の英語統一の決定自体は変更しない。WebUI（`apps/webui`）への配線は、npm パッケージ `@keroway/tdsl-wasm` がこの変更を含むバージョンを公開してから別途対応する（`apps/webui` は公開済み npm パッケージにのみ依存するため、このリリース内では型定義がまだ届かない）
 
 ## [2.0.0] - 2026-08-12
