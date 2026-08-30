@@ -48,7 +48,9 @@ jobs:
 
       - name: Verify output exists
         shell: bash
+        env:
+          OUTPUT_PATH: ${{ steps.render.outputs.output_path }}
         run: |
           set -euo pipefail
-          test -f "${{ steps.render.outputs.output_path }}"
-          echo "output_path=${{ steps.render.outputs.output_path }}"
+          test -f "$OUTPUT_PATH"
+          echo "output_path=$OUTPUT_PATH"
