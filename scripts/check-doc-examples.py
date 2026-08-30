@@ -164,6 +164,11 @@ def _correct_part(body: list[str]) -> str:
 
 
 def main() -> int:
+    # Windows のコンソールは既定で cp1252 等の非 UTF-8 コードページになり、
+    # 日本語を含む print() が UnicodeEncodeError で落ちるため明示する（#850）。
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--bin", default="./target/debug/tdsl")
     ap.add_argument(
