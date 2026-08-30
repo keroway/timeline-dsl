@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
-"""docs/error-catalog.md の「正しい」コード例が現行文法でパースできるか検証する。
+"""docs/error-catalog.md・docs/dsl-spec.md の DSL コード例が現行文法でパースできるか検証する。
 
-## なぜ「全ブロック」を対象にしないか
+## 2つの抽出モード
+
+- `marker`（デフォルト）: error-catalog.md 向け。各コードフェンス内を `// 正しい` 行で
+  区切り、**それ以降だけ**を検証する。
+- `--mode simple`: dsl-spec.md 向け。dsl-spec.md は「誤り例」を含まないため、
+  マーカー規約を使わずフェンス全体をそのまま検証する。
+
+## なぜ「全ブロック」を対象にしないか（marker モード）
 
 error-catalog はエラーの説明が目的なので、**意図的に壊れた例（`# 誤り`）を大量に含む**。
 「全コードブロックが `tdsl check` を通ること」を条件にすると、誤り例まで直させることになり
@@ -43,11 +50,23 @@ from pathlib import Path
 # lane 参照などを解決するために、例の前に付ける最小の前置き。
 # 例が単体で完結していなくても「文法として妥当か」を見たいので、
 # timeline / lane の宣言だけを補う。
-# 例で使われている lane 名。カタログの例は lane 宣言を省略して item だけを示すことが
+# 例で使われている lane 名。カタログ・仕様書の例は lane 宣言を省略して item だけを示すことが
 # 多いため、よく使われる名前をまとめて宣言しておく。
 # 新しい lane 名を使う例を足したらここにも追加する（追加を忘れると
 # 「Unknown lane reference」で落ちるので、黙って見逃されることはない）。
-_LANES = ["dynasty", "lane", "a", "events", "mission"]
+_LANES = [
+    "dynasty",
+    "lane",
+    "a",
+    "events",
+    "mission",
+    # dsl-spec.md の span/event/event_range/map/expand 例で使われる lane 名。
+    "han",
+    "ww2",
+    "reiwa",
+    "ongoing_conflict",
+    "offices",
+]
 
 _LANE_DECLS = "\n\n".join(
     f'lane "{name}" as {name} {{\n  kind custom;\n  order {i + 1};\n}}'
@@ -65,7 +84,14 @@ PREAMBLE = _TIMELINE + "\n\n" + _LANE_DECLS + "\n"
 # `re.M` が要る。これが無いと**先頭行が文でないと一致しない**ため、
 # 説明コメントで始まる例（`// 正しい（…` の続き等）が丸ごと検証対象から
 # 外れる。区切りマーカー以外のコメントを落とすのをやめた際に判明した。
-TDSL_START = re.compile(r"^\s*(timeline|lane|span|event|import|map)\b", re.M)
+#
+# `event_range` は先に置く：`event` を先に試すと `event\b` の語境界判定で
+# `event_range` の `_` が単語構成文字のため一致せず、`event_range` 単独の
+# フェンスが丸ごと検証対象から漏れる（dsl-spec.md 対応時に発覚）。
+TDSL_START = re.compile(
+    r"^\s*(timeline|lane|group|span|event_range|event|import|map|template|apply)\b",
+    re.M,
+)
 
 
 def extract_correct_examples(md: Path) -> list[tuple[int, str]]:
@@ -80,6 +106,33 @@ def extract_correct_examples(md: Path) -> list[tuple[int, str]]:
         if line.startswith("```"):
             if in_fence:
                 src = _correct_part(body)
+                if src and TDSL_START.search(src):
+                    out.append((start, src))
+                body, in_fence = [], False
+            else:
+                in_fence, start = True, i + 2
+            continue
+        if in_fence:
+            body.append(line)
+    return out
+
+
+def extract_simple_examples(md: Path) -> list[tuple[int, str]]:
+    """(開始行, ソース) の一覧を返す。`// 正しい` マーカー無しでフェンス全体を対象にする。
+
+    dsl-spec.md 向け。誤り例を含まないため、フェンスの中身をそのまま
+    候補にし、`TDSL_START` に一致しないもの（EBNF・bash・式の断片等）だけを除く。
+    """
+    lines = md.read_text(encoding="utf-8").split("\n")
+    out: list[tuple[int, str]] = []
+    body: list[str] = []
+    start = 0
+    in_fence = False
+
+    for i, line in enumerate(lines):
+        if line.startswith("```"):
+            if in_fence:
+                src = "\n".join(body).strip()
                 if src and TDSL_START.search(src):
                     out.append((start, src))
                 body, in_fence = [], False
@@ -113,14 +166,23 @@ def _correct_part(body: list[str]) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bin", default="./target/debug/tdsl")
+    ap.add_argument(
+        "--mode",
+        choices=["marker", "simple"],
+        default="marker",
+        help="marker: `// 正しい` 区切り（error-catalog.md 向け）。"
+        " simple: フェンス全体を検証（dsl-spec.md 向け）。",
+    )
     ap.add_argument("files", nargs="*", default=["docs/error-catalog.md"])
     args = ap.parse_args()
+
+    extract = extract_simple_examples if args.mode == "simple" else extract_correct_examples
 
     failures = 0
     checked = 0
     for name in args.files:
         md = Path(name)
-        for start, src in extract_correct_examples(md):
+        for start, src in extract(md):
             checked += 1
             # 前置きは「例に足りないものだけ」を補う。重複して宣言すると
             # 「Multiple timeline blocks found」「Duplicate lane alias」になる。

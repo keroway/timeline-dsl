@@ -319,6 +319,10 @@ echo "[e2e] docs: error-catalog.md の「正しい」例がパースできる (#
 cargo build -q -p tdsl-cli
 python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl docs/error-catalog.md
 
+# dsl-spec.md のコード例（誤り例を含まないため marker 不要、フェンス全体を検証）(#844)。
+echo "[e2e] docs: dsl-spec.md のコード例がパースできる (#844)"
+python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl --mode simple docs/dsl-spec.md
+
 # ---- tdsl lint 終了コード ----------------------------------------------------
 # ERROR が残っている場合に非ゼロを返すこと (#766)。ここが 0 のままだと
 # JSON をパースしない限り CI で lint をゲートにできない。
