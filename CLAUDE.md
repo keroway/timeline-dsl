@@ -240,3 +240,29 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.json` をミラー�
 - **`.claude/hooks/post-stop-check.sh`** -- Stop hook。応答完了時に変更ファイルを見て `cargo fmt --check` / `cargo clippy -D warnings` / `cargo test --workspace` を実行（WebUI 変更時は `npm run lint` も）。スキップは `TDSL_SKIP_STOP_HOOK=1`。
 
 実装着手時は `.claude/rules/implementation-strict.md` の「§3 着手前チェックリスト」を埋めてから書き始めること。
+
+## Agent skills
+
+`mattpocock-skills` プラグインの engineering スキル群がリポジトリ固有設定として読む。
+
+### Issue tracker
+
+Issue は GitHub Issues（`keroway/timeline-dsl`）で管理し、`gh` CLI で操作する。
+`area:*` はこのリポジトリ固有の分類ラベル。
+詳細は [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)。
+
+### Triage labels
+
+canonical な5役割のうち `ready-for-human` だけ既存の `needs-human` へ写像し、
+残りはそのままラベル名として使う（この写像はワークスペース共通の正典で、
+このリポジトリ単独で書き換えない）。**既存の `refined` は 2026-08-30 に
+`ready-for-agent` へリネーム済み**（同義ラベルの並立を避けるため）。
+無人ループの除外ラベル一覧は `agent-assets` の
+`docs/agents/triage-labels.md` を正とする。
+詳細は [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md)。
+
+### Domain docs
+
+single-context。用語の正典は [`docs/dsl-spec.md`](docs/dsl-spec.md)、決定記録は
+`docs/adr/`。`CONTEXT.md` は未作成で、無い場合は黙って先に進む。
+詳細は [`docs/agents/domain.md`](docs/agents/domain.md)。
