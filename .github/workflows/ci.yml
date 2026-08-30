@@ -254,6 +254,13 @@ jobs:
     name: Test (Windows)
     runs-on: windows-latest
     steps:
+      # windows-latest ランナーの git は既定で checkout 時に LF を CRLF へ
+      # 変換する。scripts/e2e-smoke.sh が examples/*.tdsl をコピーして
+      # `tdsl fmt --check` にかけると、CRLF 化されたファイルが「未フォーマット」
+      # と判定されてしまうため、checkout 前に無効化する（#850）。
+      - name: Disable git autocrlf
+        run: git config --global core.autocrlf false
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
