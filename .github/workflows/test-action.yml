@@ -1,0 +1,56 @@
+name: Test composite action
+
+on:
+  pull_request:
+    paths:
+      - "action.yml"
+      - ".github/workflows/test-action.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "action.yml"
+      - ".github/workflows/test-action.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  self-test:
+    name: Render via action.yml (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # action.yml 自体の変更は直近リリース済みバイナリの検証対象にできない
+      # （GitHub Releases に依存するため）。本ワークフローは action.yml の
+      # ダウンロード・実行ロジックの回帰検知が目的で、最新リリース版
+      # (version: latest) を対象とする。
+      - name: Run Timeline DSL action
+        id: render
+        uses: ./
+        with:
+          file: examples/china_dynasties.tdsl
+          format: svg
+          offline: "true"
+
+      - name: Verify output exists
+        shell: bash
+        env:
+          OUTPUT_PATH: ${{ steps.render.outputs.output_path }}
+        run: |
+          set -euo pipefail
+          test -f "$OUTPUT_PATH"
+          echo "output_path=$OUTPUT_PATH"
