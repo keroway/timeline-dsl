@@ -16,6 +16,7 @@ jobs:
     name: Build ${{ matrix.target }}
     if: github.event_name == 'push'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     permissions:
       contents: read
     strategy:
@@ -105,6 +106,7 @@ jobs:
   build-wasm:
     name: Build WASM package
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # npm への publish は Trusted Publishing（OIDC）で行う。長期トークン（NPM_TOKEN）は不要。
     # OIDC トークン発行のため id-token: write が必須。このジョブは checkout と artifact
     # アップロードしか行わないため、最小権限として contents: read のみ併記する
@@ -223,6 +225,7 @@ jobs:
     # タグ push 時のみ実行する。workflow_dispatch は npm 再 publish 用のため対象外。
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # crates.io への publish は Trusted Publishing（OIDC）で行う。長期トークンは不要。
     # OIDC トークン発行のため id-token: write が必須。このジョブは checkout と
     # cargo publish しか行わないため、最小権限として contents: read のみ併記する
@@ -280,6 +283,7 @@ jobs:
     needs: [build, build-wasm]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write
     steps:
@@ -311,6 +315,7 @@ jobs:
     name: Update Homebrew Formula (tap bump PR)
     needs: release
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
