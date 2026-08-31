@@ -54,3 +54,89 @@ jobs:
           set -euo pipefail
           test -f "$OUTPUT_PATH"
           echo "output_path=$OUTPUT_PATH"
+
+  # self-test は OS 横断で format=svg + offline=true の1経路のみを検証する
+  # (バイナリのダウンロード・展開ロジックの OS 差異が主眼)。
+  # ここでは action.yml の bash ロジック（ARGS 組み立て・OUTPUT 計算）に
+  # 関わる他の入力（format=html/png/pdf、interactive、theme、scale、output）
+  # を ubuntu-latest 1 OS に絞って検証する（#853）。
+  self-test-extra-inputs:
+    name: Render via action.yml (extra inputs)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Render interactive HTML with theme
+        id: render-html
+        uses: ./
+        with:
+          file: examples/china_dynasties.tdsl
+          format: html
+          offline: "true"
+          interactive: "true"
+          theme: dark
+
+      - name: Verify HTML output
+        shell: bash
+        env:
+          OUTPUT_PATH: ${{ steps.render-html.outputs.output_path }}
+        run: |
+          set -euo pipefail
+          test -f "$OUTPUT_PATH"
+          [[ "$OUTPUT_PATH" == *.html ]]
+
+      - name: Render PNG with scale
+        id: render-png
+        uses: ./
+        with:
+          file: examples/china_dynasties.tdsl
+          format: png
+          offline: "true"
+          scale: "30"
+
+      - name: Verify PNG output
+        shell: bash
+        env:
+          OUTPUT_PATH: ${{ steps.render-png.outputs.output_path }}
+        run: |
+          set -euo pipefail
+          test -f "$OUTPUT_PATH"
+          [[ "$OUTPUT_PATH" == *.png ]]
+
+      - name: Render PDF
+        id: render-pdf
+        uses: ./
+        with:
+          file: examples/china_dynasties.tdsl
+          format: pdf
+          offline: "true"
+
+      - name: Verify PDF output
+        shell: bash
+        env:
+          OUTPUT_PATH: ${{ steps.render-pdf.outputs.output_path }}
+        run: |
+          set -euo pipefail
+          test -f "$OUTPUT_PATH"
+          [[ "$OUTPUT_PATH" == *.pdf ]]
+
+      - name: Render with custom output path
+        id: render-output
+        uses: ./
+        with:
+          file: examples/china_dynasties.tdsl
+          format: svg
+          offline: "true"
+          output: custom-output-path.svg
+
+      - name: Verify custom output path
+        shell: bash
+        env:
+          OUTPUT_PATH: ${{ steps.render-output.outputs.output_path }}
+        run: |
+          set -euo pipefail
+          test -f "$OUTPUT_PATH"
+          [[ "$(basename "$OUTPUT_PATH")" == "custom-output-path.svg" ]]
