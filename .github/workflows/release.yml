@@ -366,30 +366,34 @@ jobs:
           # formula 全体を毎回生成する。旧 sed+PLACEHOLDER 方式は一度埋めると
           # placeholder が消え、以降は version しか書き換わらず sha が stale に
           # なる欠陥があった。全プラットフォームの url/sha を決定的に書き出す。
+          #
+          # `version` は宣言しない。Homebrew は url のパスからバージョンを読むため、
+          # 併記すると `brew audit` が "version X is redundant with version scanned
+          # from URL" で落ち、tap 側の test-bot が失敗する（v2.1.0 で発生）。
+          # url にはタグを直書きする（keroway/homebrew-tap の CLAUDE.md の手順どおり）。
           TAG="${VERSION#v}"
           cat > homebrew-tap/Formula/tdsl.rb <<FORMULA
           class Tdsl < Formula
             desc "Timeline DSL compiler — text-based timelines with Wikidata import"
             homepage "https://github.com/keroway/timeline-dsl"
-            version "${TAG}"
             license "MIT"
 
             on_macos do
               if Hardware::CPU.arm?
-                url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-macos-aarch64.tar.gz"
+                url "https://github.com/keroway/timeline-dsl/releases/download/v${TAG}/tdsl-macos-aarch64.tar.gz"
                 sha256 "${SHA_MACOS_ARM}"
               else
-                url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-macos-x86_64.tar.gz"
+                url "https://github.com/keroway/timeline-dsl/releases/download/v${TAG}/tdsl-macos-x86_64.tar.gz"
                 sha256 "${SHA_MACOS_X86}"
               end
             end
 
             on_linux do
               if Hardware::CPU.arm?
-                url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-linux-aarch64.tar.gz"
+                url "https://github.com/keroway/timeline-dsl/releases/download/v${TAG}/tdsl-linux-aarch64.tar.gz"
                 sha256 "${SHA_LINUX_ARM}"
               else
-                url "https://github.com/keroway/timeline-dsl/releases/download/v#{version}/tdsl-linux-x86_64.tar.gz"
+                url "https://github.com/keroway/timeline-dsl/releases/download/v${TAG}/tdsl-linux-x86_64.tar.gz"
                 sha256 "${SHA_LINUX}"
               end
             end
