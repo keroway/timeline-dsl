@@ -7,10 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-02
+
 ### Added
 
 - **`scripts/check-doc-examples.py` に `docs/dsl-spec.md` を対象追加**（#844）: `check-doc-examples.py` は `docs/error-catalog.md` の「正しい」例のみを検証しており、DSL 仕様の本体である `docs/dsl-spec.md` のコード例には自動検証がかかっていなかった。`dsl-spec.md` は意図的な誤り例を含まないため、`// 正しい` マーカー規約を新設せず、`--mode simple`（新設）でフェンス全体をそのまま検証する簡易モードを追加した。`TDSL_START` が `event_range` を検出できていなかった既存の抜け（`event\b` の語境界判定が `_` で失敗する）も合わせて修正した。`filter` / `claim(...)` / `label@...` のような単体では文にならない式の断片は対象外のまま（`map` / `template` ブロック内での妥当性は別途検討、issue 本文参照）。`scripts/e2e-smoke.sh` に検証ステップを追加し、CI で継続的に検知する
 - **`tdsl-wasm` の `JsRenderOptions` に `locale` を追加し、SVG の ARIA ラベルの構造プレフィックスを日英で切り替え可能にした**（#815）: SVG の `<g aria-label="…">` に出力される `Event:` / `Span:` / `Event range:` / `Lane:` というプレフィックスは #701 で英語に固定していたが、埋め込み先（`obsidian-tdsl` 等）の UI 言語に合わせたいケースに対応できなかった。`locale: "en"`（既定）/ `"ja"` を追加し、`"ja"` では `イベント:` / `スパン:` / `イベント範囲:` / `レーン:` に切り替わる。タイトル・レーン名・年・id などソース由来の値はロケールに関係なく常にそのまま出力され、#701 の英語統一の決定自体は変更しない。WebUI（`apps/webui`）への配線は、npm パッケージ `@keroway/tdsl-wasm` がこの変更を含むバージョンを公開してから別途対応する（`apps/webui` は公開済み npm パッケージにのみ依存するため、このリリース内では型定義がまだ届かない）
+
+### Changed
+
+- **`tdsl-wikidata` の `time_value_to_timepoint` が precision の主張と食い違う月/日/時/分/秒を明示エラーにするようになった**（#832）: Wikidata の time value は `precision` フィールドで「どこまでが有効な値か」を宣言するが、`+2020-00-00T00:00:00Z` のように precision が `month` 以上を主張しながら月や日が `00` である不整合なデータを、従来は黙って読み飛ばして年だけの `TimePoint` にフォールバックしていた。silent fallback を廃止し、precision が要求する粒度の値が不正な場合はエラーを返す（「No silent fallback」原則、`.claude/rules/implementation-strict.md` §1）。**取り込み対象のエンティティに不整合な time value が含まれていた場合、従来は年精度で通っていたインポートがエラーになる**
+- **`tdsl-lsp` から呼び出し元ゼロの `compute_hover` を削除**（#833）: `hover.rs` に定義だけが残っていた dead code。`tdsl-lsp` は crates.io へ publish していないため外部影響はない
+
+### Fixed
+
+- **`osv-scan` CI が `h2` の RUSTSEC-2026-0258 で失敗していたのを修正**（#836）: `h2` を 0.4.16 以上に更新した
+- **`apps/webui` の `nanoid` を 3.3.18 へ更新して GHSA-2v37-7h3g-55p8（無限ループ）を解消**（#816）: #731 で `overrides` に入れた固定が、上限なしレンジで ESM-only の新 major を引き当てないよう上限付きレンジで指定している
+- **Release ワークフローの `release` ジョブに `actions/checkout` が無く、タグ push 時に失敗していたのを修正**（#810）
+- **Homebrew tap の bump PR 作成が silent skip / silent failure になっていたのを修正**（#811, #861）: `TAP_BUMP_TOKEN` 未設定時に `::notice` を出してジョブを成功扱いでスキップしていたため、Homebrew 側だけが更新されないまま気付かれない状態になり得た。未設定の場合も、`gh pr create` が失敗した場合も、ジョブを失敗させるようにした
+- **`tdsl-preview` ワークフローがビルド/レンダリング失敗を silent fallback していたのを修正**（#831, #858）: PR プレビューの生成が失敗してもジョブが成功扱いになり、壊れた出力が「変化なし」として通っていた
+
+### CI / Docs / Tests
+
+- `action.yml`（composite action）の self-test ワークフローを追加し、`format` / `theme` / `scale` / `interactive` / `output` の各ケースを検証するようにした（#852, #854）
+- `test-windows` ジョブに `cargo clippy` と `scripts/e2e-smoke.sh` を追加（#851）
+- 全 CI ジョブに `timeout-minutes` を設定し、ハング時に runner を占有し続けないようにした（#856）
+- `workflow-lint` に週次 cron を追加し、`typos` の PR 検査漏れを塞いだ（#855）。あわせて意図的なテスト文字列 `yaer` を誤検知しないよう除外設定を追加（#814）
+- `editors/vscode` の `npm run typecheck` を CI ジョブに追加（#845）、lefthook の pre-push に `cargo clippy` ゲートを追加（#839）
+- `tdsl cache` サブコマンドのユニットテスト・統合テストを追加（#829）
+- ドキュメント整備: `error-catalog.md` の W210 に code 未提供である旨を明記（#841）、`ci-integration.md` に `action.yml` の png/pdf format 対応を追記（#838）、`cli-spec.md` の render オプション表に `--show-legend` の独立行を追加（#837）、`render` サブコマンドの `--help` サマリを4形式対応に更新（#834）、`dsl-spec.md` のサブコマンド一覧に `merge` / `export-csv` / `fmt` / `completions` / `lsp` を追加（#830）、`docs/agents/` に mattpocock skills のリポジトリ設定を追加（#847）
+- 依存更新: `browserslist` 4.28.4 → 4.28.8（`apps/webui`、#860）
 
 ## [2.0.0] - 2026-08-12
 
@@ -661,6 +687,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[2.1.0]: https://github.com/keroway/timeline-dsl/releases/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.28.0...v2.0.0
 [1.28.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.27.0...v1.28.0
 [1.27.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.26.0...v1.27.0

@@ -94,12 +94,13 @@ tag の push により `.github/workflows/vscode-publish.yml` が起動します
 
 - 認証は `TAP_BUMP_TOKEN` シークレット（`keroway/homebrew-tap` への書き込み権限を持つ PAT）。
   **リリース前に、このシークレットが `timeline-dsl` リポジトリに設定されていることを確認すること**
-- `TAP_BUMP_TOKEN` が未設定の場合、ジョブは失敗せず `::notice` を出して**静かにスキップ**する
-  （他のリリース成果物をブロックしないための意図的な設計。逆に言うと、見落とすと
-  Homebrew 側だけが更新されないまま気付かれない）
-- 確認手順: Actions タブで `update-homebrew-formula` ジョブのログを確認し、
-  「スキップされた」旨の notice が出ていないこと、および
-  `keroway/homebrew-tap` に bump PR が実際に作成されていることを確認する
+- `TAP_BUMP_TOKEN` が未設定の場合、ジョブは**失敗する**（#811）。以前は `::notice` を出して
+  静かにスキップしていたが、Homebrew 側だけが更新されないまま気付かれないため、
+  リリースの可視な失敗として扱うよう変更した
+- `gh pr create` が失敗した場合も同様にジョブを**失敗させる**（#861）。以前は終了コードを
+  検査しておらず、PR が作られていなくてもジョブが成功していた
+- 確認手順: Actions タブで `update-homebrew-formula` ジョブが成功していることと、
+  `keroway/homebrew-tap` に `bump-tdsl-X.Y.Z` の PR が実際に作成されていることを確認する
 
 ---
 
