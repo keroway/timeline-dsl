@@ -24,7 +24,7 @@ png = ["dep:resvg"]
 pdf = ["dep:svg2pdf", "dep:pdf-writer"]
 
 [dependencies]
-tdsl-core = { path = "../tdsl-core", default-features = false, version = "2.0.0" }
+tdsl-core = { path = "../tdsl-core", default-features = false, version = "2.1.0" }
 resvg = { version = "0.47", optional = true }
 svg2pdf = { version = "0.13", optional = true }
 pdf-writer = { version = "0.12", optional = true }
@@ -37,8 +37,8 @@ thiserror = { workspace = true }
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
 insta = { version = "1", features = ["yaml"] }
-tdsl-parser = { path = "../tdsl-parser", version = "2.0.0" }
-tdsl-core = { path = "../tdsl-core", default-features = false, version = "2.0.0" }
+tdsl-parser = { path = "../tdsl-parser", version = "2.1.0" }
+tdsl-core = { path = "../tdsl-core", default-features = false, version = "2.1.0" }
 
 [[bench]]
 name = "render_bench"

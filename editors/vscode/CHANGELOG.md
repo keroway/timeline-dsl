@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-02
+
+### Changed
+
+- timeline-dsl v2.1.0 リリースに合わせてバージョンを同期（拡張自体の機能変更はなし）
+
+### Internal
+
+- CI に `npm run typecheck` ジョブを追加（#845）
+
 ## [2.0.0] - 2026-08-12
 
 ### Added
