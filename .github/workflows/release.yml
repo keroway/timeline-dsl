@@ -302,14 +302,26 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" \
-            --generate-notes \
-            tdsl-linux-x86_64.tar.gz \
-            tdsl-linux-aarch64.tar.gz \
-            tdsl-macos-x86_64.tar.gz \
-            tdsl-macos-aarch64.tar.gz \
-            tdsl-windows-x86_64.zip \
+          # 同じタグ push で vscode-publish.yml も走り、softprops/action-gh-release で
+          # 同名の Release を「無ければ作成」する。VS Code 側は数分で終わるのに対し
+          # こちらはクロスビルドに10分以上かかるため、構造的にあちらが先着する。
+          # `gh release create` 固定だと "already exists" で必ず失敗し、後続の
+          # update-homebrew-formula が skip されて Homebrew だけ更新されない
+          # （v2.0.0 / v2.1.0 で実際に発生）。既存なら asset 追加に切り替えて冪等にする。
+          assets=(
+            tdsl-linux-x86_64.tar.gz
+            tdsl-linux-aarch64.tar.gz
+            tdsl-macos-x86_64.tar.gz
+            tdsl-macos-aarch64.tar.gz
+            tdsl-windows-x86_64.zip
             "tdsl-wasm-${TAG}.tar.gz"
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::notice::Release $TAG already exists; uploading assets to it."
+            gh release upload "$TAG" --clobber "${assets[@]}"
+          else
+            gh release create "$TAG" --generate-notes "${assets[@]}"
+          fi
 
   update-homebrew-formula:
     name: Update Homebrew Formula (tap bump PR)
