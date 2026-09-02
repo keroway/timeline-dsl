@@ -101,6 +101,11 @@ tag の push により `.github/workflows/vscode-publish.yml` が起動します
   検査しておらず、PR が作られていなくてもジョブが成功していた
 - 確認手順: Actions タブで `update-homebrew-formula` ジョブが成功していることと、
   `keroway/homebrew-tap` に `bump-tdsl-X.Y.Z` の PR が実際に作成されていることを確認する
+- **formula の構造変更に注意**: ジョブは formula を毎回全量再生成して上書きする。
+  caveats / 補完生成 / test 拡張など構造の変更を tap 側に入れる場合は、必ず
+  `.github/workflows/release.yml` の Regenerate formula の heredoc にも反映すること。
+  同期しないと次回リリースで構造が消える（実際に v2.1.0 で caveats・補完・test 拡張が
+  消えた。keroway/homebrew-tap#96）
 
 ---
 
