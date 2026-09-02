@@ -202,3 +202,10 @@ jobs:
                 body,
               });
             }
+
+      - name: Fail if any file failed to render or build
+        run: |
+          if jq -e 'map(select(.render_failed or .build_failed)) | length > 0' preview/summary.json > /dev/null; then
+            echo "::error::One or more .tdsl files failed to render or build IR. See the PR comment for details."
+            exit 1
+          fi
