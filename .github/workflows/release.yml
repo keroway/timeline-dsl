@@ -437,5 +437,4 @@ jobs:
             --repo keroway/homebrew-tap \
             --head "$BRANCH" \
             --title "chore: update tdsl formula to ${VERSION}" \
-            --body "Automated bump from keroway/timeline-dsl release ${VERSION}. Regenerates Formula/tdsl.rb with the new version and sha256 hashes for all platforms." \
-            || echo "::warning::gh pr create failed (a PR for ${BRANCH} may already exist)."
+            --body "Automated bump from keroway/timeline-dsl release ${VERSION}. Regenerates Formula/tdsl.rb with the new version and sha256 hashes for all platforms."
