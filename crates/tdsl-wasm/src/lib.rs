@@ -51,6 +51,10 @@ fn auto_scale_for_span(span: f64) -> f64 {
 /// `source_span` (line numbers) are embedded as `data-line` attributes in the SVG
 /// for bidirectional editor↔preview jump.
 /// Returns Ok(svg_string) or Err(error_message).
+///
+/// `apps/webui` は現在このエクスポートを直接呼ばず `client.ts` の非同期ラッパー経由でも
+/// 未使用だが、npm 公開済みの `tdsl-wasm` パッケージの公開 API として意図的に残している
+/// （#820）。削除すると npm consumer に対する破壊的変更になる。
 #[wasm_bindgen]
 pub fn render_svg_from_source(source: &str, scale: f64) -> Result<String, JsValue> {
     let file = tdsl_parser::parse(source).map_err(|e| JsValue::from_str(&e.to_string()))?;
@@ -871,6 +875,10 @@ event a 30 "E" {};
 
 /// Render standalone HTML from TDSL source (static items only).
 /// Returns Ok(html_string) or Err(error_message).
+///
+/// `apps/webui` は現在このエクスポートを直接呼ばず `client.ts` の非同期ラッパー経由でも
+/// 未使用だが、npm 公開済みの `tdsl-wasm` パッケージの公開 API として意図的に残している
+/// （#820）。削除すると npm consumer に対する破壊的変更になる。
 #[wasm_bindgen]
 pub fn render_html_from_source(source: &str) -> Result<String, JsValue> {
     let file = tdsl_parser::parse(source).map_err(|e| JsValue::from_str(&e.to_string()))?;
