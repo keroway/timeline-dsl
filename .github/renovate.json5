@@ -1,5 +1,13 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  // Renovate (Mend App) は organization 側の設定で mode: "silent" として動作しており、
+  // PR も Dependency Dashboard も作成しない（バージョン追従のみ、通知なし）。
+  // そのため schedule / labels / prConcurrentLimit は現状の運用では効果を持たず、
+  // 将来 silent モードを解除した場合に有効になる設定として残している。
+  // silent か否かの確認は Mend の管理画面か Renovate の実行ログを見ること
+  // （PR も Dashboard も見当たらないことは未インストールの証拠にはならない —
+  // ワークスペース keroway/CLAUDE.md 参照）。
+  // 脆弱性由来の更新は Dependabot security updates が別途担当する（役割分担であり重複ではない）。
   extends: [
     "config:recommended",
     ":semanticCommitTypeAll(chore)",

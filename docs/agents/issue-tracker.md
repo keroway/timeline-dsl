@@ -21,7 +21,10 @@ The triage roles and the exclusion list the unmanned loops gate on are in
 - **`area:*`** (`area:testing` / `area:editor` / `area:webui`): which layer the work
   lands in. `CLAUDE.md` の「クレート構成」に依存方向があるので、`area:` を付けるときは
   変更が波及するクレートの側に寄せる。
-- **`dependencies`** / `rust` / `javascript` / `github_actions`: Dependabot が付ける。
+- **`dependencies`**: バージョン追従の Renovate（`.github/renovate.json5`）が付ける
+  （2026-07-24 に dependabot.yml から移行済み。`rust` / `javascript` / `github_actions`
+  のような生態系別ラベルは付与していない）。脆弱性由来の Dependabot security update PR
+  には `dependencies` は付かず、`chore(deps): bump ...` の PR タイトルで判別する。
 
 An Issue moves `needs-refinement` → (split by `issue-refinement apply`) →
 `ready-for-agent`（スコープ確定・受け入れ条件定義済み）→ `in-progress`
