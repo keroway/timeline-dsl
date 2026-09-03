@@ -130,6 +130,9 @@ export function createWorkerClient(
         args: [source],
       })) as string
     },
+    // WebUI 自体は renderSvgWithOptionsAsync 経由でレンダリングするため、この
+    // wasm 側 render_svg_from_source は WebUI からは未使用。npm 公開済みの
+    // tdsl-wasm パッケージの公開 API として意図的に残しているため、このラッパーも削除しない（#820）。
     async renderSvgAsync(source, scale = 0) {
       return (await request({
         id: nextId(),
@@ -144,6 +147,9 @@ export function createWorkerClient(
         args: [source, scale, opts],
       })) as string
     },
+    // renderSvgAsync と同様、WebUI は renderHtmlWithOptionsAsync 経由でレンダリングするため
+    // このラッパー（render_html_from_source 相当）も WebUI からは未使用。npm 公開済みの
+    // tdsl-wasm パッケージの公開 API として意図的に残しているため削除しない（#820）。
     async renderHtmlAsync(source) {
       return (await request({
         id: nextId(),

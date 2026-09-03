@@ -9,6 +9,12 @@
 
 ファイルの構文解析中に発生するエラーです。`.tdsl` ファイルの記法が誤っている場合に報告されます。
 
+**補足（機械可読な `code` 未提供）**: E001〜E009 は本カタログ上の分類番号であり、
+`ParseError` は `code()` を実装していません。そのため `tdsl check --format json` の
+`code` フィールドには現れません（意味エラーの E101 系のように
+`crates/tdsl-core/src/error.rs` の `code()` を経由する仕組みが `tdsl-parser` 側には
+無いため）。機械的に判別したい場合はメッセージ文字列で照合してください。
+
 ### E001: 構文エラー
 
 **メッセージ**: `Syntax error: ...`
@@ -668,6 +674,11 @@ map wd.han to span { lane l; start claim(P571).year; end claim(P576).year; }
 ## Wikidataエラー（tdsl-wikidata）
 
 Wikidata APIとの通信・データ解析で発生するエラーです。
+
+**補足（機械可読な `code` 未提供）**: E301〜E307 も E001〜E009 と同様に本カタログ上の
+分類番号であり、`WikidataError` は `code()` を実装していないため
+`tdsl check --format json` の `code` フィールドには現れません。機械的に判別したい場合は
+メッセージ文字列で照合してください。
 
 ### E301: HTTP通信エラー
 
