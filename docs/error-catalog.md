@@ -618,6 +618,7 @@ span dynasty -206..9 "秦" {};
 
 - `Mapped entity {id} produced no item: required`lane`is unresolved/empty`
 - `Mapped entity {id} produced no item: required`label`could not be resolved`
+- `Mapped entity {id} produced no item: required`label`resolved to an empty string`
 - `Mapped entity {id} produced no`span`:`start`/`end`could not be resolved`
 - `Mapped entity {id} produced no`event`:`time`could not be resolved`
 - `Mapped entity {id} produced no`event_range`:`start`/`end`could not be resolved`
@@ -627,6 +628,15 @@ statement が解決できなかったかを示します（例: `Q7209 (P39#2)`�
 
 **原因**: 指定した `claim(...)` がエンティティに存在しない、対象言語の `label`
 が無い、`lane` プロパティが未指定、などにより必須値が `None` になっています。
+`label` については 2 パターンが区別されます（#826）:
+
+- `could not be resolved` -- 指定した `label@xx ?? ...` のどの言語コードでも
+  エンティティにラベル自体が存在しない（`label_with_fallback` が `None`）。
+- `resolved to an empty string` -- 指定した言語のラベルは存在するが、その値が
+  空文字列だった（`label_with_fallback` が `Some("")`）。
+
+いずれの場合も item はスキップされる後方互換の挙動は変わりません
+（メッセージ文言のみで区別します）。
 
 **修正方法**: マッピング式（`claim(P...).year` 等）のプロパティ番号を確認し、
 `??` でフォールバックを与えるか、`label@en` 等の取得言語を追加してください。

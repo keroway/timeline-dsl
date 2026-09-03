@@ -179,8 +179,67 @@ async fn lower_wikidata_entity_without_label_skips_item() {
         query_results: vec![],
     };
 
-    let ir = lower::lower_with_wikidata(&file, &client).await.unwrap();
+    let (ir, warnings) = lower::lower_with_wikidata_and_diagnostics(&file, &client, None)
+        .await
+        .unwrap();
     assert_eq!(ir.items.len(), 0);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("`label` could not be resolved")),
+        "expected an unresolved-label warning, got: {warnings:?}"
+    );
+    assert!(
+        !warnings.iter().any(|w| w.contains("empty string")),
+        "unresolved label should not be reported as an empty string, got: {warnings:?}"
+    );
+}
+
+#[tokio::test]
+async fn lower_wikidata_entity_with_empty_label_skips_item() {
+    // An entity whose label resolves to the empty string (as opposed to being
+    // entirely absent) must be distinguished from the unresolved case (#826).
+    let src = r#"
+        timeline "Test" { unit year; range -500..1000; }
+        lane "Dynasty" as dynasty { kind dynasty; order 1; }
+
+        import wikidata as wd {
+            entity Q9998 as emptylabel;
+        }
+
+        map wd.emptylabel to span {
+            lane dynasty;
+            start claim(P571).year;
+            end claim(P576).year;
+            label label@ja ?? label@en;
+        }
+    "#;
+
+    // Entity whose `ja` label resolves to the empty string.
+    let entity = make_entity("Q9998", "", -100, 100);
+
+    let file = tdsl_parser::parse(src).unwrap();
+    let mut entities = HashMap::new();
+    entities.insert("Q9998".to_string(), entity);
+    let client = MockWikidataClient {
+        entities,
+        query_results: vec![],
+    };
+
+    let (ir, warnings) = lower::lower_with_wikidata_and_diagnostics(&file, &client, None)
+        .await
+        .unwrap();
+    assert_eq!(ir.items.len(), 0);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("`label` resolved to an empty string")),
+        "expected an empty-string label warning, got: {warnings:?}"
+    );
+    assert!(
+        !warnings.iter().any(|w| w.contains("could not be resolved")),
+        "empty label should not be reported as unresolved, got: {warnings:?}"
+    );
 }
 
 #[tokio::test]
