@@ -539,16 +539,25 @@ tdsl-render = "1"
 基本的な使用例（`.tdsl` をパースして IR に変換）：
 
 ```rust
-use tdsl_parser::parse_file;
-use tdsl_core::lower_static;
+use tdsl_parser::parse;
+use tdsl_core::lower::lower_static;
 
 let source = r#"
-    timeline "My Timeline" { unit: year; range: 1900..2000; }
-    lane Milestones "Milestones"
-    event Milestone1 at 1950 in Milestones label "Halfway"
+    timeline "My Timeline" {
+      unit year;
+      range 1900..2000;
+    }
+
+    lane "Milestones" as milestones {
+      kind default;
+    }
+
+    event milestones 1950 "Halfway" {
+      id "event:halfway";
+    };
 "#;
-let ast = parse_file(source).unwrap();
-let ir = lower_static(ast).unwrap();
+let ast = parse(source).unwrap();
+let ir = lower_static(&ast).unwrap();
 println!("{}", serde_json::to_string_pretty(&ir).unwrap());
 ```
 
