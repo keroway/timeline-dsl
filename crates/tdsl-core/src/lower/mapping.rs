@@ -196,7 +196,7 @@ impl LoweringContext {
         let mut start: Option<TimePoint> = None;
         let mut end: Option<TimePoint> = None;
         let mut time: Option<TimePoint> = None;
-        let mut label = String::new();
+        let mut label: Option<String> = None;
         let mut tags = Vec::new();
 
         // First pass: evaluate filters; skip this entity if any filter is false.
@@ -216,7 +216,7 @@ impl LoweringContext {
                 ast::MapProp::End(expr) => end = eval_map_expr(expr, entity, ctx_stmt),
                 ast::MapProp::Time(expr) => time = eval_map_expr(expr, entity, ctx_stmt),
                 ast::MapProp::Label(lexpr) => {
-                    label = eval_label_expr(lexpr, entity).unwrap_or_default();
+                    label = eval_label_expr(lexpr, entity);
                 }
                 ast::MapProp::Tags(t) => tags = t.clone(),
                 ast::MapProp::Filter(_) | ast::MapProp::Expand(_) => {}
@@ -242,12 +242,21 @@ impl LoweringContext {
             ));
             return;
         }
-        if label.is_empty() {
-            self.warnings.push(format!(
-                "Mapped entity {target_desc} produced no item: required `label` could not be resolved"
-            ));
-            return;
-        }
+        let label = match label {
+            None => {
+                self.warnings.push(format!(
+                    "Mapped entity {target_desc} produced no item: required `label` could not be resolved"
+                ));
+                return;
+            }
+            Some(l) if l.is_empty() => {
+                self.warnings.push(format!(
+                    "Mapped entity {target_desc} produced no item: required `label` resolved to an empty string"
+                ));
+                return;
+            }
+            Some(l) => l,
+        };
 
         let source_id = format!("wd:{}", entity.id);
         self.sources.push(crate::ir::SourceRecord {
