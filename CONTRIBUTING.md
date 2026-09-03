@@ -132,7 +132,7 @@ feat: map ブロックに filter 構文を追加
 fix: 負の年（紀元前）のパースエラーを修正
 docs: CONTRIBUTING.md を追加
 test: tdsl-parser の統合テストを追加
-chore: dependabot の設定を更新
+chore: renovate の設定を更新
 ```
 
 ---
