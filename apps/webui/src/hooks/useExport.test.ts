@@ -26,9 +26,7 @@ function createTranslator(): Translator {
   return t
 }
 
-function callUseExport(
-  showToast: (message: string, variant?: string) => void
-) {
+function callUseExport(showToast: (message: string, variant?: string) => void) {
   const fileHandle = {} as FileHandleApi
   const confirm = vi.fn(async (_options: ConfirmOptions) => true)
   const renderOpts = {} as RenderOptions
