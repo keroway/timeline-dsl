@@ -79,7 +79,7 @@ export function useExport(
       )
       triggerDownload(new Blob([html], { type: 'text/html' }), 'timeline.html')
     } catch {
-      // keep silent — errors are already shown in diagnostics
+      showToast(t('exportHtmlFailed'), 'error')
     }
   }
 

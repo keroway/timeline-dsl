@@ -169,6 +169,7 @@ export type Dictionary = {
   exportShareLinkFailed: string
   exportPdfFailed: string
   exportPdfPrintHint: string
+  exportHtmlFailed: string
 
   // History (hooks/useHistorySnapshots.ts, history.ts)
   historySnapshotBeforeTemplate: string
@@ -444,6 +445,7 @@ const ja: Dictionary = {
   exportShareLinkFailed: 'Share link の生成に失敗しました',
   exportPdfFailed: 'PDF の生成に失敗しました',
   exportPdfPrintHint: '印刷ダイアログで「PDF に保存」を選択してください',
+  exportHtmlFailed: 'HTML の生成に失敗しました',
 
   // History
   historySnapshotBeforeTemplate: 'テンプレートロード前',
@@ -722,6 +724,7 @@ const en: Dictionary = {
   exportShareLinkFailed: 'Failed to generate share link',
   exportPdfFailed: 'Failed to generate PDF',
   exportPdfPrintHint: 'Choose "Save as PDF" in the print dialog',
+  exportHtmlFailed: 'Failed to generate HTML',
 
   // History
   historySnapshotBeforeTemplate: 'Before template load',

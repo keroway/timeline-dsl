@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **WebUI の HTML export が Worker 要求失敗時に無通知で握り潰していたのを修正**（#876）: `downloadHtml()` は `renderHtmlWithOptionsAsync()` の reject を空の `catch` で無視しており、失敗しても通知もダウンロードもされなかった。JSON IR / PDF export と同様に error toast（`exportHtmlFailed`）を表示するようにした
+
 ## [2.1.0] - 2026-09-02
 
 ### Added
