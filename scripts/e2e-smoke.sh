@@ -319,9 +319,12 @@ echo "[e2e] docs: error-catalog.md の「正しい」例がパースできる (#
 cargo build -q -p tdsl-cli
 python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl docs/error-catalog.md
 
-# dsl-spec.md のコード例（誤り例を含まないため marker 不要、フェンス全体を検証）(#844)。
+# dsl-spec.md / dsl-spec.en.md のコード例（誤り例を含まないため marker 不要、フェンス全体を検証）
+# (#844, #879)。両言語同時更新ルールでも英語版だけ検証対象外だと文法変更を検知できない。
 echo "[e2e] docs: dsl-spec.md のコード例がパースできる (#844)"
 python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl --mode simple docs/dsl-spec.md
+echo "[e2e] docs: dsl-spec.en.md のコード例がパースできる (#879)"
+python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl --mode simple docs/dsl-spec.en.md
 
 # ---- tdsl lint 終了コード ----------------------------------------------------
 # ERROR が残っている場合に非ゼロを返すこと (#766)。ここが 0 のままだと
