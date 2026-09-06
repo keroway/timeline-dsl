@@ -66,7 +66,7 @@ jobs:
 
       - name: Cache Cargo
         # zizmor: ignore[cache-poisoning] — push:tags のみでトリガーされ pull_request トリガーは無い
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: ${{ matrix.target }}
 
@@ -127,12 +127,12 @@ jobs:
 
       - name: Cache Cargo
         # zizmor: ignore[cache-poisoning] — push:tags のみでトリガーされ pull_request トリガーは無い
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: wasm
 
       - name: Install wasm-pack
-        uses: taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7 # v2.85.0
+        uses: taiki-e/install-action@7b8d4719ee4aaa279bdf55df38dacb9ebfe12a6c # v2.87.6
         with:
           tool: wasm-pack@0.14.0
 
@@ -250,7 +250,7 @@ jobs:
 
       - name: Cache Cargo
         # zizmor: ignore[cache-poisoning] — push:tags のみでトリガーされ pull_request トリガーは無い
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: publish-crates
 
