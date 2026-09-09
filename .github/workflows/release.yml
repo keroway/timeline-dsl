@@ -343,6 +343,13 @@ jobs:
             exit 1
           fi
 
+      # scripts/generate-homebrew-formula.sh を呼ぶために自分自身のチェックアウトが要る
+      # （このジョブは他ステップで homebrew-tap しか checkout していない）。
+      - name: Checkout timeline-dsl
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Download artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -367,6 +374,9 @@ jobs:
           token: ${{ secrets.TAP_BUMP_TOKEN }}
           path: homebrew-tap
 
+      # 生成ロジックは scripts/generate-homebrew-formula.sh に切り出してある。
+      # scripts/test-homebrew-formula-generation.sh が ci.yml から毎PRダミー値で
+      # 同じスクリプトを検証するため、ここでの変更は自動的に CI でも検査される（#889）。
       - name: Regenerate formula
         env:
           VERSION: ${{ github.ref_name }}
@@ -374,83 +384,11 @@ jobs:
           SHA_LINUX_ARM: ${{ steps.sha256.outputs.linux_aarch64 }}
           SHA_MACOS_X86: ${{ steps.sha256.outputs.macos_x86_64 }}
           SHA_MACOS_ARM: ${{ steps.sha256.outputs.macos_aarch64 }}
-        run: |
-          # formula 全体を毎回生成する。旧 sed+PLACEHOLDER 方式は一度埋めると
-          # placeholder が消え、以降は version しか書き換わらず sha が stale に
-          # なる欠陥があった。全プラットフォームの url/sha を決定的に書き出す。
-          #
-          # `version` は宣言しない。Homebrew は url のパスからバージョンを読むため、
-          # 併記すると `brew audit` が "version X is redundant with version scanned
-          # from URL" で落ち、tap 側の test-bot が失敗する（v2.1.0 で発生）。
-          # url にはタグを直書きする（keroway/homebrew-tap の CLAUDE.md の手順どおり）。
-          #
-          # 構造（caveats / 補完 / test）もここが正典。生成物で formula 全体を上書きするため、
-          # tap 側で公式を拡張したら必ずこの heredoc に同期しないと次回リリースで消える。
-          # （v2.1.0 で caveats / generate_completions / test 拡張が消えた事例。keroway/homebrew-tap#97）
-          # caveats 中の `tdsl` は非クォート heredoc のため \` でエスケープ必須。
-          TAG="${VERSION#v}"
-          cat > homebrew-tap/Formula/tdsl.rb <<FORMULA
-          class Tdsl < Formula
-            desc "Timeline DSL compiler — text-based timelines with Wikidata import"
-            homepage "https://github.com/keroway/timeline-dsl"
-            license "MIT"
+          OUTPUT_PATH: homebrew-tap/Formula/tdsl.rb
+        run: scripts/generate-homebrew-formula.sh
 
-            on_macos do
-              if Hardware::CPU.arm?
-                url "https://github.com/keroway/timeline-dsl/releases/download/v${TAG}/tdsl-macos-aarch64.tar.gz"
-                sha256 "${SHA_MACOS_ARM}"
-              else
-                url "https://github.com/keroway/timeline-dsl/releases/download/v${TAG}/tdsl-macos-x86_64.tar.gz"
-                sha256 "${SHA_MACOS_X86}"
-              end
-            end
-
-            on_linux do
-              if Hardware::CPU.arm?
-                url "https://github.com/keroway/timeline-dsl/releases/download/v${TAG}/tdsl-linux-aarch64.tar.gz"
-                sha256 "${SHA_LINUX_ARM}"
-              else
-                url "https://github.com/keroway/timeline-dsl/releases/download/v${TAG}/tdsl-linux-x86_64.tar.gz"
-                sha256 "${SHA_LINUX}"
-              end
-            end
-
-            def install
-              bin.install "tdsl"
-              generate_completions_from_executable(bin/"tdsl", "completions")
-            end
-
-            def caveats
-              <<~EOS
-                Bash, zsh, and fish completions for \`tdsl\` were generated, but Homebrew
-                does not auto-link completions from external taps by default. Run this
-                once to enable them:
-                  brew completions link
-              EOS
-            end
-
-            test do
-              assert_match "tdsl", shell_output("#{bin}/tdsl --version")
-              (testpath/"test.tdsl").write <<~EOS
-                timeline "test" {
-                  unit year;
-                  range 1..100;
-                }
-                lane "main" as main { kind dynasty; order 1; }
-                span main 10..50 "test span" {};
-              EOS
-              assert_match "lanes", shell_output("#{bin}/tdsl build #{testpath}/test.tdsl --pretty")
-
-              system bin/"tdsl", "render", testpath/"test.tdsl", "-o", testpath/"out.html"
-              assert_path_exists testpath/"out.html"
-              assert_match "<svg", (testpath/"out.html").read
-
-              assert_path_exists bash_completion/"tdsl"
-              assert_path_exists zsh_completion/"_tdsl"
-              assert_path_exists fish_completion/"tdsl.fish"
-            end
-          end
-          FORMULA
+      - name: Validate generated formula
+        run: scripts/test-homebrew-formula-generation.sh --check-only homebrew-tap/Formula/tdsl.rb
 
       # 直 push ではなく PR を作成する（tap 側の CI / レビューを経由できるように）。
       # バージョン文字列は injection 対策として必ず env 経由で渡す。
