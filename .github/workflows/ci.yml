@@ -295,3 +295,20 @@ jobs:
       # `bash scripts/e2e-smoke.sh` で動作する（#850）。
       - name: E2E smoke
         run: bash scripts/e2e-smoke.sh
+
+  # release.yml の Homebrew formula 生成ロジック（scripts/generate-homebrew-formula.sh）を
+  # ダミー値で実行し、生成物の Ruby 構文とバージョン二重宣言の有無を毎PR検証する。
+  # release.yml 自体はタグ push 時にしか走らないため、生成ロジックの壊れを
+  # 通常の PR で検知できるようにする（繰り返し発生していた問題。#889）。
+  homebrew-formula-generation:
+    name: Homebrew formula generation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Generate and validate formula with dummy values
+        run: bash scripts/test-homebrew-formula-generation.sh
