@@ -34,16 +34,14 @@ map wd.han_dynasty to span {
 共通フォーマットを再利用できるようになりました。
 
 ```tdsl
-template dynasty_span {
-    target_type span;
+template "王朝スパン" as dynasty_span to span {
     start claim(P571).year;
     end claim(P576).year;
-    tags ["dynasty"];
+    label label@ja ?? label@en;
 }
 
-apply dynasty_span to wd.han_dynasty {
+apply dynasty_span to dynasties {
     lane han;
-    label label@ja ?? label@en;
 }
 ```
 
