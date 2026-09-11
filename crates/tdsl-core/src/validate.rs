@@ -54,7 +54,7 @@ fn normalize_ir_time_utc(
 /// 以前は 14 引数（a_* / b_* の月日時分秒がそれぞれ同型で連続）を位置渡し
 /// しており、取り違えてもコンパイラが検出できなかった。`TimeParts` にまとめ、
 /// `#[allow(clippy::too_many_arguments)]` を撤去した（#805）。
-fn compare_ir_time(a: TimeParts, b: TimeParts) -> Option<std::cmp::Ordering> {
+pub(crate) fn compare_ir_time(a: TimeParts, b: TimeParts) -> Option<std::cmp::Ordering> {
     let (a_year, a_month, a_day, a_hour, a_minute, a_second, a_offset) = (
         a.year,
         a.month,
