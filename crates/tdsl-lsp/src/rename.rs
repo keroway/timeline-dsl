@@ -16,7 +16,9 @@ use std::collections::HashMap;
 
 use tower_lsp::lsp_types::{Position, Range, TextEdit, Url, WorkspaceEdit};
 
-use crate::find_references::compute_references;
+use crate::find_references::{
+    build_line_offsets, byte_offset_to_position, compute_references, find_keyword_token_range,
+};
 use crate::hover::word_at_position;
 
 // ---------------------------------------------------------------------------
@@ -44,6 +46,33 @@ fn resolve_explicit_alias_lane<'a>(source: &str, word: &'a str) -> Option<&'a st
             && alias == word
         {
             return Some(word);
+        }
+    }
+
+    None
+}
+
+/// `as <alias>` の識別子トークンの LSP Range を返す。
+///
+/// find_references / goto_definition 用の `lane.source_span` は宣言文全体を指すため
+/// rename にそのまま流用すると宣言行全体を巻き込んで置換してしまう（#900）。
+/// rename の宣言側編集は alias トークンの正確な範囲に限定する必要があるため、
+/// AST から該当する `LaneDecl` の statement 範囲を特定し、その中で `as <alias>`
+/// パターンを再検索する。
+fn find_alias_decl_range(source: &str, alias: &str) -> Option<Range> {
+    let file = tdsl_parser::parse(source).ok()?;
+    let line_offsets = build_line_offsets(source);
+
+    for stmt in &file.statements {
+        if let tdsl_parser::ast::Statement::Lane(decl) = &stmt.node
+            && decl.alias.as_deref() == Some(alias)
+        {
+            let (start, end) =
+                find_keyword_token_range(source, stmt.span.start, stmt.span.end, "as", alias)?;
+            return Some(Range {
+                start: byte_offset_to_position(start, source, &line_offsets),
+                end: byte_offset_to_position(end, source, &line_offsets),
+            });
         }
     }
 
@@ -128,18 +157,23 @@ pub fn compute_rename(
         ));
     }
 
-    // 全参照位置（宣言含む）を取得
-    let locations = compute_references(source, position, true, uri)
+    // 宣言を除く全参照位置を取得（宣言側は alias トークン範囲を別途計算する。#900）
+    let reference_locations = compute_references(source, position, false, uri)
         .ok_or_else(|| format!("'{word}' の参照位置を取得できませんでした"))?;
 
-    // 各 Location を TextEdit に変換
-    let text_edits: Vec<TextEdit> = locations
-        .into_iter()
-        .map(|loc| TextEdit {
-            range: loc.range,
-            new_text: new_name.to_string(),
-        })
-        .collect();
+    // 宣言側は `as <alias>` トークンの正確な範囲のみを置換する（宣言行全体を巻き込まない）
+    let decl_range = find_alias_decl_range(source, &word)
+        .ok_or_else(|| format!("'{word}' の宣言位置を特定できませんでした"))?;
+
+    let mut text_edits: Vec<TextEdit> = Vec::with_capacity(reference_locations.len() + 1);
+    text_edits.push(TextEdit {
+        range: decl_range,
+        new_text: new_name.to_string(),
+    });
+    text_edits.extend(reference_locations.into_iter().map(|loc| TextEdit {
+        range: loc.range,
+        new_text: new_name.to_string(),
+    }));
 
     // WorkspaceEdit を構築（URI → TextEdit 一覧）
     let mut changes = HashMap::new();
@@ -162,6 +196,53 @@ mod tests {
 
     fn test_uri() -> Url {
         Url::parse("file:///test.tdsl").unwrap()
+    }
+
+    /// `WorkspaceEdit` の TextEdit 一覧を `source` に適用した結果を返す。
+    ///
+    /// LSP の `Position` は UTF-16 コードユニット単位の列オフセットを使うため、
+    /// 各行を UTF-16 単位に変換してから置換範囲を求める。適用順は後方から行い、
+    /// 前方の置換によるオフセットずれを避ける。
+    fn apply_text_edits(source: &str, edits: &[TextEdit]) -> String {
+        let lines: Vec<&str> = source.split('\n').collect();
+        // UTF-16 単位の列 → バイトオフセットへの変換ヘルパー
+        fn utf16_col_to_byte(line: &str, utf16_col: usize) -> usize {
+            let mut utf16_count = 0usize;
+            for (byte_idx, ch) in line.char_indices() {
+                if utf16_count >= utf16_col {
+                    return byte_idx;
+                }
+                utf16_count += ch.len_utf16();
+            }
+            line.len()
+        }
+
+        // 行番号でソートし、後方の行から先に適用することで前方の編集が
+        // 後続編集のオフセットに影響しないようにする。
+        let mut sorted_edits: Vec<&TextEdit> = edits.iter().collect();
+        sorted_edits.sort_by(|a, b| {
+            b.range
+                .start
+                .line
+                .cmp(&a.range.start.line)
+                .then(b.range.start.character.cmp(&a.range.start.character))
+        });
+
+        let mut result_lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
+
+        for edit in sorted_edits {
+            let line_idx = edit.range.start.line as usize;
+            let line = &result_lines[line_idx];
+            let start_byte = utf16_col_to_byte(line, edit.range.start.character as usize);
+            let end_byte = utf16_col_to_byte(line, edit.range.end.character as usize);
+            let mut new_line = String::new();
+            new_line.push_str(&line[..start_byte]);
+            new_line.push_str(&edit.new_text);
+            new_line.push_str(&line[end_byte..]);
+            result_lines[line_idx] = new_line;
+        }
+
+        result_lines.join("\n")
     }
 
     const MINI_SRC: &str = concat!(
@@ -333,6 +414,98 @@ mod tests {
         };
         let result = compute_rename(MINI_SRC, pos, "new_id", &test_uri());
         assert!(result.is_err(), "lane 以外のトークンは Err を返す");
+    }
+
+    /// #900 回帰テスト: 宣言側の編集が `as <alias>` トークンのみに限定され、
+    /// 宣言行全体（`kind` 等の他の属性含む）を巻き込まないこと。
+    /// 適用後のソースを再パース・lowering して構文的にも意味的にも正しいことを検証する
+    /// （編集件数と new_text だけを見る旧テストではこのバグを検出できなかった）。
+    #[test]
+    fn rename_applies_cleanly_and_preserves_declaration_attributes() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..100; }\n",
+            "lane \"A\" as a { kind custom; }\n",
+            "event a 10 \"E\" {};\n",
+        );
+        // event 行（0-based: 2）の "a" 上にカーソル
+        let pos = Position {
+            line: 2,
+            character: 6,
+        };
+        let uri = test_uri();
+        let edit = compute_rename(src, pos, "a2", &uri).expect("リネーム成功");
+        let changes = edit.changes.expect("changes が設定されている");
+        let edits = changes.get(&uri).expect("URI に対する編集がある");
+
+        let applied = apply_text_edits(src, edits);
+
+        let expected = concat!(
+            "timeline \"T\" { unit year; range 0..100; }\n",
+            "lane \"A\" as a2 { kind custom; }\n",
+            "event a2 10 \"E\" {};\n",
+        );
+        assert_eq!(
+            applied, expected,
+            "宣言行の `kind custom;` 等の属性が保持され、alias のみ置換される"
+        );
+
+        // 適用後のソースが再パース・lowering可能であることを確認する
+        let file = tdsl_parser::parse(&applied).expect("リネーム後もパース可能");
+        let ir = tdsl_core::lower::lower_static_with_source(&file, Some(&applied))
+            .expect("リネーム後も lowering 可能");
+        assert!(
+            ir.lanes.iter().any(|l| l.id == "a2"),
+            "新 lane ID 'a2' が IR に存在する"
+        );
+        assert!(
+            !ir.lanes.iter().any(|l| l.id == "a"),
+            "旧 lane ID 'a' は IR に残っていない"
+        );
+        assert_eq!(ir.lanes[0].kind, "custom", "kind 属性が保持されている");
+    }
+
+    /// #900 回帰テスト: 複数行にまたがる lane 宣言・日本語ラベルを含む場合でも
+    /// UTF-16 オフセット計算が崩れず、宣言側の編集が alias トークンのみに限定される。
+    #[test]
+    fn rename_multiline_declaration_with_japanese_label_preserves_attributes() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..2000; }\n",
+            "lane \"漢王朝\" as han {\n",
+            "  kind dynasty;\n",
+            "  order 10;\n",
+            "}\n",
+            "span han 100..200 \"foo\" {};\n",
+        );
+        // span 行（0-based: 5）の "han" 上にカーソル
+        let pos = Position {
+            line: 5,
+            character: 5,
+        };
+        let uri = test_uri();
+        let edit = compute_rename(src, pos, "han2", &uri).expect("リネーム成功");
+        let changes = edit.changes.expect("changes が設定されている");
+        let edits = changes.get(&uri).expect("URI に対する編集がある");
+
+        let applied = apply_text_edits(src, edits);
+
+        let expected = concat!(
+            "timeline \"T\" { unit year; range 0..2000; }\n",
+            "lane \"漢王朝\" as han2 {\n",
+            "  kind dynasty;\n",
+            "  order 10;\n",
+            "}\n",
+            "span han2 100..200 \"foo\" {};\n",
+        );
+        assert_eq!(
+            applied, expected,
+            "複数行宣言でも `kind` / `order` が保持され alias のみ置換される"
+        );
+
+        let file = tdsl_parser::parse(&applied).expect("リネーム後もパース可能");
+        let ir = tdsl_core::lower::lower_static_with_source(&file, Some(&applied))
+            .expect("リネーム後も lowering 可能");
+        assert!(ir.lanes.iter().any(|l| l.id == "han2"));
+        assert_eq!(ir.lanes[0].order, 10, "order 属性が保持されている");
     }
 
     /// is_valid_slug のユニットテスト

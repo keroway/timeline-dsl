@@ -14,7 +14,7 @@ use crate::hover::{byte_offset_to_utf16, word_at_position};
 // ---------------------------------------------------------------------------
 
 /// ソーステキストの各行の先頭バイトオフセット配列（0-indexed）を構築する。
-fn build_line_offsets(source: &str) -> Vec<usize> {
+pub(crate) fn build_line_offsets(source: &str) -> Vec<usize> {
     let mut offsets = vec![0usize];
     for (i, b) in source.bytes().enumerate() {
         if b == b'\n' {
@@ -25,7 +25,11 @@ fn build_line_offsets(source: &str) -> Vec<usize> {
 }
 
 /// バイトオフセットを LSP Position（0-based, UTF-16 列）に変換する。
-fn byte_offset_to_position(offset: usize, source: &str, line_offsets: &[usize]) -> Position {
+pub(crate) fn byte_offset_to_position(
+    offset: usize,
+    source: &str,
+    line_offsets: &[usize],
+) -> Position {
     let line_idx = line_offsets
         .partition_point(|&o| o <= offset)
         .saturating_sub(1);
@@ -104,11 +108,25 @@ fn find_lane_prop_in_map(
     block_end: usize,
     lane_id: &str,
 ) -> Option<(usize, usize)> {
+    find_keyword_token_range(source, block_start, block_end, "lane", lane_id)
+}
+
+/// `source[block_start..block_end]` の中で `<keyword> <token>` パターン（キーワードと
+/// トークンが共に単語境界を満たす完全一致）を探し、`token` の絶対バイト範囲を返す。
+///
+/// 文字列リテラル（`"..."` で囲まれた部分）内のマッチはスキップする。
+/// rename の `as <alias>` 探索と find_references の `lane <lane_id>` 探索の共通実装。
+pub(crate) fn find_keyword_token_range(
+    source: &str,
+    block_start: usize,
+    block_end: usize,
+    keyword: &str,
+    token: &str,
+) -> Option<(usize, usize)> {
     let slice = source.get(block_start..block_end)?;
 
-    let keyword = "lane";
     let kw_bytes = keyword.as_bytes();
-    let id_bytes = lane_id.as_bytes();
+    let id_bytes = token.as_bytes();
 
     let is_token_char = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
 
@@ -132,16 +150,16 @@ fn find_lane_prop_in_map(
             continue;
         }
 
-        // `lane` キーワードの探索
+        // キーワードの探索
         if bytes[pos..].starts_with(kw_bytes) {
             let after_kw = pos + kw_bytes.len();
-            // `lane` の直後がトークン文字でない（境界チェック）
+            // キーワードの直後がトークン文字でない（境界チェック）
             let kw_is_word = if after_kw < bytes.len() {
                 is_token_char(bytes[after_kw])
             } else {
                 false
             };
-            // `lane` の前がトークン文字でない（境界チェック）
+            // キーワードの前がトークン文字でない（境界チェック）
             let kw_start_ok = if pos > 0 {
                 !is_token_char(bytes[pos - 1])
             } else {
@@ -149,7 +167,7 @@ fn find_lane_prop_in_map(
             };
 
             if kw_start_ok && !kw_is_word {
-                // `lane` の後の空白をスキップして lane_id を確認
+                // キーワードの後の空白をスキップして token を確認
                 let mut id_pos = after_kw;
                 while id_pos < bytes.len() && (bytes[id_pos] == b' ' || bytes[id_pos] == b'\t') {
                     id_pos += 1;
