@@ -6,6 +6,8 @@
 use tdsl_parser::ast::{Span, Statement};
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
 
+use crate::hover::byte_offset_to_utf16;
+
 /// LSP の `Position` を生成する（0-based）。
 ///
 /// tdsl の line/col は 1-based のため、ここで変換する。
@@ -37,6 +39,65 @@ fn document_start_range() -> Range {
     Range {
         start: pos,
         end: pos,
+    }
+}
+
+/// `tdsl_core::lint::LintIssue` は行番号（1-based）しか持たないため、
+/// 該当行全体を LSP Range（0-based）として返す。
+///
+/// 行が範囲外（想定外の入力）の場合は空文字列扱いにして character 0 の範囲にする
+/// （panic させない安全側フォールバック）。
+fn line_to_range(source: &str, line_1based: usize) -> Range {
+    let line_idx = line_1based.saturating_sub(1) as u32;
+    let line_str = source
+        .split('\n')
+        .nth(line_idx as usize)
+        .unwrap_or_default();
+    let end_character = byte_offset_to_utf16(line_str, line_str.len()) as u32;
+    Range {
+        start: Position {
+            line: line_idx,
+            character: 0,
+        },
+        end: Position {
+            line: line_idx,
+            character: end_character,
+        },
+    }
+}
+
+/// `tdsl_core::lint::lint_issues` のうち、`validate_with_spans` が既に同等の内容を
+/// 報告しているコードを除外する。
+///
+/// - `unknown_lane` → `validate_with_spans` の `W201`
+/// - `start_gt_end` / `mixed_offset_range` → 同 `W202` / `W208`
+///
+/// これらは lowering 後の IR ベースでより正確な span 付き診断が既に出ているため、
+/// lint 側（行番号のみ）を重ねると二重報告になる。
+fn is_duplicate_of_validate(code: &str) -> bool {
+    matches!(code, "unknown_lane" | "start_gt_end" | "mixed_offset_range")
+}
+
+/// lint issue を LSP Diagnostic に変換する。
+///
+/// `fixable: true` の issue は Code Action で直せる旨も込めて `WARNING`、
+/// `fixable: false`（書き手が判断する必要がある）の issue は発見性のために
+/// `HINT` として区別する（issue #903 の提案）。
+fn lint_issue_to_diagnostic(issue: &tdsl_core::lint::LintIssue, source: &str) -> Diagnostic {
+    let severity = if issue.fixable {
+        DiagnosticSeverity::WARNING
+    } else {
+        DiagnosticSeverity::HINT
+    };
+    Diagnostic {
+        range: line_to_range(source, issue.line),
+        severity: Some(severity),
+        code: Some(tower_lsp::lsp_types::NumberOrString::String(
+            issue.code.clone(),
+        )),
+        message: issue.message.clone(),
+        source: Some("tdsl-lint".to_string()),
+        ..Default::default()
     }
 }
 
@@ -123,6 +184,18 @@ pub fn compute_diagnostics(source: &str) -> Vec<Diagnostic> {
                 ..Default::default()
             }));
 
+            // 品質チェック（`tdsl lint` 相当）を diagnostics にも出す。従来は
+            // Code Action（quick fix）経由でしか気付けず、`fixable: false` な issue
+            // （例: `unused_lane`）は発見手段が無かった（#903）。
+            // `validate_with_spans` と重複するコード（unknown_lane / start_gt_end /
+            // mixed_offset_range）は除外し、二重報告を避ける。
+            diags.extend(
+                tdsl_core::lint::lint_issues(&file, source)
+                    .iter()
+                    .filter(|issue| !is_duplicate_of_validate(&issue.code))
+                    .map(|issue| lint_issue_to_diagnostic(issue, source)),
+            );
+
             // offline 診断は Wikidata fetch を行わないため、import/map/apply ブロックは
             // エンティティ解決されない（pass3/pass4 が走らない）。silent に握りつぶさず、
             // 各ブロック位置に「offline では未検証」である旨を Information 診断として明示する。
@@ -195,7 +268,7 @@ mod tests {
         let src = r#"
 timeline "test" { title "test"; unit year; range 0..2000; calendar proleptic_gregorian; }
 lane "lane1" as l1 { kind custom; order 10; }
-span l1 100..200 "foo" {};
+span l1 100..200 "foo" { id "s1"; };
 "#;
         let diags = compute_diagnostics(src);
         assert!(
@@ -335,6 +408,69 @@ span l1 500..100 "reversed" {};
         assert!(
             warnings.iter().any(|d| d.message.contains("500")),
             "start 値を含む警告があるべき"
+        );
+    }
+
+    /// `fixable: false` な lint issue（`unused_lane`）が diagnostics に HINT として現れる（#903）。
+    /// 以前は Code Action からしか気付けず、diagnostics には一切出なかった。
+    #[test]
+    fn unused_lane_produces_hint_diagnostic() {
+        let src = r#"
+timeline "test" { title "test"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "Used" as used { kind custom; order 1; }
+lane "Orphan" as orphan { kind custom; order 2; }
+span used 100..200 "foo" { id "s1"; };
+"#;
+        let diags = compute_diagnostics(src);
+        let hint = diags
+            .iter()
+            .find(|d| d.severity == Some(DiagnosticSeverity::HINT))
+            .unwrap_or_else(|| panic!("unused_lane の HINT 診断が無い: {diags:#?}"));
+        assert!(
+            hint.message.contains("orphan"),
+            "HINT メッセージは未使用 lane 名を含むべき: {hint:#?}"
+        );
+        assert_eq!(hint.source.as_deref(), Some("tdsl-lint"));
+    }
+
+    /// `fixable: true` な lint issue（`missing_id`）は WARNING として現れる。
+    #[test]
+    fn missing_id_produces_warning_diagnostic() {
+        let src = r#"
+timeline "test" { title "test"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "lane1" as l1 { kind custom; order 10; }
+event l1 100 "foo" {};
+"#;
+        let diags = compute_diagnostics(src);
+        let warning = diags
+            .iter()
+            .find(|d| {
+                d.severity == Some(DiagnosticSeverity::WARNING)
+                    && d.source.as_deref() == Some("tdsl-lint")
+            })
+            .unwrap_or_else(|| panic!("missing_id の WARNING 診断が無い: {diags:#?}"));
+        assert!(warning.message.contains("id"));
+    }
+
+    /// lint の `unknown_lane` / `start_gt_end` は `validate_with_spans` 側の W201/W202 と
+    /// 重複するため、二重報告しない（同じ問題に対して診断が 2 件出ない）。
+    #[test]
+    fn lint_duplicate_codes_are_not_double_reported() {
+        let src = r#"
+timeline "test" { title "test"; unit year; range 0..2000; calendar proleptic_gregorian; }
+lane "lane1" as l1 { kind custom; order 10; }
+span l1 500..100 "reversed" { id "s1"; };
+"#;
+        let diags = compute_diagnostics(src);
+        // W202 相当の警告は1件のみ（lint 側の重複 start_gt_end は出ない）
+        let start_gt_end_like: Vec<_> = diags
+            .iter()
+            .filter(|d| d.message.contains("500") && d.message.contains("100"))
+            .collect();
+        assert_eq!(
+            start_gt_end_like.len(),
+            1,
+            "start>end の警告が重複している: {diags:#?}"
         );
     }
 

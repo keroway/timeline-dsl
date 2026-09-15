@@ -24,7 +24,7 @@ Timeline DSL is a domain-specific language for building historical timelines wit
 
 When the `tdsl` CLI is installed, this extension automatically starts the LSP server (`tdsl lsp`) and provides:
 
-- **Diagnostics** — error and warning highlighting, updated on every edit
+- **Diagnostics** — error and warning highlighting, updated on every edit; includes `tdsl lint` quality warnings (auto-fixable ones as warnings, others as hints)
 - **Completion** — context-aware keyword and snippet suggestions (e.g. `claim(P123)`, `label@ja` inside `map {}`)
 - **Hover** — lane label/kind/order on hover; QID hover shows cached entity info (cache is populated by `tdsl build` or `tdsl render`; shows a hint if not cached)
 - **Go to Definition** — jump to lane declarations
