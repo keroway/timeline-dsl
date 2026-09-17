@@ -25,7 +25,7 @@ pdf = ["dep:svg2pdf", "dep:pdf-writer"]
 
 [dependencies]
 tdsl-core = { path = "../tdsl-core", default-features = false, version = "2.1.0" }
-resvg = { version = "0.47", optional = true }
+resvg = { version = "0.48", optional = true }
 svg2pdf = { version = "0.13", optional = true }
 pdf-writer = { version = "0.12", optional = true }
 # `thiserror` is derive-only (no runtime codegen beyond an equivalent hand-written
