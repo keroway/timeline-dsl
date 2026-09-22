@@ -266,3 +266,9 @@ canonical な5役割のうち `ready-for-human` だけ既存の `needs-human` �
 single-context。用語の正典は [`docs/dsl-spec.md`](docs/dsl-spec.md)、決定記録は
 `docs/adr/`。`CONTEXT.md` は未作成で、無い場合は黙って先に進む。
 詳細は [`docs/agents/domain.md`](docs/agents/domain.md)。
+
+## Codex 向け運用ルール
+
+Codex 向けの横断運用ルールは `keroway/CLAUDE.md` ではなく
+[agent-assets `docs/codex-common-instructions.md`](https://github.com/keroway/agent-assets/blob/main/docs/codex-common-instructions.md)
+を正典とする（Codex は git ルートより上の AGENTS.md を読まないため）。
