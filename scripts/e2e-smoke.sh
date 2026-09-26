@@ -428,7 +428,7 @@ test -s "$TMP_DIR/csv_out.tdsl"
 echo "[e2e] export-csv: .tdsl source to stdout with header"
 cargo run -q -p tdsl-cli -- export-csv examples/fictional_empire.tdsl --offline >"$TMP_DIR/export.csv"
 test -s "$TMP_DIR/export.csv"
-head -n1 "$TMP_DIR/export.csv" | grep -Fxq "lane,type,start,end,time,label,tags,id,source,origin"
+head -n1 "$TMP_DIR/export.csv" | grep -Fxq "lane,type,start,end,time,label,tags,id,source,origin,note,link,color"
 
 echo "[e2e] export-csv: accepts .json IR input (build -> export)"
 cargo run -q -p tdsl-cli -- build examples/fictional_empire.tdsl --offline --output "$TMP_DIR/export_ir.json"
