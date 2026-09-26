@@ -191,6 +191,102 @@ pub(crate) fn make_unique_alias(
     }
 }
 
+/// `export-csv` の `tags` 列（`|` 区切り）へタグ配列をエンコードする。
+///
+/// タグ内の `\`・`|` は常にエスケープし、各タグの先頭・末尾が空白文字の場合は
+/// `\s`（半角スペース）/ `\t` / `\n` / `\r` の記号エスケープで保護する。これは
+/// `import-csv` 側の CSV reader が `Trim::All`（フィールド全体の前後空白除去）を
+/// 有効にしているため、エスケープしない生の空白文字がタグ列全体の先頭・末尾に
+/// 来ると無警告で失われるのを防ぐため（#885）。内側の空白はそのまま出力してよい。
+pub(crate) fn encode_csv_tags(tags: &[String]) -> String {
+    tags.iter()
+        .map(|t| escape_csv_tag(t))
+        .collect::<Vec<_>>()
+        .join("|")
+}
+
+fn escape_csv_tag(tag: &str) -> String {
+    let chars: Vec<char> = tag.chars().collect();
+    let last_idx = chars.len().saturating_sub(1);
+    let mut out = String::with_capacity(tag.len());
+    for (i, &c) in chars.iter().enumerate() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '|' => out.push_str("\\|"),
+            _ if (i == 0 || i == last_idx) && c.is_whitespace() => {
+                if let Some(code) = whitespace_escape_code(c) {
+                    out.push('\\');
+                    out.push(code);
+                } else {
+                    // 記号化できない空白文字（改行以外の稀な Unicode 空白等）はそのまま出力する。
+                    // タグの内側ではないため理論上 Trim::All の影響を受けうるが、
+                    // ASCII 空白 4 種以外は実運用で発生しないため許容する。
+                    out.push(c);
+                }
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+fn whitespace_escape_code(c: char) -> Option<char> {
+    match c {
+        ' ' => Some('s'),
+        '\t' => Some('t'),
+        '\n' => Some('n'),
+        '\r' => Some('r'),
+        _ => None,
+    }
+}
+
+fn whitespace_from_escape_code(c: char) -> Option<char> {
+    match c {
+        's' => Some(' '),
+        't' => Some('\t'),
+        'n' => Some('\n'),
+        'r' => Some('\r'),
+        _ => None,
+    }
+}
+
+/// `export-csv` / 手書き CSV の `tags` 列（`|` 区切り）をタグ配列へデコードする。
+///
+/// `encode_csv_tags` と対称。`\\`（リテラル `\`）、`\|`（リテラル `|`）、
+/// `\s`/`\t`/`\n`/`\r`（境界空白の記号エスケープ）以外の `\<char>` は
+/// 未知のエスケープとしてエラーにする（silent fallback 禁止、#885）。
+pub(crate) fn decode_csv_tags(raw: &str) -> Result<Vec<String>, String> {
+    if raw.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut tags = Vec::new();
+    let mut current = String::new();
+    let mut chars = raw.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => match chars.next() {
+                Some(next @ ('\\' | '|')) => current.push(next),
+                Some(next) => match whitespace_from_escape_code(next) {
+                    Some(ws) => current.push(ws),
+                    None => {
+                        return Err(format!(
+                            "invalid tag escape `\\{next}` (expected `\\\\`, `\\|`, `\\s`, `\\t`, `\\n`, or `\\r`)"
+                        ));
+                    }
+                },
+                None => {
+                    return Err("tag ends with a dangling `\\` escape".to_string());
+                }
+            },
+            '|' => tags.push(std::mem::take(&mut current)),
+            _ => current.push(c),
+        }
+    }
+    tags.push(current);
+    Ok(tags)
+}
+
 /// ASCII 英数字・スペース・ハイフン・アンダースコアのみを抽出して slug を生成する。
 pub(crate) fn slug_ascii(s: &str) -> String {
     s.chars()
@@ -390,5 +486,53 @@ mod tests {
         assert_eq!(slug_ascii("Hello World"), "hello_world");
         assert_eq!(slug_ascii("漢"), "");
         assert_eq!(slug_ascii("abc-123"), "abc_123");
+    }
+
+    // ─── CSV tags エンコード/デコード（#885: 可逆エスケープ）─────────────
+
+    #[test]
+    fn encode_csv_tags_plain_tags_unchanged() {
+        // 区切り文字・境界空白を含まない従来どおりのタグは以前と同じ `|` 結合になる。
+        assert_eq!(
+            encode_csv_tags(&["war".to_string(), "global".to_string()]),
+            "war|global"
+        );
+    }
+
+    #[test]
+    fn encode_then_decode_round_trips_tags_with_separators_and_padding() {
+        // issue #885 記載のケース: 区切り文字自体や前後空白を含むタグが、
+        // export→import の往復で無警告に別タグへ分割されないこと。
+        let tags = vec!["a|b".to_string(), "c,d".to_string(), " padded ".to_string()];
+        let encoded = encode_csv_tags(&tags);
+        let decoded = decode_csv_tags(&encoded).expect("decode should succeed");
+        assert_eq!(decoded, tags);
+    }
+
+    #[test]
+    fn encode_csv_tags_escapes_boundary_whitespace_so_csv_trim_is_safe() {
+        // `import-csv` の CSV reader は Trim::All でフィールド全体の前後空白を
+        // 除去するため、エンコード後の文字列の絶対先頭・末尾が空白文字であっては
+        // ならない（#885）。
+        let encoded = encode_csv_tags(&[" padded ".to_string()]);
+        assert!(!encoded.starts_with(' ') && !encoded.ends_with(' '));
+        assert_eq!(encoded, "\\spadded\\s");
+    }
+
+    #[test]
+    fn decode_csv_tags_empty_string_is_zero_tags() {
+        assert_eq!(decode_csv_tags("").unwrap(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn decode_csv_tags_rejects_unknown_escape() {
+        let err = decode_csv_tags(r"a\qb").unwrap_err();
+        assert!(err.contains("invalid tag escape"), "got: {err}");
+    }
+
+    #[test]
+    fn decode_csv_tags_rejects_dangling_backslash() {
+        let err = decode_csv_tags(r"a\").unwrap_err();
+        assert!(err.contains("dangling"), "got: {err}");
     }
 }
