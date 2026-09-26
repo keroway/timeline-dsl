@@ -217,10 +217,11 @@ tdsl render /tmp/manual.tdsl --output /tmp/manual.html
 tdsl export-csv /tmp/manual.tdsl --offline --output /tmp/manual_items.csv
 ```
 
-> `export-csv` は IR を CSV（`lane,type,start,end,time,label,tags,id,source,origin`）に書き出します。
-> 全 10 列を `import-csv` で再取り込むと意味的に同値の IR が得られます。`source` / `origin`
-> も往復保持され（#608）、DSL の `source_ref` / `ident` 文法で検証され、不正な値は silent に破棄せず
-> 拒否されます。詳細は [docs/cli-spec.md](docs/cli-spec.md#export-csv) を参照。
+> `export-csv` は IR を CSV（`lane,type,start,end,time,label,tags,id,source,origin,note,link,color`）
+> に書き出します。全 13 列を `import-csv` で再取り込むと意味的に同値の IR が得られます。`source` /
+> `origin` も往復保持され（#608）、DSL の `source_ref` / `ident` 文法で検証され、不正な値は silent に破棄せず
+> 拒否されます。`note` / `link` / `color`（block_options）も往復保持されます（#902）。
+> 詳細は [docs/cli-spec.md](docs/cli-spec.md#export-csv) を参照。
 
 ## DSL文法
 
