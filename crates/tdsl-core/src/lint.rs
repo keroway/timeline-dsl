@@ -32,21 +32,44 @@ pub struct LintIssue {
 ///
 /// 片側だけ offset 付きの比較は原理的に順序が決まらないため、swap ではなく
 /// **修正不能な別コード `mixed_offset_range`** として報告する。
+///
+/// `end_open`（`now` を書いた open-ended レンジ）の場合、`end` はビルド時点の
+/// 現在年で補完された値でしかない。未来開始（例 `2100..now`）は本物の逆転ではなく、
+/// 実行のたびに変わる見かけ上の逆転にすぎないため、swap すると `now` の意味と
+/// 元の開始年を両方壊す（#899）。検出自体は続けるが `fixable: false` にし、
+/// 判断を書き手に委ねる。
 fn lint_range_order(
     kind: &str,
     start: &tdsl_parser::ast::TimeValue,
     end: &tdsl_parser::ast::TimeValue,
+    end_open: bool,
     line: usize,
     issues: &mut Vec<LintIssue>,
 ) {
     match crate::lower::compare_time_values(start, end) {
-        Ok(std::cmp::Ordering::Greater) => issues.push(LintIssue {
-            code: "start_gt_end".to_string(),
-            severity: LintSeverity::Error,
-            line,
-            message: format!("{kind} is reversed: {start}..{end}"),
-            fixable: true,
-        }),
+        Ok(std::cmp::Ordering::Greater) => {
+            if end_open {
+                issues.push(LintIssue {
+                    code: "start_gt_end".to_string(),
+                    severity: LintSeverity::Error,
+                    line,
+                    message: format!(
+                        "{kind} starts after `now` ({start}..now); this cannot be auto-fixed \
+                         because swapping would discard the original start year and change \
+                         the meaning of `now` (#899, decide manually)"
+                    ),
+                    fixable: false,
+                });
+            } else {
+                issues.push(LintIssue {
+                    code: "start_gt_end".to_string(),
+                    severity: LintSeverity::Error,
+                    line,
+                    message: format!("{kind} is reversed: {start}..{end}"),
+                    fixable: true,
+                });
+            }
+        }
         Ok(_) => {}
         Err(_) => issues.push(LintIssue {
             code: "mixed_offset_range".to_string(),
@@ -70,10 +93,18 @@ fn lint_range_order(
 /// 順序が決まらないケース（`Err`）で swap すると、決まらないものを勝手に並べ替えて
 /// 別の不正なファイルを作ることになる。検出側は `mixed_offset_range` として
 /// `fixable: false` で報告し、ここでは触らない（#757）。
+///
+/// `end_open` な range も同様に対象外（#899）。`end` は `now` を書いた場所に
+/// ビルド時点の年を補完しただけの値であり、swap すると開始年と `now` の意味の
+/// 両方を失う。
 fn should_swap_range(
     start: &tdsl_parser::ast::TimeValue,
     end: &tdsl_parser::ast::TimeValue,
+    end_open: bool,
 ) -> bool {
+    if end_open {
+        return false;
+    }
     matches!(
         crate::lower::compare_time_values(start, end),
         Ok(std::cmp::Ordering::Greater)
@@ -106,7 +137,14 @@ pub fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue
                     line,
                     &mut issues,
                 );
-                lint_range_order("span range", &s.start, &s.end, line, &mut issues);
+                lint_range_order(
+                    "span range",
+                    &s.start,
+                    &s.end,
+                    s.end_open,
+                    line,
+                    &mut issues,
+                );
                 lint_time_value(&s.start, line, &mut issues);
                 lint_time_value(&s.end, line, &mut issues);
             }
@@ -132,7 +170,14 @@ pub fn lint_issues(file: &tdsl_parser::ast::File, source: &str) -> Vec<LintIssue
                     line,
                     &mut issues,
                 );
-                lint_range_order("event_range", &er.start, &er.end, line, &mut issues);
+                lint_range_order(
+                    "event_range",
+                    &er.start,
+                    &er.end,
+                    er.end_open,
+                    line,
+                    &mut issues,
+                );
                 lint_time_value(&er.start, line, &mut issues);
                 lint_time_value(&er.end, line, &mut issues);
             }
@@ -448,7 +493,7 @@ pub fn apply_lint_fixes(file: &mut tdsl_parser::ast::File) -> usize {
         match &mut stmt.node {
             Statement::Span(s) => {
                 fixed += fix_tags(&mut s.props.tags);
-                if should_swap_range(&s.start, &s.end) {
+                if should_swap_range(&s.start, &s.end, s.end_open) {
                     std::mem::swap(&mut s.start, &mut s.end);
                     fixed += 1;
                 }
@@ -472,7 +517,7 @@ pub fn apply_lint_fixes(file: &mut tdsl_parser::ast::File) -> usize {
             }
             Statement::EventRange(er) => {
                 fixed += fix_tags(&mut er.props.tags);
-                if should_swap_range(&er.start, &er.end) {
+                if should_swap_range(&er.start, &er.end, er.end_open) {
                     std::mem::swap(&mut er.start, &mut er.end);
                     fixed += 1;
                 }
@@ -790,6 +835,169 @@ span a {range} "S" {{ id "s1"; }};
         };
         assert_eq!(s.start.to_string(), "2021");
         assert_eq!(s.end.to_string(), "2025");
+    }
+
+    // ─── open-ended (`now`) range 逆転（#899）────────────────────────────────
+    //
+    // `now` は builder が現在年を補完した見かけ上の値でしかない。未来開始の
+    // open-ended range（例 `2100..now`）を「逆転」として自動 swap すると、
+    // 元の開始年が失われ、実行のたびに変わる `2026..now` のような不正な
+    // ファイルが生成される。この 4 ケースはどれか 1 つでも旧実装に戻すと落ちる。
+
+    /// 未来開始の `..now` は逆転として検出されるが、fixable であってはならない。
+    #[test]
+    fn lint_reports_future_start_open_ended_span_as_unfixable() {
+        let src = span_src("2100..now");
+        let file = tdsl_parser::parse(&src).unwrap();
+        let issues = lint_issues(&file, &src);
+        let issue = issues
+            .iter()
+            .find(|i| i.code == "start_gt_end")
+            .unwrap_or_else(|| panic!("start_gt_end が無い: {issues:?}"));
+        assert!(
+            !issue.fixable,
+            "open-ended な逆転を fixable にしてはいけない（開始年が失われる）: {issue:?}"
+        );
+    }
+
+    /// 同じ入力で event_range も同様に unfixable。
+    #[test]
+    fn lint_reports_future_start_open_ended_event_range_as_unfixable() {
+        let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a { kind custom; }
+event_range a 2100..now "R" { id "r1"; };
+"#;
+        let file = tdsl_parser::parse(src).unwrap();
+        let issues = lint_issues(&file, src);
+        let issue = issues
+            .iter()
+            .find(|i| i.code == "start_gt_end")
+            .unwrap_or_else(|| panic!("start_gt_end が無い: {issues:?}"));
+        assert!(
+            !issue.fixable,
+            "open-ended な逆転を fixable にしてはいけない（開始年が失われる）: {issue:?}"
+        );
+    }
+
+    /// `--fix` 適用後もソースが変わらないこと（再パースして開始年が保持されているか確認する）。
+    #[test]
+    fn fix_source_does_not_touch_future_start_open_ended_span() {
+        let src = span_src("2100..now");
+        let fixed = fix_source(&src).unwrap();
+        assert!(
+            fixed.is_none(),
+            "未来開始の open-ended span は書き換えられてはいけない: {fixed:?}"
+        );
+
+        // 直接 apply_lint_fixes を呼んでも開始年 2100 が保持されていること。
+        let mut file = tdsl_parser::parse(&src).unwrap();
+        apply_lint_fixes(&mut file);
+        let tdsl_parser::ast::Statement::Span(s) = &file
+            .statements
+            .iter()
+            .find(|st| matches!(st.node, tdsl_parser::ast::Statement::Span(_)))
+            .expect("span statement")
+            .node
+        else {
+            unreachable!()
+        };
+        assert_eq!(s.start.to_string(), "2100", "開始年 2100 が失われた");
+        assert!(
+            s.end_open,
+            "end_open が false にされた（now の意味が壊れた）"
+        );
+    }
+
+    /// event_range 版。`--fix` 後に再パースしても `end_open` と開始年が保持されること。
+    #[test]
+    fn fix_source_does_not_touch_future_start_open_ended_event_range() {
+        let src = r#"
+timeline "T" { unit year; range 0..3000; }
+lane "A" as a { kind custom; }
+event_range a 2100..now "R" { id "r1"; };
+"#;
+        let fixed = fix_source(src).unwrap();
+        assert!(
+            fixed.is_none(),
+            "未来開始の open-ended event_range は書き換えられてはいけない: {fixed:?}"
+        );
+
+        let mut file = tdsl_parser::parse(src).unwrap();
+        apply_lint_fixes(&mut file);
+        let tdsl_parser::ast::Statement::EventRange(er) = &file
+            .statements
+            .iter()
+            .find(|st| matches!(st.node, tdsl_parser::ast::Statement::EventRange(_)))
+            .expect("event_range statement")
+            .node
+        else {
+            unreachable!()
+        };
+        assert_eq!(er.start.to_string(), "2100", "開始年 2100 が失われた");
+        assert!(
+            er.end_open,
+            "end_open が false にされた（now の意味が壊れた）"
+        );
+
+        // 再パースした結果でも開始年が変わっていないことを、AST の一時的な順序だけでなく
+        // 再 emit → 再パースの往復で確認する。
+        let reemitted = tdsl_parser::format_file(&file);
+        let reparsed = tdsl_parser::parse(&reemitted).unwrap();
+        let tdsl_parser::ast::Statement::EventRange(er2) = &reparsed
+            .statements
+            .iter()
+            .find(|st| matches!(st.node, tdsl_parser::ast::Statement::EventRange(_)))
+            .expect("event_range statement")
+            .node
+        else {
+            unreachable!()
+        };
+        assert_eq!(er2.start.to_string(), "2100");
+        assert!(er2.end_open);
+    }
+
+    /// 通常の open-ended（開始年が現在年以前）は今まで通り lint エラーにならない。
+    #[test]
+    fn lint_accepts_ordinary_open_ended_span() {
+        let src = span_src("2019..now");
+        let file = tdsl_parser::parse(&src).unwrap();
+        let issues = lint_issues(&file, &src);
+        assert!(
+            !issues.iter().any(|i| i.code == "start_gt_end"),
+            "通常の open-ended range を逆転と報告してはいけない: {issues:?}"
+        );
+    }
+
+    /// 確定終了時刻同士の逆転は引き続き fixable な swap として機能する（退行防止）。
+    #[test]
+    fn lint_still_swaps_closed_range_reversal_2050_2010() {
+        let src = span_src("2050..2010");
+        let file = tdsl_parser::parse(&src).unwrap();
+        let issue = lint_issues(&file, &src)
+            .into_iter()
+            .find(|i| i.code == "start_gt_end")
+            .expect("start_gt_end issue expected");
+        assert!(issue.fixable, "確定終了同士の逆転は fixable のはず");
+
+        let fixed = fix_source(&src).unwrap().expect("fix should apply");
+        let reparsed = tdsl_parser::parse(&fixed).unwrap();
+        let issues_after = lint_issues(&reparsed, &fixed);
+        assert!(
+            !issues_after.iter().any(|i| i.code == "start_gt_end"),
+            "swap 後は逆転が解消されているはず: {issues_after:?}"
+        );
+        let tdsl_parser::ast::Statement::Span(s) = &reparsed
+            .statements
+            .iter()
+            .find(|st| matches!(st.node, tdsl_parser::ast::Statement::Span(_)))
+            .expect("span statement")
+            .node
+        else {
+            unreachable!()
+        };
+        assert_eq!(s.start.to_string(), "2010");
+        assert_eq!(s.end.to_string(), "2050");
     }
 
     #[test]
