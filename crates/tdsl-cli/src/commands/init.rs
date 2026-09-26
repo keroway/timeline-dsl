@@ -91,6 +91,9 @@ pub(crate) struct ImportedCsvItem {
     /// #608: `export-csv` が出力する `origin` 列（例 `wikidata`）を任意列として受理し、
     /// 往復で保持する。
     origin: Option<String>,
+    /// #898: span / event_range の end 列が `now`（継続中）だった場合に true。
+    /// true の場合 `end` は `None` で、生成する `.tdsl` スニペットには `now` を直接出力する。
+    end_open: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -302,13 +305,33 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             })
         };
 
-        let (start, end, time) = match item_type {
-            CsvItemType::Span | CsvItemType::EventRange => (
-                Some(parse_required_time("start", &start_raw)?),
-                Some(parse_required_time("end", &end_raw)?),
+        // #898: span / event_range の end 列は継続中を表す文字列 `now` を明示的に受理する
+        // （grammar.pest の `open_ended_time_value` が end 位置専用で `now_kw` を許すのと対称）。
+        // `now` 以外の非数値・非日付は引き続き parse_required_time でエラーとして拒否する。
+        let (start, end, end_open, time) = match item_type {
+            CsvItemType::Span | CsvItemType::EventRange => {
+                if end_raw == "now" {
+                    (
+                        Some(parse_required_time("start", &start_raw)?),
+                        None,
+                        true,
+                        None,
+                    )
+                } else {
+                    (
+                        Some(parse_required_time("start", &start_raw)?),
+                        Some(parse_required_time("end", &end_raw)?),
+                        false,
+                        None,
+                    )
+                }
+            }
+            CsvItemType::Event => (
                 None,
+                None,
+                false,
+                Some(parse_required_time("time", &time_raw)?),
             ),
-            CsvItemType::Event => (None, None, Some(parse_required_time("time", &time_raw)?)),
         };
 
         let tags_raw = get("tags")?;
@@ -370,6 +393,7 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             id,
             source,
             origin,
+            end_open,
         });
     }
 
@@ -409,6 +433,16 @@ pub(crate) fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
             format!("{{ {} }}", options)
         };
 
+        // #898: end_open の場合は grammar.pest の `open_ended_time_value`（now_kw）に対応する
+        // `now` トークンをそのまま出力し、確定済みの終了年へ固定させない。
+        let end_token = |end: &Option<tdsl_parser::ast::TimeValue>, end_open: bool| -> String {
+            if end_open {
+                "now".to_string()
+            } else {
+                end.as_ref().expect("validated end").to_string()
+            }
+        };
+
         match item.item_type {
             CsvItemType::Span => {
                 writeln!(
@@ -416,7 +450,7 @@ pub(crate) fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
                     r#"span {lane} {start}..{end} "{label}" {options};"#,
                     lane = item.lane,
                     start = item.start.as_ref().expect("validated start"),
-                    end = item.end.as_ref().expect("validated end"),
+                    end = end_token(&item.end, item.end_open),
                     label = super::escape_tdsl_string(&item.label),
                     options = block_options
                 )
@@ -439,7 +473,7 @@ pub(crate) fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
                     r#"event_range {lane} {start}..{end} "{label}" {options};"#,
                     lane = item.lane,
                     start = item.start.as_ref().expect("validated start"),
-                    end = item.end.as_ref().expect("validated end"),
+                    end = end_token(&item.end, item.end_open),
                     label = super::escape_tdsl_string(&item.label),
                     options = block_options
                 )
@@ -540,6 +574,62 @@ incidents,event_range,1175,1180,,黒霧戦争,war|fictional,range:black_mist\n",
         assert_eq!(items[1].item_type, CsvItemType::Event);
         assert_eq!(items[2].item_type, CsvItemType::EventRange);
         assert_eq!(items[0].tags, vec!["dynasty", "fictional"]);
+    }
+
+    #[test]
+    fn parse_csv_items_accepts_now_as_end_for_span_and_event_range() {
+        // #898: end 列の `now` は継続中 (end_open) として受理される。
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id\n\
+kingdom,span,2020,now,,Ongoing Project,,span:ongoing\n\
+incidents,event_range,2021,now,,Ongoing Dynasty,,range:ongoing\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+
+        assert_eq!(items.len(), 2);
+        assert!(items[0].end_open, "span end_open must be true for `now`");
+        assert!(items[0].end.is_none());
+        assert!(
+            items[1].end_open,
+            "event_range end_open must be true for `now`"
+        );
+        assert!(items[1].end.is_none());
+
+        let snippet = render_imported_csv_items(&items);
+        assert!(snippet.contains("span kingdom 2020..now"));
+        assert!(snippet.contains("event_range incidents 2021..now"));
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_invalid_non_now_end_value() {
+        // #898: `now` 以外の非数値・非日付な end 値は引き続きエラーで拒否する
+        // （silent fallback 禁止。CLAUDE.md「No silent fallback」原則）。
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id\n\
+kingdom,span,2020,ongoing,,Broken,,span:broken\n",
+        );
+        let err = parse_csv_items(&path).unwrap_err();
+        std::fs::remove_file(path).ok();
+        assert!(
+            err.contains("end must be YYYY-MM-DDTHH:MM"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_now_as_start() {
+        // `now` は end 位置専用（grammar.pest #550）。start 列では拒否されること。
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id\n\
+kingdom,span,now,2030,,Broken,,span:broken\n",
+        );
+        let err = parse_csv_items(&path).unwrap_err();
+        std::fs::remove_file(path).ok();
+        assert!(
+            err.contains("start must be YYYY-MM-DDTHH:MM"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
