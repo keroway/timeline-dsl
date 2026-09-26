@@ -631,6 +631,10 @@ tdsl import-csv [OPTIONS] <CSV>
 - 紀元前の月日・時分精度も許可する（例: `-0206-01`, `-0206-01-15`）。
 - 月の範囲は 1〜12、日の範囲は 1〜31（カレンダー妥当性の細かな検証は lowering 側で行う）。
 - 不正フォーマット時は CSV 行番号付きで「`time must be YYYY-MM-DDTHH:MM, YYYY-MM-DD, YYYY-MM, or YYYY (got`2020-13-01`): ...`」のように原因が表示される。
+- `span` / `event_range` の `end` 列は継続中を表す文字列 `now` を受理する（#898）。
+  `.tdsl` 文法の `open_ended_time_value`（`now` は end 位置専用、#550）と対称で、
+  `end_open: true` として組み立てられる。`start` 列や `event` の `time` 列では
+  `now` は拒否される（`now` は end 位置専用のため）。
 
 ### `source` / `origin` リテラル
 
@@ -715,6 +719,9 @@ tdsl export-csv [OPTIONS] <FILE>
 | `origin` | 由来（例 `wikidata`）。空欄可。`import-csv` で往復保持（#608） |
 
 時刻は `YYYY` / `YYYY-MM` / `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` で出力されます（紀元前の月日・時分精度も保持し、`import-csv` と整合）。
+`span` / `event_range` が継続中（`end_open: true`）の場合、`end` 列には確定した終了年ではなく文字列
+`now` が出力されます（#898）。`import-csv` はこの `now` を明示的に受理して `end_open: true` として
+組み立て直すため、`export-csv` → `import-csv` → `build` の往復で継続中の状態が保持されます。
 
 ### オプション
 
