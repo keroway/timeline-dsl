@@ -735,6 +735,67 @@ fn check_unknown_lane_reference_exits_nonzero() {
     );
 }
 
+/// `tdsl check` reports a typo'd `map` import alias as a concrete E116
+/// diagnostic in `--format json`, instead of only the generic W211
+/// "unresolved block" warning (#910: offline lowering skips Pass 3/4,
+/// so `validate_static_references` is the only path that catches this).
+#[test]
+fn check_undeclared_map_import_alias_reports_e116() {
+    let out = tdsl_bin()
+        .arg("check")
+        .arg("--format")
+        .arg("json")
+        .arg(repo_path("tests/fixtures/undeclared_import_alias.tdsl"))
+        .output()
+        .expect("failed to run tdsl");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let report: serde_json::Value =
+        serde_json::from_str(&stdout).expect("check --format json should print valid JSON");
+    let codes: Vec<&str> = report["diagnostics"]
+        .as_array()
+        .expect("diagnostics should be an array")
+        .iter()
+        .map(|d| d["code"].as_str().unwrap())
+        .collect();
+    assert!(
+        codes.contains(&"E116"),
+        "expected E116 among diagnostics, got: {codes:?}"
+    );
+}
+
+/// `tdsl check --deny-warnings` fails on an E116 reference error, same as
+/// other diagnostics (#910).
+#[test]
+fn check_undeclared_map_import_alias_deny_warnings_exits_nonzero() {
+    let out = tdsl_bin()
+        .arg("check")
+        .arg("--deny-warnings")
+        .arg(repo_path("tests/fixtures/undeclared_import_alias.tdsl"))
+        .output()
+        .expect("failed to run tdsl");
+    assert!(
+        !out.status.success(),
+        "check --deny-warnings on an undeclared import alias reference must fail"
+    );
+}
+
+/// `tdsl build --offline` also surfaces the E116 diagnostic (#910: previously
+/// only the LSP reported this; CLI offline paths passed silently).
+#[test]
+fn build_offline_undeclared_map_import_alias_reports_e116() {
+    let out = tdsl_bin()
+        .arg("build")
+        .arg("--offline")
+        .arg(repo_path("tests/fixtures/undeclared_import_alias.tdsl"))
+        .output()
+        .expect("failed to run tdsl");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("E116"),
+        "expected E116 warning on stderr, got: {stderr}"
+    );
+}
+
 /// `tdsl lint` on a clean file exits zero and reports no issues.
 #[test]
 fn lint_clean_file_exits_zero() {

@@ -128,6 +128,8 @@ fn format_time(t: TimeParts) -> String {
 /// `map` 参照の `alias.key` 形式）を offline でも報告するために使う。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceDiagnostic {
+    /// `docs/error-catalog.md` に対応する安定した診断コード（`"E116"` 等）。
+    pub code: &'static str,
     /// エラーメッセージ。
     pub message: String,
     /// 該当する `map` / `apply` 文のソース内バイト範囲。
@@ -175,6 +177,7 @@ pub fn validate_static_references(file: &ast::File) -> Vec<ReferenceDiagnostic> 
                     .unwrap_or(m.source_ref.as_str());
                 if !import_aliases.contains(alias) {
                     diags.push(ReferenceDiagnostic {
+                        code: "E116",
                         message: format!("Map references undeclared import alias: {alias}"),
                         span: stmt.span,
                     });
@@ -183,6 +186,7 @@ pub fn validate_static_references(file: &ast::File) -> Vec<ReferenceDiagnostic> 
             ast::Statement::Apply(a) => {
                 if !import_aliases.contains(a.import_alias.as_str()) {
                     diags.push(ReferenceDiagnostic {
+                        code: "E117",
                         message: format!(
                             "Apply references undeclared import alias: {}",
                             a.import_alias
@@ -192,6 +196,7 @@ pub fn validate_static_references(file: &ast::File) -> Vec<ReferenceDiagnostic> 
                 }
                 if !template_keys.contains(a.template_alias.as_str()) {
                     diags.push(ReferenceDiagnostic {
+                        code: "E118",
                         message: format!(
                             "Apply references undeclared template: {}",
                             a.template_alias

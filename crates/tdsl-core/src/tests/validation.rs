@@ -540,6 +540,7 @@ map typo.han to span { lane d; start claim(P571).year; end claim(P576).year; lab
     let file = tdsl_parser::parse(src).unwrap();
     let diags = validate::validate_static_references(&file);
     assert_eq!(diags.len(), 1, "未宣言 alias 参照は 1 件。実際: {diags:#?}");
+    assert_eq!(diags[0].code, "E116");
     assert!(diags[0].message.contains("typo"));
     // span が map 文のバイト範囲を指す（start < end かつソース長以内）
     assert!(diags[0].span.start < diags[0].span.end);
@@ -561,8 +562,43 @@ apply missing_tmpl to missing_import { lane d; }
         2,
         "未宣言 import + template = 2 件。実際: {diags:#?}"
     );
-    assert!(diags.iter().any(|d| d.message.contains("missing_import")));
-    assert!(diags.iter().any(|d| d.message.contains("missing_tmpl")));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "E117" && d.message.contains("missing_import"))
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "E118" && d.message.contains("missing_tmpl"))
+    );
+}
+
+/// `validate_static_references` が返すコードも、すべてカタログに節がある（#910）。
+#[test]
+fn static_reference_codes_exist_in_catalog() {
+    let catalog = catalog_codes('E');
+    let src = r#"
+timeline "t" { title "t"; unit year; range -500..700; calendar proleptic_gregorian; }
+lane "d" as d { kind dynasty; order 1; }
+import wikidata as wd { entity Q7209 as han; }
+map typo.han to span { lane d; start claim(P571).year; end claim(P576).year; label label@ja; }
+apply missing_tmpl to missing_import { lane d; }
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let diags = validate::validate_static_references(&file);
+    let codes: std::collections::HashSet<&str> = diags.iter().map(|d| d.code).collect();
+    assert_eq!(
+        codes,
+        std::collections::HashSet::from(["E116", "E117", "E118"]),
+        "実際: {diags:#?}"
+    );
+    for code in &codes {
+        assert!(
+            catalog.contains(*code),
+            "{code} が docs/error-catalog.md に無い"
+        );
+    }
 }
 
 // ─── 診断コードとカタログの対応（#748）──────────────────────────────────

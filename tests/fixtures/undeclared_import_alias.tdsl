@@ -1,0 +1,13 @@
+// map が未宣言の import alias "typo" を参照する（E116。#910 E2Eテスト用）
+// offline lowering（Pass 1/2）は Pass 3/4 を経由しないため、この typo は
+// validate_static_references の静的検出でのみ拾える。
+
+timeline "テスト" {
+    unit year;
+    range -500..700;
+}
+
+lane "王朝" as d { kind dynasty; order 1; }
+
+import wikidata as wd { entity Q7209 as han; }
+map typo.han to span { lane d; start claim(P571).year; end claim(P576).year; label label@ja; }
