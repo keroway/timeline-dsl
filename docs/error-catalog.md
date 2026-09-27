@@ -510,6 +510,32 @@ import Q8686 as tang_src { entity Q8686 as tang; }
 
 ---
 
+### E116: mapが参照する未宣言import alias（offline静的検出）
+
+**メッセージ**: `Map references undeclared import alias: {alias}`
+
+**原因**: `map <alias>.<key>` の `alias` に対応する `import ... as <alias>` ブロックが宣言されていません。E106（未解決のimport参照）と同種のミスですが、Wikidata取得（lowering Pass 3/4）を経由せず、AST だけで判定できるため `tdsl check` / `tdsl build --offline`（Pass 3/4 が走らない経路）でも検出されます。
+
+**修正方法**: `import` ブロックのエイリアス名と `map` の参照名が一致しているか確認してください。
+
+---
+
+### E117: applyが参照する未宣言import alias（offline静的検出）
+
+**メッセージ**: `Apply references undeclared import alias: {alias}`
+
+**原因**: `apply <template> to <import>` の `<import>` に対応する `import ... as <alias>` ブロックが宣言されていません。E116 と同様、offline でも検出されます。
+
+---
+
+### E118: applyが参照する未宣言テンプレート（offline静的検出）
+
+**メッセージ**: `Apply references undeclared template: {name}`
+
+**原因**: `apply <template> to <import>` の `<template>` に対応する `template ... as <alias>` ブロックが宣言されていません。E110（未定義のテンプレート参照）と同種のミスですが、offline でも検出されます。
+
+---
+
 ## バリデーション警告（tdsl-core: validate）
 
 IR生成後の整合性チェックで発生する警告です。ビルドは続行されますが、出力が意図と異なる可能性があります。

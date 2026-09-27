@@ -78,12 +78,30 @@ pub(crate) fn cmd_check(
             message: d.message,
         });
     }
+    // `map` / `apply` が未宣言の import alias / template を参照するミスは、
+    // offline lowering（Pass 1/2 のみ）では Pass 3/4 を経由しないため一般的な
+    // W211 警告にしか現れない。AST から静的に判定できる分だけ具体的な
+    // エラーとして出す（#910。LSP は同じ関数を既に使っている）。
+    for d in tdsl_core::validate::validate_static_references(&file) {
+        let (line, _col) = tdsl_parser::byte_offset_to_line_col(&source, d.span.start);
+        diagnostics.push(CheckDiagnostic {
+            code: d.code,
+            severity: "error",
+            line: Some(line as usize),
+            message: d.message,
+        });
+    }
 
     if matches!(format, CheckOutputFormat::Text) {
         for d in &diagnostics {
+            let label = if d.severity == "error" {
+                "Error"
+            } else {
+                "Warning"
+            };
             match d.line {
-                Some(line) => eprintln!("Warning [{}] line {line}: {}", d.code, d.message),
-                None => eprintln!("Warning [{}]: {}", d.code, d.message),
+                Some(line) => eprintln!("{label} [{}] line {line}: {}", d.code, d.message),
+                None => eprintln!("{label} [{}]: {}", d.code, d.message),
             }
         }
     }

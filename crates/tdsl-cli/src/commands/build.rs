@@ -91,6 +91,18 @@ pub(crate) fn load_ir(
     let file = tdsl_parser::parse(&source)
         .map_err(|e| super::check::render_parse_error(&e, &source, &filename))?;
 
+    if offline {
+        // offline lowering（Pass 1/2 のみ）は Pass 3/4 を経由しないため、
+        // map/apply が未宣言の import alias / template を参照していても
+        // E106/E110 は出ない。AST から静的に判定できる分だけ先に警告として
+        // 出す（#910。online 経路は Pass 3/4 が同じミスを直接エラーにする
+        // ため、二重報告を避けてここでは呼ばない）。
+        for d in tdsl_core::validate::validate_static_references(&file) {
+            let (line, _col) = tdsl_parser::byte_offset_to_line_col(&source, d.span.start);
+            eprintln!("Warning [{}] line {line}: {}", d.code, d.message);
+        }
+    }
+
     let ir = if offline {
         tdsl_core::lower::lower_static_with_diagnostics(&file, None)
     } else {
