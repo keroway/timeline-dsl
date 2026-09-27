@@ -1165,3 +1165,188 @@ fn render_zigzag_with_too_many_lanes_fails() {
         "failed rendering must not create output"
     );
 }
+
+// ---------------------------------------------------------------------------
+// decompile: lane.group round-trip (#887)
+// ---------------------------------------------------------------------------
+
+/// Count occurrences of the `tdsl-group-label` SVG class, used to assert
+/// that grouped lanes survive a build -> decompile -> build -> render round
+/// trip with the same number of visible group labels.
+fn group_label_count(svg: &str) -> usize {
+    svg.matches("tdsl-group-label").count()
+}
+
+/// #887: `tdsl decompile` silently dropped `lane.group`, so a
+/// build -> decompile -> build round trip lost every lane's group
+/// assignment and the rendered SVG stopped emitting `tdsl-group-label`
+/// elements. Verify the round trip now preserves both the IR `group` field
+/// and the rendered group-label count.
+#[test]
+fn decompile_roundtrip_preserves_lane_group_and_render_output() {
+    let example = repo_path("examples/grouped_dynasties.tdsl");
+    let decompiled_path = unique_temp("grouped_dynasties_roundtrip.tdsl");
+    let original_svg_path = unique_temp("grouped_dynasties_original.svg");
+    let roundtrip_svg_path = unique_temp("grouped_dynasties_roundtrip.svg");
+
+    // 1. build the original .tdsl to JSON IR.
+    let build_out = tdsl_bin()
+        .args([
+            "build",
+            example.to_str().expect("example path must be UTF-8"),
+        ])
+        .output()
+        .expect("failed to run tdsl build");
+    assert!(
+        build_out.status.success(),
+        "initial build should succeed: {}",
+        String::from_utf8_lossy(&build_out.stderr)
+    );
+    let original_json =
+        String::from_utf8(build_out.stdout).expect("build stdout must be UTF-8 JSON");
+
+    // 2. decompile the IR back to .tdsl source.
+    let mut decompile_cmd = tdsl_bin();
+    decompile_cmd.args([
+        "decompile",
+        "--output",
+        decompiled_path.to_str().expect("temp path must be UTF-8"),
+    ]);
+    decompile_cmd.stdin(std::process::Stdio::piped());
+    decompile_cmd.stdout(std::process::Stdio::piped());
+    decompile_cmd.stderr(std::process::Stdio::piped());
+    let mut child = decompile_cmd
+        .spawn()
+        .expect("failed to spawn tdsl decompile");
+    {
+        use std::io::Write;
+        child
+            .stdin
+            .take()
+            .expect("stdin must be piped")
+            .write_all(original_json.as_bytes())
+            .expect("failed to write JSON IR to tdsl decompile stdin");
+    }
+    let decompile_out = child
+        .wait_with_output()
+        .expect("failed to run tdsl decompile");
+    assert!(
+        decompile_out.status.success(),
+        "decompile should succeed: {}",
+        String::from_utf8_lossy(&decompile_out.stderr)
+    );
+    assert!(
+        decompiled_path.exists(),
+        "decompiled .tdsl file should exist"
+    );
+    let decompiled_src =
+        std::fs::read_to_string(&decompiled_path).expect("decompiled .tdsl should be readable");
+    assert!(
+        decompiled_src.contains(r#"group "古代" {"#),
+        "decompiled source must restore the 古代 group block: {decompiled_src}"
+    );
+    assert!(
+        decompiled_src.contains(r#"group "中世" {"#),
+        "decompiled source must restore the 中世 group block: {decompiled_src}"
+    );
+
+    // 3. re-build the decompiled .tdsl and confirm the lane `group` fields match.
+    let rebuild_out = tdsl_bin()
+        .args([
+            "build",
+            decompiled_path.to_str().expect("temp path must be UTF-8"),
+        ])
+        .output()
+        .expect("failed to run tdsl build on decompiled source");
+    assert!(
+        rebuild_out.status.success(),
+        "rebuild of decompiled source should succeed: {}",
+        String::from_utf8_lossy(&rebuild_out.stderr)
+    );
+    let rebuilt_json =
+        String::from_utf8(rebuild_out.stdout).expect("rebuild stdout must be UTF-8 JSON");
+
+    let original_ir: serde_json::Value =
+        serde_json::from_str(&original_json).expect("original build output must be valid JSON");
+    let rebuilt_ir: serde_json::Value =
+        serde_json::from_str(&rebuilt_json).expect("rebuilt output must be valid JSON");
+    let lane_groups = |ir: &serde_json::Value| -> Vec<(String, Option<String>)> {
+        ir["lanes"]
+            .as_array()
+            .expect("lanes must be an array")
+            .iter()
+            .map(|l| {
+                let id = l["id"]
+                    .as_str()
+                    .expect("lane id must be a string")
+                    .to_string();
+                let group = l
+                    .get("group")
+                    .and_then(|g| g.as_str())
+                    .map(|s| s.to_string());
+                (id, group)
+            })
+            .collect()
+    };
+    assert_eq!(
+        lane_groups(&original_ir),
+        lane_groups(&rebuilt_ir),
+        "lane group assignments (and ordering) must survive the round trip"
+    );
+
+    // 4. render both the original and the round-tripped source, and compare
+    //    the tdsl-group-label element count.
+    let render_original = tdsl_bin()
+        .args([
+            "render",
+            example.to_str().expect("example path must be UTF-8"),
+            "--format",
+            "svg",
+            "--output",
+            original_svg_path.to_str().expect("temp path must be UTF-8"),
+        ])
+        .output()
+        .expect("failed to run tdsl render on original source");
+    assert!(
+        render_original.status.success(),
+        "render of original source should succeed: {}",
+        String::from_utf8_lossy(&render_original.stderr)
+    );
+    let render_roundtrip = tdsl_bin()
+        .args([
+            "render",
+            decompiled_path.to_str().expect("temp path must be UTF-8"),
+            "--format",
+            "svg",
+            "--output",
+            roundtrip_svg_path
+                .to_str()
+                .expect("temp path must be UTF-8"),
+        ])
+        .output()
+        .expect("failed to run tdsl render on decompiled source");
+    assert!(
+        render_roundtrip.status.success(),
+        "render of decompiled source should succeed: {}",
+        String::from_utf8_lossy(render_roundtrip.stderr.as_slice())
+    );
+
+    let original_svg =
+        std::fs::read_to_string(&original_svg_path).expect("original SVG should be readable");
+    let roundtrip_svg =
+        std::fs::read_to_string(&roundtrip_svg_path).expect("round-tripped SVG should be readable");
+    let original_count = group_label_count(&original_svg);
+    let roundtrip_count = group_label_count(&roundtrip_svg);
+    assert!(
+        original_count > 0,
+        "original SVG should contain at least one tdsl-group-label element"
+    );
+    assert_eq!(
+        original_count, roundtrip_count,
+        "tdsl-group-label element count must be unchanged by the round trip"
+    );
+
+    let _ = std::fs::remove_file(&decompiled_path);
+    let _ = std::fs::remove_file(&original_svg_path);
+    let _ = std::fs::remove_file(&roundtrip_svg_path);
+}

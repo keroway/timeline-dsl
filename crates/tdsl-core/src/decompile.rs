@@ -132,21 +132,36 @@ pub fn decompile(ir: &TimelineIr) -> String {
     }
     writeln!(out, "}}").unwrap();
 
-    for lane in &ir.lanes {
-        out.push('\n');
-        let label = escape(&lane.label);
-        // color を落とすと IR → DSL の往復で lane 色が消える（#747）。
-        let color = match &lane.color {
-            Some(c) => format!(r#" color "{}";"#, escape(c)),
-            None => String::new(),
-        };
-        write!(
-            out,
-            r#"lane "{label}" as {} {{ kind {}; order {};{color} }}"#,
-            lane.id, lane.kind, lane.order
-        )
-        .unwrap();
-        out.push('\n');
+    // `lane.group` が Some の連続区間を `group "名前" { ... }` ブロックとして
+    // 復元する（#887）。group ブロックは lowering 時に内包する lane を
+    // 出現順のまま `ir.lanes` へ展開するため（Pass 1、
+    // `crates/tdsl-core/src/lower/declarations.rs`）、同じ `group` 値が
+    // 隣接する連続区間としてそのまま元のブロック単位に対応する。
+    let mut i = 0;
+    while i < ir.lanes.len() {
+        let group = ir.lanes[i].group.clone();
+        let mut j = i + 1;
+        while j < ir.lanes.len() && ir.lanes[j].group == group {
+            j += 1;
+        }
+        let chunk = &ir.lanes[i..j];
+        match &group {
+            Some(name) => {
+                out.push('\n');
+                writeln!(out, r#"group "{}" {{"#, escape(name)).unwrap();
+                for lane in chunk {
+                    write_lane_decl(&mut out, lane, "    ");
+                }
+                writeln!(out, "}}").unwrap();
+            }
+            None => {
+                for lane in chunk {
+                    out.push('\n');
+                    write_lane_decl(&mut out, lane, "");
+                }
+            }
+        }
+        i = j;
     }
 
     for item in &ir.items {
@@ -299,6 +314,23 @@ pub fn decompile(ir: &TimelineIr) -> String {
     }
 
     out
+}
+
+/// 1つの `lane` 宣言を `out` へ書き出す。`indent` は group ブロック内で
+/// ネストさせる際の字下げ（トップレベルの lane は空文字列）。
+fn write_lane_decl(out: &mut String, lane: &crate::ir::Lane, indent: &str) {
+    let label = escape(&lane.label);
+    // color を落とすと IR → DSL の往復で lane 色が消える（#747）。
+    let color = match &lane.color {
+        Some(c) => format!(r#" color "{}";"#, escape(c)),
+        None => String::new(),
+    };
+    writeln!(
+        out,
+        r#"{indent}lane "{label}" as {} {{ kind {}; order {};{color} }}"#,
+        lane.id, lane.kind, lane.order
+    )
+    .unwrap();
 }
 
 fn render_props(
@@ -857,6 +889,119 @@ mod tests {
             }
             _ => panic!("expected event_range"),
         }
+    }
+
+    #[test]
+    fn decompile_roundtrip_preserves_lane_group() {
+        // #887: `lane.group` was silently dropped by decompile (all lanes
+        // were emitted as top-level `lane` decls, never wrapped in a
+        // `group` block). Verify group -> decompile -> build round-trips
+        // the group assignment, ordering, and non-grouped lanes intact.
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "T".to_string(),
+                unit: "year".to_string(),
+                range: (0, 100),
+                calendar: "proleptic_gregorian".to_string(),
+                color_map: HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![
+                Lane {
+                    id: "qin".to_string(),
+                    label: "秦".to_string(),
+                    kind: "dynasty".to_string(),
+                    order: 10,
+                    group: Some("古代".to_string()),
+                    color: None,
+                    source_span: None,
+                },
+                Lane {
+                    id: "han".to_string(),
+                    label: "漢".to_string(),
+                    kind: "dynasty".to_string(),
+                    order: 20,
+                    group: Some("古代".to_string()),
+                    color: None,
+                    source_span: None,
+                },
+                Lane {
+                    id: "sui".to_string(),
+                    label: "隋".to_string(),
+                    kind: "dynasty".to_string(),
+                    order: 30,
+                    group: Some("中世".to_string()),
+                    color: None,
+                    source_span: None,
+                },
+                Lane {
+                    id: "events".to_string(),
+                    label: "出来事".to_string(),
+                    kind: "event".to_string(),
+                    order: 40,
+                    group: None,
+                    color: None,
+                    source_span: None,
+                },
+            ],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let tdsl = decompile(&ir);
+        assert!(tdsl.contains(r#"group "古代" {"#), "decompiled: {tdsl}");
+        assert!(tdsl.contains(r#"group "中世" {"#), "decompiled: {tdsl}");
+
+        let file = tdsl_parser::parse(&tdsl).expect("decompiled output must parse");
+        let ir2 = crate::lower::lower_static(&file).expect("must lower without errors");
+
+        assert_eq!(ir2.lanes.len(), 4);
+        let by_id = |id: &str| ir2.lanes.iter().find(|l| l.id == id).expect("lane present");
+        assert_eq!(by_id("qin").group.as_deref(), Some("古代"));
+        assert_eq!(by_id("han").group.as_deref(), Some("古代"));
+        assert_eq!(by_id("sui").group.as_deref(), Some("中世"));
+        assert_eq!(by_id("events").group, None);
+        // 元の順序（qin, han, sui, events）が保たれること。
+        let ids: Vec<_> = ir2.lanes.iter().map(|l| l.id.as_str()).collect();
+        assert_eq!(ids, vec!["qin", "han", "sui", "events"]);
+    }
+
+    #[test]
+    fn decompile_roundtrip_preserves_lane_group_with_quotes_and_japanese() {
+        // group 名に日本語・引用符が混在しても正しくエスケープされること。
+        let ir = TimelineIr {
+            meta: Meta {
+                title: "T".to_string(),
+                unit: "year".to_string(),
+                range: (0, 100),
+                calendar: "proleptic_gregorian".to_string(),
+                color_map: HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "a".to_string(),
+                label: "A".to_string(),
+                kind: "custom".to_string(),
+                order: 1,
+                group: Some(r#"変な"名前""#.to_string()),
+                color: None,
+                source_span: None,
+            }],
+            items: vec![],
+            imports: vec![],
+            sources: vec![],
+        };
+
+        let tdsl = decompile(&ir);
+        assert!(
+            tdsl.contains(r#"group "変な\"名前\"" {"#),
+            "decompiled: {tdsl}"
+        );
+
+        let file = tdsl_parser::parse(&tdsl).expect("decompiled output must parse");
+        let ir2 = crate::lower::lower_static(&file).expect("must lower without errors");
+        assert_eq!(ir2.lanes[0].group.as_deref(), Some(r#"変な"名前""#));
     }
 
     #[test]
