@@ -122,6 +122,7 @@ fn item_to_row(item: &Item) -> [String; 10] {
             end_minute,
             end_second,
             end_offset_minutes,
+            end_open,
             label,
             tags,
             source,
@@ -140,15 +141,19 @@ fn item_to_row(item: &Item) -> [String; 10] {
                 *start_second,
                 *start_offset_minutes,
             ),
-            format_time(
-                *end,
-                *end_month,
-                *end_day,
-                *end_hour,
-                *end_minute,
-                *end_second,
-                *end_offset_minutes,
-            ),
+            if *end_open {
+                "now".to_string()
+            } else {
+                format_time(
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_second,
+                    *end_offset_minutes,
+                )
+            },
             String::new(),
             label.clone(),
             join_tags(tags),
@@ -207,6 +212,7 @@ fn item_to_row(item: &Item) -> [String; 10] {
             end_minute,
             end_second,
             end_offset_minutes,
+            end_open,
             label,
             tags,
             source,
@@ -225,15 +231,19 @@ fn item_to_row(item: &Item) -> [String; 10] {
                 *start_second,
                 *start_offset_minutes,
             ),
-            format_time(
-                *end,
-                *end_month,
-                *end_day,
-                *end_hour,
-                *end_minute,
-                *end_second,
-                *end_offset_minutes,
-            ),
+            if *end_open {
+                "now".to_string()
+            } else {
+                format_time(
+                    *end,
+                    *end_month,
+                    *end_day,
+                    *end_hour,
+                    *end_minute,
+                    *end_second,
+                    *end_offset_minutes,
+                )
+            },
             String::new(),
             label.clone(),
             join_tags(tags),
@@ -568,6 +578,162 @@ mod tests {
                 assert_eq!(*start_offset_minutes, Some(540));
                 assert_eq!(*end_second, Some(0));
                 assert_eq!(*end_offset_minutes, Some(540));
+            }
+            other => panic!("expected event_range, got {other:?}"),
+        }
+    }
+
+    // ─── #898: 継続中 (`now` / end_open) の export-csv → import-csv round-trip ───
+
+    fn ir_with_open_ended_span_and_event_range() -> TimelineIr {
+        TimelineIr {
+            meta: Meta {
+                title: "Ongoing".to_string(),
+                unit: "year".to_string(),
+                range: (2000, 2100),
+                calendar: "proleptic_gregorian".to_string(),
+                color_map: HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "a".to_string(),
+                label: "Lane A".to_string(),
+                kind: "custom".to_string(),
+                order: 10,
+                group: None,
+                color: None,
+                source_span: None,
+            }],
+            items: vec![
+                Item::Span {
+                    id: "span:a:ongoing".to_string(),
+                    lane: "a".to_string(),
+                    start: 2020,
+                    end: 2026,
+                    label: "Ongoing Project".to_string(),
+                    tags: vec![],
+                    source: None,
+                    origin: None,
+                    note: None,
+                    link: None,
+                    color: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    start_second: None,
+                    start_offset_minutes: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_second: None,
+                    end_offset_minutes: None,
+                    end_open: true,
+                    source_span: None,
+                },
+                Item::EventRange {
+                    id: "event_range:a:ongoing".to_string(),
+                    lane: "a".to_string(),
+                    start: 2021,
+                    end: 2026,
+                    label: "Ongoing Dynasty".to_string(),
+                    tags: vec!["current".to_string()],
+                    source: None,
+                    origin: None,
+                    note: None,
+                    link: None,
+                    color: None,
+                    start_month: None,
+                    start_day: None,
+                    start_hour: None,
+                    start_minute: None,
+                    start_second: None,
+                    start_offset_minutes: None,
+                    end_month: None,
+                    end_day: None,
+                    end_hour: None,
+                    end_minute: None,
+                    end_second: None,
+                    end_offset_minutes: None,
+                    end_open: true,
+                    source_span: None,
+                },
+            ],
+            imports: vec![],
+            sources: vec![],
+        }
+    }
+
+    #[test]
+    fn render_csv_emits_now_for_open_ended_end() {
+        let csv = render_csv(&ir_with_open_ended_span_and_event_range()).unwrap();
+        let mut lines = csv.lines();
+        lines.next(); // header
+        assert_eq!(
+            lines.next().unwrap(),
+            "a,span,2020,now,,Ongoing Project,,span:a:ongoing,,"
+        );
+        assert_eq!(
+            lines.next().unwrap(),
+            "a,event_range,2021,now,,Ongoing Dynasty,current,event_range:a:ongoing,,"
+        );
+    }
+
+    #[test]
+    fn export_then_import_round_trips_end_open() {
+        // #898: end_open (now) が export-csv -> import-csv -> build の往復で
+        // 無警告のまま確定した終了年へ固定されない（end_open が保持される）ことを検証する。
+        let ir = ir_with_open_ended_span_and_event_range();
+        let csv = render_csv(&ir).unwrap();
+
+        let tmp = std::env::temp_dir().join(format!(
+            "tdsl_export_roundtrip_now_{:?}_{}.csv",
+            std::thread::current().id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&tmp, &csv).unwrap();
+        let items = super::super::init::parse_csv_items(&tmp).expect("import-csv parse");
+        std::fs::remove_file(&tmp).ok();
+        let snippet = super::super::init::render_imported_csv_items(&items);
+
+        // 生成されたスニペットが `now` トークンをそのまま含むこと（確定年に固定されない）
+        assert!(
+            snippet.contains("span a 2020..now"),
+            "expected `now` end token in snippet: {snippet}"
+        );
+        assert!(
+            snippet.contains("event_range a 2021..now"),
+            "expected `now` end token in snippet: {snippet}"
+        );
+
+        let reconstructed = format!(
+            "timeline \"Ongoing\" {{\n    title \"Ongoing\";\n    unit year;\n    range 2000..2100;\n    calendar proleptic_gregorian;\n}}\n\nlane \"Lane A\" as a {{ kind custom; order 10; }}\n\n{snippet}"
+        );
+
+        let file = tdsl_parser::parse(&reconstructed)
+            .unwrap_or_else(|e| panic!("re-parse failed: {e}\n---\n{reconstructed}"));
+        let ir2 = tdsl_core::lower::lower_static(&file).expect("re-lower must succeed");
+
+        assert_eq!(ir2.items.len(), 2);
+        match &ir2.items[0] {
+            Item::Span {
+                start, end_open, ..
+            } => {
+                assert_eq!(*start, 2020);
+                assert!(*end_open, "span end_open must survive round-trip");
+            }
+            other => panic!("expected span, got {other:?}"),
+        }
+        match &ir2.items[1] {
+            Item::EventRange {
+                start, end_open, ..
+            } => {
+                assert_eq!(*start, 2021);
+                assert!(*end_open, "event_range end_open must survive round-trip");
             }
             other => panic!("expected event_range, got {other:?}"),
         }
