@@ -71,6 +71,11 @@ pub const MISC_KEYWORDS: &[&str] = &[
     "color",
     "expand",
     "qualifier",
+    "filter",
+    "entity",
+    "startswith",
+    "contains",
+    "to",
 ];
 
 #[cfg(test)]
