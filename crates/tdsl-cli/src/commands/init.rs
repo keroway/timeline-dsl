@@ -94,6 +94,16 @@ pub(crate) struct ImportedCsvItem {
     /// #898: span / event_range の end 列が `now`（継続中）だった場合に true。
     /// true の場合 `end` は `None` で、生成する `.tdsl` スニペットには `now` を直接出力する。
     end_open: bool,
+    /// #902: `export-csv` が出力する `note` 列（block_option `note "..."`）を任意列として受理し、
+    /// 往復で保持する。CSV の自動クォート機構に任せるプレーンな自由文字列（タグのような
+    /// 区切り文字エスケープは不要）。
+    note: Option<String>,
+    /// #902: `export-csv` が出力する `link` 列（block_option `link "..."`）を任意列として受理し、
+    /// 往復で保持する。
+    link: Option<String>,
+    /// #902: `export-csv` が出力する `color` 列（block_option `color "..."`）を任意列として受理し、
+    /// 往復で保持する。
+    color: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -233,8 +243,12 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             return Err(format!("CSV is missing required column: {key}"));
         }
     }
-    // #608: source/origin は任意列だが、重複ヘッダは (既存の必須列も含め) 一律に拒否する。
-    for key in required.iter().chain(["source", "origin"].iter()) {
+    // #608/#902: source/origin/note/link/color は任意列だが、重複ヘッダは
+    // (既存の必須列も含め) 一律に拒否する。
+    for key in required
+        .iter()
+        .chain(["source", "origin", "note", "link", "color"].iter())
+    {
         let count = headers.iter().filter(|h| h == key).count();
         if count > 1 {
             return Err(format!("CSV header `{key}` is duplicated"));
@@ -242,6 +256,9 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
     }
     let has_source_column = headers.iter().any(|h| h == "source");
     let has_origin_column = headers.iter().any(|h| h == "origin");
+    let has_note_column = headers.iter().any(|h| h == "note");
+    let has_link_column = headers.iter().any(|h| h == "link");
+    let has_color_column = headers.iter().any(|h| h == "color");
 
     let mut items = Vec::new();
     for (idx, record) in reader.records().enumerate() {
@@ -380,6 +397,21 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             }
         }
 
+        // #902: note/link/color はプレーンな自由文字列列。CSV reader が引用符付きの
+        // 値を自動でデコードするため、タグ列のような区切り文字エスケープは不要。
+        let note = {
+            let raw = get_optional("note", has_note_column);
+            if raw.is_empty() { None } else { Some(raw) }
+        };
+        let link = {
+            let raw = get_optional("link", has_link_column);
+            if raw.is_empty() { None } else { Some(raw) }
+        };
+        let color = {
+            let raw = get_optional("color", has_color_column);
+            if raw.is_empty() { None } else { Some(raw) }
+        };
+
         items.push(ImportedCsvItem {
             lane,
             item_type,
@@ -392,6 +424,9 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             source,
             origin,
             end_open,
+            note,
+            link,
+            color,
         });
     }
 
@@ -424,6 +459,15 @@ pub(crate) fn render_imported_csv_items(items: &[ImportedCsvItem]) -> String {
         }
         if let Some(origin) = &item.origin {
             write!(options, "origin {origin}; ").unwrap();
+        }
+        if let Some(note) = &item.note {
+            write!(options, r#"note "{}"; "#, super::escape_tdsl_string(note)).unwrap();
+        }
+        if let Some(link) = &item.link {
+            write!(options, r#"link "{}"; "#, super::escape_tdsl_string(link)).unwrap();
+        }
+        if let Some(color) = &item.color {
+            write!(options, r#"color "{}"; "#, super::escape_tdsl_string(color)).unwrap();
         }
         let block_options = if options.is_empty() {
             "{}".to_string()
@@ -810,6 +854,63 @@ a,event,,,2021,bar,,,wd:Q2,\n",
         assert_eq!(items[0].origin.as_deref(), Some("manual"));
         assert_eq!(items[1].source.as_ref().unwrap().qid, "Q2");
         assert_eq!(items[1].origin, None);
+    }
+
+    // ─── note / link / color 往復保持 (#902) ───
+
+    #[test]
+    fn parse_csv_items_accepts_legacy_10_column_csv_without_note_link_color() {
+        // #902: 旧10列CSV（note/link/color ヘッダなし。#608 時点の export-csv 出力）は
+        // 引き続き受理され、note/link/color は None になる（意図的な後方互換）。
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,source,origin\n\
+a,event,,,1969,アポロ11号,,event:apollo,wd:Q1,wikidata\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].note, None);
+        assert_eq!(items[0].link, None);
+        assert_eq!(items[0].color, None);
+    }
+
+    #[test]
+    fn parse_csv_items_accepts_note_link_color_columns_and_round_trips() {
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,source,origin,note,link,color\n\
+a,event,,,2020,foo,,event:1,,,補足説明,https://example.com/ref,#112233\n\
+a,event,,,2021,bar,,event:2,,,,,\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].note.as_deref(), Some("補足説明"));
+        assert_eq!(items[0].link.as_deref(), Some("https://example.com/ref"));
+        assert_eq!(items[0].color.as_deref(), Some("#112233"));
+        // 空欄は None
+        assert_eq!(items[1].note, None);
+        assert_eq!(items[1].link, None);
+        assert_eq!(items[1].color, None);
+
+        let snippet = render_imported_csv_items(&items);
+        assert!(snippet.contains(r#"note "補足説明";"#));
+        assert!(snippet.contains(r#"link "https://example.com/ref";"#));
+        assert!(snippet.contains("color \"#112233\";"));
+
+        let file = tdsl_parser::parse(&snippet)
+            .unwrap_or_else(|e| panic!("re-parse failed: {e}\n--- snippet ---\n{snippet}"));
+        assert_eq!(file.statements.len(), 2);
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_duplicate_note_header() {
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,note,note\n\
+a,event,,,2020,foo,,,x,x\n",
+        );
+        let err = parse_csv_items(&path).unwrap_err();
+        std::fs::remove_file(path).ok();
+        assert!(err.contains("duplicated"), "unexpected error: {err}");
     }
 
     #[test]

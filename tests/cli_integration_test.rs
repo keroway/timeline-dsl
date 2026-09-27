@@ -855,7 +855,7 @@ fn export_csv_stdout_contains_header_and_rows() {
     let mut lines = stdout.lines();
     assert_eq!(
         lines.next().unwrap(),
-        "lane,type,start,end,time,label,tags,id,source,origin",
+        "lane,type,start,end,time,label,tags,id,source,origin,note,link,color",
         "first line must be the CSV header"
     );
     assert!(
@@ -878,7 +878,9 @@ fn export_csv_output_flag_writes_file() {
         .expect("failed to run tdsl");
     assert!(out.status.success(), "export-csv --output exited non-zero");
     let written = std::fs::read_to_string(&out_path).expect("output file should exist");
-    assert!(written.starts_with("lane,type,start,end,time,label,tags,id,source,origin"));
+    assert!(
+        written.starts_with("lane,type,start,end,time,label,tags,id,source,origin,note,link,color")
+    );
     let _ = std::fs::remove_file(&out_path);
 }
 
@@ -901,7 +903,9 @@ fn export_csv_accepts_json_ir_input() {
         .expect("failed to run tdsl export-csv");
     assert!(out.status.success(), "export-csv (json) exited non-zero");
     let stdout = String::from_utf8(out.stdout).expect("non-UTF-8 stdout");
-    assert!(stdout.starts_with("lane,type,start,end,time,label,tags,id,source,origin"));
+    assert!(
+        stdout.starts_with("lane,type,start,end,time,label,tags,id,source,origin,note,link,color")
+    );
     let _ = std::fs::remove_file(&ir_path);
 }
 
@@ -1061,6 +1065,125 @@ missions,event,,,1969,Apollo 11,,event:apollo,,wikidata\n",
         "stderr must explain the provenance error: {stderr}"
     );
     let _ = std::fs::remove_file(&csv_path);
+}
+
+/// #902: `export-csv` -> `import-csv` -> `build` の往復で `note` / `link` / `color`
+/// （block_options）が無警告に欠落せず、元の IR と完全一致することを検証する。
+/// `examples/feature_showcase.tdsl` は note/link/color を組み合わせて持つ item を含む。
+#[test]
+fn export_csv_then_import_csv_round_trips_note_link_color() {
+    let original_ir_path = unique_temp("feature_showcase_original.json");
+    let built = tdsl_bin()
+        .args(["build", "--offline", "--output"])
+        .arg(&original_ir_path)
+        .arg(repo_path("examples/feature_showcase.tdsl"))
+        .output()
+        .expect("failed to run tdsl build");
+    assert!(
+        built.status.success(),
+        "build exited non-zero: {}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    let original_ir: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&original_ir_path).expect("original IR should be readable"),
+    )
+    .expect("original IR must be valid JSON");
+
+    let csv_path = unique_temp("feature_showcase.csv");
+    let exported = tdsl_bin()
+        .arg("export-csv")
+        .arg(repo_path("examples/feature_showcase.tdsl"))
+        .arg("--offline")
+        .arg("--output")
+        .arg(&csv_path)
+        .output()
+        .expect("failed to run tdsl export-csv");
+    assert!(
+        exported.status.success(),
+        "export-csv exited non-zero: {}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    let csv = std::fs::read_to_string(&csv_path).expect("csv output should exist");
+    assert!(
+        csv.contains("社内ハッカソンから生まれた企画")
+            && csv.contains("https://example.com/releases/v1.0")
+            && csv.contains("#e07b39"),
+        "exported CSV must carry note/link/color: {csv}"
+    );
+
+    let reimported = tdsl_bin()
+        .arg("import-csv")
+        .arg(&csv_path)
+        .output()
+        .expect("failed to run tdsl import-csv");
+    assert!(
+        reimported.status.success(),
+        "import-csv exited non-zero: {}",
+        String::from_utf8_lossy(&reimported.stderr)
+    );
+    let snippet = String::from_utf8(reimported.stdout).expect("non-UTF-8 stdout");
+
+    let reconstructed_path = unique_temp("feature_showcase_reimported.tdsl");
+    std::fs::write(
+        &reconstructed_path,
+        format!(
+            r#"timeline "機能ショーケース" {{
+  title "note / link / color / now の使用例";
+  unit year;
+  range 2000..2030;
+  calendar proleptic_gregorian;
+}}
+
+lane "プロジェクト" as project {{ kind custom; order 1; }}
+lane "組織" as org {{ kind custom; order 2; }}
+
+{snippet}"#
+        ),
+    )
+    .unwrap();
+
+    let reimported_ir_path = unique_temp("feature_showcase_reimported.json");
+    let rebuilt = tdsl_bin()
+        .args(["build", "--offline", "--output"])
+        .arg(&reimported_ir_path)
+        .arg(&reconstructed_path)
+        .output()
+        .expect("failed to run tdsl build on re-imported snippet");
+    assert!(
+        rebuilt.status.success(),
+        "rebuilding the re-imported snippet must succeed: {}",
+        String::from_utf8_lossy(&rebuilt.stderr)
+    );
+    let reimported_ir: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&reimported_ir_path).expect("re-imported IR should be readable"),
+    )
+    .expect("re-imported IR must be valid JSON");
+
+    type NoteLinkColorById =
+        std::collections::BTreeMap<String, (Option<String>, Option<String>, Option<String>)>;
+    let extract_notes = |ir: &serde_json::Value| -> NoteLinkColorById {
+        ir["items"]
+            .as_array()
+            .expect("items must be an array")
+            .iter()
+            .map(|item| {
+                let get = |key: &str| item.get(key).and_then(|v| v.as_str()).map(str::to_string);
+                let id = item["id"].as_str().expect("id must be present").to_string();
+                (id, (get("note"), get("link"), get("color")))
+            })
+            .collect()
+    };
+
+    assert_eq!(
+        extract_notes(&original_ir),
+        extract_notes(&reimported_ir),
+        "note/link/color must round-trip through export-csv -> import-csv -> build"
+    );
+
+    let _ = std::fs::remove_file(&original_ir_path);
+    let _ = std::fs::remove_file(&csv_path);
+    let _ = std::fs::remove_file(&reconstructed_path);
+    let _ = std::fs::remove_file(&reimported_ir_path);
 }
 
 // ---------------------------------------------------------------------------

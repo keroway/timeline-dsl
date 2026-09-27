@@ -3,10 +3,11 @@ use tdsl_core::ir::{Item, TimelineIr};
 /// IR を CSV へエクスポートする。`import-csv` と対称な往復を可能にする。
 ///
 /// 入力は `.tdsl` ソース（lowering して IR 化）または `.json`（IR を直接読み込み）。
-/// 出力カラムは `lane,type,start,end,time,label,tags,id,source,origin` の 10 列。
+/// 出力カラムは `lane,type,start,end,time,label,tags,id,source,origin,note,link,color` の 13 列。
 /// `source` / `origin` も含めて `import-csv` で往復保持される（#608）。`source` は `<ident>:<QID>`
 /// 形式（例 `wd:Q7209`）、`origin` は DSL の `ident` 文法を満たす必要があり、不正な値は
 /// `import-csv` がエラーとして拒否する（silent に破棄しない、CLAUDE.md「No silent fallback」原則）。
+/// `note` / `link` / `color`（block_options）も末尾 3 列として往復保持される（#902）。
 pub(crate) fn cmd_export_csv(
     input: &std::path::Path,
     output: Option<&std::path::Path>,
@@ -84,7 +85,8 @@ fn render_csv(ir: &TimelineIr) -> Result<String, String> {
     let mut wtr = csv::WriterBuilder::new().from_writer(Vec::new());
 
     wtr.write_record([
-        "lane", "type", "start", "end", "time", "label", "tags", "id", "source", "origin",
+        "lane", "type", "start", "end", "time", "label", "tags", "id", "source", "origin", "note",
+        "link", "color",
     ])
     .map_err(|e| format!("CSV write error: {e}"))?;
 
@@ -100,9 +102,10 @@ fn render_csv(ir: &TimelineIr) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|e| format!("CSV is not valid UTF-8: {e}"))
 }
 
-/// 1 アイテムを CSV の 10 列レコードへ変換する。
+/// 1 アイテムを CSV の 13 列レコードへ変換する。
 /// タグは `|` 区切り + 可逆エスケープ（`super::encode_csv_tags`、#885）。
-fn item_to_row(item: &Item) -> [String; 10] {
+/// `note` / `link` / `color` はプレーンな文字列列（CSV writer が必要に応じて自動でクォートする）。
+fn item_to_row(item: &Item) -> [String; 13] {
     let join_tags = super::encode_csv_tags;
 
     match item {
@@ -128,6 +131,9 @@ fn item_to_row(item: &Item) -> [String; 10] {
             source,
             origin,
             id,
+            note,
+            link,
+            color,
             ..
         } => [
             lane.clone(),
@@ -160,6 +166,9 @@ fn item_to_row(item: &Item) -> [String; 10] {
             id.clone(),
             source.clone().unwrap_or_default(),
             origin.clone().unwrap_or_default(),
+            note.clone().unwrap_or_default(),
+            link.clone().unwrap_or_default(),
+            color.clone().unwrap_or_default(),
         ],
         Item::Event {
             lane,
@@ -175,6 +184,9 @@ fn item_to_row(item: &Item) -> [String; 10] {
             source,
             origin,
             id,
+            note,
+            link,
+            color,
             ..
         } => [
             lane.clone(),
@@ -195,6 +207,9 @@ fn item_to_row(item: &Item) -> [String; 10] {
             id.clone(),
             source.clone().unwrap_or_default(),
             origin.clone().unwrap_or_default(),
+            note.clone().unwrap_or_default(),
+            link.clone().unwrap_or_default(),
+            color.clone().unwrap_or_default(),
         ],
         Item::EventRange {
             lane,
@@ -218,6 +233,9 @@ fn item_to_row(item: &Item) -> [String; 10] {
             source,
             origin,
             id,
+            note,
+            link,
+            color,
             ..
         } => [
             lane.clone(),
@@ -250,6 +268,9 @@ fn item_to_row(item: &Item) -> [String; 10] {
             id.clone(),
             source.clone().unwrap_or_default(),
             origin.clone().unwrap_or_default(),
+            note.clone().unwrap_or_default(),
+            link.clone().unwrap_or_default(),
+            color.clone().unwrap_or_default(),
         ],
     }
 }
@@ -365,22 +386,22 @@ mod tests {
         let mut lines = csv.lines();
         assert_eq!(
             lines.next().unwrap(),
-            "lane,type,start,end,time,label,tags,id,source,origin"
+            "lane,type,start,end,time,label,tags,id,source,origin,note,link,color"
         );
         // span row: date precision, |-joined tags
         assert_eq!(
             lines.next().unwrap(),
-            "a,span,1939-09-01,1945-09-02,,WW2,war|global,span:a:0,,"
+            "a,span,1939-09-01,1945-09-02,,WW2,war|global,span:a:0,,,,,"
         );
         // event row: time column only, source/origin populated
         assert_eq!(
             lines.next().unwrap(),
-            "a,event,,,1969-07-20,Apollo 11,,event:a:1969,wd:Q1,wikidata"
+            "a,event,,,1969-07-20,Apollo 11,,event:a:1969,wd:Q1,wikidata,,,"
         );
         // event_range row: negative years are year-precision only
         assert_eq!(
             lines.next().unwrap(),
-            "a,event_range,-221,-206,,Qin,dynasty,event_range:a:-221,,"
+            "a,event_range,-221,-206,,Qin,dynasty,event_range:a:-221,,,,,"
         );
     }
 
@@ -672,11 +693,11 @@ mod tests {
         lines.next(); // header
         assert_eq!(
             lines.next().unwrap(),
-            "a,span,2020,now,,Ongoing Project,,span:a:ongoing,,"
+            "a,span,2020,now,,Ongoing Project,,span:a:ongoing,,,,,"
         );
         assert_eq!(
             lines.next().unwrap(),
-            "a,event_range,2021,now,,Ongoing Dynasty,current,event_range:a:ongoing,,"
+            "a,event_range,2021,now,,Ongoing Dynasty,current,event_range:a:ongoing,,,,,"
         );
     }
 
@@ -816,6 +837,104 @@ mod tests {
         match &ir2.items[0] {
             Item::Event { tags, .. } => {
                 assert_eq!(tags, &["a|b", "c,d", " padded "]);
+            }
+            other => panic!("expected event, got {other:?}"),
+        }
+    }
+
+    // ─── #902: note/link/color の export-csv → import-csv 往復 ───
+
+    fn ir_with_note_link_color() -> TimelineIr {
+        TimelineIr {
+            meta: Meta {
+                title: "NLC".to_string(),
+                unit: "year".to_string(),
+                range: (2000, 2030),
+                calendar: "proleptic_gregorian".to_string(),
+                color_map: HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "a".to_string(),
+                label: "Lane A".to_string(),
+                kind: "custom".to_string(),
+                order: 10,
+                group: None,
+                color: None,
+                source_span: None,
+            }],
+            items: vec![Item::Event {
+                id: "event:a:nlc".to_string(),
+                lane: "a".to_string(),
+                time: 2020,
+                label: "Tagged".to_string(),
+                tags: vec![],
+                source: None,
+                origin: None,
+                note: Some("補足説明。カンマ,や改行\nも含む。".to_string()),
+                link: Some("https://example.com/ref".to_string()),
+                color: Some("#112233".to_string()),
+                time_month: None,
+                time_day: None,
+                time_hour: None,
+                time_minute: None,
+                time_second: None,
+                time_offset_minutes: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        }
+    }
+
+    #[test]
+    fn render_csv_includes_note_link_color_columns() {
+        let csv = render_csv(&ir_with_note_link_color()).unwrap();
+        let mut lines = csv.lines();
+        assert_eq!(
+            lines.next().unwrap(),
+            "lane,type,start,end,time,label,tags,id,source,origin,note,link,color"
+        );
+        assert!(csv.contains("https://example.com/ref"));
+        assert!(csv.contains("#112233"));
+    }
+
+    #[test]
+    fn export_then_import_round_trips_note_link_color() {
+        // issue #902: note/link/color が export-csv → import-csv → lower の往復後も
+        // 無警告で欠落せず完全一致すること。
+        let ir = ir_with_note_link_color();
+        let csv = render_csv(&ir).unwrap();
+
+        let tmp = std::env::temp_dir().join(format!(
+            "tdsl_export_roundtrip_nlc_{:?}_{}.csv",
+            std::thread::current().id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&tmp, &csv).unwrap();
+        let items = super::super::init::parse_csv_items(&tmp).expect("import-csv parse");
+        std::fs::remove_file(&tmp).ok();
+        let snippet = super::super::init::render_imported_csv_items(&items);
+
+        let reconstructed = format!(
+            "timeline \"NLC\" {{\n    title \"NLC\";\n    unit year;\n    range 2000..2030;\n    calendar proleptic_gregorian;\n}}\n\nlane \"Lane A\" as a {{ kind custom; order 10; }}\n\n{snippet}"
+        );
+
+        let file = tdsl_parser::parse(&reconstructed)
+            .unwrap_or_else(|e| panic!("re-parse failed: {e}\n---\n{reconstructed}"));
+        let ir2 = tdsl_core::lower::lower_static(&file).expect("re-lower must succeed");
+
+        assert_eq!(ir2.items.len(), 1);
+        match &ir2.items[0] {
+            Item::Event {
+                note, link, color, ..
+            } => {
+                assert_eq!(note.as_deref(), Some("補足説明。カンマ,や改行\nも含む。"));
+                assert_eq!(link.as_deref(), Some("https://example.com/ref"));
+                assert_eq!(color.as_deref(), Some("#112233"));
             }
             other => panic!("expected event, got {other:?}"),
         }
