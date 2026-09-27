@@ -334,13 +334,11 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             ),
         };
 
+        // #885: タグは `|` 区切り + 可逆エスケープでデコードする（`super::decode_csv_tags`）。
+        // 区切り文字自体や前後空白を含むタグでも、無警告で別タグに分割されないことを保証する。
         let tags_raw = get("tags")?;
-        let tags: Vec<String> = tags_raw
-            .split(['|', ','])
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(ToOwned::to_owned)
-            .collect();
+        let tags: Vec<String> = super::decode_csv_tags(&tags_raw)
+            .map_err(|e| format!("CSV row {row_no}: tags: {e}"))?;
 
         let id = {
             let raw = get("id")?;

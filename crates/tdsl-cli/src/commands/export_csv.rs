@@ -101,9 +101,9 @@ fn render_csv(ir: &TimelineIr) -> Result<String, String> {
 }
 
 /// 1 アイテムを CSV の 10 列レコードへ変換する。
-/// タグは `|` 区切り（`import-csv` は `|` と `,` の両方を受理する）。
+/// タグは `|` 区切り + 可逆エスケープ（`super::encode_csv_tags`、#885）。
 fn item_to_row(item: &Item) -> [String; 10] {
-    let join_tags = |tags: &[String]| tags.join("|");
+    let join_tags = super::encode_csv_tags;
 
     match item {
         Item::Span {
@@ -736,6 +736,88 @@ mod tests {
                 assert!(*end_open, "event_range end_open must survive round-trip");
             }
             other => panic!("expected event_range, got {other:?}"),
+        }
+    }
+
+    // ─── #885: 区切り文字・前後空白を含むタグの export-csv → import-csv 往復 ───
+
+    fn ir_with_escaped_tags() -> TimelineIr {
+        TimelineIr {
+            meta: Meta {
+                title: "Tags".to_string(),
+                unit: "year".to_string(),
+                range: (2000, 2100),
+                calendar: "proleptic_gregorian".to_string(),
+                color_map: HashMap::new(),
+                ..Default::default()
+            },
+            lanes: vec![Lane {
+                id: "a".to_string(),
+                label: "Lane A".to_string(),
+                kind: "custom".to_string(),
+                order: 10,
+                group: None,
+                color: None,
+                source_span: None,
+            }],
+            items: vec![Item::Event {
+                id: "event:a:tags".to_string(),
+                lane: "a".to_string(),
+                time: 2020,
+                label: "Tagged".to_string(),
+                tags: vec!["a|b".to_string(), "c,d".to_string(), " padded ".to_string()],
+                source: None,
+                origin: None,
+                note: None,
+                link: None,
+                color: None,
+                time_month: None,
+                time_day: None,
+                time_hour: None,
+                time_minute: None,
+                time_second: None,
+                time_offset_minutes: None,
+                source_span: None,
+            }],
+            imports: vec![],
+            sources: vec![],
+        }
+    }
+
+    #[test]
+    fn export_then_import_round_trips_tags_with_separators_and_padding() {
+        // issue #885: `['a|b', 'c,d', ' padded ']`（3タグ）が export-csv → import-csv →
+        // lower の往復後もそのまま 3 タグとして完全一致すること（無警告の分割が起きない）。
+        let ir = ir_with_escaped_tags();
+        let csv = render_csv(&ir).unwrap();
+
+        let tmp = std::env::temp_dir().join(format!(
+            "tdsl_export_roundtrip_tags_{:?}_{}.csv",
+            std::thread::current().id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&tmp, &csv).unwrap();
+        let items = super::super::init::parse_csv_items(&tmp).expect("import-csv parse");
+        std::fs::remove_file(&tmp).ok();
+        let snippet = super::super::init::render_imported_csv_items(&items);
+
+        let reconstructed = format!(
+            "timeline \"Tags\" {{\n    title \"Tags\";\n    unit year;\n    range 2000..2100;\n    calendar proleptic_gregorian;\n}}\n\nlane \"Lane A\" as a {{ kind custom; order 10; }}\n\n{snippet}"
+        );
+
+        let file = tdsl_parser::parse(&reconstructed)
+            .unwrap_or_else(|e| panic!("re-parse failed: {e}\n---\n{reconstructed}"));
+        let ir2 = tdsl_core::lower::lower_static(&file).expect("re-lower must succeed");
+
+        assert_eq!(ir2.items.len(), 1);
+        match &ir2.items[0] {
+            Item::Event { tags, .. } => {
+                assert_eq!(tags, &["a|b", "c,d", " padded "]);
+            }
+            other => panic!("expected event, got {other:?}"),
         }
     }
 }

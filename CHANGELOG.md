@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`export-csv` / `import-csv` の `tags` 列が区切り文字や前後空白を含むタグを無警告で分割していたのを修正**（#885）: `tags.join("|")` と `.split(['|', ','])` はタグ内の区切り文字とタグ間の区切りを区別できず、`['a|b', 'c,d', ' padded ']`（3タグ）が `['a', 'b', 'c', 'd', 'padded']`（5タグ）に化けていた。`\`・`|` を常にエスケープし、CSV reader の `Trim::All` に消される境界空白を `\s`/`\t`/`\n`/`\r` で保護する可逆エスケープを導入し、往復でタグ配列が完全一致するようにした。未知のエスケープ・末尾の不完全なエスケープはエラーで拒否する（silent fallback 禁止）。**`,` はもはやタグ区切りとして扱われない（明示的な非互換）**
 - **WebUI の HTML export が Worker 要求失敗時に無通知で握り潰していたのを修正**（#876）: `downloadHtml()` は `renderHtmlWithOptionsAsync()` の reject を空の `catch` で無視しており、失敗しても通知もダウンロードもされなかった。JSON IR / PDF export と同様に error toast（`exportHtmlFailed`）を表示するようにした
 
 ## [2.1.0] - 2026-09-02
