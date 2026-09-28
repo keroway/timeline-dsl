@@ -237,7 +237,7 @@ Rust LSP（`crates/tdsl-lsp/src/keywords.rs`）も `keywords.json` をミラー�
 - **`.claude/agents/rust-app-developer.md`** -- Rust 実装用サブエージェント。文法・lowering・Wikidata 連携の実装はこれに委譲する。
 - **`.claude/agents/app-dev-director.md`** -- 設計判断・スコープ整理・仕様整合性レビュー用サブエージェント。実装着手前のレビュー、実装後の整合性チェックに使う。
 - **`.claude/commands/fix-pr.md`** -- `/fix-pr [PR番号]` で自分の PR の CI 失敗を自動修正する。
-- **`.claude/hooks/post-stop-check.sh`** -- Stop hook。応答完了時に変更ファイルを見て `cargo fmt --check` / `cargo clippy -D warnings` / `cargo test --workspace` を実行（WebUI 変更時は `npm run lint` も）。スキップは `TDSL_SKIP_STOP_HOOK=1`。
+- **`.claude/hooks/post-stop-check.sh`** -- Stop hook。応答完了時に変更ファイルを見て `cargo fmt --check` / `cargo clippy -D warnings` / `cargo test --workspace` を実行（WebUI 変更時は `npm run lint` も）。スキップは `TIMELINE_DSL_SKIP_STOP_HOOK=1`。
 
 実装着手時は `.claude/rules/implementation-strict.md` の「§3 着手前チェックリスト」を埋めてから書き始めること。
 
