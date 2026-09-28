@@ -52,6 +52,11 @@
     "link",
     "color",
     "expand",
-    "qualifier"
+    "qualifier",
+    "filter",
+    "entity",
+    "startswith",
+    "contains",
+    "to"
   ]
 }
