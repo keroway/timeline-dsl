@@ -122,6 +122,16 @@ test -s "$TMP_DIR/wikidata_fixture.json"
 cargo run -q -p tdsl-cli -- render examples/china_with_import.tdsl --offline --output "$TMP_DIR/wikidata_fixture.html"
 test -s "$TMP_DIR/wikidata_fixture.html"
 
+# ---- tdsl check/build (offline, other Wikidata-import examples) -------------
+# filter句(#142)・template/apply構文・expand claim/qualifierを使うexamplesが
+# 破壊されてもここ以外に検知経路が無いため、check + build --offline で回帰を検知する(#911)。
+for wd_example in samurai_wikidata officeholder_wikidata template_apply_example china_dynasties_filtered; do
+  echo "[e2e] build+check: examples/${wd_example}.tdsl (offline)"
+  cargo run -q -p tdsl-cli -- check "examples/${wd_example}.tdsl" --offline
+  cargo run -q -p tdsl-cli -- build "examples/${wd_example}.tdsl" --offline --pretty --output "$TMP_DIR/${wd_example}.json"
+  test -s "$TMP_DIR/${wd_example}.json"
+done
+
 # ---- tdsl render (theme options) --------------------------------------------
 echo "[e2e] render: --theme dark outputs HTML"
 cargo run -q -p tdsl-cli -- render examples/china_dynasties.tdsl --theme dark --output "$TMP_DIR/dark.html"
