@@ -34,7 +34,7 @@ An Issue moves `needs-refinement` → (split by `issue-refinement apply`) →
 written here is read by headless sessions that can merge their own PRs, not only by
 interactive ones.
 
-DSL 文法に触る issue は、着手前に `CLAUDE.md` の「DSL文法の変更手順」を読むこと。
+DSL 文法に触る issue は、着手前に `.claude/rules/dsl-grammar-change.md` の「DSL文法の変更手順」を読むこと。
 **シンタックスハイライトのキーワード更新**が手順に含まれており、受け入れ条件から
 落ちやすい。
 
