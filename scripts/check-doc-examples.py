@@ -66,6 +66,9 @@ _LANES = [
     "reiwa",
     "ongoing_conflict",
     "offices",
+    # docs/spec-date-precision.md の例で使われる lane 名。
+    "moon",
+    "partial",
 ]
 
 _LANE_DECLS = "\n\n".join(

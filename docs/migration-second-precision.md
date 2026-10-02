@@ -39,16 +39,24 @@
 この比較は暗黙に「offset なしは UTC とみなす」という正規化を **行いません**（CLAUDE.md「No silent fallback」原則）。曖昧な比較を機械的に解決せず、著者にどちらかへの統一を求めます。
 
 ```tdsl
-# エラーになる例（offset ありと offset なしが同一 span に混在）
+// 誤りになる例（offset ありと offset なしが同一 span に混在）
 span a 2024-01-01T10:00:00+09:00..2024-01-02T10:00 "S" {};
-# => Error: Cannot compare a UTC-offset time value with a value
-#    that has no offset (author must make both sides consistent):
-#    2024-01-01T10:00:00+09:00 vs 2024-01-02T10:00
+// => Error: Cannot compare a UTC-offset time value with a value
+//    that has no offset (author must make both sides consistent):
+//    2024-01-01T10:00:00+09:00 vs 2024-01-02T10:00
+```
 
-# 修正例1: 両方に offset を付与
+```tdsl
+// 修正例1: 両方に offset を付与
+
+// 正しい
 span a 2024-01-01T10:00:00+09:00..2024-01-02T10:00+09:00 "S" {};
+```
 
-# 修正例2: 両方から offset を外す
+```tdsl
+// 修正例2: 両方から offset を外す
+
+// 正しい
 span a 2024-01-01T10:00:00..2024-01-02T10:00 "S" {};
 ```
 
