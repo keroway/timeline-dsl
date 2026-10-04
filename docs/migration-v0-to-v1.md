@@ -20,7 +20,7 @@ map wd.han_dynasty to span {
     source wd:Q7209;  // <-- 廃止済み、パースエラーになります
 }
 
-// OK
+// 正しい
 map wd.han_dynasty to span {
     lane han;
     // source は自動付与されます
@@ -34,6 +34,7 @@ map wd.han_dynasty to span {
 共通フォーマットを再利用できるようになりました。
 
 ```tdsl
+// 正しい
 template "王朝スパン" as dynasty_span to span {
     start claim(P571).year;
     end claim(P576).year;

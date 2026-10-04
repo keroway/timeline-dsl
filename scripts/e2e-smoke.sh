@@ -343,6 +343,10 @@ python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl docs/migration-s
 echo "[e2e] docs: spec-date-precision.md のコード例がパースできる (#886)"
 python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl --mode simple docs/spec-date-precision.md
 
+# migration-v0-to-v1.md（廃止済み `map` 内 `source` の NG 例を含むため marker モード）(#913)
+echo "[e2e] docs: migration-v0-to-v1.md の「正しい」例がパースできる (#913)"
+python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl docs/migration-v0-to-v1.md
+
 # ---- tdsl lint 終了コード ----------------------------------------------------
 # ERROR が残っている場合に非ゼロを返すこと (#766)。ここが 0 のままだと
 # JSON をパースしない限り CI で lint をゲートにできない。
