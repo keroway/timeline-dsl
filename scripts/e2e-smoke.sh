@@ -336,6 +336,13 @@ python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl --mode simple do
 echo "[e2e] docs: dsl-spec.en.md のコード例がパースできる (#879)"
 python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl --mode simple docs/dsl-spec.en.md
 
+# migration-second-precision.md（誤り例を含むため marker モード。「正しい」行以降のみ検証）
+# / spec-date-precision.md（誤り例を含まないため simple モード）(#886)
+echo "[e2e] docs: migration-second-precision.md の「正しい」例がパースできる (#886)"
+python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl docs/migration-second-precision.md
+echo "[e2e] docs: spec-date-precision.md のコード例がパースできる (#886)"
+python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl --mode simple docs/spec-date-precision.md
+
 # ---- tdsl lint 終了コード ----------------------------------------------------
 # ERROR が残っている場合に非ゼロを返すこと (#766)。ここが 0 のままだと
 # JSON をパースしない限り CI で lint をゲートにできない。
