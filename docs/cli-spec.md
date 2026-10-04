@@ -418,6 +418,8 @@ tdsl scaffold wikidata \
   --target span
 ```
 
+マッピングに使う時刻 claim（P569 / P570 / P571 / P576 / P580 / P582 / P585）が変換不能な値（不正な年・月・日など）を持つ場合、range を黙って `0..2000` にせず、`<QID>: invalid time claim <PID>: ...` のエラーで終了します。
+
 ---
 
 ## `render`

@@ -50,14 +50,14 @@ pub(crate) fn cmd_scaffold_wikidata(opts: ScaffoldCliOptions<'_>) -> Result<(), 
                 .map_err(|e| format!("{qid}: {e}"))?;
             entities.push(entity);
         }
-        Ok::<String, String>(render_scaffold_tdsl(
+        render_scaffold_tdsl(
             timeline,
             &langs,
             &entities,
             target,
             lane_mode,
             single_lane_label,
-        ))
+        )
     })?;
 
     if let Some(path) = output {
@@ -100,7 +100,8 @@ fn render_scaffold_tdsl(
     target: ScaffoldTargetType,
     lane_mode: ScaffoldLaneMode,
     single_lane_label: &str,
-) -> String {
+) -> Result<String, String> {
+    validate_time_claims(entities)?;
     let label_expr = build_label_expr(langs);
     let mut rows = Vec::new();
     let mut alias_seen = std::collections::HashSet::new();
@@ -206,8 +207,23 @@ fn render_scaffold_tdsl(
         s.push('\n');
     }
 
-    s
+    Ok(s)
 }
+
+/// scaffold が参照する時刻 claim が変換不能なら、黙って無視せずエラーにする（#923）。
+fn validate_time_claims(entities: &[WikidataEntity]) -> Result<(), String> {
+    for entity in entities {
+        for pid in TIME_PROPERTIES {
+            if let Some(DataValue::Time { value }) = entity.claim(pid) {
+                time_value_to_year(value)
+                    .map_err(|e| format!("{}: invalid time claim {pid}: {e}", entity.id))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+const TIME_PROPERTIES: [&str; 7] = ["P569", "P570", "P571", "P576", "P580", "P582", "P585"];
 
 #[derive(Clone)]
 struct ScaffoldRow {
@@ -410,7 +426,7 @@ fn entity_label(entity: &WikidataEntity, langs: &[String]) -> String {
 fn estimate_range(rows: &[ScaffoldRow]) -> (i64, i64) {
     let mut years = Vec::new();
     for row in rows {
-        for pid in ["P569", "P570", "P571", "P576", "P580", "P582", "P585"] {
+        for pid in TIME_PROPERTIES {
             if let Some(year) = claim_year(&row.entity, pid) {
                 years.push(year);
             }
@@ -523,10 +539,68 @@ mod tests {
             ScaffoldTargetType::Auto,
             ScaffoldLaneMode::PerEntity,
             "項目",
-        );
+        )
+        .unwrap();
         assert!(doc.contains("import wikidata as wd"));
         assert!(doc.contains("entity Q7209 as q7209;"));
         assert!(doc.contains("map wd.q7209 to span"));
         assert!(doc.contains("label label@ja ?? label@en;"));
+    }
+
+    fn entity_with_time(pid: &str, time: &str, precision: u8) -> WikidataEntity {
+        let mut claims = std::collections::HashMap::new();
+        claims.insert(
+            pid.to_string(),
+            vec![tdsl_wikidata::entity::Statement {
+                mainsnak: tdsl_wikidata::entity::Snak {
+                    snaktype: "value".to_string(),
+                    property: pid.to_string(),
+                    datavalue: Some(DataValue::Time {
+                        value: tdsl_wikidata::entity::TimeValue {
+                            time: time.to_string(),
+                            precision,
+                            calendarmodel: String::new(),
+                        },
+                    }),
+                },
+                rank: "normal".to_string(),
+                qualifiers: std::collections::HashMap::new(),
+            }],
+        );
+        WikidataEntity {
+            id: "Q1".to_string(),
+            labels: std::collections::HashMap::new(),
+            claims,
+        }
+    }
+
+    fn render(entity: WikidataEntity) -> Result<String, String> {
+        render_scaffold_tdsl(
+            "t",
+            &["en".to_string()],
+            &[entity],
+            ScaffoldTargetType::Auto,
+            ScaffoldLaneMode::Single,
+            "項目",
+        )
+    }
+
+    #[test]
+    fn scaffold_rejects_invalid_time_claim() {
+        let err = render(entity_with_time("P571", "garbage", 9)).unwrap_err();
+        assert!(err.contains("Q1"), "{err}");
+        assert!(err.contains("P571"), "{err}");
+    }
+
+    #[test]
+    fn scaffold_rejects_invalid_month_for_precision() {
+        let err = render(entity_with_time("P585", "+1868-13-01T00:00:00Z", 10)).unwrap_err();
+        assert!(err.contains("P585"), "{err}");
+    }
+
+    #[test]
+    fn scaffold_accepts_valid_time_claim() {
+        let doc = render(entity_with_time("P585", "+1868-01-01T00:00:00Z", 9)).unwrap();
+        assert!(doc.contains("range 1848..1888;"), "{doc}");
     }
 }
