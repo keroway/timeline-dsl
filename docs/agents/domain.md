@@ -7,7 +7,7 @@ This repo is **single-context**（Rust の cargo workspace で複数クレート
 
 ## Before exploring, read these
 
-- **`CLAUDE.md`** の「アーキテクチャ」節: クレート構成と**依存方向**。
+- **`.claude/rules/architecture.md`**（`CLAUDE.md` を補完するパス限定ルール）: クレート構成と**依存方向**。
   `cargo metadata` が正で、図はその写し。どのクレートを触るかはここで決まる。
 - **[`docs/adr/`](../adr/)**: 触れる領域の ADR を読む。秒精度・タイムゾーン
   (0003 / 0006 / 0007)、PDF/ページ分割 (0002 / 0004 / 0005)、WASM 配布と
@@ -53,5 +53,5 @@ overriding:
 
 > _ADR-0007（IANA タイムゾーン採用）と衝突するが、…の理由で再検討の価値がある_
 
-DSL 文法を変える提案では、`CLAUDE.md` の「DSL文法の変更手順」7ステップ
+DSL 文法を変える提案では、`.claude/rules/dsl-grammar-change.md` の「DSL文法の変更手順」7ステップ
 （**シンタックスハイライトのキーワード更新を含む**）を満たしているかを必ず確認する。
