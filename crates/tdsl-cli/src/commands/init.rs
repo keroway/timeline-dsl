@@ -227,7 +227,7 @@ fn is_valid_ident(input: &str) -> bool {
 
 pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvItem>, String> {
     let mut reader = csv::ReaderBuilder::new()
-        .trim(csv::Trim::All)
+        .trim(csv::Trim::Headers)
         .from_path(path)
         .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
 
@@ -271,6 +271,15 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
                 .ok_or_else(|| format!("CSV is missing required column: {name}"))?;
             Ok(record.get(pos).unwrap_or("").trim().to_string())
         };
+        // #940: label / id / note は自由文字列なので前後空白を保持して返す
+        // （export-csv が出力した値を往復で変えない）。構文として解釈する列は `get` で trim する。
+        let get_raw = |name: &str| -> Result<String, String> {
+            let pos = headers
+                .iter()
+                .position(|h| h == name)
+                .ok_or_else(|| format!("CSV is missing required column: {name}"))?;
+            Ok(record.get(pos).unwrap_or("").to_string())
+        };
         // 任意列用: ヘッダ自体がなければ常に空文字列を返す（旧8列CSVとの後方互換）。
         let get_optional = |name: &str, present: bool| -> String {
             if !present {
@@ -288,8 +297,8 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             return Err(format!("CSV row {row_no}: lane must not be empty"));
         }
 
-        let label = get("label")?;
-        if label.is_empty() {
+        let label = get_raw("label")?;
+        if label.trim().is_empty() {
             return Err(format!("CSV row {row_no}: label must not be empty"));
         }
 
@@ -358,7 +367,7 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
             .map_err(|e| format!("CSV row {row_no}: tags: {e}"))?;
 
         let id = {
-            let raw = get("id")?;
+            let raw = get_raw("id")?;
             if raw.is_empty() { None } else { Some(raw) }
         };
 
@@ -400,7 +409,11 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
         // #902: note/link/color はプレーンな自由文字列列。CSV reader が引用符付きの
         // 値を自動でデコードするため、タグ列のような区切り文字エスケープは不要。
         let note = {
-            let raw = get_optional("note", has_note_column);
+            let raw = if has_note_column {
+                get_raw("note")?
+            } else {
+                String::new()
+            };
             if raw.is_empty() { None } else { Some(raw) }
         };
         let link = {
@@ -979,5 +992,39 @@ qin,span,-221,-206,,秦,dynasty,span:qin\n",
         let file = tdsl_parser::parse(&snippet)
             .unwrap_or_else(|e| panic!("re-parse failed: {e}\n--- snippet ---\n{snippet}"));
         assert_eq!(file.statements.len(), 3);
+    }
+
+    #[test]
+    fn parse_csv_items_preserves_surrounding_whitespace_in_free_text_columns() {
+        // #940: label / id / note の前後空白は往復で失われない。構文列（lane/type/time）は trim する。
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id,note\n\
+ a , event ,,, 1 , E , ,\" padded \",\" note \"\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+
+        assert_eq!(items[0].lane, "a");
+        assert_eq!(items[0].label, " E ");
+        assert_eq!(items[0].id.as_deref(), Some(" padded "));
+        assert_eq!(items[0].note.as_deref(), Some(" note "));
+
+        let snippet = render_imported_csv_items(&items);
+        assert!(
+            snippet.contains(r#"" E ""#) && snippet.contains(r#"id " padded ";"#),
+            "whitespace lost: {snippet}"
+        );
+        assert!(snippet.contains(r#"note " note ";"#), "note: {snippet}");
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_whitespace_only_label() {
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id\n\
+a,event,,,1,\"   \",,\n",
+        );
+        let err = parse_csv_items(&path).unwrap_err();
+        std::fs::remove_file(path).ok();
+        assert!(err.contains("label must not be empty"), "{err}");
     }
 }
