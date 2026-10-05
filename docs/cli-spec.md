@@ -647,6 +647,12 @@ CSV writer/reader が自動でクォート/デコードする）に任せたプ�
   `end_open: true` として組み立てられる。`start` 列や `event` の `time` 列では
   `now` は拒否される（`now` は end 位置専用のため）。
 
+### 自由文字列列の空白（#940）
+
+`label` / `id` / `note` は入力どおり保持し、前後の空白を削除しません（`export-csv` →
+`import-csv` の往復で値が変わらない）。`lane` / `type` / 時刻 / `tags` などの構文列は
+前後空白を除去します。空白のみの `label` は `label must not be empty` で拒否されます。
+
 ### `tags` 列のエンコーディング（#885）
 
 `tags` 列は `|` を区切り文字とし、`export-csv` / `import-csv` の往復でタグ配列が
