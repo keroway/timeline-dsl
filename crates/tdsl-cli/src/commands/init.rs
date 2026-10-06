@@ -185,11 +185,14 @@ fn render_init_tdsl(
     }
 
     out.push('\n');
-    let mut lane_alias_seen = std::collections::HashSet::new();
+    // 明示 alias は自動生成より優先するため、先に全て予約してから自動 alias を一意化する
+    // （後続の明示 alias との衝突を防ぐ。明示 alias 同士の重複は parse_lane_specs が拒否済み）
+    let mut lane_alias_seen: std::collections::HashSet<String> = lane_specs
+        .iter()
+        .filter_map(|lane| lane.alias.clone())
+        .collect();
     for (i, lane) in lane_specs.iter().enumerate() {
         let alias = if let Some(alias) = &lane.alias {
-            // 明示的なエイリアスは make_unique_alias を通さないため手動で登録
-            lane_alias_seen.insert(alias.clone());
             alias.clone()
         } else {
             let base = super::slug_ascii(&lane.label);
@@ -577,6 +580,18 @@ mod tests {
         assert!(doc.contains("range 1000..1300;"));
         assert!(doc.contains(r#"lane "王国" as kingdom"#));
         assert!(doc.contains(r#"lane "事件" as incidents"#));
+    }
+
+    #[test]
+    fn render_init_tdsl_auto_alias_does_not_collide_with_later_explicit_alias() {
+        for spec in ["A,A:a", "A:a,A"] {
+            let lanes = parse_lane_specs(spec).unwrap();
+            let doc = render_init_tdsl("t", 0, 100, &lanes);
+            let file = tdsl_parser::parse(&doc).unwrap();
+            let ir = tdsl_core::lower::lower_static(&file)
+                .unwrap_or_else(|e| panic!("lowering failed for {spec}: {e:?}\n{doc}"));
+            assert_eq!(ir.lanes.len(), 2, "{spec}");
+        }
     }
 
     #[test]

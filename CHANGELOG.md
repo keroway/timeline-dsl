@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`init --lanes` の自動 alias が後続の明示 alias と衝突し、重複 alias を含む無効な DSL を終了コード0で出力していたのを修正**（#947）: `A,A:a` のように自動生成分（`a`）が後続の明示 alias（`a`）と衝突していた。全ての明示 alias を先に予約してから自動 alias を一意化するため、指定順（`A:a,A` / `A,A:a`）によらず有効な DSL になる
 - **`import-csv` が `label` / `id` / `note` の前後空白を黙って削除していたのを修正**（#940）: CSV reader の `Trim::All` と各列取得の `trim()` により、`export-csv` が出力した前後空白付きの値が往復で失われ、`id` も変わっていた。reader は `Trim::Headers` に変更し、`label` / `id` / `note` は入力どおり保持する（`lane` / `type` / 時刻 / `tags` などの構文列は従来どおり trim）。空白のみの `label` は従来どおり `label must not be empty` で拒否する
 - **`tdsl scaffold wikidata` が変換不能な時刻 claim を黙って無視していたのを修正**（#923）: `claim_year` が変換エラーを `.ok()` で捨てていたため、対象時刻 claim がすべて不正だと range が固定の `0..2000` になり、map plan も不正な claim を参照していた。P569 / P570 / P571 / P576 / P580 / P582 / P585 のいずれかが変換不能なら、entity と property を示すエラーで終了する（silent fallback 禁止）
 - **`tdsl check` / `tdsl build --offline` が `map`/`apply` の未宣言 import alias・未宣言 template 参照を具体的に診断できるようになった**（#910）: `crates/tdsl-core/src/validate.rs` の `validate_static_references`（ネットワーク不要で `map`/`apply` の参照を静的検証する関数）は LSP 経路（`tdsl-lsp`）のみが呼んでおり、CLI の `check` / `build --offline` は呼んでいなかった。offline lowering（Pass 1/2 のみ）は import/map の解決（Pass 3/4）を経由しないため、alias の綴り間違い等は一般的な `W211`（未解決ブロック）警告にしか現れず、「どの alias が間違っているか」を CLI からは診断できなかった。`ReferenceDiagnostic` に安定した診断コード（`E116`: map の未宣言 import alias参照 / `E117`: apply の未宣言 import alias参照 / `E118`: apply の未宣言 template参照）を追加し、`check` の診断出力と `build --offline` の警告出力に合流させた
