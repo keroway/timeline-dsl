@@ -785,23 +785,18 @@ fn check_undeclared_map_import_alias_exits_nonzero_without_deny_warnings() {
 /// excludes errors, and the exit code is non-zero (#943).
 #[test]
 fn check_e117_e118_json_exits_nonzero_and_excludes_errors_from_warning_count() {
-    use std::io::Write;
-    let mut child = tdsl_bin()
-        .args(["check", "--format", "json", "/dev/stdin"])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
+    let path = unique_temp("e117_e118.tdsl");
+    std::fs::write(
+        &path,
+        "timeline \"test\" { unit year; range 0..2000; }\napply missing_template to missing_import {}\n",
+    )
+    .expect("write fixture");
+    let out = tdsl_bin()
+        .args(["check", "--format", "json"])
+        .arg(&path)
+        .output()
         .expect("failed to run tdsl");
-    child
-        .stdin
-        .take()
-        .expect("stdin")
-        .write_all(
-            b"timeline \"test\" { unit year; range 0..2000; }\napply missing_template to missing_import {}\n",
-        )
-        .expect("write stdin");
-    let out = child.wait_with_output().expect("wait");
+    let _ = std::fs::remove_file(&path);
     assert!(!out.status.success(), "E117/E118 must fail check");
     let report: serde_json::Value =
         serde_json::from_slice(&out.stdout).expect("valid JSON on stdout");
