@@ -201,6 +201,14 @@ def main() -> int:
                 parts.append(_TIMELINE)
             if not has_lane:
                 parts.append(_LANE_DECLS)
+            # `check` は E116〜E118 を error として失敗させる（#943）。例は
+            # `map wd.x ...` / `apply t to alias` のように import 宣言を省略するため、使われている
+            # alias だけを前置きで宣言する。宣言済みの例には足さない。
+            used = set(re.findall(r"^\s*map\s+(\w+)\.", src, re.M))
+            used |= set(re.findall(r"^\s*apply\s+\w+\s+to\s+(\w+)", src, re.M))
+            for alias in sorted(used):
+                if re.search(rf"\bas\s+{alias}\b", src) is None:
+                    parts.append(f"import wikidata as {alias} {{ entity Q1 as _doc_{alias}; }}")
             preamble = "\n\n".join(parts)
             with tempfile.NamedTemporaryFile(
                 "w", suffix=".tdsl", delete=False, encoding="utf-8"

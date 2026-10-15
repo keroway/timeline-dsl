@@ -109,7 +109,10 @@ pub(crate) fn cmd_check(
     // 未解決ブロックがあるときは完了行にも出す。警告は他の警告に埋もれるが、
     // 完了行は必ず最後に出るため見落としにくい。
     let unresolved = count_unresolved_blocks(&file);
-    let warning_count = diagnostics.len();
+    // error（E116〜E118 の静的参照エラー）は warning_count に含めない。
+    // error は `--deny-warnings` の有無に関わらず失敗扱いにする（#943）。
+    let error_count = diagnostics.iter().filter(|d| d.severity == "error").count();
+    let warning_count = diagnostics.len() - error_count;
 
     if matches!(format, CheckOutputFormat::Json) {
         let report = CheckReportOutput {
@@ -117,7 +120,7 @@ pub(crate) fn cmd_check(
             lanes: ir.lanes.len(),
             items: ir.items.len(),
             unresolved_blocks: unresolved,
-            warning_count: diagnostics.len(),
+            warning_count,
             ok: diagnostics.is_empty(),
             diagnostics,
         };
@@ -128,6 +131,8 @@ pub(crate) fn cmd_check(
                 serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
             ),
         }
+    } else if error_count > 0 {
+        // error があるのに OK を出さない（#943）。失敗は下の Err で伝える。
     } else if unresolved > 0 {
         eprintln!(
             "OK: {} lanes, {} items ({} block(s) unresolved: offline lowering does not run import/map)",
@@ -139,6 +144,9 @@ pub(crate) fn cmd_check(
         eprintln!("OK: {} lanes, {} items", ir.lanes.len(), ir.items.len());
     }
 
+    if error_count > 0 {
+        return Err(format!("{error_count} error(s) in {}", input.display()));
+    }
     // `--deny-warnings` は警告があれば非ゼロ終了する。既定では従来どおり
     // 警告のみなら成功（`lint` の ERROR/WARN の扱いと揃えている、#766）。
     if deny_warnings && warning_count > 0 {

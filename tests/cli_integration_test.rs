@@ -763,6 +763,63 @@ fn check_undeclared_map_import_alias_reports_e116() {
     );
 }
 
+/// `tdsl check` exits non-zero on E116 even without `--deny-warnings`, and
+/// does not print the OK line (#943).
+#[test]
+fn check_undeclared_map_import_alias_exits_nonzero_without_deny_warnings() {
+    let out = tdsl_bin()
+        .arg("check")
+        .arg(repo_path("tests/fixtures/undeclared_import_alias.tdsl"))
+        .output()
+        .expect("failed to run tdsl");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success(), "E116 must fail check: {stderr}");
+    assert!(stderr.contains("E116"), "expected E116: {stderr}");
+    assert!(
+        !stderr.contains("OK:"),
+        "must not print OK on error: {stderr}"
+    );
+}
+
+/// E117 / E118 are errors too: JSON reports `ok=false`, `warning_count`
+/// excludes errors, and the exit code is non-zero (#943).
+#[test]
+fn check_e117_e118_json_exits_nonzero_and_excludes_errors_from_warning_count() {
+    use std::io::Write;
+    let mut child = tdsl_bin()
+        .args(["check", "--format", "json", "/dev/stdin"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("failed to run tdsl");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(
+            b"timeline \"test\" { unit year; range 0..2000; }\napply missing_template to missing_import {}\n",
+        )
+        .expect("write stdin");
+    let out = child.wait_with_output().expect("wait");
+    assert!(!out.status.success(), "E117/E118 must fail check");
+    let report: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("valid JSON on stdout");
+    assert_eq!(report["ok"], false);
+    let errors = report["diagnostics"]
+        .as_array()
+        .expect("diagnostics array")
+        .iter()
+        .filter(|d| d["severity"] == "error")
+        .count();
+    assert!(errors >= 2, "expected E117 and E118: {report}");
+    let total = report["diagnostics"].as_array().expect("array").len();
+    assert_eq!(
+        report["warning_count"].as_u64(),
+        Some((total - errors) as u64)
+    );
+}
+
 /// `tdsl check --deny-warnings` fails on an E116 reference error, same as
 /// other diagnostics (#910).
 #[test]
