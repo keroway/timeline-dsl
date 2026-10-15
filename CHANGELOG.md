@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`tdsl check` が E116〜E118 の error 診断を出しても終了コード0で成功していたのを修正**（#943）: 非ゼロ判定が `--deny-warnings` と診断件数だけだったため、`--deny-warnings` なしでは未宣言参照が成功扱いだった。error が1件でもあれば常に非ゼロ終了し、text 出力では `OK:` 行を出さない。JSON の `warning_count` は error を含めない（`ok` は従来どおり診断が1件でもあれば false）。warning のみの場合は従来どおり `--deny-warnings` でのみ失敗する
 - **`init --lanes` の自動 alias が後続の明示 alias と衝突し、重複 alias を含む無効な DSL を終了コード0で出力していたのを修正**（#947）: `A,A:a` のように自動生成分（`a`）が後続の明示 alias（`a`）と衝突していた。全ての明示 alias を先に予約してから自動 alias を一意化するため、指定順（`A:a,A` / `A,A:a`）によらず有効な DSL になる
 - **`import-csv` が `label` / `id` / `note` の前後空白を黙って削除していたのを修正**（#940）: CSV reader の `Trim::All` と各列取得の `trim()` により、`export-csv` が出力した前後空白付きの値が往復で失われ、`id` も変わっていた。reader は `Trim::Headers` に変更し、`label` / `id` / `note` は入力どおり保持する（`lane` / `type` / 時刻 / `tags` などの構文列は従来どおり trim）。空白のみの `label` は従来どおり `label must not be empty` で拒否する
 - **`tdsl scaffold wikidata` が変換不能な時刻 claim を黙って無視していたのを修正**（#923）: `claim_year` が変換エラーを `.ok()` で捨てていたため、対象時刻 claim がすべて不正だと range が固定の `0..2000` になり、map plan も不正な claim を参照していた。P569 / P570 / P571 / P576 / P580 / P582 / P585 のいずれかが変換不能なら、entity と property を示すエラーで終了する（silent fallback 禁止）
