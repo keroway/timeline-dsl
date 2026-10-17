@@ -347,6 +347,13 @@ python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl --mode simple do
 echo "[e2e] docs: migration-v0-to-v1.md の「正しい」例がパースできる (#913)"
 python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl docs/migration-v0-to-v1.md
 
+# tutorial.md / tutorial.en.md のコード例（誤り例を含まないため simple モード）(#848)。
+# 断片例は checker の PREAMBLE が補う lane 名で解決する（足りなければ check-doc-examples.py の _LANES に追加）。
+echo "[e2e] docs: tutorial.md のコード例がパースできる (#848)"
+python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl --mode simple docs/tutorial.md
+echo "[e2e] docs: tutorial.en.md のコード例がパースできる (#848)"
+python3 scripts/check-doc-examples.py --bin ./target/debug/tdsl --mode simple docs/tutorial.en.md
+
 # ---- tdsl lint 終了コード ----------------------------------------------------
 # ERROR が残っている場合に非ゼロを返すこと (#766)。ここが 0 のままだと
 # JSON をパースしない限り CI で lint をゲートにできない。
