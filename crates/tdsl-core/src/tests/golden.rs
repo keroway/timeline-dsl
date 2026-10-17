@@ -135,3 +135,27 @@ fn existing_minute_level_examples_still_parse_and_lower_unchanged() {
         });
     }
 }
+
+/// `examples/*.tdsl` を列挙し、全件が parse でき、offline lowering（`lower_static`）で
+/// error にならないことを保証する（#881）。手書きリストではなくディスク上の列挙なので、
+/// 新規サンプルは既定で検査対象になり、追加時の抜け漏れが起きない。
+/// `import wikidata` を含むサンプルも `lower_static` は import ブロックを警告として
+/// 無視して通るため、除外リストは持たない（Wikidata 取得結果の検証は対象外）。
+#[test]
+fn all_examples_parse_and_lower_offline() {
+    let dir = "../../examples";
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("failed to read {dir}: {e}"))
+        .map(|entry| entry.unwrap_or_else(|e| panic!("failed to read entry in {dir}: {e}")))
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".tdsl"))
+        .collect();
+    names.sort();
+    assert!(!names.is_empty(), "no .tdsl examples found in {dir}");
+
+    for name in &names {
+        let src = read_example(name);
+        let file = tdsl_parser::parse(&src).unwrap_or_else(|e| panic!("{name} must parse: {e}"));
+        lower::lower_static(&file).unwrap_or_else(|e| panic!("{name} must lower offline: {e:?}"));
+    }
+}
