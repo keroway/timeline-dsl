@@ -248,7 +248,7 @@ jobs:
         run: cargo llvm-cov --workspace --all-targets --lcov --output-path lcov.info
 
       - name: Coverage summary
-        run: cargo llvm-cov --workspace --all-targets --summary-only
+        run: cargo llvm-cov --workspace --all-targets --summary-only --fail-under-lines 88
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
