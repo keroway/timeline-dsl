@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **LSP の lane リネーム / 参照検索が、コメントを含む有効な DSL でコメントを編集し実参照を更新しなかったのを修正**（#946）: `find_keyword_token_range`（`as <alias>` / map の `lane <id>` 探索）と `second_token_range`（span / event / event_range の lane 参照）が文字列リテラルしか読み飛ばさず、コメント内の同名トークン（`lane "A" /* as a */ as a` の `as a`）を実体と取り違えて編集し、キーワードと識別子の間にコメントや改行がある参照（`event /* c */ a 10 ...`）は編集対象から脱落していた。文法の `WHITESPACE` / `COMMENT` と同じく、行コメント・ブロックコメント・改行を読み飛ばす共通ヘルパー（`skip_trivia` / `skip_comment_at`）を 2 つの探索で使う。コメントは書き換えず保持される
 - **`tdsl check` が E116〜E118 の error 診断を出しても終了コード0で成功していたのを修正**（#943）: 非ゼロ判定が `--deny-warnings` と診断件数だけだったため、`--deny-warnings` なしでは未宣言参照が成功扱いだった。error が1件でもあれば常に非ゼロ終了し、text 出力では `OK:` 行を出さない。JSON の `warning_count` は error を含めない（`ok` は従来どおり診断が1件でもあれば false）。warning のみの場合は従来どおり `--deny-warnings` でのみ失敗する
 - **`init --lanes` の自動 alias が後続の明示 alias と衝突し、重複 alias を含む無効な DSL を終了コード0で出力していたのを修正**（#947）: `A,A:a` のように自動生成分（`a`）が後続の明示 alias（`a`）と衝突していた。全ての明示 alias を先に予約してから自動 alias を一意化するため、指定順（`A:a,A` / `A,A:a`）によらず有効な DSL になる
 - **`import-csv` が `label` / `id` / `note` の前後空白を黙って削除していたのを修正**（#940）: CSV reader の `Trim::All` と各列取得の `trim()` により、`export-csv` が出力した前後空白付きの値が往復で失われ、`id` も変わっていた。reader は `Trim::Headers` に変更し、`label` / `id` / `note` は入力どおり保持する（`lane` / `type` / 時刻 / `tags` などの構文列は従来どおり trim）。空白のみの `label` は従来どおり `label must not be empty` で拒否する
