@@ -7,7 +7,7 @@ use tdsl_wikidata::entity::WikidataEntity;
 use crate::error::LoweringError;
 use crate::ir::*;
 
-use super::{lane_suggestion_hint, offset_to_line_col, slug};
+use super::{lane_suggestion_hint, make_source_span, slug};
 
 pub(crate) struct LoweringContext {
     pub(crate) meta: Option<Meta>,
@@ -244,15 +244,7 @@ impl LoweringContext {
             self.push_error(LoweringError::DuplicateLane(id.clone()));
             return;
         }
-        let source_span = line_offsets.map(|lo| {
-            let (line, col_start) = offset_to_line_col(stmt_span.start, lo);
-            let (_, col_end) = offset_to_line_col(stmt_span.end, lo);
-            SourceSpan {
-                line,
-                col_start,
-                col_end,
-            }
-        });
+        let source_span = line_offsets.map(|lo| make_source_span(stmt_span, lo));
         // 色の検証は item の `color` と同じ関数を使う（#747）。
         // 別実装にすると、受理する書式が二重定義になって食い違う。
         // **不正値はエラーにする。** 黙ってパレットへフォールバックすると、

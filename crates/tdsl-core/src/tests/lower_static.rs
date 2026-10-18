@@ -1538,3 +1538,64 @@ lane "L" as l {{ kind custom; order 1; color "{value}"; }}
         assert_eq!(ir.lanes[0].color.as_deref(), Some(value));
     }
 }
+
+/// #944: 複数行にまたがる宣言は `SourceSpan.end_line` に終了行を保持する。
+/// 単一行の宣言では `end_line` を省略し、JSON IR の形が変わらない（互換性）。
+#[test]
+fn source_span_end_line_is_set_only_for_multiline_declarations() {
+    let src = "\
+timeline \"T\" { unit year; range 0..2000; }
+lane \"L\" as l {
+  kind custom;
+}
+span l 100..200 \"S\" {
+  note \"N\";
+};
+event l 150 \"E\" {
+  note \"N\";
+};
+event_range l 300..400 \"R\" {
+  note \"N\";
+};
+event l 500 \"single\" {};
+";
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static_with_source(&file, Some(src)).unwrap();
+
+    // lane: 2〜4 行目
+    let lane = ir.lanes[0].source_span.as_ref().unwrap();
+    assert_eq!((lane.line, lane.end_line, lane.col_end), (2, Some(4), 2));
+
+    let spans: Vec<&ir::SourceSpan> = ir
+        .items
+        .iter()
+        .map(|item| match item {
+            ir::Item::Span { source_span, .. }
+            | ir::Item::Event { source_span, .. }
+            | ir::Item::EventRange { source_span, .. } => source_span.as_ref().unwrap(),
+        })
+        .collect();
+    // span 5〜7 行目 / event 8〜10 行目 / event_range 11〜13 行目 / 単一行 14 行目
+    let got: Vec<(u32, Option<u32>)> = spans.iter().map(|s| (s.line, s.end_line)).collect();
+    assert_eq!(
+        got,
+        [(5, Some(7)), (8, Some(10)), (11, Some(13)), (14, None)]
+    );
+    assert_eq!(spans[0].end_line(), 7);
+    assert_eq!(spans[3].end_line(), 14);
+
+    // 単一行では JSON に `end_line` が出ない。
+    let single = serde_json::to_value(spans[3]).unwrap();
+    assert!(single.get("end_line").is_none(), "{single}");
+    let multi = serde_json::to_value(spans[0]).unwrap();
+    assert_eq!(multi["end_line"], 7);
+}
+
+/// `end_line` が無い既存の JSON IR も読める（後方互換）。
+#[test]
+fn source_span_without_end_line_deserializes() {
+    let span: ir::SourceSpan =
+        serde_json::from_str(r#"{"line":3,"col_start":1,"col_end":9}"#).unwrap();
+    assert_eq!(span.end_line, None);
+    assert_eq!(span.end_line(), 3);
+}
