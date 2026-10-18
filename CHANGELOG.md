@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **alias 省略 lane のラベルが数字で始まると、参照不能な lane ID が生成され decompile の出力がパースできなかったのを修正**（#950）: `lane "123"` は ID `123` になり、`ident` 文法（先頭は英字か `_`）を満たさないため `event 123 …` と書けず、`decompile` が出した `as 123` も構文エラーだった。slug が数字で始まる場合は `lane_<slug>`（`123` → `lane_123`）にする。lowering と lint の採番を `auto_lane_id` に共通化。**JSON IR の消費側では該当 lane の `id` が変わる**（従来の ID は DSL から参照できなかったため DSL の互換性は壊れない）。生成 ID が既存 lane と衝突する場合は従来どおり `DuplicateLane`（E102）で拒否される
 - **`tdsl check` が E116〜E118 の error 診断を出しても終了コード0で成功していたのを修正**（#943）: 非ゼロ判定が `--deny-warnings` と診断件数だけだったため、`--deny-warnings` なしでは未宣言参照が成功扱いだった。error が1件でもあれば常に非ゼロ終了し、text 出力では `OK:` 行を出さない。JSON の `warning_count` は error を含めない（`ok` は従来どおり診断が1件でもあれば false）。warning のみの場合は従来どおり `--deny-warnings` でのみ失敗する
 - **`init --lanes` の自動 alias が後続の明示 alias と衝突し、重複 alias を含む無効な DSL を終了コード0で出力していたのを修正**（#947）: `A,A:a` のように自動生成分（`a`）が後続の明示 alias（`a`）と衝突していた。全ての明示 alias を先に予約してから自動 alias を一意化するため、指定順（`A:a,A` / `A,A:a`）によらず有効な DSL になる
 - **`import-csv` が `label` / `id` / `note` の前後空白を黙って削除していたのを修正**（#940）: CSV reader の `Trim::All` と各列取得の `trim()` により、`export-csv` が出力した前後空白付きの値が往復で失われ、`id` も変わっていた。reader は `Trim::Headers` に変更し、`label` / `id` / `note` は入力どおり保持する（`lane` / `type` / 時刻 / `tags` などの構文列は従来どおり trim）。空白のみの `label` は従来どおり `label must not be empty` で拒否する
