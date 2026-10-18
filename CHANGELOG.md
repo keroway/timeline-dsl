@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **IR の lane ID が `ident` 文法を満たさない場合の警告 W212 を追加**（#961）: `tdsl-core` の `validate` が、先頭が英字・`_` でない ID（`123` 等）や空白・非 ASCII を含む ID を検出する（パーサの `ident` を再利用）。`tdsl decompile` は引き続き IR を変換するが、`build` と同じ検証警告を stderr に `Warning:` として出す（stdout・終了コードは不変）。過去に生成された無効 ID の IR JSON に気付くための検出で、#950 の自動 ID 修正の補完
+
 ### Fixed
 
 - **`tdsl check` が E116〜E118 の error 診断を出しても終了コード0で成功していたのを修正**（#943）: 非ゼロ判定が `--deny-warnings` と診断件数だけだったため、`--deny-warnings` なしでは未宣言参照が成功扱いだった。error が1件でもあれば常に非ゼロ終了し、text 出力では `OK:` 行を出さない。JSON の `warning_count` は error を含めない（`ok` は従来どおり診断が1件でもあれば false）。warning のみの場合は従来どおり `--deny-warnings` でのみ失敗する
