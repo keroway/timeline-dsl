@@ -681,13 +681,7 @@ cargo bench --workspace
 
 CI measures code coverage using [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov) on every push and pull request. The coverage report (lcov format) is uploaded as the `coverage-report` artifact in the CI run.
 
-**Coverage targets (guidelines, not enforced gates):**
-
-| Crate | Target |
-|---|---|
-| `tdsl-parser` | 70%+ |
-| `tdsl-core` | 60%+ |
-| `tdsl-render` | 50%+ |
+**Enforced gate:** the `Code Coverage` job fails when workspace-wide line coverage drops below **88%** (`--fail-under-lines 88` in `.github/workflows/ci.yml`). Line coverage was 90.55% when the gate was introduced (2026-10-18, #937). Raise the threshold when coverage rises durably; do not exclude files to make the gate pass.
 
 **Known uncovered paths** (areas to improve in future issues):
 

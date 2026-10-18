@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CI / Docs / Tests
 
+- **CI の coverage ジョブに最低基準の失敗判定を追加**（#937）: `cargo llvm-cov --summary-only` に `--fail-under-lines 88` を付け、ワークスペース全体の行カバレッジが 88% を下回ると失敗する（導入時の実測は 90.55%）。README の「強制しない目安」表は実測と乖離していたため廃止し、強制ゲートの説明に置き換えた
 - `action.yml`（composite action）の self-test ワークフローを追加し、`format` / `theme` / `scale` / `interactive` / `output` の各ケースを検証するようにした（#852, #854）
 - `test-windows` ジョブに `cargo clippy` と `scripts/e2e-smoke.sh` を追加（#851）
 - 全 CI ジョブに `timeout-minutes` を設定し、ハング時に runner を占有し続けないようにした（#856）
