@@ -1049,7 +1049,7 @@ tdsl lsp
 | `textDocument/codeAction` | `tdsl lint --fix` 相当の自動修正を quick fix として提示（全文置換・offline） |
 | `textDocument/documentSymbol` | timeline / lane / アイテムの階層シンボルを返す（アウトライン・ブレッドクラム表示） |
 | `textDocument/references` | lane ID の全参照位置を返す（`includeDeclaration` で宣言含む／含まないを制御） |
-| `textDocument/rename` | lane ID の宣言＋全参照を新名称に一括置換（明示的 `as <alias>` 限定） |
+| `textDocument/rename` | lane ID の宣言＋全参照を新名称に一括置換（明示的 `as <alias>` 限定）。新名称は先頭が ASCII 英字か `_`、以降は ASCII 英数字・`_` のみ（`123` のような数字始まりや `-` を含む名前は拒否） |
 | `textDocument/prepareRename` | リネーム対象の妥当性検証（`as` 省略 lane は拒否） |
 | `textDocument/formatting` | DSL ソースを正準形（2 スペースインデント・ブロック間空行 1 行）に整形する全文置換 TextEdit を返す |
 
