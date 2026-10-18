@@ -902,6 +902,11 @@ tdsl fmt examples/china_dynasties.tdsl --check
 
 Wikidata 取得結果のローカルキャッシュ（`~/.cache/tdsl/`）を管理します。サブコマンド `status` または `clear` を指定します。
 
+キャッシュファイルが壊れている（読めない・JSON として不正）場合、取得時に stderr へ
+`tdsl cache: 破損キャッシュを再取得します <path>: <理由>` を出し、API から再取得して
+ファイルを上書きします（エラーにはしません。キャッシュは再生成できるため）。`--offline` では再取得できないため、
+この警告が原因の手掛かりになります。ファイルが無い・期限切れは通常の miss で、警告は出ません。
+
 ```
 tdsl cache <COMMAND>
 ```

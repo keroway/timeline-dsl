@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Wikidata キャッシュが壊れていても診断なしで通常の miss として扱われていたのを修正**（#938）: `read_cache` が読み込み失敗と JSON decode 失敗を `ok()?` で握りつぶしていたため、壊れたキャッシュの存在に気付けなかった。読み出しを `Hit` / `Miss` / `Corrupt` に分類し、有効期間内のファイルが壊れている場合は stderr に `tdsl cache: 破損キャッシュを再取得します <path>: <理由>` を出して API から再取得し、ファイルを上書きする（エラーにはしない）。ファイル無し・期限切れは従来どおり無音の miss。hover 用の `read_cached_entity` は受動的な呼び出しで警告が氾濫するため従来どおり無音の `None`
 - **`tdsl check` が E116〜E118 の error 診断を出しても終了コード0で成功していたのを修正**（#943）: 非ゼロ判定が `--deny-warnings` と診断件数だけだったため、`--deny-warnings` なしでは未宣言参照が成功扱いだった。error が1件でもあれば常に非ゼロ終了し、text 出力では `OK:` 行を出さない。JSON の `warning_count` は error を含めない（`ok` は従来どおり診断が1件でもあれば false）。warning のみの場合は従来どおり `--deny-warnings` でのみ失敗する
 - **`init --lanes` の自動 alias が後続の明示 alias と衝突し、重複 alias を含む無効な DSL を終了コード0で出力していたのを修正**（#947）: `A,A:a` のように自動生成分（`a`）が後続の明示 alias（`a`）と衝突していた。全ての明示 alias を先に予約してから自動 alias を一意化するため、指定順（`A:a,A` / `A,A:a`）によらず有効な DSL になる
 - **`import-csv` が `label` / `id` / `note` の前後空白を黙って削除していたのを修正**（#940）: CSV reader の `Trim::All` と各列取得の `trim()` により、`export-csv` が出力した前後空白付きの値が往復で失われ、`id` も変わっていた。reader は `Trim::Headers` に変更し、`label` / `id` / `note` は入力どおり保持する（`lane` / `type` / 時刻 / `tags` などの構文列は従来どおり trim）。空白のみの `label` は従来どおり `label must not be empty` で拒否する
