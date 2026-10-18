@@ -650,6 +650,7 @@ fn lowering_error_codes_exist_in_catalog() {
             incoming: "event",
         },
         LoweringError::DuplicateImportAlias("x".into()),
+        LoweringError::UnsupportedCalendar("x".into()),
     ];
 
     for err in &samples {

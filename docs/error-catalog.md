@@ -510,6 +510,23 @@ import Q8686 as tang_src { entity Q8686 as tang; }
 
 ---
 
+### E119: 未対応または未知の calendar
+
+**メッセージ**: `Unsupported calendar: julian (only proleptic_gregorian is supported; julian calendar dates are not implemented)` / `Unsupported calendar: {value} (unknown calendar; supported: proleptic_gregorian)`
+
+**原因**: `timeline` の `calendar` に、日付計算が対応していない暦法、または誤字が指定されています。日付の計算は常にプロレプティック・グレゴリオ暦で行われるため、以前は `julian` や誤字も黙って受理され、`proleptic_gregorian` と同一の結果になっていました（#953）。`julian` は意図的に未実装（誤字ではなく未対応）です。
+
+**修正方法**: `calendar proleptic_gregorian;` にするか、`calendar` の行を省略してください（省略時は `proleptic_gregorian`）。
+
+```tdsl
+// 誤り
+timeline "T" { title "T"; unit year; range 0..100; calendar julian; }
+// 正しい
+timeline "T" { title "T"; unit year; range 0..100; calendar proleptic_gregorian; }
+```
+
+---
+
 ### E116: mapが参照する未宣言import alias（offline静的検出）
 
 **メッセージ**: `Map references undeclared import alias: {alias}`
