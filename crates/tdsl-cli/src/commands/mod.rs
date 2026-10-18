@@ -194,10 +194,14 @@ pub(crate) fn make_unique_alias(
 /// `export-csv` の `tags` 列（`|` 区切り）へタグ配列をエンコードする。
 ///
 /// タグ内の `\`・`|` は常にエスケープし、各タグの先頭・末尾が空白文字の場合は
-/// `\s`（半角スペース）/ `\t` / `\n` / `\r` の記号エスケープで保護する。これは
-/// `import-csv` 側の CSV reader が `Trim::All`（フィールド全体の前後空白除去）を
-/// 有効にしているため、エスケープしない生の空白文字がタグ列全体の先頭・末尾に
-/// 来ると無警告で失われるのを防ぐため（#885）。内側の空白はそのまま出力してよい。
+/// `\s`（半角スペース）/ `\t` / `\n` / `\r` の記号エスケープ、それ以外の Unicode 空白
+/// （U+3000 全角スペース、U+00A0 NBSP 等）は `\u{XXXX}` で保護する。これは `import-csv`
+/// 側が `tags` 列を `trim()`（`char::is_whitespace` が真の文字を除去）してから読むため、
+/// エスケープしない生の空白文字がタグ列全体の先頭・末尾に来ると無警告で失われるのを
+/// 防ぐため（#885, #954）。内側の空白はそのまま出力してよい。
+///
+/// 空文字タグは `\e` で表す。空配列（0 件、空フィールド）と `[""]`（空文字 1 件）を
+/// 区別するため（#954）。
 pub(crate) fn encode_csv_tags(tags: &[String]) -> String {
     tags.iter()
         .map(|t| escape_csv_tag(t))
@@ -206,22 +210,24 @@ pub(crate) fn encode_csv_tags(tags: &[String]) -> String {
 }
 
 fn escape_csv_tag(tag: &str) -> String {
+    if tag.is_empty() {
+        return "\\e".to_string();
+    }
     let chars: Vec<char> = tag.chars().collect();
-    let last_idx = chars.len().saturating_sub(1);
+    let last_idx = chars.len() - 1;
     let mut out = String::with_capacity(tag.len());
     for (i, &c) in chars.iter().enumerate() {
         match c {
             '\\' => out.push_str("\\\\"),
             '|' => out.push_str("\\|"),
             _ if (i == 0 || i == last_idx) && c.is_whitespace() => {
-                if let Some(code) = whitespace_escape_code(c) {
-                    out.push('\\');
-                    out.push(code);
-                } else {
-                    // 記号化できない空白文字（改行以外の稀な Unicode 空白等）はそのまま出力する。
-                    // タグの内側ではないため理論上 Trim::All の影響を受けうるが、
-                    // ASCII 空白 4 種以外は実運用で発生しないため許容する。
-                    out.push(c);
+                match whitespace_escape_code(c) {
+                    Some(code) => {
+                        out.push('\\');
+                        out.push(code);
+                    }
+                    // 記号を持たない Unicode 空白は `\u{XXXX}` で保護する（#954）。
+                    None => out.push_str(&format!("\\u{{{:X}}}", u32::from(c))),
                 }
             }
             _ => out.push(c),
@@ -253,8 +259,9 @@ fn whitespace_from_escape_code(c: char) -> Option<char> {
 /// `export-csv` / 手書き CSV の `tags` 列（`|` 区切り）をタグ配列へデコードする。
 ///
 /// `encode_csv_tags` と対称。`\\`（リテラル `\`）、`\|`（リテラル `|`）、
-/// `\s`/`\t`/`\n`/`\r`（境界空白の記号エスケープ）以外の `\<char>` は
-/// 未知のエスケープとしてエラーにする（silent fallback 禁止、#885）。
+/// `\s`/`\t`/`\n`/`\r`（境界空白の記号エスケープ）、`\u{XXXX}`（Unicode 空白等の
+/// コードポイント指定、1〜6 桁の 16 進）、`\e`（空文字タグ。1 タグ全体としてのみ有効）
+/// 以外の `\<char>` は未知のエスケープとしてエラーにする（silent fallback 禁止、#885, #954）。
 pub(crate) fn decode_csv_tags(raw: &str) -> Result<Vec<String>, String> {
     if raw.is_empty() {
         return Ok(Vec::new());
@@ -262,16 +269,26 @@ pub(crate) fn decode_csv_tags(raw: &str) -> Result<Vec<String>, String> {
 
     let mut tags = Vec::new();
     let mut current = String::new();
-    let mut chars = raw.chars();
+    let mut chars = raw.chars().peekable();
     while let Some(c) = chars.next() {
         match c {
             '\\' => match chars.next() {
                 Some(next @ ('\\' | '|')) => current.push(next),
+                Some('e') => {
+                    // `\e` は空文字タグ 1 件分。前後に他の文字が付く形（`a\e`, `\eb`）は曖昧なので拒否する。
+                    if !current.is_empty() || !matches!(chars.peek(), None | Some('|')) {
+                        return Err(
+                            "`\\e` (empty tag) must be the whole tag, not part of a longer tag"
+                                .to_string(),
+                        );
+                    }
+                }
+                Some('u') => current.push(decode_unicode_escape(&mut chars)?),
                 Some(next) => match whitespace_from_escape_code(next) {
                     Some(ws) => current.push(ws),
                     None => {
                         return Err(format!(
-                            "invalid tag escape `\\{next}` (expected `\\\\`, `\\|`, `\\s`, `\\t`, `\\n`, or `\\r`)"
+                            "invalid tag escape `\\{next}` (expected `\\\\`, `\\|`, `\\s`, `\\t`, `\\n`, `\\r`, `\\e`, or `\\u{{XXXX}}`)"
                         ));
                     }
                 },
@@ -285,6 +302,31 @@ pub(crate) fn decode_csv_tags(raw: &str) -> Result<Vec<String>, String> {
     }
     tags.push(current);
     Ok(tags)
+}
+
+/// `\u` の直後から `{XXXX}` を読み、Unicode スカラ値 1 文字にする（#954）。
+fn decode_unicode_escape(
+    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
+) -> Result<char, String> {
+    const FORM: &str = "expected `\\u{XXXX}` with 1-6 hex digits";
+    if chars.next() != Some('{') {
+        return Err(format!("invalid tag escape `\\u`: {FORM}"));
+    }
+    let mut hex = String::new();
+    loop {
+        match chars.next() {
+            Some('}') => break,
+            Some(h) if h.is_ascii_hexdigit() && hex.len() < 6 => hex.push(h),
+            _ => return Err(format!("invalid tag escape `\\u{{{hex}`: {FORM}")),
+        }
+    }
+    if hex.is_empty() {
+        return Err(format!("invalid tag escape `\\u{{}}`: {FORM}"));
+    }
+    u32::from_str_radix(&hex, 16)
+        .ok()
+        .and_then(char::from_u32)
+        .ok_or_else(|| format!("invalid tag escape `\\u{{{hex}}}`: not a Unicode scalar value"))
 }
 
 /// ASCII 英数字・スペース・ハイフン・アンダースコアのみを抽出して slug を生成する。
@@ -534,5 +576,115 @@ mod tests {
     fn decode_csv_tags_rejects_dangling_backslash() {
         let err = decode_csv_tags(r"a\").unwrap_err();
         assert!(err.contains("dangling"), "got: {err}");
+    }
+
+    // ─── CSV tags: 空文字タグと Unicode 境界空白（#954）──────────────────────
+
+    fn tags(items: &[&str]) -> Vec<String> {
+        items.iter().map(|t| (*t).to_string()).collect()
+    }
+
+    #[test]
+    fn encode_csv_tags_distinguishes_empty_array_from_single_empty_tag() {
+        assert_eq!(encode_csv_tags(&[]), "");
+        assert_eq!(encode_csv_tags(&tags(&[""])), r"\e");
+        assert_eq!(encode_csv_tags(&tags(&["", "a"])), r"\e|a");
+        assert_eq!(encode_csv_tags(&tags(&["a", ""])), r"a|\e");
+        assert_eq!(decode_csv_tags("").unwrap(), Vec::<String>::new());
+        assert_eq!(decode_csv_tags(r"\e").unwrap(), tags(&[""]));
+    }
+
+    #[test]
+    fn encode_csv_tags_escapes_unicode_boundary_whitespace() {
+        // U+3000（全角スペース）と U+00A0（NBSP）は `trim()` で除去されるため `\u{XXXX}` で保護する。
+        assert_eq!(
+            encode_csv_tags(&tags(&["\u{3000}tag\u{3000}"])),
+            r"\u{3000}tag\u{3000}"
+        );
+        assert_eq!(
+            encode_csv_tags(&tags(&["\u{00A0}tag\u{00A0}"])),
+            r"\u{A0}tag\u{A0}"
+        );
+        // 空白 1 文字だけのタグ・空白のみのタグも保護される。
+        assert_eq!(encode_csv_tags(&tags(&["\u{3000}"])), r"\u{3000}");
+        assert_eq!(
+            encode_csv_tags(&tags(&["\u{3000}\u{00A0}"])),
+            r"\u{3000}\u{A0}"
+        );
+        // 内側の Unicode 空白はそのまま。
+        assert_eq!(encode_csv_tags(&tags(&["a\u{3000}b"])), "a\u{3000}b");
+    }
+
+    #[test]
+    fn encoded_tags_survive_trim_and_round_trip_exactly() {
+        let cases: Vec<Vec<String>> = vec![
+            tags(&[]),
+            tags(&[""]),
+            tags(&["", ""]),
+            tags(&["", "a", ""]),
+            tags(&["\u{3000}tag\u{3000}"]),
+            tags(&["\u{00A0}tag\u{00A0}"]),
+            tags(&["\u{3000}"]),
+            tags(&["\u{2003}\u{2009}"]),
+            tags(&[" ascii ", "\ttab\t", "line\n", "\rcr"]),
+            tags(&["a|b", r"c\d", "e,f", r"\e", r"\u{3000}"]),
+            tags(&["日本語", "😀 emoji "]),
+        ];
+        for original in cases {
+            let encoded = encode_csv_tags(&original);
+            // import-csv は列値を trim() してから decode するため、encode 結果は trim で不変であること。
+            assert_eq!(
+                encoded.trim(),
+                encoded,
+                "encoded must be trim-safe: {original:?}"
+            );
+            assert_eq!(
+                decode_csv_tags(encoded.trim()).unwrap(),
+                original,
+                "round trip must be exact: {original:?} -> {encoded:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn decode_csv_tags_rejects_empty_tag_escape_inside_a_longer_tag() {
+        for raw in [r"a\e", r"\eb", r"\e\e", r"a|\eb", r"\ea|b"] {
+            let err = decode_csv_tags(raw).unwrap_err();
+            assert!(err.contains("whole tag"), "{raw}: got: {err}");
+        }
+    }
+
+    #[test]
+    fn decode_csv_tags_rejects_malformed_unicode_escape() {
+        for raw in [
+            r"\u",
+            // `{` の無い `\u` + 4 桁形式（`\u{XXXX}` 以外は受け付けない）。
+            &format!("{}u3000", '\\'),
+            r"\u{",
+            r"\u{}",
+            r"\u{3000",
+            r"\u{zz}",
+            r"\u{1234567}",
+            r"\u{D800}",
+            r"\u{110000}",
+        ] {
+            let err = decode_csv_tags(raw).unwrap_err();
+            assert!(err.contains("invalid tag escape"), "{raw}: got: {err}");
+        }
+    }
+
+    #[test]
+    fn decode_csv_tags_accepts_unicode_escape_anywhere_in_a_tag() {
+        assert_eq!(
+            decode_csv_tags(r"a\u{3000}b").unwrap(),
+            tags(&["a\u{3000}b"])
+        );
+        assert_eq!(decode_csv_tags(r"\u{1F600}").unwrap(), tags(&["😀"]));
+    }
+
+    #[test]
+    fn decode_csv_tags_keeps_hand_written_empty_segments() {
+        // 手書き CSV の `a|` は従来どおり ["a", ""]（#954 前から不変）。
+        assert_eq!(decode_csv_tags("a|").unwrap(), tags(&["a", ""]));
     }
 }
