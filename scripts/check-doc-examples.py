@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""docs/error-catalog.md・docs/dsl-spec.md の DSL コード例が現行文法でパースできるか検証する。
+"""docs/error-catalog.md・docs/dsl-spec.md・docs/tutorial*.md などの DSL コード例が現行文法でパースできるか検証する。
 
 ## 2つの抽出モード
 
@@ -69,6 +69,8 @@ _LANES = [
     # docs/spec-date-precision.md の例で使われる lane 名。
     "moon",
     "partial",
+    # docs/tutorial.md・tutorial.en.md の FAQ 例で使われる lane 名。
+    "qin",
 ]
 
 _LANE_DECLS = "\n\n".join(
