@@ -8,7 +8,7 @@ use tdsl_parser::ast;
 #[cfg(feature = "wikidata")]
 use tdsl_wikidata::WikidataClient;
 
-use crate::ir::TimelineIr;
+use crate::ir::{SourceSpan, TimelineIr};
 
 use context::LoweringContext;
 
@@ -247,6 +247,20 @@ pub(crate) fn days_from_civil(year: i64, month: u8, day: u8) -> i128 {
     let doy = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + i128::from(day) - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     era * 146_097 + doe
+}
+
+/// AST の `Span`（バイトオフセット）から IR の `SourceSpan` を作る。
+///
+/// 終了位置の行が開始行と異なる（複数行宣言）場合のみ `end_line` を設定する（#944）。
+pub(crate) fn make_source_span(span: &ast::Span, line_offsets: &[usize]) -> SourceSpan {
+    let (line, col_start) = offset_to_line_col(span.start, line_offsets);
+    let (end_line, col_end) = offset_to_line_col(span.end, line_offsets);
+    SourceSpan {
+        line,
+        col_start,
+        col_end,
+        end_line: (end_line != line).then_some(end_line),
+    }
 }
 
 /// バイトオフセットから (1-based 行番号, 1-based 列番号) に変換する。

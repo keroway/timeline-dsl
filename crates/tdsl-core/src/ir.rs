@@ -130,8 +130,19 @@ pub struct SourceSpan {
     pub line: u32,
     /// 定義開始列（1-based, バイト単位）。
     pub col_start: u32,
-    /// 定義終了列（1-based, バイト単位）。`start` と同じ行の場合のみ有効。
+    /// 定義終了列（1-based, `col_end` の行は `end_line`（無ければ `line`）、バイト単位）。
     pub col_end: u32,
+    /// 定義終了行（1-based）。複数行にまたがる宣言でのみ付与し、開始行と同じ場合は
+    /// 省略する（JSON IR の互換性のため。省略時は `line` と同じ行とみなす）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<u32>,
+}
+
+impl SourceSpan {
+    /// 終了位置の行（`end_line` が無ければ開始行と同じ）。
+    pub fn end_line(&self) -> u32 {
+        self.end_line.unwrap_or(self.line)
+    }
 }
 
 /// `.tdsl` ファイルをコンパイルした結果の正規中間表現（JSON 直列化対象）。
