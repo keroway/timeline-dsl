@@ -698,3 +698,37 @@ span a 1990..2005 "clipped" { id "s3"; };
         );
     }
 }
+
+/// #961: IR の lane ID が DSL の `ident` 文法を満たさない場合は W212 を返す。
+fn ir_with_lane_id(id: &str) -> ir::TimelineIr {
+    let src = r#"
+timeline "t" { unit year; range 0..100; }
+lane "A" as a { kind custom; order 1; }
+"#;
+    let file = tdsl_parser::parse(src).unwrap();
+    let mut ir = lower::lower_static(&file).unwrap();
+    ir.lanes[0].id = id.to_string();
+    ir
+}
+
+#[test]
+fn validate_warns_on_invalid_lane_id() {
+    for id in ["123", "1abc", "", " a", "a ", "a b", "日本", "a.b", "-a"] {
+        let diags = validate::validate_with_spans(&ir_with_lane_id(id));
+        assert!(
+            diags.iter().any(|d| d.code == "W212"),
+            "expected W212 for lane id {id:?}, got: {diags:?}"
+        );
+    }
+}
+
+#[test]
+fn validate_accepts_valid_lane_id() {
+    for id in ["a", "_x", "lane_123", "a-b", "A1"] {
+        let diags = validate::validate_with_spans(&ir_with_lane_id(id));
+        assert!(
+            !diags.iter().any(|d| d.code == "W212"),
+            "unexpected W212 for lane id {id:?}, got: {diags:?}"
+        );
+    }
+}

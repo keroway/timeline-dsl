@@ -722,6 +722,20 @@ map wd.han to span { lane l; start claim(P571).year; end claim(P576).year; }
 
 **補足（v1.29.0 以降）**: 以前はこの状況で警告が一切出ず、`OK: 1 lanes, 0 items` と表示して exit 0 していました。「アイテムが 0 件なのは書き方が悪いのか offline だからなのか」を利用者が区別できず、LSP が同じ状況を Information 診断で出していたため **CLI が LSP より寛容**という逆転が起きていました。完了行にも `(N block(s) unresolved: ...)` を付けています。
 
+### W212: lane ID が識別子として無効
+
+**メッセージ**: `Lane "{id}" has an id that is not a valid identifier (must start with an ASCII letter or '_' and contain only ASCII letters, digits, '_' or '-'); it cannot be referenced from DSL and 'tdsl decompile' output will not parse`
+
+**原因**: JSON IR の lane `id` が DSL の `ident` 文法（先頭は ASCII 英字か `_`、以降は英数字・`_`・`-`）を満たしていません。`123` のような ID は DSL から参照できず、`tdsl decompile` が出力する `as 123` も構文エラーになります。DSL から `tdsl build` した IR では、alias 省略時の自動 ID が `lane_<slug>` になる（#950）ため通常は発生せず、過去に生成された IR JSON や手書き・外部生成の IR で起こります。
+
+**修正方法**: IR の lane `id`（と、それを参照するアイテムの `lane`）を、先頭が英字か `_` の ID に直してください。`tdsl decompile` は IR を検証せずに変換するため、このコードは stderr の `Warning:` として表示されます。
+
+```tdsl
+// 正しい（alias を明示すれば数字だけのラベルでも有効な ID にできる）
+timeline "T" { title "T"; unit year; range 0..100; }
+lane "123" as lane_123 { kind custom; order 1; }
+```
+
 ---
 
 ## Wikidataエラー（tdsl-wikidata）

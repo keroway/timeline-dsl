@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **IR の lane ID が `ident` 文法を満たさない場合の警告 W212 を追加**（#961）: `tdsl-core` の `validate` が、先頭が英字・`_` でない ID（`123` 等）や空白・非 ASCII を含む ID を検出する（パーサの `ident` を再利用）。`tdsl decompile` は引き続き IR を変換するが、`build` と同じ検証警告を stderr に `Warning:` として出す（stdout・終了コードは不変）。過去に生成された無効 ID の IR JSON に気付くための検出で、#950 の自動 ID 修正の補完
+
 ### Fixed
 
 - **未対応の `calendar`（`julian`・誤字等）が黙って受理され、描画では `proleptic_gregorian` と同一の結果になっていたのを修正**（#953）: 日付計算は暦法を引数に取らず常にプロレプティック・グレゴリオ暦だったため、`calendar julian;` や `calendar typo;` は警告もエラーも無く無視されていた。許容値を `proleptic_gregorian` のみ（省略時の既定値）とし、それ以外は lowering で **E119** として拒否する（`julian` は未実装、誤字は許容値を列挙）。`julian` の実装はしない。**これまで黙って通っていた未対応値を持つ `.tdsl` は、今後エラーになる**。`meta.calendar` は `String` のまま（IR 互換）
+- **alias 省略 lane のラベルが数字で始まると、参照不能な lane ID が生成され decompile の出力がパースできなかったのを修正**（#950）: `lane "123"` は ID `123` になり、`ident` 文法（先頭は英字か `_`）を満たさないため `event 123 …` と書けず、`decompile` が出した `as 123` も構文エラーだった。slug が数字で始まる場合は `lane_<slug>`（`123` → `lane_123`）にする。lowering と lint の採番を `auto_lane_id` に共通化。**JSON IR の消費側では該当 lane の `id` が変わる**（従来の ID は DSL から参照できなかったため DSL の互換性は壊れない）。生成 ID が既存 lane と衝突する場合は従来どおり `DuplicateLane`（E102）で拒否される
 - **`tdsl check` が E116〜E118 の error 診断を出しても終了コード0で成功していたのを修正**（#943）: 非ゼロ判定が `--deny-warnings` と診断件数だけだったため、`--deny-warnings` なしでは未宣言参照が成功扱いだった。error が1件でもあれば常に非ゼロ終了し、text 出力では `OK:` 行を出さない。JSON の `warning_count` は error を含めない（`ok` は従来どおり診断が1件でもあれば false）。warning のみの場合は従来どおり `--deny-warnings` でのみ失敗する
 - **`init --lanes` の自動 alias が後続の明示 alias と衝突し、重複 alias を含む無効な DSL を終了コード0で出力していたのを修正**（#947）: `A,A:a` のように自動生成分（`a`）が後続の明示 alias（`a`）と衝突していた。全ての明示 alias を先に予約してから自動 alias を一意化するため、指定順（`A:a,A` / `A,A:a`）によらず有効な DSL になる
 - **`import-csv` が `label` / `id` / `note` の前後空白を黙って削除していたのを修正**（#940）: CSV reader の `Trim::All` と各列取得の `trim()` により、`export-csv` が出力した前後空白付きの値が往復で失われ、`id` も変わっていた。reader は `Trim::Headers` に変更し、`label` / `id` / `note` は入力どおり保持する（`lane` / `type` / 時刻 / `tags` などの構文列は従来どおり trim）。空白のみの `label` は従来どおり `label must not be empty` で拒否する

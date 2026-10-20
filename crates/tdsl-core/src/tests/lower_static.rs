@@ -1575,3 +1575,56 @@ lane "A" as a {{ kind custom; }}"#
         );
     }
 }
+
+/// #950: alias 省略 lane のラベルが数字で始まると、自動生成 ID が `ident` 文法を満たさず
+/// 参照も decompile 出力の再パースもできなかった。数字始まりの slug は `lane_<slug>` にする。
+#[test]
+fn auto_lane_id_with_leading_digit_gets_lane_prefix() {
+    let src = r#"
+        timeline "T" { unit year; range 0..100; }
+        lane "123" { kind custom; }
+        lane "2024年表" { kind custom; }
+        lane "第1章" { kind custom; }
+        lane "abc" { kind custom; }
+        lane "秦" { kind custom; }
+    "#;
+    let ir = lower::lower_static(&tdsl_parser::parse(src).unwrap()).unwrap();
+    let ids: Vec<&str> = ir.lanes.iter().map(|l| l.id.as_str()).collect();
+    // "第1章" の slug は "1"。空 slug の連番（`lane_0`）とは独立した ID になる。
+    assert_eq!(ids, ["lane_123", "lane_2024", "lane_1", "abc", "lane_0"]);
+}
+
+#[test]
+fn auto_lane_id_with_leading_digit_is_referenceable_and_round_trips() {
+    let src = r#"
+        timeline "T" { unit year; range 0..100; }
+        lane "123" { kind custom; }
+        event lane_123 10 "E" {};
+    "#;
+    let ir = lower::lower_static(&tdsl_parser::parse(src).unwrap()).unwrap();
+    assert_eq!(ir.lanes[0].id, "lane_123");
+    assert!(matches!(&ir.items[0], ir::Item::Event { lane, .. } if lane == "lane_123"));
+
+    let regenerated = decompile::decompile(&ir);
+    let reparsed = tdsl_parser::parse(&regenerated)
+        .unwrap_or_else(|e| panic!("decompiled output must reparse: {e}\n{regenerated}"));
+    let ir2 = lower::lower_static(&reparsed)
+        .unwrap_or_else(|e| panic!("decompiled output must lower: {e:?}\n{regenerated}"));
+    assert_eq!(ir2.lanes[0].id, "lane_123");
+    assert!(matches!(&ir2.items[0], ir::Item::Event { lane, .. } if lane == "lane_123"));
+}
+
+/// 数字始まりの自動 ID が既存 lane と衝突する場合は silent に上書きせず `DuplicateLane` で拒否する。
+#[test]
+fn auto_lane_id_with_leading_digit_collision_is_rejected() {
+    let src = r#"
+        timeline "T" { unit year; range 0..100; }
+        lane "123" { kind custom; }
+        lane "lane_123" { kind custom; }
+    "#;
+    let err = lower::lower_static(&tdsl_parser::parse(src).unwrap()).unwrap_err();
+    assert!(
+        format!("{err:?}").contains("DuplicateLane"),
+        "expected DuplicateLane, got {err:?}"
+    );
+}

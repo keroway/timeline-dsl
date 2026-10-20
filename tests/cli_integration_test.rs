@@ -1650,3 +1650,49 @@ fn unsupported_calendar_is_rejected_by_check_build_and_render() {
         let _ = std::fs::remove_file(&path);
     }
 }
+
+/// #961: `tdsl decompile` は IR を検証せず変換するが、`ident` 文法を満たさない lane ID は
+/// 出力が再パースできなくなるため、stdout/終了コードは変えずに stderr へ警告を出す。
+#[test]
+fn decompile_warns_on_invalid_lane_id_in_ir() {
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let example = repo_path("examples/apollo_11.tdsl");
+    let build_out = tdsl_bin()
+        .args([
+            "build",
+            example.to_str().expect("example path must be UTF-8"),
+        ])
+        .output()
+        .expect("failed to run tdsl build");
+    assert!(build_out.status.success(), "build should succeed");
+    let mut ir: serde_json::Value =
+        serde_json::from_slice(&build_out.stdout).expect("build stdout must be JSON");
+    ir["lanes"][0]["id"] = serde_json::Value::String("123".to_string());
+
+    let mut child = tdsl_bin()
+        .arg("decompile")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to spawn tdsl decompile");
+    child
+        .stdin
+        .take()
+        .expect("stdin must be piped")
+        .write_all(ir.to_string().as_bytes())
+        .expect("failed to write JSON IR to tdsl decompile stdin");
+    let out = child
+        .wait_with_output()
+        .expect("failed to run tdsl decompile");
+
+    assert!(out.status.success(), "decompile must still succeed");
+    assert!(!out.stdout.is_empty(), "decompile must still emit DSL");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("Warning:") && stderr.contains("not a valid identifier"),
+        "expected W212 warning on stderr, got: {stderr}"
+    );
+}
