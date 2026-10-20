@@ -417,24 +417,8 @@ fn collect_lane_ids(file: &tdsl_parser::ast::File) -> std::collections::HashSet<
 fn resolve_lane_id(lane: &tdsl_parser::ast::LaneDecl, auto: &mut usize) -> String {
     match &lane.alias {
         Some(alias) => alias.clone(),
-        None => {
-            let slug = lane_slug(&lane.label);
-            if slug.is_empty() {
-                let generated = format!("lane_{auto}");
-                *auto += 1;
-                generated
-            } else {
-                slug
-            }
-        }
+        None => crate::lower::auto_lane_id(&lane.label, auto),
     }
-}
-
-fn lane_slug(s: &str) -> String {
-    s.chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
-        .collect::<String>()
-        .to_lowercase()
 }
 
 /// 行頭オフセット表から 1-indexed の行番号を引く。

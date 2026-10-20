@@ -1,10 +1,10 @@
 use tdsl_parser::ast;
 
 use crate::error::LoweringError;
-use crate::ir::{Item, SourceSpan};
+use crate::ir::Item;
 
 use super::context::LoweringContext;
-use super::{compare_time_values, format_id_time, offset_to_line_col, source_str};
+use super::{compare_time_values, format_id_time, make_source_span, source_str};
 
 fn validate_link(link: &Option<String>) -> Result<Option<String>, LoweringError> {
     match link {
@@ -92,15 +92,7 @@ impl LoweringContext {
                         continue;
                     }
                     self.add_source_from_ref(&s.props.source);
-                    let source_span = line_offsets.map(|lo| {
-                        let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
-                        let (_, col_end) = offset_to_line_col(stmt.span.end, lo);
-                        SourceSpan {
-                            line,
-                            col_start,
-                            col_end,
-                        }
-                    });
+                    let source_span = line_offsets.map(|lo| make_source_span(&stmt.span, lo));
                     self.items.push(Item::Span {
                         id,
                         lane: s.lane_ref.clone(),
@@ -156,15 +148,7 @@ impl LoweringContext {
                         }
                     };
                     self.add_source_from_ref(&e.props.source);
-                    let source_span = line_offsets.map(|lo| {
-                        let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
-                        let (_, col_end) = offset_to_line_col(stmt.span.end, lo);
-                        SourceSpan {
-                            line,
-                            col_start,
-                            col_end,
-                        }
-                    });
+                    let source_span = line_offsets.map(|lo| make_source_span(&stmt.span, lo));
                     self.items.push(Item::Event {
                         id,
                         lane: e.lane_ref.clone(),
@@ -217,15 +201,7 @@ impl LoweringContext {
                         continue;
                     }
                     self.add_source_from_ref(&er.props.source);
-                    let source_span = line_offsets.map(|lo| {
-                        let (line, col_start) = offset_to_line_col(stmt.span.start, lo);
-                        let (_, col_end) = offset_to_line_col(stmt.span.end, lo);
-                        SourceSpan {
-                            line,
-                            col_start,
-                            col_end,
-                        }
-                    });
+                    let source_span = line_offsets.map(|lo| make_source_span(&stmt.span, lo));
                     self.items.push(Item::EventRange {
                         id,
                         lane: er.lane_ref.clone(),
