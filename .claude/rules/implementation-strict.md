@@ -81,7 +81,7 @@
 
 ### 4.5 Lane / item ルール
 
-- lane ID の決定性を保つ。日本語ラベルのみで空 slug になる場合は `lane_N` にフォールバック。
+- lane ID の決定性を保つ。日本語ラベルのみで空 slug になる場合は `lane_N` にフォールバック、slug が数字で始まる場合は `lane_<slug>`（`ident` は先頭が英字か `_` のため。#950）。
 - imported item は必ず `source = wd:<QID>` / `origin = "wikidata"`。
 - 静的アイテムの `source` も `sources[]` に登録する。
 
