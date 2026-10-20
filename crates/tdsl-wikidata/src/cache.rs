@@ -27,6 +27,17 @@ impl Default for CacheOptions {
     }
 }
 
+/// キャッシュファイル 1 件の読み出し結果（#938）。
+#[derive(Debug)]
+enum CacheRead {
+    /// 有効期間内で、正しく読めた。
+    Hit(WikidataEntity),
+    /// ファイルが無い・TTL 切れ・`no_cache`。通常の miss なので診断は出さない。
+    Miss,
+    /// 有効期間内のファイルが読めない、または JSON として不正。理由を持つ。
+    Corrupt(String),
+}
+
 /// `WikidataClient` をラップしてローカルファイルキャッシュを追加するデコレータ。
 ///
 /// `get_entity` および `get_entity_by_sitelink` の結果を
@@ -111,12 +122,41 @@ impl<C: WikidataClient> CachedWikidataClient<C> {
         age < self.opts.ttl
     }
 
-    fn read_cache(&self, path: &Path) -> Option<WikidataEntity> {
+    /// キャッシュファイルを読み、`Hit` / `Miss` / `Corrupt` に分類する（#938）。
+    ///
+    /// 「ファイルが無い」「TTL 切れ」「`no_cache`」は通常の `Miss`。有効期間内のファイルが
+    /// 読めない・JSON として壊れている場合は `Corrupt` を返し、呼び出し側が診断を出せるようにする。
+    fn read_cache(&self, path: &Path) -> CacheRead {
         if !self.is_cache_valid(path) {
-            return None;
+            return CacheRead::Miss;
         }
-        let data = std::fs::read(path).ok()?;
-        serde_json::from_slice(&data).ok()
+        let data = match std::fs::read(path) {
+            Ok(data) => data,
+            // `is_cache_valid` と読み込みの間に消えた場合は通常の miss（競合）。
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return CacheRead::Miss,
+            Err(e) => return CacheRead::Corrupt(format!("読み込み失敗: {e}")),
+        };
+        match serde_json::from_slice(&data) {
+            Ok(entity) => CacheRead::Hit(entity),
+            Err(e) => CacheRead::Corrupt(format!("JSON として不正: {e}")),
+        }
+    }
+
+    /// キャッシュからエンティティを引く。破損キャッシュは警告を出して miss として扱い、
+    /// 呼び出し側が再取得して上書きする（キャッシュは再生成できる派生データのため、
+    /// エラーで止めない。#938）。
+    fn cached_entity(&self, path: &Path) -> Option<WikidataEntity> {
+        match self.read_cache(path) {
+            CacheRead::Hit(entity) => Some(entity),
+            CacheRead::Miss => None,
+            CacheRead::Corrupt(reason) => {
+                eprintln!(
+                    "tdsl cache: 破損キャッシュを再取得します {}: {reason}",
+                    path.display()
+                );
+                None
+            }
+        }
     }
 
     fn write_cache(&self, path: &Path, entity: &WikidataEntity) {
@@ -161,7 +201,7 @@ impl<C: WikidataClient> CachedWikidataClient<C> {
 impl<C: WikidataClient> WikidataClient for CachedWikidataClient<C> {
     async fn get_entity(&self, qid: &str, langs: &[&str]) -> Result<WikidataEntity, WikidataError> {
         let path = self.cache_path_for_entity(qid, langs);
-        if let Some(entity) = self.read_cache(&path) {
+        if let Some(entity) = self.cached_entity(&path) {
             return Ok(entity);
         }
         let entity = self.inner.get_entity(qid, langs).await?;
@@ -176,7 +216,7 @@ impl<C: WikidataClient> WikidataClient for CachedWikidataClient<C> {
         langs: &[&str],
     ) -> Result<WikidataEntity, WikidataError> {
         let path = self.cache_path_for_sitelink(site, title, langs);
-        if let Some(entity) = self.read_cache(&path) {
+        if let Some(entity) = self.cached_entity(&path) {
             return Ok(entity);
         }
         let entity = self
@@ -280,6 +320,9 @@ const KNOWN_LANGS_KEYS: &[&str] = &["ja-en"];
 /// `<cache_dir>/get_<qid>_<langs>.json` のうち最初に見つかった有効なファイルを返す。
 /// hover 表示用途のため **TTL は無視** する（古くても取得済み情報を見せる）。
 /// キャッシュ未取得・ディレクトリ不在・パース失敗時は `None`。
+/// **破損ファイルも警告せず `None`**（呼び出し元の hover はカーソル移動のたびに呼ぶ
+/// 受動的な用途で、警告すると出力が氾濫するため。`CachedWikidataClient` 経由の取得は
+/// 破損を警告して再取得する。#938）。
 pub fn read_cached_entity(cache_dir: &Path, qid: &str) -> Option<WikidataEntity> {
     // まず既知の言語キーでパスを直接組み立てる。ファイル名の規則は
     // `cache_path_for_entity` が決めており（`get_<qid>_<langs.join("-")>.json`）、
@@ -522,6 +565,122 @@ mod tests {
             // 2回目はキャッシュヒット
             assert_eq!(call_count.load(Ordering::SeqCst), 1);
         });
+    }
+
+    // ------------------------------------------------------------------
+    // 破損キャッシュの扱い（#938）
+    // ------------------------------------------------------------------
+
+    fn new_cached(
+        tmp: &TempDir,
+        ttl: Duration,
+    ) -> (CachedWikidataClient<MockClient>, Arc<AtomicUsize>) {
+        let mock = MockClient::new("Q42");
+        let call_count = mock.call_count.clone();
+        let client = CachedWikidataClient::with_cache_dir(
+            mock,
+            CacheOptions {
+                no_cache: false,
+                ttl,
+            },
+            tmp.path().to_path_buf(),
+        );
+        (client, call_count)
+    }
+
+    #[test]
+    fn read_cache_classifies_hit_miss_and_corrupt() {
+        let tmp = TempDir::new().unwrap();
+        let (client, _) = new_cached(&tmp, Duration::from_secs(86400));
+        let path = tmp.path().join("entry.json");
+
+        // ファイル無し → Miss（診断対象ではない）
+        assert!(matches!(client.read_cache(&path), CacheRead::Miss));
+
+        // 正しい JSON → Hit
+        let entity = client.inner.entity.clone();
+        std::fs::write(&path, serde_json::to_vec(&entity).unwrap()).unwrap();
+        assert!(matches!(client.read_cache(&path), CacheRead::Hit(e) if e.id == "Q42"));
+
+        // 不正な JSON → Corrupt
+        std::fs::write(&path, b"{ not json").unwrap();
+        assert!(matches!(client.read_cache(&path), CacheRead::Corrupt(r) if r.contains("JSON")));
+
+        // 空ファイル（書き込み途中で落ちた等）も Corrupt
+        std::fs::write(&path, b"").unwrap();
+        assert!(matches!(client.read_cache(&path), CacheRead::Corrupt(_)));
+
+        // 読めない（ファイルではなくディレクトリ）→ Corrupt
+        let dir_path = tmp.path().join("is_a_dir.json");
+        std::fs::create_dir(&dir_path).unwrap();
+        assert!(
+            matches!(client.read_cache(&dir_path), CacheRead::Corrupt(r) if r.contains("読み込み失敗"))
+        );
+    }
+
+    #[test]
+    fn read_cache_expired_or_disabled_is_miss_even_if_content_is_corrupt() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("entry.json");
+        std::fs::write(&path, b"{ not json").unwrap();
+
+        // TTL 切れ（ZERO）は再取得するので、破損していても通常の miss。
+        let (expired, _) = new_cached(&tmp, Duration::ZERO);
+        assert!(matches!(expired.read_cache(&path), CacheRead::Miss));
+    }
+
+    #[test]
+    fn corrupt_entity_cache_is_refetched_and_overwritten() {
+        let tmp = TempDir::new().unwrap();
+        let (client, call_count) = new_cached(&tmp, Duration::from_secs(86400));
+        let path = client.cache_path_for_entity("Q42", &["ja", "en"]);
+        std::fs::write(&path, b"{ not json").unwrap();
+
+        rt().block_on(async {
+            let entity = client.get_entity("Q42", &["ja", "en"]).await.unwrap();
+            assert_eq!(entity.id, "Q42");
+            // 壊れたキャッシュは hit 扱いにならず、inner が 1 回呼ばれる。
+            assert_eq!(call_count.load(Ordering::SeqCst), 1);
+            // 有効な JSON で上書きされ、2 回目は hit する。
+            let rewritten: WikidataEntity =
+                serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            assert_eq!(rewritten.id, "Q42");
+            client.get_entity("Q42", &["ja", "en"]).await.unwrap();
+            assert_eq!(call_count.load(Ordering::SeqCst), 1);
+        });
+    }
+
+    #[test]
+    fn corrupt_sitelink_cache_is_refetched_and_overwritten() {
+        let tmp = TempDir::new().unwrap();
+        let (client, call_count) = new_cached(&tmp, Duration::from_secs(86400));
+        let path = client.cache_path_for_sitelink("jawiki", "漢", &["ja"]);
+        std::fs::write(&path, b"[]").unwrap(); // 構造が違う JSON も Corrupt
+
+        rt().block_on(async {
+            let entity = client
+                .get_entity_by_sitelink("jawiki", "漢", &["ja"])
+                .await
+                .unwrap();
+            assert_eq!(entity.id, "Q42");
+            assert_eq!(call_count.load(Ordering::SeqCst), 1);
+            let rewritten: WikidataEntity =
+                serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            assert_eq!(rewritten.id, "Q42");
+            client
+                .get_entity_by_sitelink("jawiki", "漢", &["ja"])
+                .await
+                .unwrap();
+            assert_eq!(call_count.load(Ordering::SeqCst), 1);
+        });
+    }
+
+    #[test]
+    fn read_cached_entity_ignores_corrupt_file_without_panicking() {
+        // hover 用の受動的な読み出し。破損は警告せず None（#938 のスコープ外を固定する）。
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("get_Q42_ja-en.json"), b"{ not json").unwrap();
+        assert!(read_cached_entity(tmp.path(), "Q42").is_none());
     }
 
     // ------------------------------------------------------------------
