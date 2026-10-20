@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **IR の lane ID が `ident` 文法を満たさない場合の警告 W212 を追加**（#961）: `tdsl-core` の `validate` が、先頭が英字・`_` でない ID（`123` 等）や空白・非 ASCII を含む ID を検出する（パーサの `ident` を再利用）。`tdsl decompile` は引き続き IR を変換するが、`build` と同じ検証警告を stderr に `Warning:` として出す（stdout・終了コードは不変）。過去に生成された無効 ID の IR JSON に気付くための検出で、#950 の自動 ID 修正の補完
+
 ### Fixed
 
 - **alias 省略 lane のラベルが数字で始まると、参照不能な lane ID が生成され decompile の出力がパースできなかったのを修正**（#950）: `lane "123"` は ID `123` になり、`ident` 文法（先頭は英字か `_`）を満たさないため `event 123 …` と書けず、`decompile` が出した `as 123` も構文エラーだった。slug が数字で始まる場合は `lane_<slug>`（`123` → `lane_123`）にする。lowering と lint の採番を `auto_lane_id` に共通化。**JSON IR の消費側では該当 lane の `id` が変わる**（従来の ID は DSL から参照できなかったため DSL の互換性は壊れない）。生成 ID が既存 lane と衝突する場合は従来どおり `DuplicateLane`（E102）で拒否される
