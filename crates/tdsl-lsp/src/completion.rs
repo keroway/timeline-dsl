@@ -6,6 +6,7 @@
 
 use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind, InsertTextFormat};
 
+use crate::hover::utf16_offset_to_byte;
 use crate::keywords::{BLOCK_KEYWORDS, ITEM_KEYWORDS, MISC_KEYWORDS};
 
 /// カーソル位置のコンテキストを表す enum。
@@ -234,8 +235,12 @@ fn tokenize(text: &str) -> Vec<String> {
 
 /// カーソル前テキストを行・文字位置から切り出す。
 ///
-/// LSP の Position は 0-based（`line` 行目の `character` 文字目まで）。
-/// 指定行の先頭から `character` 文字目まで + それ以前の全行を返す。
+/// LSP の Position は 0-based（`line` 行目の `character` 番目の **UTF-16 コードユニット**まで）。
+/// 指定行の先頭から `character` までの部分 + それ以前の全行を返す。
+///
+/// `character` は Unicode 文字数ではなく UTF-16 コードユニット数。絵文字（サロゲートペア）を
+/// 含む行で文字数として扱うと、カーソルより先の文字まで文脈に含めてしまう（#945）。
+/// 範囲外は行末に、サロゲートペアの途中は直前の文字境界にクランプする。
 fn text_before_cursor(text: &str, line: u32, character: u32) -> String {
     let mut result = String::new();
     for (idx, l) in text.lines().enumerate() {
@@ -243,9 +248,13 @@ fn text_before_cursor(text: &str, line: u32, character: u32) -> String {
             result.push_str(l);
             result.push('\n');
         } else if idx == line as usize {
-            let char_end = character as usize;
-            let slice: String = l.chars().take(char_end).collect();
-            result.push_str(&slice);
+            let utf16_col = character as usize;
+            let end = utf16_offset_to_byte(l, utf16_col)
+                // サロゲートペアの途中を指す列は 1 つ手前（文字境界）に丸める。
+                .or_else(|| utf16_offset_to_byte(l, utf16_col.saturating_sub(1)))
+                // 行末より先は行末にクランプする。
+                .unwrap_or(l.len());
+            result.push_str(&l[..end]);
             break;
         } else {
             break;
@@ -902,5 +911,73 @@ mod completion_context_tests {
         let text = "lane \"日本\" { kind custom; }\nspan ";
         let got = labels(&complete(text));
         assert!(got.is_empty(), "推測した候補が出ている: {got:?}");
+    }
+
+    // ─── UTF-16 列の扱い（#945）──────────────────────────────────────────
+
+    /// LSP の列（UTF-16 コードユニット）で `marker` の直前（または直後）にカーソルを置いて補完を取る。
+    fn complete_at_marker(text: &str, marker: &str, after: bool) -> Vec<CompletionItem> {
+        let byte = text.find(marker).expect("marker") + if after { marker.len() } else { 0 };
+        let line = text[..byte].matches('\n').count() as u32;
+        let line_start = text[..byte].rfind('\n').map_or(0, |i| i + 1);
+        let utf16_col = text[line_start..byte].encode_utf16().count() as u32;
+        contextual_completions(text, line, utf16_col)
+    }
+
+    /// 絵文字（UTF-16 で 2 コードユニット）の後でも、ASCII の行と同じ文脈を判定する。
+    /// 以前は列を文字数として扱い、閉じ括弧までを読んでブロック外（TopLevel）と誤判定していた。
+    #[test]
+    fn utf16_column_after_emoji_keeps_lane_props_context() {
+        let ascii = labels(&complete_at_marker("lane \"A\" as l { }", "}", false));
+        let emoji = labels(&complete_at_marker("lane \"😀\" as l { }", "}", false));
+        assert!(ascii.iter().any(|l| l == "kind"), "ASCII の基準: {ascii:?}");
+        assert_eq!(emoji, ascii, "絵文字の行で文脈が変わっている");
+
+        // BMP の非 ASCII（1 コードユニット / 3 バイト）も同じ。
+        let bmp = labels(&complete_at_marker("lane \"秦\" as l { }", "}", false));
+        assert_eq!(bmp, ascii);
+    }
+
+    /// 閉じ括弧の直後はブロックの外（TopLevel）。絵文字の行でも ASCII と一致する。
+    #[test]
+    fn utf16_column_just_after_closing_brace_is_top_level() {
+        let ascii = labels(&complete_at_marker("lane \"A\" as l { }", "}", true));
+        let emoji = labels(&complete_at_marker("lane \"😀\" as l { }", "}", true));
+        assert!(
+            ascii.iter().any(|l| l == "timeline"),
+            "ASCII の基準: {ascii:?}"
+        );
+        assert_eq!(emoji, ascii);
+    }
+
+    /// 前の行に絵文字があっても、カーソル行の列には影響しない。
+    #[test]
+    fn utf16_column_on_a_later_line_is_unaffected_by_emoji_on_earlier_lines() {
+        let text = "lane \"😀\" as l {\n  kind custom; }";
+        let got = labels(&complete_at_marker(text, "}", false));
+        assert!(got.iter().any(|l| l == "order"), "got: {got:?}");
+    }
+
+    /// 範囲外の列は行末に、サロゲートペアの途中は直前の文字境界にクランプし、panic しない。
+    #[test]
+    fn utf16_column_out_of_range_or_inside_surrogate_pair_is_clamped() {
+        let text = "lane \"😀\" as l { }";
+        let end_of_line = contextual_completions(text, 0, 10_000);
+        let exact_end = contextual_completions(text, 0, text.encode_utf16().count() as u32);
+        assert_eq!(labels(&end_of_line), labels(&exact_end));
+
+        // `😀` の 2 コードユニットの間（絵文字の手前 + 1）。
+        let inside = text
+            .find('😀')
+            .map(|b| text[..b].encode_utf16().count() as u32 + 1)
+            .unwrap();
+        let before_emoji = text
+            .find('😀')
+            .map(|b| text[..b].encode_utf16().count() as u32)
+            .unwrap();
+        assert_eq!(
+            labels(&contextual_completions(text, 0, inside)),
+            labels(&contextual_completions(text, 0, before_emoji)),
+        );
     }
 }

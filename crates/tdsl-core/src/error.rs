@@ -41,6 +41,13 @@ pub enum LoweringError {
     #[error("Unknown timeline unit: {value} (expected one of: {expected})")]
     UnknownTimelineUnit { value: String, expected: String },
 
+    /// `calendar` に未対応・未知の値が指定された（#953）。
+    ///
+    /// 以前は任意の `ident` を検証せず `meta.calendar` に保存し、日付計算は常に
+    /// プロレプティック・グレゴリオ暦で行っていたため、`julian` や誤字が黙って無視されていた。
+    #[error("Unsupported calendar: {0}")]
+    UnsupportedCalendar(String),
+
     #[cfg(feature = "wikidata")]
     #[error("Wikidata error: {0}")]
     Wikidata(#[from] tdsl_wikidata::WikidataError),
@@ -153,6 +160,7 @@ impl LoweringError {
             Self::MixedOffsetComparison(_, _) => "E113",
             Self::FieldPriorityTypeMismatch { .. } => "E114",
             Self::DuplicateImportAlias(_) => "E115",
+            Self::UnsupportedCalendar(_) => "E119",
             // `UnknownTimelineUnit` は E1xx を割り当てていない（カタログにも
             // 節が無い）。コードを付けるならカタログ側の追記とセットで行う。
             Self::UnknownTimelineUnit { .. } => return None,

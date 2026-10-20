@@ -1538,3 +1538,154 @@ lane "L" as l {{ kind custom; order 1; color "{value}"; }}
         assert_eq!(ir.lanes[0].color.as_deref(), Some(value));
     }
 }
+
+/// #944: 複数行にまたがる宣言は `SourceSpan.end_line` に終了行を保持する。
+/// 単一行の宣言では `end_line` を省略し、JSON IR の形が変わらない（互換性）。
+#[test]
+fn source_span_end_line_is_set_only_for_multiline_declarations() {
+    let src = "\
+timeline \"T\" { unit year; range 0..2000; }
+lane \"L\" as l {
+  kind custom;
+}
+span l 100..200 \"S\" {
+  note \"N\";
+};
+event l 150 \"E\" {
+  note \"N\";
+};
+event_range l 300..400 \"R\" {
+  note \"N\";
+};
+event l 500 \"single\" {};
+";
+    let file = tdsl_parser::parse(src).unwrap();
+    let ir = lower::lower_static_with_source(&file, Some(src)).unwrap();
+
+    // lane: 2〜4 行目
+    let lane = ir.lanes[0].source_span.as_ref().unwrap();
+    assert_eq!((lane.line, lane.end_line, lane.col_end), (2, Some(4), 2));
+
+    let spans: Vec<&ir::SourceSpan> = ir
+        .items
+        .iter()
+        .map(|item| match item {
+            ir::Item::Span { source_span, .. }
+            | ir::Item::Event { source_span, .. }
+            | ir::Item::EventRange { source_span, .. } => source_span.as_ref().unwrap(),
+        })
+        .collect();
+    // span 5〜7 行目 / event 8〜10 行目 / event_range 11〜13 行目 / 単一行 14 行目
+    let got: Vec<(u32, Option<u32>)> = spans.iter().map(|s| (s.line, s.end_line)).collect();
+    assert_eq!(
+        got,
+        [(5, Some(7)), (8, Some(10)), (11, Some(13)), (14, None)]
+    );
+    assert_eq!(spans[0].end_line(), 7);
+    assert_eq!(spans[3].end_line(), 14);
+
+    // 単一行では JSON に `end_line` が出ない。
+    let single = serde_json::to_value(spans[3]).unwrap();
+    assert!(single.get("end_line").is_none(), "{single}");
+    let multi = serde_json::to_value(spans[0]).unwrap();
+    assert_eq!(multi["end_line"], 7);
+}
+
+/// `end_line` が無い既存の JSON IR も読める（後方互換）。
+#[test]
+fn source_span_without_end_line_deserializes() {
+    let span: ir::SourceSpan =
+        serde_json::from_str(r#"{"line":3,"col_start":1,"col_end":9}"#).unwrap();
+    assert_eq!(span.end_line, None);
+    assert_eq!(span.end_line(), 3);
+}
+
+/// #953: 日付計算は proleptic_gregorian 固定。`calendar` の未対応値・誤字は黙って無視せず拒否する。
+#[test]
+fn calendar_omitted_or_proleptic_gregorian_is_accepted() {
+    for decl in ["", "calendar proleptic_gregorian;"] {
+        let src = format!(
+            r#"timeline "T" {{ unit year; range 0..100; {decl} }}
+lane "A" as a {{ kind custom; }}"#
+        );
+        let ir = lower::lower_static(&tdsl_parser::parse(&src).unwrap())
+            .unwrap_or_else(|e| panic!("`{decl}` must lower: {e:?}"));
+        assert_eq!(ir.meta.calendar, "proleptic_gregorian");
+    }
+}
+
+#[test]
+fn calendar_julian_and_typo_are_rejected_with_e119() {
+    for (value, expected_fragment) in [
+        ("julian", "not implemented"),
+        ("typo", "unknown calendar"),
+        ("gregorian", "unknown calendar"),
+    ] {
+        let src = format!(
+            r#"timeline "T" {{ unit year; range 0..100; calendar {value}; }}
+lane "A" as a {{ kind custom; }}"#
+        );
+        let errors = lower::lower_static(&tdsl_parser::parse(&src).unwrap()).unwrap_err();
+        // 原因の 1 件だけが出る（meta 未生成による「No timeline block found」が重複しない）。
+        assert_eq!(errors.len(), 1, "{value}: {errors:?}");
+        assert_eq!(errors[0].code(), Some("E119"), "{value}");
+        let message = errors[0].error.to_string();
+        assert!(
+            message.contains(value) && message.contains(expected_fragment),
+            "{value}: unexpected message: {message}"
+        );
+    }
+}
+
+/// #950: alias 省略 lane のラベルが数字で始まると、自動生成 ID が `ident` 文法を満たさず
+/// 参照も decompile 出力の再パースもできなかった。数字始まりの slug は `lane_<slug>` にする。
+#[test]
+fn auto_lane_id_with_leading_digit_gets_lane_prefix() {
+    let src = r#"
+        timeline "T" { unit year; range 0..100; }
+        lane "123" { kind custom; }
+        lane "2024年表" { kind custom; }
+        lane "第1章" { kind custom; }
+        lane "abc" { kind custom; }
+        lane "秦" { kind custom; }
+    "#;
+    let ir = lower::lower_static(&tdsl_parser::parse(src).unwrap()).unwrap();
+    let ids: Vec<&str> = ir.lanes.iter().map(|l| l.id.as_str()).collect();
+    // "第1章" の slug は "1"。空 slug の連番（`lane_0`）とは独立した ID になる。
+    assert_eq!(ids, ["lane_123", "lane_2024", "lane_1", "abc", "lane_0"]);
+}
+
+#[test]
+fn auto_lane_id_with_leading_digit_is_referenceable_and_round_trips() {
+    let src = r#"
+        timeline "T" { unit year; range 0..100; }
+        lane "123" { kind custom; }
+        event lane_123 10 "E" {};
+    "#;
+    let ir = lower::lower_static(&tdsl_parser::parse(src).unwrap()).unwrap();
+    assert_eq!(ir.lanes[0].id, "lane_123");
+    assert!(matches!(&ir.items[0], ir::Item::Event { lane, .. } if lane == "lane_123"));
+
+    let regenerated = decompile::decompile(&ir);
+    let reparsed = tdsl_parser::parse(&regenerated)
+        .unwrap_or_else(|e| panic!("decompiled output must reparse: {e}\n{regenerated}"));
+    let ir2 = lower::lower_static(&reparsed)
+        .unwrap_or_else(|e| panic!("decompiled output must lower: {e:?}\n{regenerated}"));
+    assert_eq!(ir2.lanes[0].id, "lane_123");
+    assert!(matches!(&ir2.items[0], ir::Item::Event { lane, .. } if lane == "lane_123"));
+}
+
+/// 数字始まりの自動 ID が既存 lane と衝突する場合は silent に上書きせず `DuplicateLane` で拒否する。
+#[test]
+fn auto_lane_id_with_leading_digit_collision_is_rejected() {
+    let src = r#"
+        timeline "T" { unit year; range 0..100; }
+        lane "123" { kind custom; }
+        lane "lane_123" { kind custom; }
+    "#;
+    let err = lower::lower_static(&tdsl_parser::parse(src).unwrap()).unwrap_err();
+    assert!(
+        format!("{err:?}").contains("DuplicateLane"),
+        "expected DuplicateLane, got {err:?}"
+    );
+}

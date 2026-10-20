@@ -18,6 +18,11 @@ pub(crate) fn cmd_decompile(
 
     let ir: tdsl_core::ir::TimelineIr =
         serde_json::from_str(&json_str).map_err(|e| format!("Invalid IR JSON: {e}"))?;
+    // decompile 自体は IR を検証しない。無効な lane ID など、出力が再パースできなくなる
+    // 原因を利用者が気付けるよう、build と同じ検証警告を stderr に出す（#961）。
+    for w in tdsl_core::validate::validate(&ir) {
+        eprintln!("Warning: {w}");
+    }
     let tdsl = tdsl_core::decompile::decompile(&ir);
 
     if let Some(out_path) = output {
