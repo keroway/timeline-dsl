@@ -1587,6 +1587,95 @@ fn decompile_roundtrip_preserves_lane_group_and_render_output() {
     let _ = std::fs::remove_file(&roundtrip_svg_path);
 }
 
+/// #954: `export-csv` → `import-csv` → `build` の往復で、空文字タグと Unicode 境界空白
+/// （U+3000 / U+00A0）を含むタグ配列が完全一致する。空配列と `[""]` も区別される。
+#[test]
+fn export_csv_then_import_csv_round_trips_empty_and_unicode_whitespace_tags() {
+    let header = "timeline \"T\" { unit year; range 0..100; }\nlane \"A\" as a { kind custom; }\n";
+    let items = "\
+event a 1 \"none\" { id \"e_none\"; };
+event a 2 \"empty\" { id \"e_empty\"; tags [\"\"]; };
+event a 3 \"empties\" { id \"e_empties\"; tags [\"\", \"x\", \"\"]; };
+event a 4 \"ideographic\" { id \"e_ideo\"; tags [\"\u{3000}tag\u{3000}\"]; };
+event a 5 \"nbsp\" { id \"e_nbsp\"; tags [\"\u{00A0}tag\u{00A0}\"]; };
+event a 6 \"ascii\" { id \"e_ascii\"; tags [\" tag \", \"a|b\"]; };
+";
+    let build_tags = |path: &Path| -> std::collections::BTreeMap<String, serde_json::Value> {
+        let out = tdsl_bin()
+            .args(["build", "--offline"])
+            .arg(path)
+            .output()
+            .expect("failed to run tdsl build");
+        assert!(
+            out.status.success(),
+            "build exited non-zero: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let ir: serde_json::Value =
+            serde_json::from_slice(&out.stdout).expect("build stdout must be JSON");
+        ir["items"]
+            .as_array()
+            .expect("items must be an array")
+            .iter()
+            .map(|item| {
+                let id = item["id"].as_str().expect("id").to_string();
+                // tags が空のとき IR は `tags` を省略することがあるため、欠落は null として比較する。
+                (
+                    id,
+                    item.get("tags").cloned().unwrap_or(serde_json::Value::Null),
+                )
+            })
+            .collect()
+    };
+
+    let original_path = unique_temp("tags_original.tdsl");
+    std::fs::write(&original_path, format!("{header}{items}")).unwrap();
+    let original = build_tags(&original_path);
+
+    let csv_path = unique_temp("tags_roundtrip.csv");
+    let exported = tdsl_bin()
+        .arg("export-csv")
+        .arg(&original_path)
+        .arg("--offline")
+        .arg("--output")
+        .arg(&csv_path)
+        .output()
+        .expect("failed to run tdsl export-csv");
+    assert!(
+        exported.status.success(),
+        "export-csv exited non-zero: {}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+
+    let reimported = tdsl_bin()
+        .arg("import-csv")
+        .arg(&csv_path)
+        .output()
+        .expect("failed to run tdsl import-csv");
+    assert!(
+        reimported.status.success(),
+        "import-csv exited non-zero: {}",
+        String::from_utf8_lossy(&reimported.stderr)
+    );
+    let snippet = String::from_utf8(reimported.stdout).expect("non-UTF-8 stdout");
+
+    let rebuilt_path = unique_temp("tags_reimported.tdsl");
+    std::fs::write(&rebuilt_path, format!("{header}{snippet}")).unwrap();
+    let rebuilt = build_tags(&rebuilt_path);
+
+    assert_eq!(
+        original, rebuilt,
+        "tags must round-trip exactly through export-csv -> import-csv -> build"
+    );
+    // 取りこぼしを検知できるよう、空文字タグが実際に元の IR に存在したことも確認する。
+    assert_eq!(original["e_empty"], serde_json::json!([""]));
+    assert_ne!(original["e_none"], original["e_empty"]);
+
+    for p in [&original_path, &csv_path, &rebuilt_path] {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
 /// #953: 未対応の `calendar`（`julian`・誤字）は黙って無視されず、`check` / `build` / `render`
 /// のいずれでも E119 として非ゼロ終了する。`proleptic_gregorian` と省略は従来どおり成功する。
 #[test]
