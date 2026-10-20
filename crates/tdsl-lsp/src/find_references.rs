@@ -41,6 +41,42 @@ pub(crate) fn byte_offset_to_position(
     }
 }
 
+/// `pos` からコメント（`//` から行末の直前まで / `/* ... */`）が始まっていれば、
+/// その直後のバイト位置を返す。始まっていなければ `None`。
+///
+/// 文法（`grammar.pest` の `COMMENT`）と同じく、ブロックコメントはネストしない。
+/// 閉じていないブロックコメントは入力の末尾までを読み飛ばす（パース済みの有効な
+/// ソースでは起きないが、無限ループや範囲外アクセスを避ける）。
+fn skip_comment_at(s: &str, pos: usize) -> Option<usize> {
+    let rest = s.get(pos..)?;
+    if rest.starts_with("//") {
+        // 改行そのものは空白として扱うので、行末（改行の手前）で止める。
+        Some(rest.find('\n').map_or(s.len(), |i| pos + i))
+    } else {
+        rest.strip_prefix("/*")
+            .map(|body| body.find("*/").map_or(s.len(), |i| pos + 2 + i + 2))
+    }
+}
+
+/// `pos` から空白（スペース・タブ・改行）とコメントを読み飛ばした位置を返す。
+///
+/// 文法の `WHITESPACE` / `COMMENT` に対応する。キーワードと識別子の間に
+/// コメントや改行が挟まる有効な DSL（`event /* c */ a 10 ...`）でも、
+/// 識別子の位置を正しく取得するために使う（#946）。
+fn skip_trivia(s: &str, mut pos: usize) -> usize {
+    let bytes = s.as_bytes();
+    loop {
+        match bytes.get(pos) {
+            Some(b' ' | b'\t' | b'\r' | b'\n') => pos += 1,
+            Some(b'/') => match skip_comment_at(s, pos) {
+                Some(next) => pos = next,
+                None => return pos,
+            },
+            _ => return pos,
+        }
+    }
+}
+
 /// statement 先頭バイトオフセット `stmt_start` から始まるソーステキストにおいて、
 /// 第2トークン（lane_ref）のバイト範囲 `(abs_start, abs_end)` を返す。
 ///
@@ -53,14 +89,8 @@ fn second_token_range(source: &str, stmt_start: usize) -> Option<(usize, usize)>
     let mut offset = 0usize;
 
     // 第1トークン（キーワード）をスキップ
-    // まず先頭の空白を読み飛ばす（通常はないが念のため）
-    while offset < slice.len() {
-        let ch = slice[offset..].chars().next()?;
-        if !ch.is_whitespace() {
-            break;
-        }
-        offset += ch.len_utf8();
-    }
+    // まず先頭の空白・コメントを読み飛ばす（通常はないが念のため）
+    offset = skip_trivia(slice, offset);
     // キーワード本体をスキップ
     while offset < slice.len() {
         let ch = slice[offset..].chars().next()?;
@@ -69,14 +99,8 @@ fn second_token_range(source: &str, stmt_start: usize) -> Option<(usize, usize)>
         }
         offset += ch.len_utf8();
     }
-    // キーワードと lane_ref の間の空白をスキップ
-    while offset < slice.len() {
-        let ch = slice[offset..].chars().next()?;
-        if !ch.is_whitespace() {
-            break;
-        }
-        offset += ch.len_utf8();
-    }
+    // キーワードと lane_ref の間の空白・コメントをスキップ（#946）
+    offset = skip_trivia(slice, offset);
 
     // ここから第2トークン（lane_ref）の開始
     let token_start = stmt_start + offset;
@@ -150,6 +174,14 @@ pub(crate) fn find_keyword_token_range(
             continue;
         }
 
+        // コメントのスキップ。コメント内の `as a` や `lane x` を実体と取り違えない（#946）。
+        if bytes[pos] == b'/'
+            && let Some(next) = skip_comment_at(slice, pos)
+        {
+            pos = next;
+            continue;
+        }
+
         // キーワードの探索
         if bytes[pos..].starts_with(kw_bytes) {
             let after_kw = pos + kw_bytes.len();
@@ -167,11 +199,8 @@ pub(crate) fn find_keyword_token_range(
             };
 
             if kw_start_ok && !kw_is_word {
-                // キーワードの後の空白をスキップして token を確認
-                let mut id_pos = after_kw;
-                while id_pos < bytes.len() && (bytes[id_pos] == b' ' || bytes[id_pos] == b'\t') {
-                    id_pos += 1;
-                }
+                // キーワードの後の空白・改行・コメントをスキップして token を確認（#946）
+                let id_pos = skip_trivia(slice, after_kw);
                 if bytes[id_pos..].starts_with(id_bytes) {
                     let after_id = id_pos + id_bytes.len();
                     // id の後がトークン文字でないことを確認（完全一致）
@@ -469,5 +498,46 @@ mod tests {
             span_loc.range.end.character, 8,
             "span の lane_ref 終了位置は character=8"
         );
+    }
+
+    /// コメント内の同名トークンは参照に数えず、キーワードと識別子の間のコメントは読み飛ばす（#946）。
+    #[test]
+    fn test_references_skip_comments_and_see_through_them() {
+        let src = concat!(
+            "timeline \"t\" { unit year; range 0..2000; }\n",
+            "lane \"A\" /* as a */ as a { kind custom; }\n",
+            "span // a\n",
+            "  /* a */ a 1..5 \"S\" {}; // span a 1..5\n",
+            "event /* c */ a 10 \"E\" {};\n",
+        );
+        let pos = Position {
+            line: 4,
+            character: 14,
+        };
+        let locs = compute_references(src, pos, false, &test_uri()).expect("references");
+        let lines: Vec<(u32, u32, u32)> = locs
+            .iter()
+            .map(|l| {
+                (
+                    l.range.start.line,
+                    l.range.start.character,
+                    l.range.end.character,
+                )
+            })
+            .collect();
+        // span の `a`（4 行目の `/* a */ ` の後ろ）と event の `a`（5 行目）だけ。
+        assert_eq!(lines, vec![(3, 10, 11), (4, 14, 15)], "{locs:?}");
+    }
+
+    #[test]
+    fn test_skip_trivia_handles_comments_newlines_and_unterminated_block() {
+        assert_eq!(skip_trivia("  \t\n x", 0), 5);
+        assert_eq!(skip_trivia("/* c */ // d\n x", 0), 14);
+        assert_eq!(skip_trivia("// to end", 0), 9);
+        // 閉じていないブロックコメントは末尾まで（panic しない）。
+        assert_eq!(skip_trivia("/* open", 0), 7);
+        // `/` 単独（コメントではない）はそのまま。
+        assert_eq!(skip_trivia("/ x", 0), 0);
+        assert_eq!(skip_comment_at("a/*b*/c", 1), Some(6));
     }
 }
