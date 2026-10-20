@@ -949,6 +949,8 @@ tdsl cache clear --older-than 7
 
 JSON IR ファイルを `.tdsl` ソースコードに逆変換します。JSON を他ツールで生成した場合や、IR からソースを復元したい場合に使います。
 
+IR は変換前に検証されず、`tdsl build` と同じ検証警告（lane ID が識別子として無効な場合の W212 など）が stderr に `Warning:` として出るだけです。警告が出ても変換と終了コードは変わらないため、出力の再パース可否は `tdsl check` で確認してください。
+
 ```
 tdsl decompile [OPTIONS] [INPUT]
 ```

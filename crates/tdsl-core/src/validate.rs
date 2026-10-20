@@ -239,6 +239,22 @@ pub struct ValidationDiagnostic {
 pub fn validate_with_spans(ir: &TimelineIr) -> Vec<ValidationDiagnostic> {
     let mut diags = Vec::new();
 
+    // lane ID が DSL の `ident` 文法を満たすか（#961）。満たさない ID は DSL から参照できず、
+    // decompile の出力も構文エラーになる。パーサの `ident` を再利用して二重定義を避ける。
+    // `parse_ident_literal` は前後空白を trim するため、元の文字列との一致も確認する。
+    for lane in &ir.lanes {
+        if tdsl_parser::parse_ident_literal(&lane.id).ok().as_deref() != Some(lane.id.as_str()) {
+            diags.push(ValidationDiagnostic {
+                code: "W212",
+                message: format!(
+                    "Lane \"{}\" has an id that is not a valid identifier (must start with an ASCII letter or '_' and contain only ASCII letters, digits, '_' or '-'); it cannot be referenced from DSL and 'tdsl decompile' output will not parse",
+                    lane.id
+                ),
+                span: lane.source_span.clone(),
+            });
+        }
+    }
+
     // Check lane kinds. Unknown explicit categories are warnings rather than
     // lowering errors; `custom` is the documented escape hatch.
     for lane in &ir.lanes {
