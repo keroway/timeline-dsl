@@ -153,7 +153,7 @@ pub fn compute_diagnostics(source: &str) -> Vec<Diagnostic> {
                                     .as_ref()
                                     .map(|s| Range {
                                         start: to_lsp_position(s.line, s.col_start),
-                                        end: to_lsp_position(s.line, s.col_end),
+                                        end: to_lsp_position(s.end_line(), s.col_end),
                                     })
                                     .unwrap_or_else(document_start_range);
                                 Diagnostic {
@@ -510,5 +510,24 @@ span l1 500..100 "reversed" { id "s1"; };
             "エラーは2行目(0-based:1)以降にあるべき。実際: {}",
             d.range.start.line
         );
+    }
+
+    /// 複数行にまたがる span の警告は、終了行まで含む範囲になる(#962)。
+    #[test]
+    fn warning_range_for_multiline_item_ends_on_its_last_line() {
+        let src = concat!(
+            "timeline \"test\" { unit year; range 0..2000; }\n",
+            "lane \"L\" as l { kind custom; }\n",
+            "span l 500..100 \"reversed\" {\n",
+            "  note \"N\";\n",
+            "};\n",
+        );
+        let diags = compute_diagnostics(src);
+        let warning = diags
+            .iter()
+            .find(|d| d.severity == Some(DiagnosticSeverity::WARNING) && d.message.contains("500"))
+            .expect("start>end warning");
+        assert_eq!(warning.range.start.line, 2);
+        assert_eq!(warning.range.end.line, 4, "{:?}", warning.range);
     }
 }
