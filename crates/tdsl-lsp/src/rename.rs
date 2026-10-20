@@ -4,8 +4,11 @@
 //! - 明示的に `as <alias>` を持つ lane ID のみリネーム対象とする。
 //! - `as` 省略 lane（ラベル由来スラッグ / `lane_N` 自動採番）は prepareRename で None を返して拒否する。
 //!
-//! ## slug 妥当性規則
-//! 新名称は `^[A-Za-z0-9_]+$` かつ空でないこと。
+//! ## 新名称の妥当性規則
+//! 新名称は DSL の `ident` 文法（先頭は ASCII 英字か `_`、以降は ASCII 英数字・`_`）を満たすこと。
+//! `123` や `1abc` のような数字始まりは、適用すると有効な文書が構文エラーになるため拒否する（#951）。
+//! `ident` は `-` も許すが、LSP の参照探索は `[A-Za-z0-9_]` を語として扱うため、
+//! 部分一致を避けるよう `-` を含む名前は拒否する。
 //!
 //! ## 衝突チェック
 //! 新名称が既存の他の lane ID と一致する場合はエラーを返す。
@@ -25,9 +28,14 @@ use crate::hover::word_at_position;
 // 内部ヘルパー
 // ---------------------------------------------------------------------------
 
-/// slug として有効か検証する（`^[A-Za-z0-9_]+$`、空でない）。
+/// 新名称が lane ID として有効か検証する（DSL の `ident` 文法、`-` を除く）。
+///
+/// 文法の `ident`（`tdsl_parser::parse_ident_literal`）を単一の基準にして、手書きの検査と
+/// 文法がずれないようにする（#951）。`parse_ident_literal` は前後の空白を除去するため、
+/// 入力との一致も確認する。`-` は文法上は有効だが、`find_references` の走査が語の構成文字を
+/// `[A-Za-z0-9_]` としているため、リネーム後に参照を取りこぼさないよう拒否する。
 fn is_valid_slug(name: &str) -> bool {
-    !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    !name.contains('-') && tdsl_parser::parse_ident_literal(name).is_ok_and(|id| id == name)
 }
 
 /// ソースをパースして IR を取得し、カーソル下のトークンが
@@ -130,7 +138,7 @@ pub fn compute_rename(
     // slug 規則の検証
     if !is_valid_slug(new_name) {
         return Err(format!(
-            "新名称 '{new_name}' は lane ID として無効です（ASCII英数字とアンダースコアのみ許可、空不可）"
+            "新名称 '{new_name}' は lane ID として無効です（先頭は ASCII 英字かアンダースコア、以降は ASCII 英数字とアンダースコアのみ許可、空不可）"
         ));
     }
 
@@ -525,6 +533,49 @@ mod tests {
         assert!(!is_valid_slug("han new"));
         assert!(!is_valid_slug("漢"));
         assert!(!is_valid_slug("han.new"));
+        // 前後の空白は `parse_ident_literal` が除去するため、入力との一致で弾く。
+        assert!(!is_valid_slug(" han"));
+        assert!(!is_valid_slug("han "));
+        assert!(!is_valid_slug("han\n"));
+    }
+
+    /// #951: 数字で始まる名前は `ident` 文法を満たさず、適用すると文書が壊れるため拒否する。
+    #[test]
+    fn is_valid_slug_rejects_leading_digit_and_accepts_ident_like_names() {
+        for name in ["123", "1abc", "9", "0_x"] {
+            assert!(!is_valid_slug(name), "{name} must be rejected");
+        }
+        for name in ["a2", "_1", "_", "A_1", "abc123", "lane_1"] {
+            assert!(is_valid_slug(name), "{name} must be accepted");
+        }
+    }
+
+    /// #951 の再現入力。`123` / `1abc` は WorkspaceEdit を返さずエラーにし、
+    /// `a2` は適用後も有効な文書になる。
+    #[test]
+    fn rename_rejects_leading_digit_names_and_accepts_valid_one() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..100; }\n",
+            "lane \"A\" as a { kind custom; }\n",
+            "event a 10 \"E\" {};\n",
+        );
+        let pos = Position {
+            line: 2,
+            character: 6,
+        };
+        for bad in ["123", "1abc"] {
+            let err = compute_rename(src, pos, bad, &test_uri())
+                .expect_err("leading-digit name must be rejected");
+            assert!(err.contains(bad) && err.contains("無効"), "{err}");
+        }
+
+        let edit = compute_rename(src, pos, "a2", &test_uri()).expect("a2 is valid");
+        let edits = edit.changes.unwrap().remove(&test_uri()).unwrap();
+        let renamed = apply_text_edits(src, &edits);
+        let file = tdsl_parser::parse(&renamed).expect("renamed source must parse");
+        let ir = tdsl_core::lower::lower_static(&file).expect("renamed source must lower");
+        assert_eq!(ir.lanes[0].id, "a2");
+        assert_eq!(ir.items.len(), 1);
     }
 
     // ── コメントを含む DSL のリネーム（#946）──────────────────────────────
