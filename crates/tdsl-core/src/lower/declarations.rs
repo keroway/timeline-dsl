@@ -1,7 +1,7 @@
 use tdsl_parser::ast;
 
 use crate::error::LoweringError;
-use crate::ir::{Meta, TimelineUnit, supported_timeline_units};
+use crate::ir::{Meta, SUPPORTED_CALENDAR, TimelineUnit, supported_timeline_units};
 
 use super::compare_time_values;
 use super::context::LoweringContext;
@@ -90,6 +90,23 @@ impl LoweringContext {
                         None => TimelineUnit::Year,
                     };
 
+                    // 日付計算は proleptic_gregorian 固定。未対応値・誤字は黙って無視せず拒否する（#953）。
+                    // エラーを積んだうえで meta は組み立てて続行する（`continue` すると meta が
+                    // 無いまま後続で「No timeline block found」が重複して出て、原因を見誤らせる）。
+                    if let Some(value) = t.calendar.as_deref()
+                        && value != SUPPORTED_CALENDAR
+                    {
+                        let detail = if value == "julian" {
+                            format!(
+                                "julian (only {SUPPORTED_CALENDAR} is supported; julian calendar dates are not implemented)"
+                            )
+                        } else {
+                            format!("{value} (unknown calendar; supported: {SUPPORTED_CALENDAR})")
+                        };
+                        self.push_error(LoweringError::UnsupportedCalendar(detail));
+                    }
+                    let calendar = SUPPORTED_CALENDAR.to_string();
+
                     self.meta = Some(Meta {
                         title: t.title.clone().unwrap_or_else(|| t.name.clone()),
                         unit: unit.as_str().to_string(),
@@ -106,10 +123,7 @@ impl LoweringContext {
                         range_end_minute,
                         range_end_second,
                         range_end_offset_minutes,
-                        calendar: t
-                            .calendar
-                            .clone()
-                            .unwrap_or_else(|| "proleptic_gregorian".to_string()),
+                        calendar,
                         color_map,
                     });
                 }

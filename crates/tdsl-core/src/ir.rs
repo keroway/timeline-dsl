@@ -100,6 +100,12 @@ impl LaneKind {
     }
 }
 
+/// 日付計算が対応している唯一の暦法（省略時の既定値でもある）。
+///
+/// 日付の変換（`lower::days_from_civil` など）は暦法を引数に取らず、常にこの暦法で計算する。
+/// 別の暦法を受理するには計算側の対応が先に要る（#953）。
+pub const SUPPORTED_CALENDAR: &str = "proleptic_gregorian";
+
 pub fn supported_timeline_units() -> String {
     TimelineUnit::ALL
         .iter()

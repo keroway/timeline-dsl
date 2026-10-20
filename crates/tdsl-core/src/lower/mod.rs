@@ -314,3 +314,22 @@ pub(crate) fn slug(s: &str) -> String {
         .collect::<String>()
         .to_lowercase()
 }
+
+/// alias 省略時の lane ID を決める（lowering と lint の共通実装、#950）。
+///
+/// - slug が空（日本語ラベルのみ等）: `lane_N`（`auto` の連番）
+/// - slug が数字で始まる: `lane_<slug>`。DSL の `ident` は先頭が英字か `_` のため、
+///   そのままでは参照もできず decompile の出力もパースできない。
+/// - それ以外: slug
+pub(crate) fn auto_lane_id(label: &str, auto: &mut usize) -> String {
+    let s = slug(label);
+    if s.is_empty() {
+        let generated = format!("lane_{auto}");
+        *auto += 1;
+        generated
+    } else if s.starts_with(|c: char| c.is_ascii_digit()) {
+        format!("lane_{s}")
+    } else {
+        s
+    }
+}

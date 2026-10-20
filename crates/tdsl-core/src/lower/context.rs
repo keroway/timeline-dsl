@@ -7,7 +7,7 @@ use tdsl_wikidata::entity::WikidataEntity;
 use crate::error::LoweringError;
 use crate::ir::*;
 
-use super::{lane_suggestion_hint, make_source_span, slug};
+use super::{auto_lane_id, lane_suggestion_hint, make_source_span};
 
 pub(crate) struct LoweringContext {
     pub(crate) meta: Option<Meta>,
@@ -230,16 +230,10 @@ impl LoweringContext {
         stmt_span: &ast::Span,
         line_offsets: Option<&[usize]>,
     ) {
-        let id = l.alias.clone().unwrap_or_else(|| {
-            let s = slug(&l.label);
-            if s.is_empty() {
-                let auto = format!("lane_{}", self.lane_auto_id);
-                self.lane_auto_id += 1;
-                auto
-            } else {
-                s
-            }
-        });
+        let id = l
+            .alias
+            .clone()
+            .unwrap_or_else(|| auto_lane_id(&l.label, &mut self.lane_auto_id));
         if self.lanes_map.contains_key(&id) {
             self.push_error(LoweringError::DuplicateLane(id.clone()));
             return;
