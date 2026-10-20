@@ -332,7 +332,7 @@ lane "Han"       as han    { kind dynasty; order 20; }
 lane "Three Kingdoms" as sanguo { kind dynasty; order 30; }
 ```
 
-`kind` is a classification label; you can freely specify values like `dynasty`, `person`, `nation`, etc. If you do not provide an explicit `as` ID, an ASCII slug is auto-generated from the label (for labels with only non-ASCII characters, names like `lane_1`, `lane_2`, ... are assigned automatically).
+`kind` is a classification label; you can freely specify values like `dynasty`, `person`, `nation`, etc. If you do not provide an explicit `as` ID, an ASCII slug is auto-generated from the label (for labels with only non-ASCII characters, names like `lane_1`, `lane_2`, ... are assigned automatically; if the slug starts with a digit, `lane_` is prepended, e.g. `123` becomes `lane_123`).
 
 ### 5. How do I use Timeline DSL without Wikidata access?
 

@@ -83,7 +83,7 @@ crates/
 - `lanes`: id, label, kind, order
 - `items`: Span / Event / EventRange（tagged enum）
   - 各 item の共通フィールド: `id`, `lane`, `label`, `tags`, `source`, `origin`
-  - `source_span?: { line, col_start, col_end }` — ソーステキストを渡した場合のみ付与（1-based 行番号・列番号）。JSON では `None` のとき省略
+  - `source_span?: { line, col_start, col_end, end_line? }` — ソーステキストを渡した場合のみ付与（1-based 行番号・列番号）。`end_line` は複数行宣言のときだけ付き（省略時は `line` と同じ行）、`col_end` は `end_line` の行の列。JSON では `None` のとき省略
 - `imports`: インポート記録
 - `sources`: 出典・ライセンス情報
 
