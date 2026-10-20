@@ -141,7 +141,7 @@ timeline "中国王朝年表" {
 | `title` | 任意 | 年表の表示タイトル |
 | `unit` | 任意 | 時間単位（`year`, `month`, `day`, `hour`, `minute`, `second`）。未知の値は lowering エラー |
 | `range` | 任意 | 表示範囲。`開始..終了` の形式。負の値は紀元前 |
-| `calendar` | 任意 | 暦法。`proleptic_gregorian` 等 |
+| `calendar` | 任意 | 暦法。対応は `proleptic_gregorian`（省略時の既定値）のみ。それ以外の値は E119 で拒否される |
 | `color_map` | 任意 | タグ→色のマッピング。`タグ名: "#16進数カラーコード";` の形式で複数定義可能 |
 
 `unit hour` / `unit minute`（#556）は `YYYY-MM-DDTHH:MM` のような時分精度のタイムライン向け。Renderer は `timeline.range` の月日・時分精度に基づき、過密にならないよう 1h→3h→6h→12h、または 1min→5min→15min→30min のように目盛りを間引く。単日範囲では `HH:MM`、複数日範囲では `MM-DD HH:MM` 形式の軸ラベルを使う。

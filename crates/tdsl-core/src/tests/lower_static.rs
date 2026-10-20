@@ -1539,6 +1539,43 @@ lane "L" as l {{ kind custom; order 1; color "{value}"; }}
     }
 }
 
+/// #953: 日付計算は proleptic_gregorian 固定。`calendar` の未対応値・誤字は黙って無視せず拒否する。
+#[test]
+fn calendar_omitted_or_proleptic_gregorian_is_accepted() {
+    for decl in ["", "calendar proleptic_gregorian;"] {
+        let src = format!(
+            r#"timeline "T" {{ unit year; range 0..100; {decl} }}
+lane "A" as a {{ kind custom; }}"#
+        );
+        let ir = lower::lower_static(&tdsl_parser::parse(&src).unwrap())
+            .unwrap_or_else(|e| panic!("`{decl}` must lower: {e:?}"));
+        assert_eq!(ir.meta.calendar, "proleptic_gregorian");
+    }
+}
+
+#[test]
+fn calendar_julian_and_typo_are_rejected_with_e119() {
+    for (value, expected_fragment) in [
+        ("julian", "not implemented"),
+        ("typo", "unknown calendar"),
+        ("gregorian", "unknown calendar"),
+    ] {
+        let src = format!(
+            r#"timeline "T" {{ unit year; range 0..100; calendar {value}; }}
+lane "A" as a {{ kind custom; }}"#
+        );
+        let errors = lower::lower_static(&tdsl_parser::parse(&src).unwrap()).unwrap_err();
+        // 原因の 1 件だけが出る（meta 未生成による「No timeline block found」が重複しない）。
+        assert_eq!(errors.len(), 1, "{value}: {errors:?}");
+        assert_eq!(errors[0].code(), Some("E119"), "{value}");
+        let message = errors[0].error.to_string();
+        assert!(
+            message.contains(value) && message.contains(expected_fragment),
+            "{value}: unexpected message: {message}"
+        );
+    }
+}
+
 /// #950: alias 省略 lane のラベルが数字で始まると、自動生成 ID が `ident` 文法を満たさず
 /// 参照も decompile 出力の再パースもできなかった。数字始まりの slug は `lane_<slug>` にする。
 #[test]

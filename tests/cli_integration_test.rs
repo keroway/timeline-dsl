@@ -1587,6 +1587,70 @@ fn decompile_roundtrip_preserves_lane_group_and_render_output() {
     let _ = std::fs::remove_file(&roundtrip_svg_path);
 }
 
+/// #953: 未対応の `calendar`（`julian`・誤字）は黙って無視されず、`check` / `build` / `render`
+/// のいずれでも E119 として非ゼロ終了する。`proleptic_gregorian` と省略は従来どおり成功する。
+#[test]
+fn unsupported_calendar_is_rejected_by_check_build_and_render() {
+    let write_src = |name: &str, calendar_decl: &str| -> PathBuf {
+        let path = unique_temp(name);
+        let src = format!(
+            "timeline \"T\" {{ unit day; range 1900-02-01..1900-03-01; {calendar_decl} }}\n\
+             lane \"A\" as a {{ kind custom; }}\n\
+             event a 1900-02-28 \"E\" {{}};\n"
+        );
+        std::fs::write(&path, src).expect("failed to write temp .tdsl");
+        path
+    };
+    let run = |sub: &[&str], path: &Path| {
+        let mut cmd = tdsl_bin();
+        cmd.args(sub);
+        cmd.arg(path.to_str().expect("temp path must be UTF-8"));
+        if sub[0] != "check" {
+            cmd.arg("--offline");
+        }
+        if sub[0] == "render" {
+            cmd.args(["--format", "svg"]);
+        }
+        cmd.output().expect("failed to run tdsl")
+    };
+
+    for (calendar_decl, name) in [
+        ("calendar julian;", "cal_julian.tdsl"),
+        ("calendar typo;", "cal_typo.tdsl"),
+    ] {
+        let path = write_src(name, calendar_decl);
+        for sub in [&["check"][..], &["build"][..], &["render"][..]] {
+            let out = run(sub, &path);
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            assert!(
+                !out.status.success(),
+                "`{} {calendar_decl}` must fail, stderr: {stderr}",
+                sub[0]
+            );
+            assert!(
+                stderr.contains("Unsupported calendar"),
+                "`{} {calendar_decl}`: expected E119 message, got: {stderr}",
+                sub[0]
+            );
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    for (calendar_decl, name) in [
+        ("", "cal_none.tdsl"),
+        ("calendar proleptic_gregorian;", "cal_ok.tdsl"),
+    ] {
+        let path = write_src(name, calendar_decl);
+        let out = run(&["check"], &path);
+        assert!(
+            out.status.success(),
+            "`check {calendar_decl}` must succeed, stderr: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+}
+
 /// #961: `tdsl decompile` は IR を検証せず変換するが、`ident` 文法を満たさない lane ID は
 /// 出力が再パースできなくなるため、stdout/終了コードは変えずに stderr へ警告を出す。
 #[test]
