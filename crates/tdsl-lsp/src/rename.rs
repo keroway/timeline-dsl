@@ -577,4 +577,111 @@ mod tests {
         assert_eq!(ir.lanes[0].id, "a2");
         assert_eq!(ir.items.len(), 1);
     }
+
+    // ── コメントを含む DSL のリネーム（#946）──────────────────────────────
+
+    /// `marker` の直後の位置（UTF-16 列）を返す。
+    fn position_after(src: &str, marker: &str) -> Position {
+        let byte = src.find(marker).expect("marker") + marker.len();
+        let before = &src[..byte];
+        let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+        Position {
+            line: before.matches('\n').count() as u32,
+            character: before[line_start..].encode_utf16().count() as u32,
+        }
+    }
+
+    /// 編集後のソースを再パース・lowering し、IR を返す。
+    fn reparse_and_lower(src: &str) -> tdsl_core::ir::TimelineIr {
+        let file = tdsl_parser::parse(src)
+            .unwrap_or_else(|e| panic!("renamed source must still parse: {e}\n{src}"));
+        tdsl_core::lower::lower_static(&file)
+            .unwrap_or_else(|e| panic!("renamed source must still lower: {e:?}\n{src}"))
+    }
+
+    /// issue #946 の再現入力。コメント内の同名トークン `a` ではなく、実 alias と
+    /// キーワードとの間にコメントがある event 参照を更新する。
+    #[test]
+    fn rename_updates_real_alias_and_reference_not_comment_tokens() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..100; }\n",
+            "lane \"A\" /* as a */ as a { kind custom; }\n",
+            "event /* comment */ a 10 \"E\" {};\n",
+        );
+        // 実際の alias（コメント内の `as a` の後ろの `as a`）
+        let pos = Position {
+            line: 1,
+            character: 23,
+        };
+        let edit = compute_rename(src, pos, "a2", &test_uri()).expect("rename should succeed");
+        let edits = edit.changes.unwrap().remove(&test_uri()).unwrap();
+        let renamed = apply_text_edits(src, &edits);
+
+        assert_eq!(
+            renamed,
+            concat!(
+                "timeline \"T\" { unit year; range 0..100; }\n",
+                "lane \"A\" /* as a */ as a2 { kind custom; }\n",
+                "event /* comment */ a2 10 \"E\" {};\n",
+            )
+        );
+        assert_eq!(reparse_and_lower(&renamed).lanes[0].id, "a2");
+    }
+
+    /// 行コメント・ブロックコメント・改行が、宣言と span / event / event_range / map の
+    /// 参照のキーワードと識別子の間や周囲にあっても、実体だけが書き換わりコメントは保たれる。
+    #[test]
+    fn rename_with_comments_updates_all_real_references_and_keeps_comments() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..1000; }\n",
+            "lane \"A\" // as a\n",
+            "  as /* x */ a { kind custom; } // lane a\n",
+            "span // c1\n",
+            "  a /* a */ 1..5 \"S\" {};\n",
+            "event /* e */ a 10 \"E\" {}; /* event a */\n",
+            "event_range a /* a */ 20..30 \"R\" {};\n",
+            "import wikidata as wd { entity Q1 as e1; policy merge_by_source; }\n",
+            "map wd.e1 to span { // lane a\n",
+            "  /* lane a */ lane /* c */ a; start claim(P580).year; end claim(P582).year; label label@ja; }\n",
+        );
+        // 参照側（コメントの無い event_range 行）からリネームを要求する。
+        let pos = position_after(src, "event_range ");
+        let edit = compute_rename(src, pos, "a2", &test_uri()).expect("rename should succeed");
+        let edits = edit.changes.unwrap().remove(&test_uri()).unwrap();
+        let renamed = apply_text_edits(src, &edits);
+
+        // 宣言 1 + span / event / event_range 3 + map 1 = 5 か所だけが書き換わる。
+        assert_eq!(edits.len(), 5, "edits: {edits:?}");
+        assert_eq!(renamed.matches("a2").count(), 5, "{renamed}");
+        // コメント（同名トークンを含むもの）は 1 バイトも変わらない。
+        for comment in [
+            "// as a\n",
+            "/* x */",
+            "// lane a\n",
+            "// c1",
+            "/* a */ 1..5",
+            "/* e */",
+            "/* event a */",
+            "/* lane a */",
+            "/* c */",
+        ] {
+            assert!(
+                renamed.contains(comment),
+                "comment {comment:?} lost:\n{renamed}"
+            );
+        }
+
+        let ir = reparse_and_lower(&renamed);
+        assert_eq!(ir.lanes.len(), 1);
+        assert_eq!(ir.lanes[0].id, "a2");
+        assert_eq!(ir.items.len(), 3);
+        for item in &ir.items {
+            let lane = match item {
+                tdsl_core::ir::Item::Span { lane, .. }
+                | tdsl_core::ir::Item::Event { lane, .. }
+                | tdsl_core::ir::Item::EventRange { lane, .. } => lane,
+            };
+            assert_eq!(lane, "a2");
+        }
+    }
 }

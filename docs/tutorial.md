@@ -353,7 +353,7 @@ lane "漢" as han     { kind dynasty; order 20; }
 lane "三国" as sanguo { kind dynasty; order 30; }
 ```
 
-`kind` は分類ラベルで、`dynasty`（王朝）・`person`（人物）・`nation`（国）などを自由に指定できます。`as` で内部 ID を明示しない場合、ラベルから ASCII スラッグが自動生成されます（日本語ラベルのみの場合は `lane_1`、`lane_2`... のように自動採番されます）。
+`kind` は分類ラベルで、`dynasty`（王朝）・`person`（人物）・`nation`（国）などを自由に指定できます。`as` で内部 ID を明示しない場合、ラベルから ASCII スラッグが自動生成されます（日本語ラベルのみの場合は `lane_1`、`lane_2`... のように自動採番され、スラッグが数字で始まる場合は `123` → `lane_123` のように `lane_` が付きます）。
 
 ### 5. Wikidata API にアクセスできない環境での使い方は？
 
