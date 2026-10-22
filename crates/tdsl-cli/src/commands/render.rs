@@ -194,9 +194,10 @@ fn do_render(
         && ir.lanes.len() > tdsl_render::ZIGZAG_MAX_LANES
     {
         return Err(format!(
-            "--layout-style zigzag supports at most {} lane(s); this timeline has {}. Use --chart-pagination or choose a different layout style.",
+            "--layout-style zigzag supports at most {} lane(s); this timeline has {}. Reduce the timeline to at most {} lane(s) or choose a different layout style (--chart-pagination does not lift this limit).",
             tdsl_render::ZIGZAG_MAX_LANES,
-            ir.lanes.len()
+            ir.lanes.len(),
+            tdsl_render::ZIGZAG_MAX_LANES
         ));
     }
 
