@@ -22,8 +22,8 @@ vi.mock('../wasmLoader', () => ({
 const SOURCE = 'timeline "t"'
 const BASE: RenderOptions = {
   orientation: 'horizontal',
-  grid: true,
-  theme: 'light',
+  grid: 'none',
+  theme: 'default',
   showEventLabels: true,
   layoutStyle: 'timeline',
   showLegend: true,
