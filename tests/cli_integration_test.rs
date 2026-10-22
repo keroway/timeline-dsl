@@ -1400,6 +1400,51 @@ fn render_zigzag_with_too_many_lanes_fails() {
         !out_path.exists(),
         "failed rendering must not create output"
     );
+    assert!(
+        !stderr.contains("Use --chart-pagination"),
+        "error must not suggest an unusable workaround: {stderr}"
+    );
+}
+
+/// #978: --chart-pagination does not lift the zigzag lane limit (the check
+/// runs on the whole timeline), so the combination must still fail and the
+/// message must not recommend it.
+#[test]
+fn render_zigzag_with_chart_pagination_still_fails() {
+    let out_path = unique_temp("zigzag_pagination.svg");
+    let out = tdsl_bin()
+        .args([
+            "render",
+            repo_path("examples/sci_tech_timeline.tdsl")
+                .to_str()
+                .expect("example path must be UTF-8"),
+            "--offline",
+            "--layout-style",
+            "zigzag",
+            "--format",
+            "svg",
+            "--chart-pagination",
+            "1",
+            "--output",
+            out_path.to_str().expect("output path must be UTF-8"),
+        ])
+        .output()
+        .expect("failed to run tdsl render");
+
+    assert!(!out.status.success(), "zigzag with >2 lanes must fail");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("zigzag supports at most 2 lane(s)"),
+        "stderr must explain the lane limit: {stderr}"
+    );
+    assert!(
+        stderr.contains("does not lift this limit"),
+        "stderr must say pagination is not a workaround: {stderr}"
+    );
+    assert!(
+        !out_path.exists(),
+        "failed rendering must not create output"
+    );
 }
 
 // ---------------------------------------------------------------------------
