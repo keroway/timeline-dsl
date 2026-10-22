@@ -37,6 +37,9 @@ pub enum ParseError {
 
     #[error("Invalid UTC offset at {location}: {value} (expected Z or -14:00 through +14:00)")]
     InvalidOffset { value: String, location: String },
+
+    #[error("Duplicate property '{name}' at {location} (each property may be specified only once)")]
+    DuplicateProperty { name: String, location: String },
 }
 
 /// miette の fancy レポート（キャレット付きスニペット）を生成するための診断ラッパー。
@@ -108,6 +111,7 @@ impl ParseDiagnostic {
             | ParseError::InvalidDay { location, .. }
             | ParseError::InvalidSecond { location, .. }
             | ParseError::InvalidOffset { location, .. }
+            | ParseError::DuplicateProperty { location, .. }
             | ParseError::UnknownClaimAccessor { location, .. } => {
                 parse_byte_range_to_span(location, src)
             }
@@ -179,6 +183,7 @@ impl ParseError {
             | ParseError::InvalidDay { location, .. }
             | ParseError::InvalidSecond { location, .. }
             | ParseError::InvalidOffset { location, .. }
+            | ParseError::DuplicateProperty { location, .. }
             | ParseError::UnknownClaimAccessor { location, .. } => byte_range_to_loc(location, src),
             ParseError::UnknownPolicy(_) | ParseError::UnknownTargetType(_) => None,
         }

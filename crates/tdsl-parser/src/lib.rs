@@ -2323,4 +2323,60 @@ timeline "t" {
         assert_eq!(parse_claim_offset(".year+30").unwrap(), Some(30));
         assert_eq!(parse_claim_offset(".year").unwrap(), None);
     }
+
+    // ─── 重複プロパティ（#957） ───
+
+    fn assert_duplicate_property(src: &str, expected: &str) {
+        match parse(src) {
+            Err(error::ParseError::DuplicateProperty { name, .. }) => assert_eq!(name, expected),
+            other => panic!("{expected}: DuplicateProperty を期待したが {other:?}"),
+        }
+    }
+
+    #[test]
+    fn duplicate_timeline_range_rejected() {
+        assert_duplicate_property(
+            r#"timeline "T" { unit year; range 0..10; range 0..100; }"#,
+            "range",
+        );
+    }
+
+    #[test]
+    fn duplicate_lane_color_rejected_in_both_orders() {
+        assert_duplicate_property(
+            r#"lane "A" as a { kind custom; color "bad;color"; color "red"; }"#,
+            "color",
+        );
+        assert_duplicate_property(
+            r#"lane "A" as a { kind custom; color "red"; color "bad;color"; }"#,
+            "color",
+        );
+    }
+
+    #[test]
+    fn duplicate_item_link_and_id_rejected() {
+        assert_duplicate_property(
+            r#"event a 5 "E" { link "javascript:alert(1)"; link "https://example.com"; };"#,
+            "link",
+        );
+        assert_duplicate_property(r#"event a 5 "E" { id "first"; id "second"; };"#, "id");
+    }
+
+    #[test]
+    fn duplicate_property_location_points_at_the_second_occurrence() {
+        let src = r#"event a 5 "E" { id "first"; id "second"; };"#;
+        let err = parse(src).unwrap_err();
+        let loc = err.source_location(src).expect("location");
+        assert_eq!(loc.col as usize, src.rfind("id").unwrap() + 1);
+    }
+
+    #[test]
+    fn single_properties_still_accepted() {
+        assert!(parse(r#"timeline "T" { unit year; range 0..10; }"#).is_ok());
+        assert!(parse(r#"lane "A" as a { kind custom; color "red"; }"#).is_ok());
+        assert!(
+            parse(r#"event a 5 "E" { id "first"; link "https://example.com"; color "red"; };"#)
+                .is_ok()
+        );
+    }
 }
