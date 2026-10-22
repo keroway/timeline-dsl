@@ -115,6 +115,8 @@ export function useCompiler(
     renderOpts.theme,
     wasmReady,
     renderOpts.showEventLabels,
+    renderOpts.layoutStyle,
+    renderOpts.showLegend,
   ])
 
   useEffect(() => {
