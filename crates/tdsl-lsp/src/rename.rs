@@ -688,6 +688,31 @@ mod tests {
     /// 行コメント・ブロックコメント・改行が、宣言と span / event / event_range / map の
     /// 参照のキーワードと識別子の間や周囲にあっても、実体だけが書き換わりコメントは保たれる。
     #[test]
+    fn rename_updates_template_and_apply_lane_refs() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..2000; }\n",
+            "lane \"A\" as a { kind custom; }\n",
+            "event a 100 \"E\" {};\n",
+            "import wikidata as wd { entity Q1 as e; }\n",
+            "template \"T\" as t to span { lane a; start 0; end 1; label label@en; }\n",
+            "apply t to wd { lane a; }\n",
+        );
+        let pos = position_after(src, "event ");
+        let edit = compute_rename(src, pos, "a2", &test_uri()).expect("rename should succeed");
+        let edits = edit.changes.unwrap().remove(&test_uri()).unwrap();
+        let renamed = apply_text_edits(src, &edits);
+
+        // 宣言 + event + template + apply の 4 か所。
+        assert_eq!(edits.len(), 4, "edits: {edits:?}");
+        assert!(
+            renamed.contains("template \"T\" as t to span { lane a2;"),
+            "{renamed}"
+        );
+        assert!(renamed.contains("apply t to wd { lane a2; }"), "{renamed}");
+        assert!(!renamed.contains("lane a;"), "{renamed}");
+    }
+
+    #[test]
     fn rename_with_comments_updates_all_real_references_and_keeps_comments() {
         let src = concat!(
             "timeline \"T\" { unit year; range 0..1000; }\n",
