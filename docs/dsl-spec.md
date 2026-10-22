@@ -270,6 +270,8 @@ span / event / event_range に付与できるオプション。
 > `link` を持つ item の SVG グループは **`<a>` で包まない**。グループは既に `role="group"` と `tabindex="0"` を持つため、包むとフォーカス可能な要素が入れ子になり Tab が二重に止まる。PNG / PDF は `usvg` を通るためアンカーは描画結果に現れない。リンクを押せる形で提供するのはインタラクティブ HTML（`--interactive`）の役割で、SVG は `data-link` を載せるところまで（埋め込みページの JS からは読める）。
 | `color` | アイテム個別色。`color_map` や lane 色より優先 | `color "#3366cc";` |
 
+> **プロパティの重複指定はパースエラー**。`timeline`（`title` / `unit` / `range` / `calendar`）、`lane`（`kind` / `order` / `color`）、および上表の各オプションは 1 ブロックにつき 1 回だけ指定できる。2 回目以降は先行値を黙って上書きせず `Duplicate property '<name>'` として、2 回目の位置を示して拒否する。
+
 ### import
 
 外部データソースからの取り込みを宣言する。

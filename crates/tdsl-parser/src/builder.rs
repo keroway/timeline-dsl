@@ -109,21 +109,26 @@ fn build_timeline(pair: Pair<'_, Rule>) -> Result<TimelineBlock> {
         color_map: Vec::new(),
     };
 
+    let mut seen = Vec::new();
     for prop in inner {
         match prop.as_rule() {
             Rule::title_prop => {
+                reject_duplicate(&mut seen, "title", &prop)?;
                 block.title = Some(extract_string_literal(&prop.into_inner().next().unwrap()));
             }
             Rule::unit_prop => {
+                reject_duplicate(&mut seen, "unit", &prop)?;
                 block.unit = Some(prop.into_inner().next().unwrap().as_str().to_string());
             }
             Rule::range_prop => {
+                reject_duplicate(&mut seen, "range", &prop)?;
                 let mut nums = prop.into_inner();
                 let start = parse_time_value(nums.next().unwrap())?;
                 let end = parse_time_value(nums.next().unwrap())?;
                 block.range = Some(RangeExpr { start, end });
             }
             Rule::calendar_prop => {
+                reject_duplicate(&mut seen, "calendar", &prop)?;
                 block.calendar = Some(prop.into_inner().next().unwrap().as_str().to_string());
             }
             Rule::color_map_block => {
@@ -155,18 +160,22 @@ fn build_lane(pair: Pair<'_, Rule>) -> Result<LaneDecl> {
         color: None,
     };
 
+    let mut seen = Vec::new();
     for item in inner {
         match item.as_rule() {
             Rule::ident => {
                 decl.alias = Some(item.as_str().to_string());
             }
             Rule::kind_prop => {
+                reject_duplicate(&mut seen, "kind", &item)?;
                 decl.kind = Some(item.into_inner().next().unwrap().as_str().to_string());
             }
             Rule::order_prop => {
+                reject_duplicate(&mut seen, "order", &item)?;
                 decl.order = Some(parse_int(&item.into_inner().next().unwrap())?);
             }
             Rule::color_option => {
+                reject_duplicate(&mut seen, "color", &item)?;
                 decl.color = Some(extract_string_literal(&item.into_inner().next().unwrap()));
             }
             _ => {}
@@ -250,27 +259,35 @@ fn build_event_range(pair: Pair<'_, Rule>) -> Result<EventRangeDecl> {
 
 fn build_block_options(pair: Pair<'_, Rule>) -> Result<ItemProps> {
     let mut props = ItemProps::default();
+    let mut seen = Vec::new();
     for item in pair.into_inner() {
         match item.as_rule() {
             Rule::tags_option => {
+                reject_duplicate(&mut seen, "tags", &item)?;
                 props.tags = build_string_list(item.into_inner().next().unwrap());
             }
             Rule::source_option => {
+                reject_duplicate(&mut seen, "source", &item)?;
                 props.source = Some(build_source_ref(item.into_inner().next().unwrap()));
             }
             Rule::id_option => {
+                reject_duplicate(&mut seen, "id", &item)?;
                 props.id = Some(extract_string_literal(&item.into_inner().next().unwrap()));
             }
             Rule::origin_option => {
+                reject_duplicate(&mut seen, "origin", &item)?;
                 props.origin = Some(item.into_inner().next().unwrap().as_str().to_string());
             }
             Rule::note_option => {
+                reject_duplicate(&mut seen, "note", &item)?;
                 props.note = Some(extract_string_literal(&item.into_inner().next().unwrap()));
             }
             Rule::link_option => {
+                reject_duplicate(&mut seen, "link", &item)?;
                 props.link = Some(extract_string_literal(&item.into_inner().next().unwrap()));
             }
             Rule::color_option => {
+                reject_duplicate(&mut seen, "color", &item)?;
                 props.color = Some(extract_string_literal(&item.into_inner().next().unwrap()));
             }
             _ => {}
@@ -1047,6 +1064,22 @@ fn pair_span(pair: &Pair<'_, Rule>) -> Span {
         start: s.start(),
         end: s.end(),
     }
+}
+
+/// 単一値プロパティの再指定を拒否する（先行値を黙って上書きしない）。
+fn reject_duplicate(
+    seen: &mut Vec<&'static str>,
+    name: &'static str,
+    pair: &Pair<'_, Rule>,
+) -> Result<()> {
+    if seen.contains(&name) {
+        return Err(ParseError::DuplicateProperty {
+            name: name.to_string(),
+            location: pair_location_str(pair),
+        });
+    }
+    seen.push(name);
+    Ok(())
 }
 
 fn pair_location_str(pair: &Pair<'_, Rule>) -> String {
