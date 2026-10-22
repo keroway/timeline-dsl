@@ -224,6 +224,28 @@ pub(crate) fn find_keyword_token_range(
     None
 }
 
+/// `props` に `lane <word>` があれば、ブロック範囲内の該当トークンの Range を返す。
+/// 1つのブロックには Lane prop は最大1つ。
+fn lane_prop_range(
+    props: &[tdsl_parser::ast::MapProp],
+    source: &str,
+    block: (usize, usize),
+    word: &str,
+    line_offsets: &[usize],
+) -> Option<Range> {
+    let has_lane = props
+        .iter()
+        .any(|p| matches!(p, tdsl_parser::ast::MapProp::Lane(id) if id == word));
+    if !has_lane {
+        return None;
+    }
+    let (start, end) = find_lane_prop_in_map(source, block.0, block.1, word)?;
+    Some(Range {
+        start: byte_offset_to_position(start, source, line_offsets),
+        end: byte_offset_to_position(end, source, line_offsets),
+    })
+}
+
 // ---------------------------------------------------------------------------
 // 公開インタフェース
 // ---------------------------------------------------------------------------
@@ -278,6 +300,7 @@ pub fn compute_references(
 
     // AST の各 statement を走査して lane_ref への参照を収集
     for stmt in &file.statements {
+        let mut props: Option<&Vec<tdsl_parser::ast::MapProp>> = None;
         match &stmt.node {
             tdsl_parser::ast::Statement::Span(decl) if decl.lane_ref == word => {
                 if let Some((start, end)) = second_token_range(source, stmt.span.start) {
@@ -315,30 +338,31 @@ pub fn compute_references(
                     });
                 }
             }
+            // map / template の props、apply の overrides に含まれる MapProp::Lane（#981）
             tdsl_parser::ast::Statement::Map(block) => {
-                // MapProp::Lane を検索
-                for prop in &block.props {
-                    if let tdsl_parser::ast::MapProp::Lane(id) = prop
-                        && id == &word
-                    {
-                        if let Some((start, end)) =
-                            find_lane_prop_in_map(source, stmt.span.start, stmt.span.end, &word)
-                        {
-                            let range = Range {
-                                start: byte_offset_to_position(start, source, &line_offsets),
-                                end: byte_offset_to_position(end, source, &line_offsets),
-                            };
-                            locations.push(Location {
-                                uri: uri.clone(),
-                                range,
-                            });
-                        }
-                        // 1つの map ブロックには Lane prop は最大1つなのでここで break
-                        break;
-                    }
-                }
+                props = Some(&block.props);
+            }
+            tdsl_parser::ast::Statement::Template(block) => {
+                props = Some(&block.props);
+            }
+            tdsl_parser::ast::Statement::Apply(block) => {
+                props = Some(&block.overrides);
             }
             _ => {}
+        }
+        if let Some(props) = props
+            && let Some(range) = lane_prop_range(
+                props,
+                source,
+                (stmt.span.start, stmt.span.end),
+                &word,
+                &line_offsets,
+            )
+        {
+            locations.push(Location {
+                uri: uri.clone(),
+                range,
+            });
         }
     }
 
@@ -527,6 +551,35 @@ mod tests {
             .collect();
         // span の `a`（4 行目の `/* a */ ` の後ろ）と event の `a`（5 行目）だけ。
         assert_eq!(lines, vec![(3, 10, 11), (4, 14, 15)], "{locs:?}");
+    }
+
+    /// template の lane と apply の lane override も参照に含める（#981）。
+    #[test]
+    fn test_template_and_apply_lane_refs_included() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..2000; }\n",
+            "lane \"A\" as a { kind custom; }\n",
+            "event a 100 \"E\" {};\n",
+            "import wikidata as wd { entity Q1 as e; }\n",
+            "template \"T\" as t to span { lane a; start 0; end 1; label label@en; }\n",
+            "apply t to wd { lane a; }\n",
+        );
+        let pos = Position {
+            line: 2,
+            character: 6,
+        };
+        let locs = compute_references(src, pos, false, &test_uri()).expect("references");
+        let lines: Vec<(u32, u32, u32)> = locs
+            .iter()
+            .map(|l| {
+                (
+                    l.range.start.line,
+                    l.range.start.character,
+                    l.range.end.character,
+                )
+            })
+            .collect();
+        assert_eq!(lines, vec![(2, 6, 7), (4, 33, 34), (5, 21, 22)], "{locs:?}");
     }
 
     #[test]
