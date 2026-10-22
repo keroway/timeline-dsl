@@ -48,16 +48,23 @@ fn resolve_explicit_alias_lane<'a>(source: &str, word: &'a str) -> Option<&'a st
 
     // AST をスキャンして、word と一致する alias を持つ LaneDecl を探す。
     // alias: Some(id) が word と一致する場合のみ明示的エイリアスとみなす。
-    for stmt in &file.statements {
-        if let tdsl_parser::ast::Statement::Lane(decl) = &stmt.node
-            && let Some(alias) = &decl.alias
-            && alias == word
-        {
-            return Some(word);
-        }
-    }
+    // トップレベルの lane だけでなく `group` 内の lane も対象にする（#980）。
+    file.statements
+        .iter()
+        .any(|stmt| statement_declares_alias(&stmt.node, word))
+        .then_some(word)
+}
 
-    None
+/// statement が `as <alias>` で `alias` を明示宣言する lane を含むか（`group` 内を含む）。
+fn statement_declares_alias(stmt: &tdsl_parser::ast::Statement, alias: &str) -> bool {
+    match stmt {
+        tdsl_parser::ast::Statement::Lane(decl) => decl.alias.as_deref() == Some(alias),
+        tdsl_parser::ast::Statement::Group(group) => group
+            .lanes
+            .iter()
+            .any(|decl| decl.alias.as_deref() == Some(alias)),
+        _ => false,
+    }
 }
 
 /// `as <alias>` の識別子トークンの LSP Range を返す。
@@ -72,9 +79,8 @@ fn find_alias_decl_range(source: &str, alias: &str) -> Option<Range> {
     let line_offsets = build_line_offsets(source);
 
     for stmt in &file.statements {
-        if let tdsl_parser::ast::Statement::Lane(decl) = &stmt.node
-            && decl.alias.as_deref() == Some(alias)
-        {
+        // `group` 内の lane 宣言は group 文の範囲内から探す（#980）。
+        if statement_declares_alias(&stmt.node, alias) {
             let (start, end) =
                 find_keyword_token_range(source, stmt.span.start, stmt.span.end, "as", alias)?;
             return Some(Range {
@@ -514,6 +520,57 @@ mod tests {
             .expect("リネーム後も lowering 可能");
         assert!(ir.lanes.iter().any(|l| l.id == "han2"));
         assert_eq!(ir.lanes[0].order, 10, "order 属性が保持されている");
+    }
+
+    /// #980: `group` 内の明示 alias lane も prepareRename / rename の対象になる。
+    #[test]
+    fn rename_group_lane_with_explicit_alias() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..2000; }\n",
+            "group \"G as a\" { lane \"A\" as a { kind custom; } }\n",
+            "event a 100 \"E\" {};\n",
+        );
+        let pos = Position {
+            line: 2,
+            character: 6,
+        };
+        let range = compute_prepare_rename(src, pos).expect("group 内 alias も prepareRename 可能");
+        assert_eq!(range.start.line, 2);
+
+        let uri = test_uri();
+        let edit = compute_rename(src, pos, "a2", &uri).expect("rename should succeed");
+        let edits = edit.changes.unwrap().remove(&uri).unwrap();
+        assert_eq!(edits.len(), 2, "宣言 + event 参照: {edits:?}");
+        let renamed = apply_text_edits(src, &edits);
+
+        assert_eq!(
+            renamed,
+            concat!(
+                "timeline \"T\" { unit year; range 0..2000; }\n",
+                "group \"G as a\" { lane \"A\" as a2 { kind custom; } }\n",
+                "event a2 100 \"E\" {};\n",
+            ),
+            "group ラベル内の `as a` は書き換えず、実 alias だけを置換する"
+        );
+        let ir = reparse_and_lower(&renamed);
+        assert!(ir.lanes.iter().any(|l| l.id == "a2"));
+        assert!(!ir.lanes.iter().any(|l| l.id == "a"));
+    }
+
+    /// #980: `group` 内でも `as` 省略 lane の拒否は維持される。
+    #[test]
+    fn rename_group_lane_without_alias_is_still_rejected() {
+        let src = concat!(
+            "timeline \"T\" { unit year; range 0..2000; }\n",
+            "group \"G\" { lane \"emperor\" { kind custom; } }\n",
+            "event emperor 100 \"E\" {};\n",
+        );
+        let pos = Position {
+            line: 2,
+            character: 8,
+        };
+        assert!(compute_prepare_rename(src, pos).is_none());
+        assert!(compute_rename(src, pos, "emp2", &test_uri()).is_err());
     }
 
     /// is_valid_slug のユニットテスト
