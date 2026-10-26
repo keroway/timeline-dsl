@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Translator } from '../lib/i18n'
 import type { RenderOptions } from '../wasmLoader'
 import type { ConfirmOptions } from './useConfirm'
-import type { FileHandleApi } from './useFileHandle'
 import { useExport } from './useExport'
+import type { FileHandleApi } from './useFileHandle'
 
 const renderHtmlWithOptionsAsync = vi.fn()
 

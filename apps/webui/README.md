@@ -95,11 +95,11 @@ npm run format:check  # biome format .（CI 相当）
 
 `crates/tdsl-wasm` が提供する 3 関数:
 
-| 関数 | 説明 |
-|---|---|
-| `compile_to_ir(source)` | .tdsl を IR（JSON）にコンパイル |
+| 関数                             | 説明                                 |
+| -------------------------------- | ------------------------------------ |
+| `compile_to_ir(source)`          | .tdsl を IR（JSON）にコンパイル      |
 | `render_svg_from_source(source)` | SVG 文字列を生成（静的アイテムのみ） |
-| `check_source(source)` | 診断結果を JSON 配列で返す |
+| `check_source(source)`           | 診断結果を JSON 配列で返す           |
 
 ## シンタックスハイライトのキーワード管理
 
@@ -109,13 +109,13 @@ npm run format:check  # biome format .（CI 相当）
 VS Code 拡張の `editors/vscode/syntaxes/tdsl.tmLanguage.json` のキーワードパターンは、
 `npm run build` の `prebuild` フックで自動生成されます（手動同期不要）。
 
-| ファイル | 役割 |
-|---|---|
-| `src/lang-tdsl/keywords.json` | キーワード配列の単一真実源（`BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS`）|
-| `src/lang-tdsl/keywords.ts` | `keywords.json` を型付きで re-export するだけの生成物寄りファイル（手編集しない）|
-| `src/lang-tdsl/index.ts` | CodeMirror StreamLanguage 定義（`keywords.ts` をインポート）|
-| `editors/vscode/syntaxes/tdsl.tmLanguage.json` | VS Code TextMate grammar（ビルド時に自動更新）|
-| `editors/vscode/scripts/gen-grammar-keywords.mjs` | 生成スクリプト |
+| ファイル                                          | 役割                                                                               |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `src/lang-tdsl/keywords.json`                     | キーワード配列の単一真実源（`BLOCK_KEYWORDS` / `ITEM_KEYWORDS` / `MISC_KEYWORDS`） |
+| `src/lang-tdsl/keywords.ts`                       | `keywords.json` を型付きで re-export するだけの生成物寄りファイル（手編集しない）  |
+| `src/lang-tdsl/index.ts`                          | CodeMirror StreamLanguage 定義（`keywords.ts` をインポート）                       |
+| `editors/vscode/syntaxes/tdsl.tmLanguage.json`    | VS Code TextMate grammar（ビルド時に自動更新）                                     |
+| `editors/vscode/scripts/gen-grammar-keywords.mjs` | 生成スクリプト                                                                     |
 
 ### 文法ステートメントを追加するときの更新手順
 
