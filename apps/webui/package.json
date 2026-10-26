@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
-    "@keroway/tdsl-wasm": "^1.27.0",
+    "@keroway/tdsl-wasm": "^2.0.0",
     "@codemirror/language": "^6.12.4",
     "@codemirror/lint": "^6.9.7",
     "@codemirror/search": "^6.7.1",
