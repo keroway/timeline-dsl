@@ -5,18 +5,18 @@ import { createTranslator } from '../lib/i18n'
 import type { Locale } from '../lib/settings'
 import { useDocumentMeta } from './useDocumentMeta'
 
+function Harness({ locale }: { locale: Locale }) {
+  const t = createTranslator(locale)
+  useDocumentMeta(locale, t)
+  return null
+}
+
 // useDocumentMeta is a plain hook, but hooks must run inside a component.
 // We mount a tiny harness with react-dom/client and drive it via `act`,
 // matching the pattern already used by useConfirm.test.tsx (no testing-library dependency).
 describe('useDocumentMeta', () => {
   let container: HTMLDivElement
   let root: Root
-
-  function Harness({ locale }: { locale: Locale }) {
-    const t = createTranslator(locale)
-    useDocumentMeta(locale, t)
-    return null
-  }
 
   beforeEach(() => {
     container = document.createElement('div')
