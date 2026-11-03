@@ -7,8 +7,15 @@ import {
   readAutoSnapshots,
   readManualSnapshots,
   renameManualSnapshot,
+  type Snapshot,
   shouldAutoSnapshot,
 } from './history'
+
+function pushManual(source: string, label: string): Snapshot {
+  const snap = pushManualSnapshot(source, label, '手動保存')
+  if (!snap) throw new Error('pushManualSnapshot が null を返した')
+  return snap
+}
 
 beforeEach(() => {
   localStorage.clear()
@@ -67,7 +74,7 @@ describe('shouldAutoSnapshot', () => {
 
 describe('pushManualSnapshot', () => {
   it('スナップショットを保存して返す', () => {
-    const snap = pushManualSnapshot('src', 'ラベル', '手動保存')
+    const snap = pushManual('src', 'ラベル')
     expect(snap.source).toBe('src')
     expect(snap.label).toBe('ラベル')
     expect(snap.kind).toBe('manual')
@@ -75,14 +82,25 @@ describe('pushManualSnapshot', () => {
   })
 
   it('空ラベルはデフォルトラベルになる', () => {
-    const snap = pushManualSnapshot('src', '', '手動保存')
+    const snap = pushManual('src', '')
     expect(snap.label).toContain('手動保存')
+  })
+
+  it('setItem が QuotaExceededError なら null を返し既存履歴を保つ', () => {
+    pushManual('keep', 'keep')
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError')
+    })
+    expect(pushManualSnapshot('src', 'x', '手動保存')).toBeNull()
+    vi.restoreAllMocks()
+    expect(readManualSnapshots()).toHaveLength(1)
+    expect(readManualSnapshots()[0].source).toBe('keep')
   })
 })
 
 describe('renameManualSnapshot', () => {
   it('指定 ID のラベルを変更できる', () => {
-    const snap = pushManualSnapshot('src', 'old', '手動保存')
+    const snap = pushManual('src', 'old')
     renameManualSnapshot(snap.id, 'new')
     const snaps = readManualSnapshots()
     expect(snaps[0].label).toBe('new')
@@ -91,8 +109,8 @@ describe('renameManualSnapshot', () => {
 
 describe('deleteManualSnapshot', () => {
   it('指定 ID のスナップショットを削除できる', () => {
-    const s1 = pushManualSnapshot('src1', 'a', '手動保存')
-    const s2 = pushManualSnapshot('src2', 'b', '手動保存')
+    const s1 = pushManual('src1', 'a')
+    const s2 = pushManual('src2', 'b')
     deleteManualSnapshot(s1.id)
     const snaps = readManualSnapshots()
     expect(snaps).toHaveLength(1)
@@ -103,7 +121,7 @@ describe('deleteManualSnapshot', () => {
 describe('clearAllHistory', () => {
   it('auto / manual 両方をクリアする', () => {
     pushAutoSnapshot('src', 'load')
-    pushManualSnapshot('src', 'a', '手動保存')
+    pushManual('src', 'a')
     clearAllHistory()
     expect(readAutoSnapshots()).toHaveLength(0)
     expect(readManualSnapshots()).toHaveLength(0)

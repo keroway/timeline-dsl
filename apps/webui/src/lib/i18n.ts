@@ -178,6 +178,7 @@ export type Dictionary = {
   historyManualSnapshotPrefix: string
   historyManualSnapshotLabel: string // {datetime}
   historySavedToHistory: string // {label}
+  historySaveFailed: string
   historyClearedAll: string
   historyEmpty: string
   historyClearAll: string
@@ -454,6 +455,8 @@ const ja: Dictionary = {
   historyManualSnapshotPrefix: '手動保存',
   historyManualSnapshotLabel: '手動保存 — {datetime}',
   historySavedToHistory: '履歴に保存しました: {label}',
+  historySaveFailed:
+    '履歴に保存できませんでした（ブラウザの保存容量を超えた可能性があります）',
   historyClearedAll: '履歴を全件削除しました',
   historyEmpty: '履歴はありません',
   historyClearAll: '全件削除',
@@ -733,6 +736,7 @@ const en: Dictionary = {
   historyManualSnapshotPrefix: 'Manual save',
   historyManualSnapshotLabel: 'Manual save — {datetime}',
   historySavedToHistory: 'Saved to history: {label}',
+  historySaveFailed: 'Could not save to history (browser storage may be full)',
   historyClearedAll: 'Cleared all history',
   historyEmpty: 'No history',
   historyClearAll: 'Clear all',

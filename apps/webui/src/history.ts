@@ -23,11 +23,13 @@ function readSnapshots(key: string): Snapshot[] {
   }
 }
 
-function writeSnapshots(key: string, snaps: Snapshot[]): void {
+// 保存に成功したかを返す（quota 超過・プライベートブラウジングでは false）
+function writeSnapshots(key: string, snaps: Snapshot[]): boolean {
   try {
     localStorage.setItem(key, JSON.stringify(snaps))
+    return true
   } catch {
-    // quota or private browsing
+    return false
   }
 }
 
@@ -76,7 +78,7 @@ export function pushManualSnapshot(
   source: string,
   label: string,
   fallbackPrefix: string
-): Snapshot {
+): Snapshot | null {
   const snaps = readSnapshots(HISTORY_MANUAL_KEY)
   const snap: Snapshot = {
     id: makeId(),
@@ -85,8 +87,8 @@ export function pushManualSnapshot(
     label: label || `${fallbackPrefix} — ${formatDate(Date.now())}`,
     createdAt: Date.now(),
   }
-  writeSnapshots(HISTORY_MANUAL_KEY, [snap, ...snaps])
-  return snap
+  // 保存に失敗したら null を返し、呼び出し側が成功通知を出さないようにする
+  return writeSnapshots(HISTORY_MANUAL_KEY, [snap, ...snaps]) ? snap : null
 }
 
 export function renameManualSnapshot(id: string, label: string): void {
