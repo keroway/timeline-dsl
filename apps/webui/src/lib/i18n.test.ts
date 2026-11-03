@@ -155,6 +155,7 @@ describe('i18n key parity', () => {
       'historyManualSnapshotPrefix',
       'historyManualSnapshotLabel',
       'historySavedToHistory',
+      'historySaveFailed',
       'historyClearedAll',
       'historyEmpty',
       'historyClearAll',

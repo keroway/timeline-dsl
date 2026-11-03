@@ -98,6 +98,10 @@ export function useHistorySnapshots(params: Params): HistoryApi {
       t.fmt('historyManualSnapshotLabel', { datetime }),
       t('historyManualSnapshotPrefix')
     )
+    if (!snap) {
+      showToast(t('historySaveFailed'), 'error')
+      return
+    }
     setManualSnaps(readManualSnapshots())
     showToast(t.fmt('historySavedToHistory', { label: snap.label }), 'success')
   }
