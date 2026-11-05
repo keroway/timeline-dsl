@@ -35,6 +35,7 @@ import { useSourcePersistence } from './hooks/useSourcePersistence'
 import { useSplitPane } from './hooks/useSplitPane'
 import { useSvgInteractions } from './hooks/useSvgInteractions'
 import { useWasm } from './hooks/useWasm'
+import { applyIfUnchanged } from './lib/applyIfUnchanged'
 import { createTranslator } from './lib/i18n'
 import { readInitialSource } from './lib/initialSource'
 import { type Diagnostic, getWorkerClient } from './wasmLoader'
@@ -160,9 +161,17 @@ function App() {
     }
     const hadComment =
       currentSource.includes('//') || currentSource.includes('/*')
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: formatted },
-    })
+    if (
+      !applyIfUnchanged(
+        view,
+        () => editorViewRef.current,
+        currentSource,
+        formatted
+      )
+    ) {
+      showToast(t('appStaleResultDiscarded'), 'info')
+      return
+    }
     if (hadComment) {
       showToast(t('appFormattedCommentWarning'), 'info')
     } else {
@@ -205,9 +214,12 @@ function App() {
       tone: 'warn',
     })
     if (!proceed) return
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: fixed },
-    })
+    if (
+      !applyIfUnchanged(view, () => editorViewRef.current, currentSource, fixed)
+    ) {
+      showToast(t('appStaleResultDiscarded'), 'info')
+      return
+    }
     showToast(t('appLintFixed'), 'success')
   }
 
