@@ -145,3 +145,42 @@ describe('localStorage 障害耐性', () => {
     vi.restoreAllMocks()
   })
 })
+
+describe('不正な保存データ', () => {
+  const KEY = 'tdsl:editor:history'
+
+  it.each([
+    ['null', 'null'],
+    ['オブジェクト', '{}'],
+    ['null 要素のみ', '[null]'],
+    [
+      'フィールド不正',
+      '[{"id":1,"kind":"auto","source":"s","label":"l","createdAt":1}]',
+    ],
+  ])('%s は空配列として扱い TypeError にならない', (_name, raw) => {
+    localStorage.setItem(KEY, raw)
+    expect(readAutoSnapshots()).toEqual([])
+    expect(() => pushAutoSnapshot('s', 'r')).not.toThrow()
+    localStorage.setItem(KEY, raw)
+    expect(() => shouldAutoSnapshot('s', 0)).not.toThrow()
+  })
+
+  it('不正データは上書き前に退避キーへ残る', () => {
+    localStorage.setItem(KEY, '{}')
+    pushAutoSnapshot('s', 'r')
+    expect(localStorage.getItem(`${KEY}:corrupt`)).toBe('{}')
+    expect(readAutoSnapshots()).toHaveLength(1)
+  })
+
+  it('正常要素は残し、不正要素だけ除外する', () => {
+    const good = {
+      id: 'a',
+      kind: 'auto',
+      source: 's',
+      label: 'l',
+      createdAt: 1,
+    }
+    localStorage.setItem(KEY, JSON.stringify([good, null]))
+    expect(readAutoSnapshots()).toEqual([good])
+  })
+})

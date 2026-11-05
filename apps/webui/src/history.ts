@@ -13,11 +13,42 @@ const HISTORY_MANUAL_KEY = 'tdsl:editor:history:manual'
 const AUTO_MAX = 5
 const AUTO_INTERVAL_MS = 5 * 60 * 1000
 
+function isSnapshot(v: unknown): v is Snapshot {
+  if (typeof v !== 'object' || v === null) return false
+  const o = v as Record<string, unknown>
+  return (
+    typeof o.id === 'string' &&
+    (o.kind === 'auto' || o.kind === 'manual') &&
+    typeof o.source === 'string' &&
+    typeof o.label === 'string' &&
+    typeof o.createdAt === 'number'
+  )
+}
+
+// 不正なデータを見つけたら、上書きされる前に退避キーへ原文を残す（既にあれば保持）
+function backupCorrupt(key: string, raw: string): void {
+  try {
+    const backupKey = `${key}:corrupt`
+    if (localStorage.getItem(backupKey) === null) {
+      localStorage.setItem(backupKey, raw)
+    }
+  } catch {
+    // ignore
+  }
+}
+
 function readSnapshots(key: string): Snapshot[] {
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return []
-    return JSON.parse(raw) as Snapshot[]
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      backupCorrupt(key, raw)
+      return []
+    }
+    const valid = parsed.filter(isSnapshot)
+    if (valid.length !== parsed.length) backupCorrupt(key, raw)
+    return valid
   } catch {
     return []
   }
