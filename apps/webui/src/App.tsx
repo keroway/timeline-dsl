@@ -37,6 +37,7 @@ import { useSvgInteractions } from './hooks/useSvgInteractions'
 import { useWasm } from './hooks/useWasm'
 import { createTranslator } from './lib/i18n'
 import { readInitialSource } from './lib/initialSource'
+import { createLatestRequestGuard } from './lib/latestRequest'
 import { type Diagnostic, getWorkerClient } from './wasmLoader'
 import './App.css'
 
@@ -49,6 +50,8 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   // Tracks programmatic source loads (template/file/restore) that should not be auto-saved
   const skipAutoSaveRef = useRef(false)
+  // ファイル入力の読み込み要求の世代（古い読み込み結果で文書を上書きしない）
+  const fileReadGuardRef = useRef(createLatestRequestGuard())
 
   // UI toggles owned by the shell
   const [mobileTab, setMobileTab] = useState<MobileTab>('editor')
@@ -135,6 +138,7 @@ function App() {
   }
 
   function handleGallerySelect(newSource: string) {
+    fileReadGuardRef.current.invalidate()
     history.snapshotBeforeLoad(t('historySnapshotBeforeTemplate'))
     skipAutoSaveRef.current = true
     setSource(newSource)
@@ -220,6 +224,7 @@ function App() {
     try {
       const result = await fileHandle.openWithPicker()
       if (result.status !== 'opened') return
+      fileReadGuardRef.current.invalidate()
       history.snapshotBeforeLoad(t('historySnapshotBeforeFileOpen'))
       skipAutoSaveRef.current = true
       setSource(result.text)
@@ -232,8 +237,10 @@ function App() {
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    const requestId = fileReadGuardRef.current.begin()
     const reader = new FileReader()
     reader.onload = (ev) => {
+      if (!fileReadGuardRef.current.isCurrent(requestId)) return
       const text = ev.target?.result as string
       history.snapshotBeforeLoad(t('historySnapshotBeforeFileOpen'))
       fileHandle.markLegacyFileOpened(file.name)
@@ -435,7 +442,10 @@ function App() {
           renamingId={history.renamingId}
           renameValue={history.renameValue}
           setRenameValue={history.setRenameValue}
-          onRestore={history.handleRestoreSnapshot}
+          onRestore={(src) => {
+            fileReadGuardRef.current.invalidate()
+            history.handleRestoreSnapshot(src)
+          }}
           onRenameStart={history.handleRenameStart}
           onRenameCommit={history.handleRenameCommit}
           onRenameCancel={history.cancelRename}
