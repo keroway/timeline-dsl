@@ -8,6 +8,7 @@ import {
 } from 'react'
 import type { ToastVariant } from '../components/Toast'
 import {
+  autoSnapshotWaitMs,
   clearAllHistory,
   deleteManualSnapshot,
   pushAutoSnapshot,
@@ -73,13 +74,21 @@ export function useHistorySnapshots(params: Params): HistoryApi {
   // Auto-snapshot on timed interval (5 min + diff present)
   useEffect(() => {
     if (!historyEnabled) return
-    const timer = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout>
+    // 5分未満で見送った場合は、残り時間後に最新ソースで再判定する
+    const attempt = () => {
+      const wait = autoSnapshotWaitMs(lastAutoSnapRef.current)
+      if (wait > 0) {
+        timer = setTimeout(attempt, wait)
+        return
+      }
       if (shouldAutoSnapshot(source, lastAutoSnapRef.current)) {
         pushAutoSnapshot(source, t('historyAutoSnapshotLabel'))
         lastAutoSnapRef.current = Date.now()
         setAutoSnaps(readAutoSnapshots())
       }
-    }, DEBOUNCE_MS)
+    }
+    timer = setTimeout(attempt, DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [source, historyEnabled, t])
 

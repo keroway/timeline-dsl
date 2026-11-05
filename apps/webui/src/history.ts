@@ -95,6 +95,11 @@ export function pushAutoSnapshot(source: string, reason: string): void {
   writeSnapshots(HISTORY_AUTO_KEY, updated)
 }
 
+// 前回の自動保存から AUTO_INTERVAL_MS が経つまでの残り時間（経過済みなら 0）
+export function autoSnapshotWaitMs(lastAutoMs: number): number {
+  return Math.max(0, AUTO_INTERVAL_MS - (Date.now() - lastAutoMs))
+}
+
 export function shouldAutoSnapshot(
   source: string,
   lastAutoMs: number
