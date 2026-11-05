@@ -22,6 +22,7 @@ export type Dictionary = {
   appLintFixCommentConfirm: string
   appLintFixConfirm: string
   appLintFixed: string
+  appStaleResultDiscarded: string
   appLintFixedCommentWarning: string
   fileAccessUnsupported: string
   fileAccessDownloadFallback: string
@@ -291,6 +292,8 @@ const ja: Dictionary = {
   appLintFixConfirm:
     'lint --fix を適用します。フォーマットも再整形されます。続行しますか？',
   appLintFixed: 'lint --fix を適用しました',
+  appStaleResultDiscarded:
+    '処理中に文書が変更されたため、結果を適用しませんでした',
   appLintFixedCommentWarning:
     'lint --fix を適用しました（コメントは保持されません）',
   fileAccessUnsupported:
@@ -573,6 +576,8 @@ const en: Dictionary = {
   appLintFixConfirm:
     'Apply lint --fix? Formatting will also be re-applied. Continue?',
   appLintFixed: 'Lint --fix applied',
+  appStaleResultDiscarded:
+    'The document changed while processing, so the result was not applied',
   appLintFixedCommentWarning: 'Lint --fix applied (comments are not preserved)',
   fileAccessUnsupported:
     'This browser does not support direct open/overwrite save. Falling back to file input and downloads.',
