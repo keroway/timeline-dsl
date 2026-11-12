@@ -45,6 +45,9 @@
   "overrides": {
     "brace-expansion@2.x": "2.1.7",
     "brace-expansion@5.x": "5.0.12",
-    "nanoid": "3.3.20"
+    "nanoid": "3.3.20",
+    "workbox-build": {
+      "glob": "14.0.5"
+    }
   }
 }

@@ -1,0 +1,19 @@
+# osv-scanner の既知脆弱性 ignore 設定（apps/webui/package-lock.json 用）。
+#
+# osv-scanner は lockfile と同じディレクトリの osv-scanner.toml だけを読むため、ルートの
+# `osv-scanner.toml` はこの lockfile には効かない。運用ルール（`ignoreUntil` の扱い、
+# silent renewal の禁止）はルートのファイル冒頭のコメントに従う。
+#
+# ここに列挙するのは、修正版が未リリースで、かつビルド時にしか動かない dev 依存のみ。
+# 修正版があるものは `package.json` の `overrides` で上げる。
+
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+ignoreUntil = 2027-02-08
+reason = """
+  npm の deepmerge 4.3.1 が該当（mergeObject() の prototype poisoning）。修正版は
+  未リリース（最新が 4.3.1）。apps/webui の dev 依存の推移的依存
+  （vite-plugin-pwa → workbox-build → @rollup/plugin-node-resolve、`npm ls deepmerge` で確認）で、
+  ビルド時にプラグイン設定をマージする用途でのみ動き、外部入力は渡らない。配布物には
+  含まれない。修正版が出たら overrides で上げてこの ignore を外す。追跡は issue #1012
+"""
