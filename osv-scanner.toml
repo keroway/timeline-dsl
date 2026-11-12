@@ -7,13 +7,16 @@
 # 修正版が存在するため `apps/webui/package.json` の `overrides` フィールドで解消済み、
 # ここには含めない（issue #731）。
 #
+# osv-scanner は lockfile と同じディレクトリの osv-scanner.toml だけを読むため、このファイルが
+# 効くのはルートの Cargo.lock のみ。npm 側の ignore は `apps/webui/osv-scanner.toml` に置く。
+#
 # `ignoreUntil` は「その日までに移行状況を再確認する」期限であり、脆弱性自体の有効期限
 # ではない。期限到来時に移行が未着手なら、このファイルの日付を更新した上で理由に
 # 追跡issueへのリンクを追加すること（silent renewal にしない）。
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0206"
-ignoreUntil = 2026-11-08
+ignoreUntil = 2027-02-08
 reason = """
   crates.io の rustybuzz 0.20.1 が該当。CVE ではなく RustSec の
   informational: unmaintained 判定（メンテナが今後の修正提供を明言して停止、
@@ -21,11 +24,13 @@ reason = """
   （usvg → resvg → svg2pdf → tdsl-render、`cargo tree -i rustybuzz` で確認）で、
   直接置き換えるには usvg/resvg の major upgrade が必要なため本PRのスコープ外。
   移行候補は harfrust（Harfbuzz プロジェクト後継）。issue #731
+  2026-11-12 再確認: svg2pdf の最新は 0.13.0 のままで usvg 0.45 系に固定されており
+  移行は未着手（上流待ち）。追跡は issue #1012
 """
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0192"
-ignoreUntil = 2026-11-08
+ignoreUntil = 2027-02-08
 reason = """
   crates.io の ttf-parser 0.25.1 が該当。CVE ではなく RustSec の
   informational: unmaintained 判定（作者が今後の修正提供を明言して停止、
@@ -33,4 +38,6 @@ reason = """
   （fontdb/usvg/rustybuzz → svg2pdf → tdsl-render、`cargo tree -i ttf-parser` で確認）で、
   直接置き換えるには fontdb/usvg の major upgrade が必要なため本PRのスコープ外。
   移行候補は skrifa（Google Fonts oxidize/fontations プロジェクト）。issue #731
+  2026-11-12 再確認: svg2pdf の最新は 0.13.0 のままで usvg 0.45 系に固定されており
+  移行は未着手（上流待ち）。追跡は issue #1012
 """
