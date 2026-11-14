@@ -11,7 +11,8 @@ import initWasm, {
   render_svg_from_source,
   render_svg_from_source_with_options,
 } from '@keroway/tdsl-wasm'
-import type { Diagnostic, LintIssue, RenderOptions } from '../wasmLoader'
+import type { RenderOptions } from '../wasmLoader'
+import { parseDiagnostics, parseLintIssues } from './parseResults'
 import type {
   WorkerMessage,
   WorkerRequest,
@@ -32,22 +33,6 @@ function toJsRenderOptions(opts: RenderOptions = {}): JsRenderOptions {
   if (opts.layoutStyle !== undefined) jsOpts.layout_style = opts.layoutStyle
   if (opts.showLegend !== undefined) jsOpts.show_legend = opts.showLegend
   return jsOpts
-}
-
-function parseDiagnostics(result: string): Diagnostic[] {
-  try {
-    return JSON.parse(result) as Diagnostic[]
-  } catch {
-    return []
-  }
-}
-
-function parseLintIssues(result: string): LintIssue[] {
-  try {
-    return JSON.parse(result) as LintIssue[]
-  } catch {
-    return []
-  }
 }
 
 function dispatchRequest(
