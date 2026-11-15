@@ -515,7 +515,7 @@ npmjs.com 側の初回設定（パッケージごとに 1 回）：
 
 > **初回 publish（新規パッケージのブートストラップ）**: npm では Trusted Publisher を UI で設定する前提としてパッケージが既に存在している必要があります。最初の 1 バージョンだけはローカルから publish してください — `wasm-pack build --target web --release --scope keroway` の後、`cd crates/tdsl-wasm/pkg && npm publish --access public`。その後 Trusted Publisher を登録すれば、以降は CI に任せられます。
 
-手動再 publish が必要な場合（CI 失敗時など）は **Actions → Release → Run workflow** からバージョン番号を入力して実行します。
+手動再 publish が必要な場合（CI 失敗時など）は **Actions → Release → Run workflow** の既定ブランチから既存タグ（`vX.Y.Z`）を指定します。タグSHA・各パッケージ版を検証し、未公開分だけを再開します。詳細は[状態確認と再試行手順](docs/release.md)を参照してください。
 
 ## Rust ライブラリ（crates.io）
 

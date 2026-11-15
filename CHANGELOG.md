@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Release retries now require an existing verified tag. npm/crates.io failures remain failed jobs, GitHub archives publish independently, and a managed Release status table reconciles distribution provenance and pending Homebrew PRs.
+
 - SVG/PNG/HTML/PDF and image copying require a successful preview matching the latest source, scale and rendering options. Pending exports are cancelled when inputs change; the last successful preview remains visible with an updating/error label.
 
 - Shared URLs load in a cancellable dedicated worker, limited to 256 Ki encoded characters, 1 MiB UTF-8 output and five seconds. Invalid links require explicit recovery without overwriting saved content. Oversized sources can still be exchanged as `.tdsl` files.
