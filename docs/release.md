@@ -172,6 +172,7 @@ gh workflow run release-status.yml --ref main -f tag=vX.Y.Z
 公開済みの npm は tarball の integrity と `release-source.json`、crates.io は checksum と
 `.cargo_vcs_info.json`、Marketplace は VSIX 内の版・`release-source.json` を検証してスキップします。
 GitHub 成果物は隣接する `.provenance.json` のタグ版・SHA・SHA256と実際の asset digest を照合します。
+Marketplace等のHTTP gzip応答は展開してから配布物を検証し、転送時・展開後とも128 MiBを上限にします。不正な圧縮や未対応のContent-Encodingは確認不能として停止します。
 既存の成果物を `--clobber` で上書きしません。Homebrew は既存PR・同内容のbranchを再利用し、
 force-pushをしません。異なる内容のbranchは停止してレビュー対象にします。
 

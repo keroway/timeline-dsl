@@ -1,6 +1,7 @@
 """Offline fixtures only: no registry publication or external API calls."""
 import base64
 import hashlib
+import gzip
 import importlib.util
 import io
 import json
@@ -42,6 +43,28 @@ def assets_fixture():
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_download_decodes_gzip_transport_before_marketplace_verification(self):
+        payload = b'PK verified VSIX bytes'
+        for encoding, data in [('identity', payload), ('gzip', gzip.compress(payload))]:
+            response = io.BytesIO(data)
+            response.headers = {'Content-Encoding': encoding}
+            with patch.object(r.urllib.request, 'urlopen', return_value=response):
+                self.assertEqual(r.download('https://example.test/vsix'), payload)
+
+    def test_download_rejects_corrupt_or_unsupported_encoding(self):
+        for encoding, data in [('gzip', b'broken'), ('gzip', gzip.compress(b'abc')[:-6]), ('br', b'bytes')]:
+            response = io.BytesIO(data)
+            response.headers = {'Content-Encoding': encoding}
+            with patch.object(r.urllib.request, 'urlopen', return_value=response):
+                with self.assertRaises(r.Unconfirmed): r.download('https://example.test/vsix')
+
+    def test_download_bounds_transport_and_decoded_bytes(self):
+        for encoding, data in [('identity', b'x' * 65), ('gzip', gzip.compress(b'x' * 65))]:
+            response = io.BytesIO(data)
+            response.headers = {'Content-Encoding': encoding}
+            with patch.object(r, 'MAX_DOWNLOAD_BYTES', 64), patch.object(r.urllib.request, 'urlopen', return_value=response):
+                with self.assertRaises(r.Unconfirmed): r.download('https://example.test/vsix')
+
     def test_tag_validation(self):
         for tag in ['main', 'v1.2', 'v01.2.3', 'v1.2.3;echo bad', '../tag', '1.2.3']:
             with self.assertRaises(ValueError): r.validate_tag(tag)
