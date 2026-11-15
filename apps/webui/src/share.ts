@@ -1,5 +1,12 @@
 import * as pako from 'pako'
 
+import {
+  checkEncodedSize,
+  checkSourceSize,
+  ShareError,
+  SHARE_TIMEOUT_MS,
+} from './shareLimits'
+
 const HASH_KEY = 'src'
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -8,34 +15,60 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(bin)
 }
 
-function base64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64)
-  const out = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
-  return out
-}
-
 function base64ToUrl(b64: string): string {
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-function urlToBase64(b64url: string): string {
-  let s = b64url.replace(/-/g, '+').replace(/_/g, '/')
-  const pad = s.length % 4
-  if (pad === 2) s += '=='
-  else if (pad === 3) s += '='
-  else if (pad !== 0) throw new Error('invalid base64url length')
-  return s
-}
-
 export function encodeSource(source: string): string {
+  const started = performance.now()
+  checkSourceSize(source)
   const deflated = pako.deflate(source)
-  return base64ToUrl(bytesToBase64(deflated))
+  const encoded = base64ToUrl(bytesToBase64(deflated))
+  checkEncodedSize(encoded)
+  if (performance.now() - started > SHARE_TIMEOUT_MS)
+    throw new ShareError('timeout')
+  return encoded
 }
 
-export function decodeSource(encoded: string): string {
-  const bytes = base64ToBytes(urlToBase64(encoded))
-  return pako.inflate(bytes, { toText: true })
+// One worker per request: termination cancels CPU work as well as result delivery.
+export function decodeSource(
+  encoded: string,
+  signal?: AbortSignal
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    checkEncodedSize(encoded)
+    if (signal?.aborted) throw new ShareError('cancelled')
+    const worker = new Worker(
+      new URL('./worker/share.worker.ts', import.meta.url),
+      { type: 'module' }
+    )
+    let settled = false
+    const finish = (value?: string, error?: ShareError) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', abort)
+      worker.terminate()
+      if (error) reject(error)
+      else resolve(value ?? '')
+    }
+    const abort = () => finish(undefined, new ShareError('cancelled'))
+    const timer = setTimeout(
+      () => finish(undefined, new ShareError('timeout')),
+      SHARE_TIMEOUT_MS
+    )
+    signal?.addEventListener('abort', abort, { once: true })
+    worker.onmessage = ({ data }) => {
+      if (data.error) finish(undefined, new ShareError(data.error))
+      else finish(data.source)
+    }
+    worker.onerror = () => finish(undefined, new ShareError('invalid'))
+    try {
+      worker.postMessage(encoded)
+    } catch {
+      finish(undefined, new ShareError('invalid'))
+    }
+  })
 }
 
 export function buildShareUrl(
@@ -45,13 +78,15 @@ export function buildShareUrl(
   return `${origin}#${HASH_KEY}=${encodeSource(source)}`
 }
 
-export function readSourceFromHash(): string | null {
+export async function readSourceFromHash(
+  signal?: AbortSignal
+): Promise<string | null> {
   const hash = location.hash.startsWith('#')
     ? location.hash.slice(1)
     : location.hash
   if (!hash) return null
   const params = new URLSearchParams(hash)
   const encoded = params.get(HASH_KEY)
-  if (!encoded) return null
-  return decodeSource(encoded)
+  if (encoded === null) return null
+  return decodeSource(encoded, signal)
 }

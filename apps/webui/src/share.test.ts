@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildShareUrl, decodeSource, encodeSource } from './share'
+import { buildShareUrl, encodeSource } from './share'
+import { inflateSource as decodeSource } from './worker/shareDecode'
 
 describe('encodeSource / decodeSource', () => {
   it('ASCII テキストのラウンドトリップ', () => {

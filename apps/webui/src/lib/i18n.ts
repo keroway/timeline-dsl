@@ -9,6 +9,14 @@ export const DEFAULT_LOCALE: Locale = 'ja'
 // Every key must be present in all locale dictionaries (enforced by tests).
 // Values may contain `{name}` placeholders; use `t.fmt(key, { name })`.
 export type Dictionary = {
+  shareLoading: string
+  shareTooLarge: string
+  shareTimeout: string
+  shareCancelled: string
+  shareInvalid: string
+  shareOpenSaved: string
+  shareOpenSample: string
+
   // Document meta (index.html <title> sync — hooks/useDocumentMeta.ts)
   documentTitle: string
 
@@ -277,6 +285,15 @@ export type Dictionary = {
 
 // ─── Japanese dictionary ──────────────────────────────────────────────────────
 const ja: Dictionary = {
+  shareLoading: '共有URLを読み込んでいます…',
+  shareTooLarge:
+    '共有データの上限（256 Ki文字／UTF-8 1 MiB）を超えています。.tdsl ファイルで受け渡してください。',
+  shareTimeout: '共有URLの読み込みが5秒でタイムアウトしました。',
+  shareCancelled: '共有URLの読み込みをキャンセルしました。',
+  shareInvalid: '共有URLのデータが不正です。',
+  shareOpenSaved: '保存済みの内容を開く',
+  shareOpenSample: 'サンプルから始める',
+
   // Document meta
   documentTitle: 'Timeline DSL WebUI — .tdsl エディタ & プレビュー',
 
@@ -561,6 +578,15 @@ const ja: Dictionary = {
 
 // ─── English dictionary ───────────────────────────────────────────────────────
 const en: Dictionary = {
+  shareLoading: 'Loading shared source…',
+  shareTooLarge:
+    'Shared data exceeds 256 Ki encoded characters or 1 MiB UTF-8. Share a .tdsl file instead.',
+  shareTimeout: 'Shared source loading timed out after 5 seconds.',
+  shareCancelled: 'Shared source loading was cancelled.',
+  shareInvalid: 'The shared source data is invalid.',
+  shareOpenSaved: 'Open saved content',
+  shareOpenSample: 'Start with a sample',
+
   // Document meta
   documentTitle: 'Timeline DSL WebUI — .tdsl Editor & Live Preview',
 

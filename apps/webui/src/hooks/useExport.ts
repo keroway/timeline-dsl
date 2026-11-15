@@ -2,6 +2,7 @@ import type { ToastVariant } from '../components/Toast'
 import type { Translator } from '../lib/i18n'
 import { svgToPngBlob, triggerDownload } from '../lib/svgExport'
 import { buildShareUrl } from '../share'
+import { ShareError } from '../shareLimits'
 import { getWorkerClient, type RenderOptions } from '../wasmLoader'
 import type { ConfirmOptions } from './useConfirm'
 import type { FileHandleApi } from './useFileHandle'
@@ -123,8 +124,17 @@ export function useExport(
         .writeText(url)
         .then(() => showToast(t('exportShareLinkCopied'), 'success'))
         .catch(() => showToast(t('exportShareLinkCopyFailed'), 'error'))
-    } catch {
-      showToast(t('exportShareLinkFailed'), 'error')
+    } catch (error) {
+      showToast(
+        t(
+          error instanceof ShareError && error.code === 'tooLarge'
+            ? 'shareTooLarge'
+            : error instanceof ShareError && error.code === 'timeout'
+              ? 'shareTimeout'
+              : 'exportShareLinkFailed'
+        ),
+        'error'
+      )
     }
   }
 

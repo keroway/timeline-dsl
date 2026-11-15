@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Shared URLs load in a cancellable dedicated worker, limited to 256 Ki encoded characters, 1 MiB UTF-8 output and five seconds. Invalid links require explicit recovery without overwriting saved content. Oversized sources can still be exchanged as `.tdsl` files.
+
 - **LSP の lane リネームが `group` 内の `as <alias>` 明示 lane を対象外にしていたのを修正**（#980）: `rename.rs` の明示 alias 判定 `resolve_explicit_alias_lane` と宣言トークン探索 `find_alias_decl_range` がトップレベルの `Statement::Lane` しか見ておらず、`group "G" { lane "A" as a {...} }` の `a` に対して `prepareRename` が null、`rename` が「`as` 省略 lane のためリネームできません」を返していた。`group` 内の `LaneDecl` も判定・探索に含める。`as` 省略 lane の拒否は従来どおり
 - **`--layout-style zigzag` のレーン数エラーが実行不能な `--chart-pagination` を案内していたのを修正**（#978）: 上限検査はタイムライン全体のレーン数に対して行われ、レーン分割では回避できないため、エラー文を「レーン数を減らすか別のレイアウトを選ぶ」案内に改め、`docs/cli-spec.md` に明記。3 レーン入力 + `--chart-pagination 1` の CLI 回帰テストを追加
 - **同一ブロック内のプロパティ重複指定が先行値を黙って上書きしていたのを修正**（#957）: `timeline`（`title` / `unit` / `range` / `calendar`）、`lane`（`kind` / `order` / `color`）、span / event / event_range のオプション（`tags` / `source` / `id` / `origin` / `note` / `link` / `color`）は、`builder.rs` が既存値を確認せず代入していたため、`color "bad;color"; color "red";` や `link "javascript:alert(1)"; link "https://example.com";` の先行値が検証もされず消えていた。パース時に `ParseError::DuplicateProperty` で 2 回目の位置を示して拒否する（silent fallback 禁止）。**これまで黙って通っていた重複指定を持つ `.tdsl` は、今後エラーになる**。`color_map` ブロックと `map` / `template` / `apply` のプロパティは対象外
