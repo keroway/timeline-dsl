@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, windows-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -60,10 +60,10 @@ jobs:
   # (バイナリのダウンロード・展開ロジックの OS 差異が主眼)。
   # ここでは action.yml の bash ロジック（ARGS 組み立て・OUTPUT 計算）に
   # 関わる他の入力（format=html/png/pdf、interactive、theme、scale、output）
-  # を ubuntu-latest 1 OS に絞って検証する（#853）。
+  # を ubuntu-24.04 1 OS に絞って検証する（#853）。
   self-test-extra-inputs:
     name: Render via action.yml (extra inputs)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
