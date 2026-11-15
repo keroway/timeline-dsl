@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-15
+
+### Breaking changes
+
+- CSV tagsのカンマ区切り廃止と可逆エスケープ、公開Rust構造体`SourceSpan`への`end_line`追加、厳格な入力検証を含むためmajor更新。移行例と影響範囲は[公開判断資料](docs/release-readiness.md#互換性の判断材料)を参照。
+
 ### Added
 
 - **`SourceSpan` に終了行 `end_line` を追加し、複数行宣言の範囲を保持**（#944）: `source_span` は `line` / `col_start` / `col_end` だけで、複数行にまたがる lane / span / event / event_range の終了行が失われていた（`col_end` は開始行と同じ行でのみ有効だった）。複数行のときだけ `end_line`（1-based）を付与し、単一行では省略するため既存の JSON IR・消費側（WASM / WebUI）は変わらない。`end_line` の無い IR も従来どおり読め、省略時は `line` と同じ行とみなす（`SourceSpan::end_line()`）。JSON Schema に `end_line` が増える。LSP の documentSymbol / definition がこれを使う変更は #962
@@ -742,6 +748,7 @@ CSVの `tags` 列では **`,` は区切りではなくタグの一部**。旧 `"
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[3.0.0]: https://github.com/keroway/timeline-dsl/compare/v2.1.0...v3.0.0
 [2.1.0]: https://github.com/keroway/timeline-dsl/releases/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.28.0...v2.0.0
 [1.28.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.27.0...v1.28.0
