@@ -38,20 +38,29 @@ function backupCorrupt(key: string, raw: string): void {
 }
 
 function readSnapshots(key: string): Snapshot[] {
+  let raw: string | null
   try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) {
-      backupCorrupt(key, raw)
-      return []
-    }
-    const valid = parsed.filter(isSnapshot)
-    if (valid.length !== parsed.length) backupCorrupt(key, raw)
-    return valid
+    raw = localStorage.getItem(key)
   } catch {
+    // ストレージ読み取り失敗は原文が得られないため退避不可
     return []
   }
+  if (!raw) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    // 構文エラーの原文も上書きされる前に退避する
+    backupCorrupt(key, raw)
+    return []
+  }
+  if (!Array.isArray(parsed)) {
+    backupCorrupt(key, raw)
+    return []
+  }
+  const valid = parsed.filter(isSnapshot)
+  if (valid.length !== parsed.length) backupCorrupt(key, raw)
+  return valid
 }
 
 // 保存に成功したかを返す（quota 超過・プライベートブラウジングでは false）
