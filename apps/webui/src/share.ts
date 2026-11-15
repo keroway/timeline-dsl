@@ -20,10 +20,13 @@ function base64ToUrl(b64: string): string {
 }
 
 export function encodeSource(source: string): string {
+  const started = performance.now()
   checkSourceSize(source)
   const deflated = pako.deflate(source)
   const encoded = base64ToUrl(bytesToBase64(deflated))
   checkEncodedSize(encoded)
+  if (performance.now() - started > SHARE_TIMEOUT_MS)
+    throw new ShareError('timeout')
   return encoded
 }
 
