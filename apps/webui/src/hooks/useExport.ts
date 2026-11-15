@@ -129,7 +129,9 @@ export function useExport(
         t(
           error instanceof ShareError && error.code === 'tooLarge'
             ? 'shareTooLarge'
-            : 'exportShareLinkFailed'
+            : error instanceof ShareError && error.code === 'timeout'
+              ? 'shareTimeout'
+              : 'exportShareLinkFailed'
         ),
         'error'
       )

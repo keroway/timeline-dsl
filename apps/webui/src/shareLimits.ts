@@ -13,6 +13,9 @@ export function checkEncodedSize(encoded: string): void {
   if (encoded.length > MAX_ENCODED_CHARS) throw new ShareError('tooLarge')
 }
 export function checkSourceSize(source: string): void {
-  if (new TextEncoder().encode(source).length > MAX_SOURCE_BYTES)
+  if (
+    source.length > MAX_SOURCE_BYTES ||
+    new TextEncoder().encode(source).length > MAX_SOURCE_BYTES
+  )
     throw new ShareError('tooLarge')
 }

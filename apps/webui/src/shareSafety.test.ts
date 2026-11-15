@@ -17,6 +17,7 @@ function rawEncode(source: string) {
 
 describe('bounded shared sources', () => {
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.useRealTimers()
     vi.unstubAllGlobals()
   })
@@ -74,4 +75,28 @@ describe('bounded shared sources', () => {
       expect(instance!.terminate).toHaveBeenCalledOnce()
     }
   )
+  it('does not create a link after the processing deadline', () => {
+    vi.spyOn(performance, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(SHARE_TIMEOUT_MS + 1)
+    expect(() => encodeSource('source')).toThrow('timeout')
+  })
+  it('rejects encoded overflow even when source bytes fit', () => {
+    let seed = 12345
+    const source = Array.from({ length: MAX_SOURCE_BYTES / 2 }, () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) | 0
+      return String.fromCharCode((seed >>> 24) & 127)
+    }).join('')
+    expect(new TextEncoder().encode(source).length).toBe(MAX_SOURCE_BYTES / 2)
+    expect(() => encodeSource(source)).toThrow('tooLarge')
+  })
+  it('rejects non-UTF-8 decompressed bytes', () => {
+    const encoded = btoa(
+      String.fromCharCode(...deflate(new Uint8Array([255, 254])))
+    )
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+    expect(() => inflateSource(encoded)).toThrow('invalid')
+  })
 })
