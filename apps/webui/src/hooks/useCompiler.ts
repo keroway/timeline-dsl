@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { DEBOUNCE_MS } from '../lib/constants'
 import {
   type Diagnostic,
@@ -16,11 +16,23 @@ function lintIssueToDiagnostic(issue: LintIssue): Diagnostic {
   }
 }
 
+export type CompilePhase = 'preparing' | 'checking' | 'success' | 'error'
+type Input = {
+  source: string
+  scale: number
+  options: RenderOptions
+  ready: boolean
+}
+type Result = { input: Input; phase: CompilePhase; diagnostics: Diagnostic[] }
+type Success = { input: Input; svg: string }
 export type CompilerState = {
   svgContent: string
   diagnostics: Diagnostic[]
   diagnosticsRef: React.RefObject<Diagnostic[]>
   isStalePreview: boolean
+  phase: CompilePhase
+  canExport: boolean
+  isCurrent: () => boolean
 }
 
 export function useCompiler(
@@ -29,104 +41,103 @@ export function useCompiler(
   scale: number,
   renderOpts: RenderOptions = {}
 ): CompilerState {
-  const [svgContent, setSvgContent] = useState<string>('')
-  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
-  const [isStalePreview, setIsStalePreview] = useState(false)
+  // Include every option, including future additions. A new input lifetime also
+  // invalidates A -> B -> A exports even though the final text is identical.
+  const optionsKey = JSON.stringify(renderOpts)
+  const input = useMemo<Input>(
+    () => ({
+      source,
+      scale,
+      options: JSON.parse(optionsKey),
+      ready: wasmReady,
+    }),
+    [source, scale, optionsKey, wasmReady]
+  )
+  const latest = useRef<Input | null>(input)
+  const [result, setResult] = useState<Result | null>(null)
+  const [success, setSuccess] = useState<Success | null>(null)
+  const diagnostics = result?.input === input ? result.diagnostics : []
   const diagnosticsRef = useRef<Diagnostic[]>(diagnostics)
-  const latestRequestIdRef = useRef(0)
-
-  useEffect(() => {
+  // Invalidate at commit, BEFORE debounce/async effects or user events.
+  useLayoutEffect(() => {
+    latest.current = input
+    return () => {
+      latest.current = null
+    }
+  }, [input])
+  useLayoutEffect(() => {
     diagnosticsRef.current = diagnostics
   }, [diagnostics])
 
-  const renderOptsRef = useRef<RenderOptions>(renderOpts)
   useEffect(() => {
-    renderOptsRef.current = renderOpts
-  }, [renderOpts])
-
-  const compileAndCheck = useCallback(
-    async (src: string) => {
-      if (!wasmReady) return
-      latestRequestIdRef.current += 1
-      const requestId = latestRequestIdRef.current
-      // Resolve per request so a Worker invalidated after a fatal error is replaced.
-      const client = getWorkerClient()
-
+    if (!input.ready) return
+    let active = true
+    const current = () => active && latest.current === input
+    const timer = setTimeout(async () => {
+      if (!current()) return
+      setResult({ input, phase: 'checking', diagnostics: [] })
+      let diags: Diagnostic[] = []
       try {
-        const checkDiags = await client.checkSourceAsync(src)
-        if (requestId !== latestRequestIdRef.current) return
-
-        const lintDiags = (await client.lintSourceAsync(src))
-          .filter((i) => i.code !== 'parse_error')
-          .map(lintIssueToDiagnostic)
-        if (requestId !== latestRequestIdRef.current) return
-
-        const diags = [...checkDiags, ...lintDiags]
-        setDiagnostics(diags)
-
-        const hasErrors = diags.some((d) => d.severity === 'error')
-        if (hasErrors) {
-          setIsStalePreview(true)
+        const client = getWorkerClient()
+        const checked = await client.checkSourceAsync(input.source)
+        if (!current()) return
+        const lint = await client.lintSourceAsync(input.source)
+        if (!current()) return
+        diags = [
+          ...checked,
+          ...lint
+            .filter((i) => i.code !== 'parse_error')
+            .map(lintIssueToDiagnostic),
+        ]
+        if (diags.some((d) => d.severity === 'error')) {
+          setResult({ input, phase: 'error', diagnostics: diags })
           return
         }
-
         const svg = await client.renderSvgWithOptionsAsync(
-          src,
-          scale,
-          renderOptsRef.current
+          input.source,
+          input.scale,
+          input.options
         )
-        if (requestId !== latestRequestIdRef.current) return
-        setSvgContent(svg)
-        setIsStalePreview(false)
-      } catch (e: unknown) {
-        if (requestId !== latestRequestIdRef.current) return
-        const msg = e instanceof Error ? e.message : String(e)
-        setDiagnostics((prev) => [
-          ...prev,
-          { severity: 'error', message: msg, line: 0, col: 0 },
-        ])
-        setIsStalePreview(true)
+        if (!current()) return
+        setSuccess({ input, svg })
+        setResult({ input, phase: 'success', diagnostics: diags })
+      } catch (error) {
+        if (!current()) return
+        setResult({
+          input,
+          phase: 'error',
+          diagnostics: [
+            ...diags,
+            {
+              severity: 'error',
+              message: error instanceof Error ? error.message : String(error),
+              line: 0,
+              col: 0,
+            },
+          ],
+        })
       }
-    },
-    [wasmReady, scale]
-  )
-
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    if (!wasmReady) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      void compileAndCheck(source)
     }, DEBOUNCE_MS)
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
+      active = false
+      clearTimeout(timer)
     }
-  }, [source, wasmReady, scale, compileAndCheck])
+  }, [input])
 
-  useEffect(() => {
-    if (!wasmReady) return
-    queueMicrotask(() => {
-      void compileAndCheck(source)
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    renderOpts.orientation,
-    renderOpts.grid,
-    renderOpts.theme,
-    wasmReady,
-    renderOpts.showEventLabels,
-    renderOpts.layoutStyle,
-    renderOpts.showLegend,
-  ])
-
-  useEffect(() => {
-    if (wasmReady) {
-      queueMicrotask(() => {
-        void compileAndCheck(source)
-      })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wasmReady])
-
-  return { svgContent, diagnostics, diagnosticsRef, isStalePreview }
+  const phase = !input.ready
+    ? 'preparing'
+    : result?.input === input
+      ? result.phase
+      : 'checking'
+  const canExport = phase === 'success' && success?.input === input
+  const isCurrent = () => canExport && latest.current === input
+  return {
+    svgContent: success?.svg ?? '',
+    diagnostics,
+    diagnosticsRef,
+    isStalePreview: !!success && !canExport,
+    phase,
+    canExport,
+    isCurrent,
+  }
 }

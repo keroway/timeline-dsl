@@ -90,8 +90,15 @@ function EditorApp({ initialSource }: { initialSource: string }) {
       settings.svgShowLegend,
     ]
   )
-  const { svgContent, diagnostics, diagnosticsRef, isStalePreview } =
-    useCompiler(source, wasmReady, settings.scale, renderOpts)
+  const {
+    svgContent,
+    diagnostics,
+    diagnosticsRef,
+    isStalePreview,
+    phase,
+    canExport,
+    isCurrent,
+  } = useCompiler(source, wasmReady, settings.scale, renderOpts)
   const fileHandle = useFileHandle(showToast, t)
   const svg = useSvgInteractions(svgContent, editorViewRef)
   const {
@@ -111,7 +118,8 @@ function EditorApp({ initialSource }: { initialSource: string }) {
     showToast,
     fileHandle,
     t,
-    confirm
+    confirm,
+    isCurrent
   )
   const history = useHistorySnapshots({
     source,
@@ -331,7 +339,7 @@ function EditorApp({ initialSource }: { initialSource: string }) {
         exportMenuOpen={exportMenuOpen}
         setExportMenuOpen={setExportMenuOpen}
         exportApi={exportApi}
-        svgContent={svgContent}
+        canExport={canExport}
         onShowSettings={() => setShowSettings(true)}
         fileInputRef={fileInputRef}
         onFileChange={handleFileChange}
@@ -387,6 +395,7 @@ function EditorApp({ initialSource }: { initialSource: string }) {
           onScaleChange={(value) => updateSetting('scale', value)}
           svgContent={svgContent}
           isStalePreview={isStalePreview}
+          phase={phase}
           wasmReady={wasmReady}
           previewRef={svg.previewRef}
           svgContainerRef={svg.svgContainerRef}

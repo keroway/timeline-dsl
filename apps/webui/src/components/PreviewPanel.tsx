@@ -16,6 +16,7 @@ type PreviewPanelProps = {
   onScaleChange: (value: number) => void
   svgContent: string
   isStalePreview: boolean
+  phase: import('../hooks/useCompiler').CompilePhase
   wasmReady: boolean
   previewRef: RefObject<HTMLDivElement | null>
   svgContainerRef: RefObject<HTMLDivElement | null>
@@ -50,6 +51,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
     onScaleChange,
     svgContent,
     isStalePreview,
+    phase,
     wasmReady,
     previewRef,
     svgContainerRef,
@@ -273,7 +275,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
           <>
             {isStalePreview && (
               <div className="stale-preview-badge">
-                {t('previewStaleBadge')}
+                {t(phase === 'error' ? 'previewStaleBadge' : 'previewUpdating')}
               </div>
             )}
             <div

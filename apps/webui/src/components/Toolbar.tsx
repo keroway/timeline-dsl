@@ -29,7 +29,7 @@ type ToolbarProps = {
   exportMenuOpen: boolean
   setExportMenuOpen: Dispatch<SetStateAction<boolean>>
   exportApi: ExportApi
-  svgContent: string
+  canExport: boolean
   onShowSettings: () => void
   fileInputRef: RefObject<HTMLInputElement | null>
   onFileChange: (e: ChangeEvent<HTMLInputElement>) => void
@@ -57,7 +57,7 @@ export function Toolbar(props: ToolbarProps) {
     exportMenuOpen,
     setExportMenuOpen,
     exportApi,
-    svgContent,
+    canExport,
     onShowSettings,
     fileInputRef,
     onFileChange,
@@ -203,7 +203,7 @@ export function Toolbar(props: ToolbarProps) {
                   exportApi.downloadSvg()
                   setExportMenuOpen(false)
                 }}
-                disabled={!svgContent}
+                disabled={!canExport}
               >
                 {t('toolbarExportSvg')}
               </button>
@@ -214,7 +214,7 @@ export function Toolbar(props: ToolbarProps) {
                   exportApi.downloadHtml()
                   setExportMenuOpen(false)
                 }}
-                disabled={!svgContent}
+                disabled={!canExport}
               >
                 {t('toolbarExportHtml')}
               </button>
@@ -225,7 +225,7 @@ export function Toolbar(props: ToolbarProps) {
                   exportApi.exportPdf()
                   setExportMenuOpen(false)
                 }}
-                disabled={!svgContent}
+                disabled={!canExport}
               >
                 {t('toolbarExportPdf')}
               </button>
@@ -236,7 +236,7 @@ export function Toolbar(props: ToolbarProps) {
                   exportApi.downloadPng(true)
                   setExportMenuOpen(false)
                 }}
-                disabled={!svgContent}
+                disabled={!canExport}
               >
                 {t('toolbarExportPngWhite')}
               </button>
@@ -247,7 +247,7 @@ export function Toolbar(props: ToolbarProps) {
                   exportApi.downloadPng(false)
                   setExportMenuOpen(false)
                 }}
-                disabled={!svgContent}
+                disabled={!canExport}
               >
                 {t('toolbarExportPngTransparent')}
               </button>
@@ -261,7 +261,7 @@ export function Toolbar(props: ToolbarProps) {
                   exportApi.copySvg()
                   setExportMenuOpen(false)
                 }}
-                disabled={!svgContent}
+                disabled={!canExport}
               >
                 {t('toolbarCopySvg')}
               </button>
@@ -272,7 +272,7 @@ export function Toolbar(props: ToolbarProps) {
                   exportApi.copyPng()
                   setExportMenuOpen(false)
                 }}
-                disabled={!svgContent}
+                disabled={!canExport}
               >
                 {t('toolbarCopyPng')}
               </button>
