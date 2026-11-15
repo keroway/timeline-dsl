@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **WebUIの履歴・非同期編集の信頼性**（#985、#1002〜#1007、#1014）: layout/legend変更を再描画し、履歴の保存失敗を通知、不正な履歴値を検証、見送った自動履歴を再試行する。ファイル読込・整形・Lint修正の古い非同期結果を適用しない。Workerの不正な診断JSONをエラーとして扱う。JSON構文が壊れた履歴の退避（#1019）は未解決。
+- **WebUIの履歴・非同期編集の信頼性**（#985、#1002〜#1007、#1014）: layout/legend変更を再描画し、履歴の保存失敗を通知、不正な履歴値を検証、見送った自動履歴を再試行する。ファイル読込・整形・Lint修正の古い非同期結果を適用しない。Workerの不正な診断JSONをエラーとして扱う。JSON構文が壊れた自動・手動履歴も次回保存前に原文を退避し、既存の退避値を保持する（#1019）。
 - **LSP参照・リネーム**（#901、#981 / #983）: 宣言編集をaliasトークンへ限定し、template/apply内のlane参照も追跡する。
 - **CSVとIRの往復・統合**（#897、#917、#919、#921、#922、#873）: range統合で日付精度を保持し、CSVで継続中の期間とnote/link/colorを保持、decompileでgroup所属を復元する。継続中rangeを自動swapせず、mapのラベル解決失敗と空文字を区別する。
 - **エディタのキーワード補完・ハイライト**（#925）: filter/entity/startswith/contains/toをWebUIとVS Codeで認識する。

@@ -172,6 +172,30 @@ describe('不正な保存データ', () => {
     expect(readAutoSnapshots()).toHaveLength(1)
   })
 
+  it('JSON 構文エラーの原文も保存前に退避キーへ残る（auto）', () => {
+    localStorage.setItem(KEY, '{broken-json')
+    expect(readAutoSnapshots()).toEqual([])
+    pushAutoSnapshot('s', 'r')
+    expect(localStorage.getItem(`${KEY}:corrupt`)).toBe('{broken-json')
+    expect(readAutoSnapshots()).toHaveLength(1)
+  })
+
+  it('JSON 構文エラーの原文も保存前に退避キーへ残る（manual）', () => {
+    const manualKey = 'tdsl:editor:history:manual'
+    localStorage.setItem(manualKey, '{broken-json')
+    expect(readManualSnapshots()).toEqual([])
+    pushManual('s', 'l')
+    expect(localStorage.getItem(`${manualKey}:corrupt`)).toBe('{broken-json')
+    expect(readManualSnapshots()).toHaveLength(1)
+  })
+
+  it('既存の退避値は構文エラー時も上書きしない', () => {
+    localStorage.setItem(`${KEY}:corrupt`, 'old')
+    localStorage.setItem(KEY, '{broken-json')
+    pushAutoSnapshot('s', 'r')
+    expect(localStorage.getItem(`${KEY}:corrupt`)).toBe('old')
+  })
+
   it('正常要素は残し、不正要素だけ除外する', () => {
     const good = {
       id: 'a',
