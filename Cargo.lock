@@ -2795,7 +2795,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-cli"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -2817,7 +2817,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-core"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "criterion",
@@ -2834,7 +2834,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-lsp"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2848,7 +2848,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-parser"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "criterion",
  "insta",
@@ -2861,7 +2861,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-render"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "criterion",
  "insta",
@@ -2875,7 +2875,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-wasm"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "console_error_panic_hook",
  "getrandom 0.4.3",
@@ -2890,7 +2890,7 @@ dependencies = [
 
 [[package]]
 name = "tdsl-wikidata"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "dirs",

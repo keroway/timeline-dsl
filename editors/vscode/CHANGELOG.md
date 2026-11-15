@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-15
+
+- timeline-dsl v3.0.0と版を同期。LSP品質警告、複数行の診断範囲、UTF-16補完位置、参照・renameの修正とキーワード補完を含む。
+- CSV tagsとRust APIの互換性変更は本体CHANGELOG・移行資料を参照。
+
 ## [2.1.0] - 2026-09-02
 
 ### Changed
