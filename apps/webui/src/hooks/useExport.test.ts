@@ -26,7 +26,10 @@ function createTranslator(): Translator {
   return t
 }
 
-function callUseExport(showToast: (message: string, variant?: string) => void) {
+function callUseExport(
+  showToast: (message: string, variant?: string) => void,
+  isCurrent = () => true
+) {
   const fileHandle = {} as FileHandleApi
   const confirm = vi.fn(async (_options: ConfirmOptions) => true)
   const renderOpts = {} as RenderOptions
@@ -39,7 +42,8 @@ function callUseExport(showToast: (message: string, variant?: string) => void) {
     showToast,
     fileHandle,
     createTranslator(),
-    confirm
+    confirm,
+    isCurrent
   )
 }
 
@@ -71,5 +75,86 @@ describe('useExport downloadHtml', () => {
 
     expect(triggerDownload).not.toHaveBeenCalled()
     expect(showToast).toHaveBeenCalledWith('exportHtmlFailed', 'error')
+  })
+})
+
+describe('image export freshness', () => {
+  beforeEach(() => vi.clearAllMocks())
+  it('guards all image action entry points', async () => {
+    const toast = vi.fn()
+    const api = callUseExport(toast, () => false)
+    api.downloadSvg()
+    api.downloadPng()
+    api.copySvg()
+    api.copyPng()
+    await api.downloadHtml()
+    await api.exportPdf()
+    expect(triggerDownload).not.toHaveBeenCalled()
+    expect(renderHtmlWithOptionsAsync).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledTimes(6)
+  })
+  it.each(['downloadHtml', 'exportPdf'] as const)(
+    'cancels %s when HTML resolves after an edit',
+    async (action) => {
+      let current = true
+      let finish!: (value: string) => void
+      renderHtmlWithOptionsAsync.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          })
+      )
+      const toast = vi.fn()
+      const task = callUseExport(toast, () => current)[action]()
+      current = false
+      finish('<html/>')
+      await task
+      expect(triggerDownload).not.toHaveBeenCalled()
+      expect(document.querySelector('iframe')).toBeNull()
+      expect(toast).toHaveBeenCalledWith('exportStaleCancelled', 'info')
+    }
+  )
+  it.each(['downloadPng', 'copyPng'] as const)(
+    'cancels %s during rasterization',
+    async (action) => {
+      const { svgToPngBlob } = await import('../lib/svgExport')
+      let current = true
+      let finish!: (value: Blob) => void
+      vi.mocked(svgToPngBlob).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          })
+      )
+      const toast = vi.fn()
+      callUseExport(toast, () => current)[action]()
+      current = false
+      finish(new Blob())
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(triggerDownload).not.toHaveBeenCalled()
+      expect(toast).toHaveBeenCalledWith('exportStaleCancelled', 'info')
+      expect(toast).not.toHaveBeenCalledWith('exportPngCopied', 'success')
+    }
+  )
+  it('cancels printing if input changes while the iframe loads', async () => {
+    let current = true
+    renderHtmlWithOptionsAsync.mockResolvedValueOnce('<html/>')
+    const createUrl = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:test')
+    const revokeUrl = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => {})
+    const toast = vi.fn()
+    await callUseExport(toast, () => current).exportPdf()
+    const frame = document.querySelector('iframe')!
+    current = false
+    frame.dispatchEvent(new Event('load'))
+    expect(document.querySelector('iframe')).toBeNull()
+    expect(revokeUrl).toHaveBeenCalledWith('blob:test')
+    expect(toast).toHaveBeenCalledWith('exportStaleCancelled', 'info')
+    createUrl.mockRestore()
+    revokeUrl.mockRestore()
   })
 })

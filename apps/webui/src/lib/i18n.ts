@@ -9,6 +9,8 @@ export const DEFAULT_LOCALE: Locale = 'ja'
 // Every key must be present in all locale dictionaries (enforced by tests).
 // Values may contain `{name}` placeholders; use `t.fmt(key, { name })`.
 export type Dictionary = {
+  previewUpdating: string
+  exportStaleCancelled: string
   shareLoading: string
   shareTooLarge: string
   shareTimeout: string
@@ -285,6 +287,9 @@ export type Dictionary = {
 
 // ─── Japanese dictionary ──────────────────────────────────────────────────────
 const ja: Dictionary = {
+  previewUpdating: '更新中 — 最後の成功結果を表示',
+  exportStaleCancelled:
+    '内容または描画設定が変わったため出力を中止しました。最新のプレビューを待ってください。',
   shareLoading: '共有URLを読み込んでいます…',
   shareTooLarge:
     '共有データの上限（256 Ki文字／UTF-8 1 MiB）を超えています。.tdsl ファイルで受け渡してください。',
@@ -508,7 +513,7 @@ const ja: Dictionary = {
   previewDetailLane: 'レーン',
   previewDetailSource: '出典',
   previewDetailInfo: '情報',
-  previewStaleBadge: '直前の成功時プレビューを表示中',
+  previewStaleBadge: 'エラーのため最後の成功結果を表示',
   previewPlaceholderNoPreview: 'プレビューなし（エラーを確認してください）',
   previewPlaceholderLoading: '読み込み中...',
   previewEmptyValue: '—',
@@ -578,6 +583,9 @@ const ja: Dictionary = {
 
 // ─── English dictionary ───────────────────────────────────────────────────────
 const en: Dictionary = {
+  previewUpdating: 'Updating — showing last successful preview',
+  exportStaleCancelled:
+    'Export cancelled because content or rendering settings changed. Wait for the latest preview.',
   shareLoading: 'Loading shared source…',
   shareTooLarge:
     'Shared data exceeds 256 Ki encoded characters or 1 MiB UTF-8. Share a .tdsl file instead.',
@@ -799,7 +807,7 @@ const en: Dictionary = {
   previewDetailLane: 'Lane',
   previewDetailSource: 'Source',
   previewDetailInfo: 'Info',
-  previewStaleBadge: 'Showing last successful preview',
+  previewStaleBadge: 'Error — showing last successful preview',
   previewPlaceholderNoPreview: 'No preview (check for errors)',
   previewPlaceholderLoading: 'Loading...',
   previewEmptyValue: '—',

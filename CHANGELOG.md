@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- SVG/PNG/HTML/PDF and image copying require a successful preview matching the latest source, scale and rendering options. Pending exports are cancelled when inputs change; the last successful preview remains visible with an updating/error label.
+
 - Shared URLs load in a cancellable dedicated worker, limited to 256 Ki encoded characters, 1 MiB UTF-8 output and five seconds. Invalid links require explicit recovery without overwriting saved content. Oversized sources can still be exchanged as `.tdsl` files.
 
 - **LSP の lane リネームが `group` 内の `as <alias>` 明示 lane を対象外にしていたのを修正**（#980）: `rename.rs` の明示 alias 判定 `resolve_explicit_alias_lane` と宣言トークン探索 `find_alias_decl_range` がトップレベルの `Statement::Lane` しか見ておらず、`group "G" { lane "A" as a {...} }` の `a` に対して `prepareRename` が null、`rename` が「`as` 省略 lane のためリネームできません」を返していた。`group` 内の `LaneDecl` も判定・探索に含める。`as` 省略 lane の拒否は従来どおり

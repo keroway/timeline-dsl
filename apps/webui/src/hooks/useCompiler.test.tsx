@@ -1,6 +1,7 @@
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEBOUNCE_MS } from '../lib/constants'
 import type { RenderOptions } from '../wasmLoader'
 import { useCompiler } from './useCompiler'
 
@@ -42,10 +43,13 @@ describe('useCompiler 設定変更時の再描画', () => {
     await act(async () => {
       root.render(createElement(Probe, { opts }))
     })
-    await act(async () => {})
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
+    })
   }
 
   beforeEach(() => {
+    vi.useFakeTimers()
     renderSvgWithOptionsAsync.mockClear()
     container = document.createElement('div')
     root = createRoot(container)
@@ -53,6 +57,7 @@ describe('useCompiler 設定変更時の再描画', () => {
 
   afterEach(async () => {
     await act(async () => root.unmount())
+    vi.useRealTimers()
   })
 
   it.each([

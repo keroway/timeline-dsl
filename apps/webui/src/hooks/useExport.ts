@@ -28,8 +28,15 @@ export function useExport(
   showToast: (message: string, variant?: ToastVariant) => void,
   fileHandle: FileHandleApi,
   t: Translator,
-  confirm: (options: ConfirmOptions) => Promise<boolean>
+  confirm: (options: ConfirmOptions) => Promise<boolean>,
+  isCurrent: () => boolean
 ): ExportApi {
+  function allowImageExport() {
+    if (isCurrent()) return true
+    showToast(t('exportStaleCancelled'), 'info')
+    return false
+  }
+
   async function downloadTdsl() {
     await fileHandle.saveSource(source)
   }
@@ -64,7 +71,7 @@ export function useExport(
   }
 
   function downloadSvg() {
-    if (!svgContent) return
+    if (!svgContent || !allowImageExport()) return
     triggerDownload(
       new Blob([svgContent], { type: 'image/svg+xml' }),
       'timeline.svg'
@@ -72,12 +79,13 @@ export function useExport(
   }
 
   async function downloadHtml() {
-    if (!svgContent) return
+    if (!svgContent || !allowImageExport()) return
     try {
       const html = await getWorkerClient().renderHtmlWithOptionsAsync(
         source,
         renderOpts
       )
+      if (!allowImageExport()) return
       triggerDownload(new Blob([html], { type: 'text/html' }), 'timeline.html')
     } catch {
       showToast(t('exportHtmlFailed'), 'error')
@@ -85,14 +93,16 @@ export function useExport(
   }
 
   function downloadPng(whiteBg: boolean = true) {
-    if (!svgContent) return
+    if (!svgContent || !allowImageExport()) return
     svgToPngBlob(svgContent, whiteBg)
-      .then((blob) => triggerDownload(blob, 'timeline.png'))
+      .then((blob) => {
+        if (allowImageExport()) triggerDownload(blob, 'timeline.png')
+      })
       .catch(() => showToast(t('exportPngGenerateFailed'), 'error'))
   }
 
   function copySvg() {
-    if (!svgContent) return
+    if (!svgContent || !allowImageExport()) return
     navigator.clipboard
       .writeText(svgContent)
       .then(() => showToast(t('exportSvgCopied'), 'success'))
@@ -100,12 +110,15 @@ export function useExport(
   }
 
   function copyPng() {
-    if (!svgContent) return
+    if (!svgContent || !allowImageExport()) return
     svgToPngBlob(svgContent, pngWhiteBg)
-      .then((blob) =>
-        navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-      )
-      .then(() => showToast(t('exportPngCopied'), 'success'))
+      .then(async (blob) => {
+        if (!allowImageExport()) return
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob }),
+        ])
+        showToast(t('exportPngCopied'), 'success')
+      })
       .catch(() => showToast(t('exportPngCopyFailed'), 'error'))
   }
 
@@ -139,7 +152,7 @@ export function useExport(
   }
 
   async function exportPdf() {
-    if (!svgContent) return
+    if (!svgContent || !allowImageExport()) return
     let html: string
     try {
       html = await getWorkerClient().renderHtmlWithOptionsAsync(
@@ -150,6 +163,7 @@ export function useExport(
       showToast(t('exportPdfFailed'), 'error')
       return
     }
+    if (!allowImageExport()) return
     showToast(t('exportPdfPrintHint'), 'info')
     const blob = new Blob([html], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
@@ -162,6 +176,10 @@ export function useExport(
       iframe.remove()
     }
     iframe.onload = () => {
+      if (!allowImageExport()) {
+        cleanup()
+        return
+      }
       const cw = iframe.contentWindow
       if (!cw) {
         showToast(t('exportPdfFailed'), 'error')
