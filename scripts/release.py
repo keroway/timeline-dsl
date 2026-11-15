@@ -9,6 +9,7 @@ import argparse
 import base64
 from datetime import datetime, timezone
 import hashlib
+import gzip
 import io
 import json
 import os
@@ -28,6 +29,7 @@ CLI = ('tdsl-linux-x86_64.tar.gz', 'tdsl-linux-aarch64.tar.gz',
        'tdsl-macos-x86_64.tar.gz', 'tdsl-macos-aarch64.tar.gz', 'tdsl-windows-x86_64.zip')
 START = '<!-- tdsl-distribution:start -->'
 END = '<!-- tdsl-distribution:end -->'
+MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024
 
 
 class Unconfirmed(RuntimeError):
@@ -56,15 +58,23 @@ def download(url):
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'timeline-dsl-release-inventory'})
         with urllib.request.urlopen(req, timeout=30) as response:
-            data = response.read(128 * 1024 * 1024 + 1)
-            if len(data) > 128 * 1024 * 1024:
+            data = response.read(MAX_DOWNLOAD_BYTES + 1)
+            if len(data) > MAX_DOWNLOAD_BYTES:
                 raise Unconfirmed('Distribution exceeds verification size limit')
+            encoding = response.headers.get('Content-Encoding', 'identity').strip().lower()
+            if encoding == 'gzip':
+                with gzip.GzipFile(fileobj=io.BytesIO(data)) as stream:
+                    data = stream.read(MAX_DOWNLOAD_BYTES + 1)
+                if len(data) > MAX_DOWNLOAD_BYTES:
+                    raise Unconfirmed('Decoded distribution exceeds verification size limit')
+            elif encoding != 'identity':
+                raise Unconfirmed('Unsupported distribution content encoding')
             return data
     except urllib.error.HTTPError as error:
         if error.code == 404:
             return None
         raise Unconfirmed('Registry HTTP request failed') from error
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, EOFError) as error:
         raise Unconfirmed('Registry request failed') from error
 
 
