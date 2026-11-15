@@ -521,7 +521,7 @@ One-time setup on npmjs.com (per package):
 
 > **First publish (bootstrapping a brand-new package)**: npm requires the package to already exist before you can configure a Trusted Publisher in the UI. For the very first version, publish once locally — `cd crates/tdsl-wasm/pkg && npm publish --access public` after a `wasm-pack build --target web --release --scope keroway` — then add the Trusted Publisher and let CI take over.
 
-To manually re-publish (e.g., if CI failed): go to **Actions → Release → Run workflow** and enter the version number.
+To manually re-publish (e.g., if CI failed): go to **Actions → Release → Run workflow** on the default branch and enter an existing tag (`vX.Y.Z`). The workflow verifies the tag SHA and package versions, then resumes only missing distributions. See [release verification and retry procedures](docs/release.md).
 
 ## Rust Library (crates.io)
 

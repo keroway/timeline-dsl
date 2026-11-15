@@ -1,71 +1,173 @@
+# Publication uses only a verified existing tag SHA. Keep destination failures visible.
 name: Publish VS Code Extension
-
-on:
+run-name: VS Code ${{ inputs.tag || github.ref_name }}
+'on':
   push:
     tags:
-      - "v*"
-
+    - v*
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable tag to retry (vX.Y.Z); no version rewriting
+        required: true
+        type: string
+concurrency:
+  group: vscode-workflow-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 permissions:
-  contents: write
-
+  contents: read
 jobs:
-  publish:
-    name: Publish to VS Code Marketplace
+  verify:
+    # Manual retries run orchestration from the repository default branch only.
+    if: github.event_name != 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.target.outputs.tag }}
+      version: ${{ steps.target.outputs.version }}
+      sha: ${{ steps.target.outputs.sha }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Verify existing tag and all package versions
+      run: python3 scripts/release.py verify
+      id: target
+      env:
+        TARGET_TAG: ${{ inputs.tag || github.ref_name }}
+        EXPECTED_SHA: ${{ github.event_name == 'push' && github.sha || '' }}
+  package:
+    needs:
+    - verify
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      TARGET_TAG: ${{ needs.verify.outputs.tag }}
+      TARGET_SHA: ${{ needs.verify.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        # zizmor: ignore[cache-poisoning] — push:tags のみでトリガーされ pull_request トリガーは無い
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "26"
-          cache: "npm"
-          cache-dependency-path: editors/vscode/package-lock.json
-
-      - name: Install vsce
-        # zizmor: ignore[adhoc-packages] — CLI ツールのグローバルインストール。
-        # editors/vscode/package.json の devDependency バージョンとバージョンを揃えて固定済み
-        run: npm install -g @vscode/vsce@3.9.2
-
-      - name: Install extension dependencies
-        working-directory: editors/vscode
-        run: npm ci
-
-      - name: Verify package.json version matches tag
-        working-directory: editors/vscode
-        run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match editors/vscode/package.json version ($PKG_VERSION)."
-            echo "::error::Bump editors/vscode/package.json before tagging the release."
-            exit 1
-          fi
-
-      - name: Test extension
-        working-directory: editors/vscode
-        run: npm test
-
-      - name: Package extension
-        working-directory: editors/vscode
-        run: vsce package
-
-      - name: Upload VSIX to GitHub Release
-        # release.yml と別ワークフローのため release 有無が不定。softprops は
-        # 「無ければ作成・あれば追記」を単一ステップで担うため `gh release` script に
-        # 単純置換しない（同等の分岐を書くと複雑化する）。
-        # zizmor: ignore[superfluous-actions] — 上記理由により意図的に維持
-        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
-        with:
-          files: editors/vscode/*.vsix
-
-      - name: Publish to Marketplace
-        working-directory: editors/vscode
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: vsce publish --pat "$VSCE_PAT"
+    - name: Checkout release orchestration
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        path: automation
+        persist-credentials: false
+    - name: Checkout verified source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ needs.verify.outputs.sha }}
+        path: source
+        persist-credentials: false
+        fetch-depth: 0
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+      with:
+        node-version: '26'
+    - name: Install dependencies
+      run: npm ci
+      working-directory: source/editors/vscode
+    - name: Test extension
+      run: npm test
+      working-directory: source/editors/vscode
+    - name: Stamp extension
+      run: python3 "$GITHUB_WORKSPACE/automation/scripts/release.py" stamp editors/vscode
+    - name: Install packaging tool
+      run: npm install -g @vscode/vsce@3.9.2
+    - name: Package extension
+      run: vsce package
+      working-directory: source/editors/vscode
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: vsix
+        path: source/editors/vscode/*.vsix
+    defaults:
+      run:
+        working-directory: source
+    name: Build VSIX
+  github-vsix:
+    needs:
+    - verify
+    - package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      TARGET_TAG: ${{ needs.verify.outputs.tag }}
+      TARGET_SHA: ${{ needs.verify.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+    - name: Checkout release orchestration
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        path: automation
+        persist-credentials: false
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: vsix
+        path: artifacts
+    - name: Publish or verify VSIX
+      run: python3 "$GITHUB_WORKSPACE/automation/scripts/release.py" assets artifacts/*.vsix
+    name: GitHub VSIX
+    concurrency:
+      group: release-assets-${{ needs.verify.outputs.tag }}
+      cancel-in-progress: false
+  marketplace:
+    needs:
+    - verify
+    - package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      TARGET_TAG: ${{ needs.verify.outputs.tag }}
+      TARGET_SHA: ${{ needs.verify.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+    - name: Checkout release orchestration
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        path: automation
+        persist-credentials: false
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: vsix
+        path: artifacts
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+      with:
+        node-version: '26'
+    - name: Verify existing Marketplace package
+      run: python3 "$GITHUB_WORKSPACE/automation/scripts/release.py" pending Marketplace
+      id: pending
+    - name: Publish missing extension
+      run: |-
+        npm install -g @vscode/vsce@3.9.2
+        vsce publish --packagePath artifacts/*.vsix --pat "$VSCE_PAT"
+      if: steps.pending.outputs.pending == 'true'
+      env:
+        VSCE_PAT: ${{ secrets.VSCE_PAT }}
+    name: Publish Marketplace
+    concurrency:
+      group: marketplace-${{ needs.verify.outputs.tag }}
+      cancel-in-progress: false
+  status:
+    needs:
+    - verify
+    - package
+    - github-vsix
+    - marketplace
+    if: always() && needs.verify.result == 'success'
+    uses: ./.github/workflows/release-status.yml
+    permissions:
+      contents: write
+      actions: read
+    with:
+      tag: ${{ needs.verify.outputs.tag }}
+      sha: ${{ needs.verify.outputs.sha }}

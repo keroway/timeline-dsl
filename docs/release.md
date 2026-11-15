@@ -103,7 +103,7 @@ tag の push により `.github/workflows/vscode-publish.yml` が起動します
   `keroway/homebrew-tap` に `bump-tdsl-X.Y.Z` の PR が実際に作成されていることを確認する
 - **formula の構造変更に注意**: ジョブは formula を毎回全量再生成して上書きする。
   caveats / 補完生成 / test 拡張など構造の変更を tap 側に入れる場合は、必ず
-  `.github/workflows/release.yml` の Regenerate formula の heredoc にも反映すること。
+  `scripts/generate-homebrew-formula.sh` の heredoc にも反映すること。
   同期しないと次回リリースで構造が消える（実際に v2.1.0 で caveats・補完・test 拡張が
   消えた。keroway/homebrew-tap#96）
 
@@ -117,8 +117,8 @@ git tag の push により `.github/workflows/release.yml` の `publish-crates` 
 4 コアクレート（`tdsl-parser` / `tdsl-wikidata` / `tdsl-core` / `tdsl-render`）を
 crates.io に自動 publish します（認証は Trusted Publishing / OIDC、長期トークン不要）。
 
-- ジョブは `continue-on-error` の独立ジョブなので、crates.io publish が失敗しても
-  GitHub Release / npm / Homebrew のリリースはブロックされません。
+- 公開先ごとの独立ジョブとして失敗を残します（`continue-on-error` は使いません）。
+  crates.io / npm の失敗だけでは GitHub 成果物と Homebrew の処理を止めません。
 - ジョブ内で `[workspace.package].version` と git tag の一致を検証します
   （不一致なら publish せずエラー停止。vscode-publish.yml の整合チェックと同趣旨）。
 - cargo 1.90+ の multi-package publish が依存順（parser/wikidata → core → render）を
@@ -153,16 +153,51 @@ crates.io の Trusted Publishing は「クレートが既に crates.io に存在
    - Environment: 空欄
 4. 以降はタグ push で `publish-crates` ジョブが自動 publish する
 
-### 手動再 publish（CI 失敗時のフォールバック）
+### 既存タグを指定して再実行
 
-`publish-crates` ジョブが失敗した場合は、ローカルから API トークンで再 publish できます。
+Release / Publish VS Code Extension の `workflow_dispatch` に既存タグ `vX.Y.Z` を指定します。
+従来の npm 用 `version` 入力は廃止しました。手動実行は既定ブランチに限定し、運用コードはその workflow ref、
+ビルド・公開内容は検証済みタグの SHA から別ディレクトリへ checkout します。
+タグ形式、SHA、Cargo workspace・公開クレート・npm生成物・VSIXの版が不一致なら停止します。
 
 ```bash
-# crates.io のトークンを設定済みであること（cargo login）
-cargo publish -p tdsl-parser -p tdsl-wikidata -p tdsl-core -p tdsl-render --locked
+gh workflow run release.yml --ref main -f tag=vX.Y.Z
+gh workflow run vscode-publish.yml --ref main -f tag=vX.Y.Z
+# 状態表だけ再確認（公開処理を呼ばない）
+gh workflow run release-status.yml --ref main -f tag=vX.Y.Z
 ```
 
-すでに publish 済みのクレートはエラーになるため、未公開のクレートのみ `-p` で指定し直してください。
+公開済みの npm は tarball の integrity と `release-source.json`、crates.io は checksum と
+`.cargo_vcs_info.json`、Marketplace は VSIX 内の版・`release-source.json` を検証してスキップします。
+GitHub 成果物は隣接する `.provenance.json` のタグ版・SHA・SHA256と実際の asset digest を照合します。
+既存の成果物を `--clobber` で上書きしません。Homebrew は既存PR・同内容のbranchを再利用し、
+force-pushをしません。異なる内容のbranchは停止してレビュー対象にします。
+
+この変更以前の配布物に証跡ファイルが無い場合、同一版というだけでは成功・スキップと見なしません。
+「確認不能」として停止し、当時のビルド・配布物・ソースSHAの対応を別途調査します。
+このため旧タグの再試行は未公開の配布先だけが進み、証跡不足の既公開先は失敗する場合があります。
+版やタグを付け替えて回避しないでください。
+
+## 配布状況の状態表
+
+Release本文の `tdsl-distribution:start` / `tdsl-distribution:end` 内だけを管理します。
+CLI 5アーカイブ・WASM・npm・4クレート・VSIX・Marketplace・Homebrewを
+「公開済み / 処理中 / 未完了 / 確認不能」で表示し、ソースSHAと確認時刻を記録します。
+
+- 本体・VS Code workflowの終了時に同じ `release-status.yml` を呼びます。失敗したジョブは失敗のまま残ります。
+- upload同士は `release-assets-<tag>`、状態表更新同士は `release-status-<tag>` で直列化します。
+  公開workflow自体もworkflow別・タグ別に直列化し、手動の状態再確認が待機uploadを取り消す競合を避けます。
+  集計は実行時に公開先を読み直すので、後から終わったworkflowが最新状態を反映します。
+- 別workflowがまだ実行中なら未到達の配布先は「処理中」。API失敗・SHA不一致・証跡不足は「確認不能」です。
+- Homebrewは「PR作成済み・マージ待ち」と「tapの既定branchに反映済み」を区別します。
+  PR作成だけでは「公開済み」になりません。
+- Release自体がまだ無い場合は Actions job summary に状態表を出します。
+  手動の状態再確認だけでReleaseを新規作成することはありません。
+- 通常のリリースノート本文は保持します。手書き編集は管理ブロックの外へ記載してください。
+- 完了直後のレジストリ反映遅延やworkflow取消で表が古い場合は、状態再確認を実行します。
+
+fixture検証は `python3 -m unittest discover -s scripts/tests -p 'test_release*.py' -v`
+（Python 3.11以上）。テストから実公開を行いません。
 
 ---
 
