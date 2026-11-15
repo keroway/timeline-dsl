@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test-and-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -51,7 +51,7 @@ jobs:
 
   build-webui:
     name: Build WebUI
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -96,7 +96,7 @@ jobs:
 
   test-vscode-extension:
     name: Test VS Code extension
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -129,7 +129,7 @@ jobs:
 
   bench-compile:
     name: Bench (compile only)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -150,7 +150,7 @@ jobs:
 
   bench:
     name: Benchmarks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
@@ -183,7 +183,7 @@ jobs:
 
   build-wasm-check:
     name: WASM build check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -220,7 +220,7 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -302,7 +302,7 @@ jobs:
   # 通常の PR で検知できるようにする（繰り返し発生していた問題。#889）。
   homebrew-formula-generation:
     name: Homebrew formula generation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Checkout

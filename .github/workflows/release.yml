@@ -23,11 +23,11 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
+            os: ubuntu-24.04
             archive: tdsl-linux-x86_64.tar.gz
             use_cross: true
           - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
+            os: ubuntu-24.04
             archive: tdsl-linux-aarch64.tar.gz
             use_cross: true
           - target: x86_64-apple-darwin
@@ -105,7 +105,7 @@ jobs:
 
   build-wasm:
     name: Build WASM package
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     # npm への publish は Trusted Publishing（OIDC）で行う。長期トークン（NPM_TOKEN）は不要。
     # OIDC トークン発行のため id-token: write が必須。このジョブは checkout と artifact
@@ -225,7 +225,7 @@ jobs:
     name: Publish core crates to crates.io
     # タグ push 時のみ実行する。workflow_dispatch は npm 再 publish 用のため対象外。
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     # crates.io への publish は Trusted Publishing（OIDC）で行う。長期トークンは不要。
     # OIDC トークン発行のため id-token: write が必須。このジョブは checkout と
@@ -283,7 +283,7 @@ jobs:
     name: GitHub Release
     needs: [build, build-wasm]
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: write
@@ -327,7 +327,7 @@ jobs:
   update-homebrew-formula:
     name: Update Homebrew Formula (tap bump PR)
     needs: release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: read

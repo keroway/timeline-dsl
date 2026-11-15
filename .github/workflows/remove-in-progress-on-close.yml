@@ -24,3 +24,4 @@ jobs:
     uses: keroway/.github/.github/workflows/reusable-remove-in-progress-on-close.yml@f46116661fa12e4ff3911c40970cf0f8510e9823 # v1.0.0
     with:
       issue_number: ${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.issue_number) || 0 }}
+      runs-on: '["ubuntu-24.04"]' # #939: 26.04 未検証のため一時固定
