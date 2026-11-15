@@ -37,14 +37,13 @@ import { useSvgInteractions } from './hooks/useSvgInteractions'
 import { useWasm } from './hooks/useWasm'
 import { applyIfUnchanged } from './lib/applyIfUnchanged'
 import { createTranslator } from './lib/i18n'
-import { readInitialSource } from './lib/initialSource'
+import { InitialSourceGate } from './components/InitialSourceGate'
 import { createLatestRequestGuard } from './lib/latestRequest'
 import { type Diagnostic, getWorkerClient } from './wasmLoader'
 import './App.css'
 
-function App() {
-  const [initial] = useState(readInitialSource)
-  const [source, setSource] = useState<string>(initial.source)
+function EditorApp({ initialSource }: { initialSource: string }) {
+  const [source, setSource] = useState<string>(initialSource)
   const showToast = useToast()
 
   const editorViewRef = useRef<EditorView | null>(null)
@@ -287,13 +286,6 @@ function App() {
     wasmReady,
   })
 
-  // Surface a Toast if the initial Hash failed to decode
-  useEffect(() => {
-    if (initial.hashError) showToast(initial.hashError, 'error')
-    // run once after mount; `initial` is from useState lazy initializer (stable)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   // diagnostics が更新されたら linter を強制再実行してマーカーを最新化する
   useEffect(() => {
     const view = editorViewRef.current
@@ -471,4 +463,10 @@ function App() {
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <InitialSourceGate>
+      {(source) => <EditorApp initialSource={source} />}
+    </InitialSourceGate>
+  )
+}
