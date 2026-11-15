@@ -9,9 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`SourceSpan` に終了行 `end_line` を追加し、複数行宣言の範囲を保持**（#944）: `source_span` は `line` / `col_start` / `col_end` だけで、複数行にまたがる lane / span / event / event_range の終了行が失われていた（`col_end` は開始行と同じ行でのみ有効だった）。複数行のときだけ `end_line`（1-based）を付与し、単一行では省略するため既存の JSON IR・消費側（WASM / WebUI）は変わらない。`end_line` の無い IR も従来どおり読め、省略時は `line` と同じ行とみなす（`SourceSpan::end_line()`）。JSON Schema に `end_line` が増える。LSP の documentSymbol / definition がこれを使う変更は #962
+- **LSP品質警告**（#904）: `tdsl lint` の品質警告をLSPのdiagnosticsに表示する。
+
 - **IR の lane ID が `ident` 文法を満たさない場合の警告 W212 を追加**（#961）: `tdsl-core` の `validate` が、先頭が英字・`_` でない ID（`123` 等）や空白・非 ASCII を含む ID を検出する（パーサの `ident` を再利用）。`tdsl decompile` は引き続き IR を変換するが、`build` と同じ検証警告を stderr に `Warning:` として出す（stdout・終了コードは不変）。過去に生成された無効 ID の IR JSON に気付くための検出で、#950 の自動 ID 修正の補完
 
 ### Fixed
+
+- **WebUIの履歴・非同期編集の信頼性**（#985、#1002〜#1007、#1014）: layout/legend変更を再描画し、履歴の保存失敗を通知、不正な履歴値を検証、見送った自動履歴を再試行する。ファイル読込・整形・Lint修正の古い非同期結果を適用しない。Workerの不正な診断JSONをエラーとして扱う。JSON構文が壊れた履歴の退避（#1019）は未解決。
+- **LSP参照・リネーム**（#901、#981 / #983）: 宣言編集をaliasトークンへ限定し、template/apply内のlane参照も追跡する。
+- **CSVとIRの往復・統合**（#897、#917、#919、#921、#922、#873）: range統合で日付精度を保持し、CSVで継続中の期間とnote/link/colorを保持、decompileでgroup所属を復元する。継続中rangeを自動swapせず、mapのラベル解決失敗と空文字を区別する。
+- **エディタのキーワード補完・ハイライト**（#925）: filter/entity/startswith/contains/toをWebUIとVS Codeで認識する。
+- **配布・依存・CI**（#864、#866、#867、#890、#929、#958、#959、#960、#1013、#1017、#1018ほか）: Homebrew生成の補完・テストを保持し、WASM smoke・ドキュメント例・coverage gateを強化。Rust/npm/Actions依存更新と既知脆弱性の修正版を反映した。例外3件（#1012、再確認期限2027-02-08）は残り、CI成功は脆弱性ゼロを意味しない。
 
 - Release retries now require an existing verified tag. npm/crates.io failures remain failed jobs, GitHub archives publish independently, and a managed Release status table reconciles distribution provenance and pending Homebrew PRs.
 
@@ -38,11 +47,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`export-csv` / `import-csv` の `tags` 列が区切り文字や前後空白を含むタグを無警告で分割していたのを修正**（#885）: `tags.join("|")` と `.split(['|', ','])` はタグ内の区切り文字とタグ間の区切りを区別できず、`['a|b', 'c,d', ' padded ']`（3タグ）が `['a', 'b', 'c', 'd', 'padded']`（5タグ）に化けていた。`\`・`|` を常にエスケープし、CSV reader の `Trim::All` に消される境界空白を `\s`/`\t`/`\n`/`\r` で保護する可逆エスケープを導入し、往復でタグ配列が完全一致するようにした。未知のエスケープ・末尾の不完全なエスケープはエラーで拒否する（silent fallback 禁止）。**`,` はもはやタグ区切りとして扱われない（明示的な非互換）**
 - **WebUI の HTML export が Worker 要求失敗時に無通知で握り潰していたのを修正**（#876）: `downloadHtml()` は `renderHtmlWithOptionsAsync()` の reject を空の `catch` で無視しており、失敗しても通知もダウンロードもされなかった。JSON IR / PDF export と同様に error toast（`exportHtmlFailed`）を表示するようにした
 
+### CI / Docs / Tests
+
+- **CI の coverage ジョブに最低基準の失敗判定を追加**（#937）: `cargo llvm-cov --summary-only` に `--fail-under-lines 88` を付け、ワークスペース全体の行カバレッジが 88% を下回ると失敗する（導入時の実測は 90.55%）。README の「強制しない目安」表は実測と乖離していたため廃止し、強制ゲートの説明に置き換えた
+
+### Compatibility and migration
+
+次版番号は未確定。CSVのタグ区切り変更、`SourceSpan` のRust構造体リテラルへの影響、
+厳格化されたエラーとlane ID変更を[公開判断資料](docs/release-readiness.md)で確認してから決定する。
+
+CSVの `tags` 列では **`,` は区切りではなくタグの一部**。旧 `"alpha,beta"`（2タグの意図）は
+`alpha|beta` に移行する。1タグ `a|b` は `a\|b`、2タグ `a|b` と `c,d` はCSV上で
+`"a\|b|c,d"` とする。空文字タグは `\e`。バックスラッシュは `\\` にする。
+既存CSVの意図を確認し、カンマの一括置換はしない。詳細と移行例は
+[tags列の仕様](docs/cli-spec.md#tags-列のエンコーディング885-954)と公開判断資料を参照。
+
 ## [2.1.0] - 2026-09-02
 
 ### Added
 
-- **`SourceSpan` に終了行 `end_line` を追加し、複数行宣言の範囲を保持**（#944）: `source_span` は `line` / `col_start` / `col_end` だけで、複数行にまたがる lane / span / event / event_range の終了行が失われていた（`col_end` は開始行と同じ行でのみ有効だった）。複数行のときだけ `end_line`（1-based）を付与し、単一行では省略するため既存の JSON IR・消費側（WASM / WebUI）は変わらない。`end_line` の無い IR も従来どおり読め、省略時は `line` と同じ行とみなす（`SourceSpan::end_line()`）。JSON Schema に `end_line` が増える。LSP の documentSymbol / definition がこれを使う変更は #962
 - **`scripts/check-doc-examples.py` に `docs/dsl-spec.md` を対象追加**（#844）: `check-doc-examples.py` は `docs/error-catalog.md` の「正しい」例のみを検証しており、DSL 仕様の本体である `docs/dsl-spec.md` のコード例には自動検証がかかっていなかった。`dsl-spec.md` は意図的な誤り例を含まないため、`// 正しい` マーカー規約を新設せず、`--mode simple`（新設）でフェンス全体をそのまま検証する簡易モードを追加した。`TDSL_START` が `event_range` を検出できていなかった既存の抜け（`event\b` の語境界判定が `_` で失敗する）も合わせて修正した。`filter` / `claim(...)` / `label@...` のような単体では文にならない式の断片は対象外のまま（`map` / `template` ブロック内での妥当性は別途検討、issue 本文参照）。`scripts/e2e-smoke.sh` に検証ステップを追加し、CI で継続的に検知する
 - **`tdsl-wasm` の `JsRenderOptions` に `locale` を追加し、SVG の ARIA ラベルの構造プレフィックスを日英で切り替え可能にした**（#815）: SVG の `<g aria-label="…">` に出力される `Event:` / `Span:` / `Event range:` / `Lane:` というプレフィックスは #701 で英語に固定していたが、埋め込み先（`obsidian-tdsl` 等）の UI 言語に合わせたいケースに対応できなかった。`locale: "en"`（既定）/ `"ja"` を追加し、`"ja"` では `イベント:` / `スパン:` / `イベント範囲:` / `レーン:` に切り替わる。タイトル・レーン名・年・id などソース由来の値はロケールに関係なく常にそのまま出力され、#701 の英語統一の決定自体は変更しない。WebUI（`apps/webui`）への配線は、npm パッケージ `@keroway/tdsl-wasm` がこの変更を含むバージョンを公開してから別途対応する（`apps/webui` は公開済み npm パッケージにのみ依存するため、このリリース内では型定義がまだ届かない）
 
@@ -61,7 +84,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CI / Docs / Tests
 
-- **CI の coverage ジョブに最低基準の失敗判定を追加**（#937）: `cargo llvm-cov --summary-only` に `--fail-under-lines 88` を付け、ワークスペース全体の行カバレッジが 88% を下回ると失敗する（導入時の実測は 90.55%）。README の「強制しない目安」表は実測と乖離していたため廃止し、強制ゲートの説明に置き換えた
 - `action.yml`（composite action）の self-test ワークフローを追加し、`format` / `theme` / `scale` / `interactive` / `output` の各ケースを検証するようにした（#852, #854）
 - `test-windows` ジョブに `cargo clippy` と `scripts/e2e-smoke.sh` を追加（#851）
 - 全 CI ジョブに `timeout-minutes` を設定し、ハング時に runner を占有し続けないようにした（#856）
