@@ -88,11 +88,6 @@ jobs:
       env:
         TARGET: ${{ matrix.target }}
       run: rustup target add "$TARGET"
-    - name: Cache Cargo
-      uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
-      with:
-        key: ${{ matrix.target }}
-        workspaces: source
     - name: Install cross
       if: matrix.use_cross
       run: cargo install cross --git https://github.com/cross-rs/cross
@@ -125,7 +120,7 @@ jobs:
       run:
         working-directory: source
   build-wasm:
-    needs: &id001
+    needs:
     - verify
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -153,11 +148,6 @@ jobs:
       uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
       with:
         toolchain: '1.94'
-    - name: Cache Cargo
-      uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
-      with:
-        key: wasm
-        workspaces: source
     - name: Install wasm-pack
       uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39
       with:
@@ -166,6 +156,7 @@ jobs:
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
       with:
         node-version: '22'
+        package-manager-cache: false
         registry-url: https://registry.npmjs.org
     - name: Build WASM (web target)
       run: wasm-pack build crates/tdsl-wasm --target web --release --scope keroway
@@ -219,11 +210,13 @@ jobs:
     - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
       with:
         node-version: '24'
+        package-manager-cache: false
         registry-url: https://registry.npmjs.org
     - name: Verify existing npm distribution
       run: python3 "$GITHUB_WORKSPACE/automation/scripts/release.py" pending npm
       id: pending
     - name: Publish missing npm version
+      # zizmor: ignore[adhoc-packages] -- npm CLI is the OIDC publishing tool; preserve existing latest-CLI policy.
       run: |-
         npm install -g npm@latest
         mkdir package
@@ -236,7 +229,8 @@ jobs:
       group: npm-${{ needs.verify.outputs.tag }}
       cancel-in-progress: false
   publish-crates:
-    needs: *id001
+    needs:
+    - verify
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:

@@ -325,9 +325,4 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -p 'test_release*.py' -v
       - name: Shell syntax and lint
         run: shellcheck scripts/release-homebrew.sh
-      - name: Install actionlint
-        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
-        with:
-          tool: actionlint
-      - name: Validate release workflows
-        run: actionlint .github/workflows/release.yml .github/workflows/vscode-publish.yml .github/workflows/release-status.yml
+      # actionlint / zizmor are enforced by the existing workflow-lint workflow.
