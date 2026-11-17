@@ -324,5 +324,5 @@ jobs:
       - name: Offline release fixtures
         run: python3 -m unittest discover -s scripts/tests -p 'test_release*.py' -v
       - name: Shell syntax and lint
-        run: shellcheck scripts/release-homebrew.sh
+        run: shellcheck scripts/release-homebrew.sh scripts/check-tap-token.sh
       # actionlint / zizmor are enforced by the existing workflow-lint workflow.
