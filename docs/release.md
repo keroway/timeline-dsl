@@ -230,3 +230,33 @@ cargo set-version X.Y.Z --workspace
 - [CONTRIBUTING.md](../CONTRIBUTING.md) — 開発フロー全般
 - [CHANGELOG.md](../CHANGELOG.md) — 本体の変更履歴
 - [editors/vscode/CHANGELOG.md](../editors/vscode/CHANGELOG.md) — VS Code 拡張の変更履歴
+
+## TAP_BUMP_TOKEN更新後の実効権限確認
+
+`TAP_BUMP_TOKEN`の保存先はこのリポジトリのActions repository secret、PATの対象は
+`keroway/homebrew-tap`。Fine-grained PATにはContentsとPull requestsのRead and writeが必要。
+更新日時の確認や、既にtapへ反映済みのタグでのRelease再実行は、push権限の確認にならない。
+後者は公開済みFormulaを検出してトークンを使う処理をスキップする。
+
+`check-tap-token.yml`をmainへマージした後、既定ブランチから手動で実行する:
+
+```bash
+gh workflow run check-tap-token.yml --repo keroway/timeline-dsl --ref main
+```
+
+このworkflowは同じPATでtapへの一時ブランチpush、Draft PR作成・close、ブランチ削除を
+実行する。名前は`token-check/tdsl-<run ID>-<attempt>`で、変更は`.token-check/tdsl.txt`だけ。
+Formula、リリース、既存ブランチは変更しない。commitの`[skip ci]`でtapのpush/PR CIを抑止する。
+手動実行専用で、PRからの自動実行・定期実行はない。既定ブランチ以外からの実行はスキップされるため、
+それを検証成功と扱わない。値を画面やログへ出さず、secretを書き換える処理もない。
+
+通常終了・エラー時はEXIT trapで後片付けし、PR closeやブランチ削除に失敗した場合もworkflowを失敗させる。
+強制停止・runner消失・応答を受け取れない通信切断ではリソースが残る可能性がある。
+失敗時はログのrun IDに対応するDraft PRとブランチを確認し、PRをcloseしてからその一時ブランチだけを削除する。
+検証用PRをマージしないこと。push、PR作成、後片付けがすべて成功したrunを実効権限確認の証拠とする。
+
+オフラインの回帰テストは通常の配布fixtureに含む:
+
+```bash
+python3 -m unittest discover -s scripts/tests -p 'test_release*.py' -v
+```
