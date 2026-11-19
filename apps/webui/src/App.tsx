@@ -3,6 +3,7 @@ import type { EditorView } from '@codemirror/view'
 import {
   type ChangeEvent,
   type CSSProperties,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -137,7 +138,16 @@ function EditorApp({ initialSource }: { initialSource: string }) {
     [diagnosticsRef]
   )
 
-  useSourcePersistence(source, settings.autoSaveEnabled, skipAutoSaveRef)
+  const handleAutoSaveError = useCallback(
+    () => showToast(t('sourceAutoSaveFailed'), 'error'),
+    [showToast, t]
+  )
+  useSourcePersistence(
+    source,
+    settings.autoSaveEnabled,
+    skipAutoSaveRef,
+    handleAutoSaveError
+  )
   useOutsideClick(exportMenuRef, exportMenuOpen, setExportMenuOpen)
   useOutsideClick(fileMenuRef, fileMenuOpen, setFileMenuOpen)
 
