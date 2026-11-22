@@ -1,6 +1,5 @@
 ---
 source: crates/tdsl-render/src/lib.rs
-assertion_line: 1481
 expression: svg
 ---
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 226" width="340" height="226" role="img" aria-label="timeline" class="tdsl-root">
@@ -18,7 +17,7 @@ expression: svg
   <line class="tdsl-axis-tick" role="presentation" x1="320" y1="40" x2="320" y2="206"/>
   <text class="tdsl-axis-text" x="320" y="32" text-anchor="middle">100</text>
   <text class="tdsl-lane-label" data-lane="x" x="112" y="70" text-anchor="end" dominant-baseline="middle">X</text>
-  <g class="tdsl-item tdsl-item-span" role="group" aria-label="Span: Span A, 0〜50, tags: tag1, id: s1, Lane: X" tabindex="0" data-tdsl-tooltip="Span A&#10;0〜50&#10;tags: tag1&#10;id: s1" data-lane="x" data-tags="tag1"><rect class="tdsl-span" style="fill:var(--tdsl-lane-0, #4682B4);" x="120" y="58" width="102.00" height="24" rx="3"><title>Span A
+  <g class="tdsl-item tdsl-item-span" role="group" aria-label="Span: Span A, 0〜50, tags: tag1, id: s1, Lane: X" tabindex="0" data-tdsl-tooltip="Span A&#10;0〜50&#10;tags: tag1&#10;id: s1" data-lane="x" data-tags="tag1" data-tags-json="[&quot;tag1&quot;]"><rect class="tdsl-span" style="fill:var(--tdsl-lane-0, #4682B4);" x="120" y="58" width="102.00" height="24" rx="3"><title>Span A
 0〜50
 tags: tag1
 id: s1</title></rect><text class="tdsl-item-label" x="124" y="70" dominant-baseline="middle">Span A</text></g>

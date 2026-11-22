@@ -778,12 +778,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 let fill_style = format!("fill:{color};");
                 let tags = item_tags(item);
                 let mut data_attrs = format!(r#" data-lane="{}""#, escape_xml_attr(lane_id));
-                if !tags.is_empty() {
-                    data_attrs.push_str(&format!(
-                        r#" data-tags="{}""#,
-                        escape_xml_attr(&tags.join(","))
-                    ));
-                }
+                data_attrs.push_str(&tags_data_attrs(tags));
                 if layout.opts.interactive {
                     data_attrs.push_str(&build_interactive_attrs(item));
                 }
@@ -878,12 +873,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 let fill_style = format!("fill:{color};fill-opacity:0.75;");
                 let tags = item_tags(item);
                 let mut data_attrs = format!(r#" data-lane="{}""#, escape_xml_attr(lane_id));
-                if !tags.is_empty() {
-                    data_attrs.push_str(&format!(
-                        r#" data-tags="{}""#,
-                        escape_xml_attr(&tags.join(","))
-                    ));
-                }
+                data_attrs.push_str(&tags_data_attrs(tags));
                 if layout.opts.interactive {
                     data_attrs.push_str(&build_interactive_attrs(item));
                 }
@@ -1010,12 +1000,7 @@ fn render_items(s: &mut String, layout: &LayoutModel) -> std::fmt::Result {
                 let dot_style = format!("fill:{color};");
                 let tags = item_tags(item);
                 let mut data_attrs = format!(r#" data-lane="{}""#, escape_xml_attr(lane_id));
-                if !tags.is_empty() {
-                    data_attrs.push_str(&format!(
-                        r#" data-tags="{}""#,
-                        escape_xml_attr(&tags.join(","))
-                    ));
-                }
+                data_attrs.push_str(&tags_data_attrs(tags));
                 if layout.opts.interactive {
                     data_attrs.push_str(&build_interactive_attrs(item));
                 }
@@ -1455,6 +1440,51 @@ fn item_lane_id(item: &Item) -> &str {
     }
 }
 
+/// Build the tag data attributes for an item (empty when it has no tags).
+///
+/// `data-tags` is the legacy comma-joined form and is kept unchanged for
+/// existing consumers, but it is lossy: a single tag containing a comma
+/// (`a,b`) cannot be told apart from two tags. `data-tags-json` carries the
+/// same tags as a JSON string array and is the authoritative form (#1035).
+fn tags_data_attrs(tags: &[String]) -> String {
+    if tags.is_empty() {
+        return String::new();
+    }
+    format!(
+        r#" data-tags="{}" data-tags-json="{}""#,
+        escape_xml_attr(&tags.join(",")),
+        escape_xml_attr(&json_string_array(tags))
+    )
+}
+
+/// Encode strings as a JSON array of strings (RFC 8259 §7 escaping).
+///
+/// Hand-written and infallible so that `tdsl-render` needs no `serde_json`
+/// dependency and no error path for a value that cannot fail to encode.
+fn json_string_array(values: &[String]) -> String {
+    let mut out = String::from("[");
+    for (i, value) in values.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push('"');
+        for c in value.chars() {
+            match c {
+                '"' => out.push_str("\\\""),
+                '\\' => out.push_str("\\\\"),
+                '\n' => out.push_str("\\n"),
+                '\r' => out.push_str("\\r"),
+                '\t' => out.push_str("\\t"),
+                c if u32::from(c) < 0x20 => out.push_str(&format!("\\u{:04x}", u32::from(c))),
+                c => out.push(c),
+            }
+        }
+        out.push('"');
+    }
+    out.push(']');
+    out
+}
+
 fn item_tags(item: &Item) -> &[String] {
     match item {
         Item::Span { tags, .. } => tags,
@@ -1716,6 +1746,63 @@ mod tests {
     use super::*;
     use crate::layout::{GridStyle, Orientation, RenderOptions, format_date, format_year};
     use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
+
+    // ─── タグの data 属性（#1035）────────────────────────────────────────
+
+    /// カンマを含むタグは `data-tags`（カンマ連結）では 2 タグと区別できない。
+    /// `data-tags-json` が元のタグ配列を復元できる形で併記されること。
+    /// `data-tags` 自体は既存の消費側のため変えない。
+    #[test]
+    fn tags_are_emitted_as_lossless_json_alongside_legacy_data_tags() {
+        let mut ir = sample_ir();
+        if let Item::Span { tags, .. } = &mut ir.items[0] {
+            *tags = vec!["a,b".into(), "other".into()];
+        } else {
+            panic!("sample_ir の先頭 item は Span のはず");
+        }
+        let svg =
+            render_svg(&LayoutModel::compute(&ir, RenderOptions::default()).unwrap()).unwrap();
+        assert!(
+            svg.contains(r#"data-tags="a,b,other""#),
+            "legacy data-tags must stay comma-joined:\n{svg}"
+        );
+        assert!(
+            svg.contains(r#"data-tags-json="[&quot;a,b&quot;,&quot;other&quot;]""#),
+            "data-tags-json must keep the comma-containing tag as one element:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn items_without_tags_emit_no_tag_attributes() {
+        let mut ir = sample_ir();
+        for item in &mut ir.items {
+            match item {
+                Item::Span { tags, .. }
+                | Item::Event { tags, .. }
+                | Item::EventRange { tags, .. } => tags.clear(),
+            }
+        }
+        let svg =
+            render_svg(&LayoutModel::compute(&ir, RenderOptions::default()).unwrap()).unwrap();
+        assert!(
+            !svg.contains("data-tags"),
+            "no tag attributes expected:\n{svg}"
+        );
+    }
+
+    #[test]
+    fn json_string_array_escapes_quotes_backslashes_and_control_chars() {
+        let values = vec![
+            "a\"b".to_string(),
+            "c\\d".to_string(),
+            "e\nf\u{1}".to_string(),
+        ];
+        assert_eq!(
+            json_string_array(&values),
+            r#"["a\"b","c\\d","e\nf\u0001"]"#
+        );
+        assert_eq!(json_string_array(&[]), "[]");
+    }
 
     // ─── note / link の出力（#749）──────────────────────────────────────
 

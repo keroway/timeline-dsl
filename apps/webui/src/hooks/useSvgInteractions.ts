@@ -15,6 +15,7 @@ import { makeCursorLineExtension, setLineHighlight } from '../editor/extensions'
 import {
   extractLegend,
   extractTags,
+  readItemTags,
   FILTER_STATE_KEY,
   type FilterState,
   type LegendItem,
@@ -163,8 +164,7 @@ export function useSvgInteractions(
     const tagFilter = filterState.tagSearch.trim().toLowerCase()
     container.querySelectorAll<HTMLElement>('.tdsl-item').forEach((el) => {
       const lane = el.getAttribute('data-lane') ?? ''
-      const rawTags = el.getAttribute('data-tags') ?? ''
-      const tags = rawTags ? rawTags.split(',').map((t) => t.trim()) : []
+      const tags = readItemTags(el)
       const laneHidden = filterState.hiddenLanes.has(lane)
       const tagNoMatch =
         tagFilter !== '' &&
