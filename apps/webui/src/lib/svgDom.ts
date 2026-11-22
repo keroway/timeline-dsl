@@ -39,13 +39,38 @@ export function extractLegend(container: Element): LegendItem[] {
   return result
 }
 
+/**
+ * Read an item's tags from the rendered SVG.
+ *
+ * `data-tags-json` (a JSON string array, #1035) is authoritative: it keeps a
+ * tag containing a comma as one tag. `data-tags` is the older comma-joined
+ * form and cannot represent such tags; it is read only when the renderer
+ * predates `data-tags-json` (e.g. `@keroway/tdsl-wasm` <= 3.0.0).
+ */
+export function readItemTags(el: Element): string[] {
+  const json = el.getAttribute('data-tags-json')
+  if (json !== null) {
+    try {
+      const parsed: unknown = JSON.parse(json)
+      if (Array.isArray(parsed)) {
+        return parsed.filter((t): t is string => typeof t === 'string')
+      }
+    } catch (err) {
+      console.error('tdsl: invalid data-tags-json', err)
+    }
+    return []
+  }
+  const raw = el.getAttribute('data-tags') || ''
+  return raw
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+}
+
 export function extractTags(container: Element): string[] {
   const tags = new Set<string>()
   container.querySelectorAll<Element>('[data-tags]').forEach((el) => {
-    const raw = el.getAttribute('data-tags') || ''
-    raw.split(',').forEach((t) => {
-      if (t.trim()) tags.add(t.trim())
-    })
+    for (const tag of readItemTags(el)) tags.add(tag)
   })
   return [...tags].sort()
 }

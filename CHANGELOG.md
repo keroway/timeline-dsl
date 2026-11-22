@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **WebUI が利用する `@keroway/tdsl-wasm` を 2.1.0 から 3.0.0 に更新**: 公開中の WebUI は v3.0.0 リリース後も 2.1.0 を参照しており、重複プロパティの拒否（#957）など 3.0.0 の厳格化された検証が効いていなかった。これまで WebUI で通っていた重複指定を含むソースは、今後エラーとして表示される。
 
+### Fixed
+
+- **カンマを含むタグの項目が、インタラクティブ HTML のタグ絞り込みで誤って非表示になるのを修正**（#1035）: 絞り込みスクリプトが `data-tags`（カンマ連結）を分割していたため、単一タグ `a,b` が `a` と `b` に分裂し、凡例の checkbox と一致しなかった。SVG の item に、タグを JSON 文字列配列で持つ `data-tags-json` 属性を追加し、絞り込みはこちらを読む。`data-tags` は従来どおり出力するため既存の消費側は変わらないが、カンマを含むタグを正しく扱うには `data-tags-json` を読む必要がある。WebUI のタグ検索も `data-tags-json` を優先し、無い場合（`@keroway/tdsl-wasm` 3.0.0 以前）だけ `data-tags` にフォールバックする。
+
 ### Security
 
 - **transitive 依存の `url` を 2.5.8 から 2.5.9 に更新**（#1038）: RUSTSEC-2026-0592 の修正版。`tower-lsp` / `reqwest` 経由の依存で、`Cargo.lock` のみ更新（`form_urlencoded` も 1.2.3 へ追従）。

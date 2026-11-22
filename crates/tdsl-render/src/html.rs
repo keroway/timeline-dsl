@@ -821,8 +821,20 @@ const INTERACTIVE_JS: &str = r#"(() => {
   if (tagToggles.length) {
     const itemTagsMap = new Map();
     for (const el of allItems) {
-      const raw = el.getAttribute("data-tags") || "";
-      const tags = raw.split(",").map((t) => t.trim()).filter(Boolean);
+      // data-tags はカンマ連結で、カンマを含むタグを復元できない。
+      // JSON 配列の data-tags-json を正として読む（#1035）。
+      let tags = [];
+      const json = el.getAttribute("data-tags-json");
+      if (json !== null) {
+        try {
+          const parsed = JSON.parse(json);
+          if (Array.isArray(parsed)) {
+            tags = parsed.filter((t) => typeof t === "string");
+          }
+        } catch (err) {
+          console.error("tdsl: invalid data-tags-json", err);
+        }
+      }
       itemTagsMap.set(el, tags);
     }
 
@@ -910,6 +922,20 @@ mod tests {
         assert!(
             html.contains("data-tag-toggle"),
             "expected the JS to reference data-tag-toggle"
+        );
+    }
+
+    /// タグ絞り込みは `data-tags` をカンマ分割せず `data-tags-json` を読む（#1035）。
+    /// カンマ分割だと単一タグ `a,b` が `a` と `b` に分裂し、checkbox と一致しない。
+    #[test]
+    fn interactive_tag_filter_reads_lossless_json_attribute() {
+        assert!(
+            INTERACTIVE_JS.contains(r#"getAttribute("data-tags-json")"#),
+            "tag filter must read data-tags-json"
+        );
+        assert!(
+            !INTERACTIVE_JS.contains(r#"getAttribute("data-tags")"#),
+            "tag filter must not split the lossy comma-joined data-tags"
         );
     }
 
