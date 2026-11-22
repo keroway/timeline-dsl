@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **WebUI が利用する `@keroway/tdsl-wasm` を 2.1.0 から 3.0.0 に更新**: 公開中の WebUI は v3.0.0 リリース後も 2.1.0 を参照しており、重複プロパティの拒否（#957）など 3.0.0 の厳格化された検証が効いていなかった。これまで WebUI で通っていた重複指定を含むソースは、今後エラーとして表示される。
 
+### Security
+
+- **transitive 依存の `url` を 2.5.8 から 2.5.9 に更新**（#1038）: RUSTSEC-2026-0592 の修正版。`tower-lsp` / `reqwest` 経由の依存で、`Cargo.lock` のみ更新（`form_urlencoded` も 1.2.3 へ追従）。
+
 ## [3.0.0] - 2026-11-15
 
 ### Breaking changes
