@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **WebUI が利用する `@keroway/tdsl-wasm` を 2.1.0 から 3.0.0 に更新**: 公開中の WebUI は v3.0.0 リリース後も 2.1.0 を参照しており、重複プロパティの拒否（#957）など 3.0.0 の厳格化された検証が効いていなかった。これまで WebUI で通っていた重複指定を含むソースは、今後エラーとして表示される。
+
 ## [3.0.0] - 2026-11-15
 
 ### Breaking changes
