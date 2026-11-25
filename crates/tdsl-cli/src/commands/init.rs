@@ -299,6 +299,10 @@ pub(crate) fn parse_csv_items(path: &std::path::Path) -> Result<Vec<ImportedCsvI
         if lane.is_empty() {
             return Err(format!("CSV row {row_no}: lane must not be empty"));
         }
+        // #1049: lane はそのまま DSL へ展開されるため、識別子として妥当か検証する。
+        tdsl_parser::parse_ident_literal(&lane).map_err(|e| {
+            format!("CSV row {row_no}: lane must be a valid identifier, got `{lane}`: {e}")
+        })?;
 
         let label = get_raw("label")?;
         if label.trim().is_empty() {
@@ -1041,5 +1045,30 @@ a,event,,,1,\"   \",,\n",
         let err = parse_csv_items(&path).unwrap_err();
         std::fs::remove_file(path).ok();
         assert!(err.contains("label must not be empty"), "{err}");
+    }
+
+    #[test]
+    fn parse_csv_items_rejects_invalid_lane_identifier() {
+        for bad in ["bad lane", "1abc", "a.b", "a;b"] {
+            let path = write_temp_csv(&format!(
+                "lane,type,start,end,time,label,tags,id\n\"{bad}\",event,,,2020,Example,,\n"
+            ));
+            let err = parse_csv_items(&path).unwrap_err();
+            std::fs::remove_file(path).ok();
+            assert!(
+                err.contains("CSV row 2: lane must be a valid identifier"),
+                "{bad}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_csv_items_accepts_valid_lane_identifier() {
+        let path = write_temp_csv(
+            "lane,type,start,end,time,label,tags,id\nlane_1,event,,,2020,Example,,\n",
+        );
+        let items = parse_csv_items(&path).unwrap();
+        std::fs::remove_file(path).ok();
+        assert_eq!(items[0].lane, "lane_1");
     }
 }
