@@ -191,6 +191,7 @@ export type Dictionary = {
   historySavedToHistory: string // {label}
   historySaveFailed: string
   sourceAutoSaveFailed: string
+  sourceAutoSaveClearFailed: string
   historyClearedAll: string
   historyEmpty: string
   historyClearAll: string
@@ -485,6 +486,8 @@ const ja: Dictionary = {
     '履歴に保存できませんでした（ブラウザの保存容量を超えた可能性があります）',
   sourceAutoSaveFailed:
     '編集内容を自動保存できませんでした（ブラウザの保存容量を超えたか、ストレージが使えません）。リロードすると失われるため、ファイルとして保存してください',
+  sourceAutoSaveClearFailed:
+    '保存済みの編集内容を削除できませんでした（ストレージが使えません）。次回起動時に以前の内容が復元される可能性があります',
   historyClearedAll: '履歴を全件削除しました',
   historyEmpty: '履歴はありません',
   historyClearAll: '全件削除',
@@ -781,6 +784,8 @@ const en: Dictionary = {
   historySaveFailed: 'Could not save to history (browser storage may be full)',
   sourceAutoSaveFailed:
     'Could not auto-save your edits (browser storage may be full or unavailable). They will be lost on reload, so save them as a file',
+  sourceAutoSaveClearFailed:
+    'Could not delete the saved source (storage unavailable). The previous content may be restored on next launch',
   historyClearedAll: 'Cleared all history',
   historyEmpty: 'No history',
   historyClearAll: 'Clear all',
