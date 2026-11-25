@@ -9,6 +9,29 @@ use crate::layout::{
     laid_item_label, month_abbr,
 };
 
+/// Base presentation rules so a standalone SVG (file, `<img>`, clipboard) is legible
+/// without the HTML wrapper (#1051). Every selector is wrapped in `:where(...)` so its
+/// specificity is zero: HTML themes, `--custom-css` and host-page overrides always win
+/// regardless of stylesheet order (the SVG `<style>` sits after the page `<style>` in
+/// the DOM). Values mirror the default theme in `html.rs`.
+const SVG_BASE_CSS: &str = ":where(.tdsl-root .tdsl-lane-band-even) { fill: #fff; } \
+:where(.tdsl-root .tdsl-lane-band-odd) { fill: #f5f5f7; } \
+:where(.tdsl-root .tdsl-group-band-even) { fill: #eef4fb; } \
+:where(.tdsl-root .tdsl-group-band-odd) { fill: #f6f0fb; } \
+:where(.tdsl-root .tdsl-group-label) { font-size: 11px; fill: #555; font-weight: bold; } \
+:where(.tdsl-root .tdsl-axis-baseline) { stroke: #888; stroke-width: 1; } \
+:where(.tdsl-root .tdsl-axis-tick) { stroke: #e0e0e0; stroke-width: 1; } \
+:where(.tdsl-root .tdsl-axis-text) { fill: #666; } \
+:where(.tdsl-root .tdsl-lane-label) { font-size: 13px; fill: #333; font-weight: 500; } \
+:where(.tdsl-root .tdsl-span) { fill-opacity: 0.78; stroke: #2a4d6e; stroke-width: 1; } \
+:where(.tdsl-root .tdsl-event-range) { fill-opacity: 0.75; stroke: #8b0c1a; stroke-width: 1; } \
+:where(.tdsl-root .tdsl-event-dot) { stroke: #fff; stroke-width: 1; } \
+:where(.tdsl-root .tdsl-event-stem) { stroke: #aaa; stroke-width: 1; stroke-dasharray: 2 2; } \
+:where(.tdsl-root .tdsl-event-hit) { fill: transparent; } \
+:where(.tdsl-root .tdsl-item-label) { font-size: 11px; fill: #fff; pointer-events: none; font-weight: 500; } \
+:where(.tdsl-root .tdsl-item-label-external) { fill: #333; } \
+:where(.tdsl-root .tdsl-item-open-ended .tdsl-span, .tdsl-root .tdsl-item-open-ended .tdsl-event-range) { stroke-dasharray: 4 2; }";
+
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
 pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
     let mut s = String::new();
@@ -46,9 +69,10 @@ pub fn render_svg(layout: &LayoutModel) -> Result<String, std::fmt::Error> {
     root_css.push_str(" }");
     writeln!(
         s,
-        r#"  <style>{root_css} .tdsl-root text {{ font-family: {font_family}; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }} .tdsl-axis-day-tick {{ stroke: #ddd; stroke-width: 1; }} .tdsl-axis-day-text {{ font-size: 9px; fill: #888; }} .tdsl-event-label {{ font-size: 10px; fill: #333; pointer-events: none; }}</style>"#,
+        r#"  <style>{root_css} .tdsl-root text {{ font-family: {font_family}; }} .tdsl-axis-text {{ font-size: 11px; }} .tdsl-axis-month-tick {{ stroke: #ccc; stroke-width: 1; }} .tdsl-axis-day-tick {{ stroke: #ddd; stroke-width: 1; }} .tdsl-axis-day-text {{ font-size: 9px; fill: #888; }} .tdsl-event-label {{ font-size: 10px; fill: #333; pointer-events: none; }} {base_css}</style>"#,
         root_css = root_css,
         font_family = font_family,
+        base_css = SVG_BASE_CSS,
     )?;
 
     render_group_bands(&mut s, layout)?;
@@ -1747,6 +1771,31 @@ mod tests {
     use crate::layout::{GridStyle, Orientation, RenderOptions, format_date, format_year};
     use tdsl_core::ir::{Item, Lane, Meta, TimelineIr};
 
+    // ─── スタンドアロン SVG の基本 CSS（#1051）──────────────────────────
+
+    /// SVG 単体でレーン背景などの基本スタイルが <style> に含まれ、
+    /// 全セレクタが :where() で詳細度 0 に包まれていること（HTML テーマが勝てる）。
+    #[test]
+    fn standalone_svg_embeds_base_css_with_zero_specificity() {
+        let ir = sample_ir();
+        let svg =
+            render_svg(&LayoutModel::compute(&ir, RenderOptions::default()).unwrap()).unwrap();
+        for sel in [
+            ".tdsl-lane-band-even",
+            ".tdsl-lane-band-odd",
+            ".tdsl-axis-baseline",
+            ".tdsl-lane-label",
+            ".tdsl-item-label",
+        ] {
+            let rule = format!(":where(.tdsl-root {sel})");
+            assert!(svg.contains(&rule), "missing base CSS rule {rule}:\n{svg}");
+        }
+        assert!(
+            svg.contains(":where(.tdsl-root .tdsl-lane-band-odd) { fill: #f5f5f7; }"),
+            "lane band fill must be defined in the SVG itself"
+        );
+    }
+
     // ─── タグの data 属性（#1035）────────────────────────────────────────
 
     /// カンマを含むタグは `data-tags`（カンマ連結）では 2 タグと区別できない。
@@ -2172,7 +2221,9 @@ mod tests {
         let ir = sample_ir();
         let layout = LayoutModel::compute(&ir, RenderOptions::default()).unwrap();
         let svg = render_svg(&layout).unwrap();
-        assert!(!svg.contains("tdsl-item-open-ended"));
+        // <style> のベース CSS（#1051）にクラス名が含まれるため、要素部のみで判定する。
+        let body = svg.split("</style>").nth(1).unwrap();
+        assert!(!body.contains("tdsl-item-open-ended"));
     }
 
     // ─── continuation marker (#734, ADR-0005 §2 strategy 1) ────────────────
@@ -2812,8 +2863,10 @@ mod tests {
         };
         let layout = LayoutModel::compute(&ir, opts).unwrap();
         let svg = render_svg(&layout).unwrap();
-        let grid_pos = svg.find("tdsl-grid-line").expect("grid line must exist");
-        let axis_pos = svg.find("tdsl-axis-tick").expect("axis tick must exist");
+        // <style> のベース CSS（#1051）にクラス名が含まれるため、要素部のみで位置を比較する。
+        let body = svg.split("</style>").nth(1).unwrap();
+        let grid_pos = body.find("tdsl-grid-line").expect("grid line must exist");
+        let axis_pos = body.find("tdsl-axis-tick").expect("axis tick must exist");
         assert!(
             grid_pos < axis_pos,
             "grid lines must appear before axis ticks in SVG output (z-order)"
