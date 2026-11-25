@@ -29,6 +29,7 @@ const SVG_BASE_CSS: &str = ":where(.tdsl-root .tdsl-lane-band-even) { fill: #fff
 :where(.tdsl-root .tdsl-event-stem) { stroke: #aaa; stroke-width: 1; stroke-dasharray: 2 2; } \
 :where(.tdsl-root .tdsl-event-hit) { fill: transparent; } \
 :where(.tdsl-root .tdsl-item-label) { font-size: 11px; fill: #fff; pointer-events: none; font-weight: 500; } \
+:where(.tdsl-root .tdsl-item-label-external) { fill: #333; } \
 :where(.tdsl-root .tdsl-item-open-ended .tdsl-span, .tdsl-root .tdsl-item-open-ended .tdsl-event-range) { stroke-dasharray: 4 2; }";
 
 /// Render the SVG for a laid-out timeline. Pure string builder, no external deps.
