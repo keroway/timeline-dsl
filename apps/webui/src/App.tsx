@@ -142,11 +142,16 @@ function EditorApp({ initialSource }: { initialSource: string }) {
     () => showToast(t('sourceAutoSaveFailed'), 'error'),
     [showToast, t]
   )
+  const handleAutoSaveClearError = useCallback(
+    () => showToast(t('sourceAutoSaveClearFailed'), 'error'),
+    [showToast, t]
+  )
   useSourcePersistence(
     source,
     settings.autoSaveEnabled,
     skipAutoSaveRef,
-    handleAutoSaveError
+    handleAutoSaveError,
+    handleAutoSaveClearError
   )
   useOutsideClick(exportMenuRef, exportMenuOpen, setExportMenuOpen)
   useOutsideClick(fileMenuRef, fileMenuOpen, setFileMenuOpen)

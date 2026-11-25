@@ -17,6 +17,25 @@ function Harness({ source, enabled = true, skip = false, onError }: Props) {
   return null
 }
 
+function ClearHarness({
+  source,
+  enabled,
+  onClearError,
+}: {
+  source: string
+  enabled: boolean
+  onClearError: () => void
+}) {
+  useSourcePersistence(
+    source,
+    enabled,
+    { current: false },
+    undefined,
+    onClearError
+  )
+  return null
+}
+
 describe('useSourcePersistence', () => {
   let container: HTMLDivElement
   let root: Root
@@ -94,6 +113,86 @@ describe('useSourcePersistence', () => {
     render({ source: 'x', skip: true, onError })
     expect(spy).not.toHaveBeenCalled()
     expect(onError).not.toHaveBeenCalled()
+  })
+
+  describe('自動保存 OFF 時の削除', () => {
+    function mockRemoveFails() {
+      return vi
+        .spyOn(Storage.prototype, 'removeItem')
+        .mockImplementation(() => {
+          throw new DOMException('denied', 'SecurityError')
+        })
+    }
+
+    it('正常に削除でき、通知しない', () => {
+      localStorage.setItem(EDITOR_SOURCE_KEY, 'old')
+      const onClearError = vi.fn()
+      act(() =>
+        root.render(
+          <ClearHarness
+            source="x"
+            enabled={false}
+            onClearError={onClearError}
+          />
+        )
+      )
+      expect(localStorage.getItem(EDITOR_SOURCE_KEY)).toBeNull()
+      expect(onClearError).not.toHaveBeenCalled()
+    })
+
+    it('削除に失敗したら通知する', () => {
+      mockRemoveFails()
+      const onClearError = vi.fn()
+      act(() =>
+        root.render(
+          <ClearHarness
+            source="x"
+            enabled={false}
+            onClearError={onClearError}
+          />
+        )
+      )
+      expect(onClearError).toHaveBeenCalledTimes(1)
+    })
+
+    it('失敗後に OFF を再度切り替えて成功すれば通知しない', () => {
+      const spy = mockRemoveFails()
+      const onClearError = vi.fn()
+      act(() =>
+        root.render(
+          <ClearHarness
+            source="x"
+            enabled={false}
+            onClearError={onClearError}
+          />
+        )
+      )
+      spy.mockRestore()
+      localStorage.setItem(EDITOR_SOURCE_KEY, 'old')
+      act(() =>
+        root.render(
+          <ClearHarness source="x" enabled={true} onClearError={onClearError} />
+        )
+      )
+      act(() =>
+        root.render(
+          <ClearHarness
+            source="x"
+            enabled={false}
+            onClearError={onClearError}
+          />
+        )
+      )
+      expect(localStorage.getItem(EDITOR_SOURCE_KEY)).toBeNull()
+      expect(onClearError).toHaveBeenCalledTimes(1)
+    })
+
+    it('onClearError 未指定でも例外を投げない', () => {
+      mockRemoveFails()
+      expect(() =>
+        act(() => root.render(<Harness source="x" enabled={false} />))
+      ).not.toThrow()
+    })
   })
 
   it('onSaveError 未指定でも例外を投げない', () => {
