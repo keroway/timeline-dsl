@@ -899,8 +899,10 @@ mod tests {
     fn render_svg_no_group_label_when_no_groups() {
         let ir = sample_ir();
         let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        // <style> のベース CSS（#1051）にクラス名が含まれるため、要素部のみで判定する。
+        let body = svg.split("</style>").nth(1).unwrap();
         assert!(
-            !svg.contains("tdsl-group-label"),
+            !body.contains("tdsl-group-label"),
             "SVG must not contain group labels when no lanes have groups"
         );
     }
@@ -919,8 +921,10 @@ mod tests {
     fn render_svg_group_bands_default_disabled() {
         let ir = grouped_ir();
         let svg = render_svg_only(&ir, RenderOptions::default()).unwrap();
+        // <style> のベース CSS（#1051）にクラス名が含まれるため、要素部のみで判定する。
+        let body = svg.split("</style>").nth(1).unwrap();
         assert!(
-            !svg.contains("tdsl-group-band-even"),
+            !body.contains("tdsl-group-band-even"),
             "default layout_style=timeline must not render group background bands"
         );
     }
