@@ -51,6 +51,28 @@ export const SETTINGS_DEFAULTS: Settings = {
   locale: DEFAULT_LOCALE,
 }
 
+// SettingsModal の選択肢（フォント 12〜18px、スケール 0=自動 / 0.5〜8×）に合わせた範囲。
+const FONT_SIZE_MIN = 12
+const FONT_SIZE_MAX = 18
+const SCALE_MIN = 0
+const SCALE_MAX = 8
+
+const BOOLEAN_KEYS = [
+  'lineWrap',
+  'pngWhiteBg',
+  'historyEnabled',
+  'autoSaveEnabled',
+] as const
+
+function isNumberInRange(value: unknown, min: number, max: number): boolean {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= min &&
+    value <= max
+  )
+}
+
 export function readSplitRatio(): number {
   try {
     const raw = localStorage.getItem(SPLIT_RATIO_KEY)
@@ -101,6 +123,19 @@ export function readSettings(): Settings {
     }
     if (!SUPPORTED_LOCALES.includes(merged.locale as Locale)) {
       merged.locale = SETTINGS_DEFAULTS.locale
+    }
+    // 数値項目は型・有限性・UI が提示する範囲で検証し、不正なら項目単位で既定へ戻す。
+    if (!isNumberInRange(merged.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX)) {
+      merged.fontSize = SETTINGS_DEFAULTS.fontSize
+    }
+    if (!isNumberInRange(merged.scale, SCALE_MIN, SCALE_MAX)) {
+      merged.scale = SETTINGS_DEFAULTS.scale
+    }
+    // boolean 項目は文字列 "false" などを素通しすると真偽値として誤評価される。
+    for (const key of BOOLEAN_KEYS) {
+      if (typeof merged[key] !== 'boolean') {
+        merged[key] = SETTINGS_DEFAULTS[key]
+      }
     }
     return merged
   } catch {
