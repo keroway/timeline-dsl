@@ -122,9 +122,39 @@ describe('clearAllHistory', () => {
   it('auto / manual 両方をクリアする', () => {
     pushAutoSnapshot('src', 'load')
     pushManual('src', 'a')
-    clearAllHistory()
+    expect(clearAllHistory()).toBe(true)
     expect(readAutoSnapshots()).toHaveLength(0)
     expect(readManualSnapshots()).toHaveLength(0)
+  })
+
+  it('最初の removeItem が失敗したら false を返し、データは残る', () => {
+    pushAutoSnapshot('src', 'load')
+    pushManual('src', 'a')
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementationOnce(() => {
+      throw new DOMException('denied', 'SecurityError')
+    })
+    expect(clearAllHistory()).toBe(false)
+    expect(readAutoSnapshots()).toHaveLength(1)
+    // 残りのキーは削除を試行する
+    expect(readManualSnapshots()).toHaveLength(0)
+    vi.restoreAllMocks()
+  })
+
+  it('片方の削除後に失敗したら false を返す', () => {
+    pushAutoSnapshot('src', 'load')
+    pushManual('src', 'a')
+    const orig = Storage.prototype.removeItem
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(function (
+      this: Storage,
+      key: string
+    ) {
+      if (key.endsWith(':manual')) throw new Error('denied')
+      orig.call(this, key)
+    })
+    expect(clearAllHistory()).toBe(false)
+    expect(readAutoSnapshots()).toHaveLength(0)
+    expect(readManualSnapshots()).toHaveLength(1)
+    vi.restoreAllMocks()
   })
 })
 

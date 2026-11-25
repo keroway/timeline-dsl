@@ -152,11 +152,15 @@ export function deleteManualSnapshot(id: string): void {
   )
 }
 
-export function clearAllHistory(): void {
-  try {
-    localStorage.removeItem(HISTORY_AUTO_KEY)
-    localStorage.removeItem(HISTORY_MANUAL_KEY)
-  } catch {
-    // ignore
+// 両キーの削除を試み、すべて成功したかを返す（片方が失敗しても残りは試行する）
+export function clearAllHistory(): boolean {
+  let ok = true
+  for (const key of [HISTORY_AUTO_KEY, HISTORY_MANUAL_KEY]) {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      ok = false
+    }
   }
+  return ok
 }

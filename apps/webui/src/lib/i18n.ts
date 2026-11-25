@@ -193,6 +193,7 @@ export type Dictionary = {
   sourceAutoSaveFailed: string
   sourceAutoSaveClearFailed: string
   historyClearedAll: string
+  historyClearFailed: string
   historyEmpty: string
   historyClearAll: string
 
@@ -489,6 +490,8 @@ const ja: Dictionary = {
   sourceAutoSaveClearFailed:
     '保存済みの編集内容を削除できませんでした（ストレージが使えません）。次回起動時に以前の内容が復元される可能性があります',
   historyClearedAll: '履歴を全件削除しました',
+  historyClearFailed:
+    '履歴を削除できませんでした（ブラウザの保存領域にアクセスできません）',
   historyEmpty: '履歴はありません',
   historyClearAll: '全件削除',
 
@@ -787,6 +790,8 @@ const en: Dictionary = {
   sourceAutoSaveClearFailed:
     'Could not delete the saved source (storage unavailable). The previous content may be restored on next launch',
   historyClearedAll: 'Cleared all history',
+  historyClearFailed:
+    'Could not clear history (browser storage is not accessible)',
   historyEmpty: 'No history',
   historyClearAll: 'Clear all',
 

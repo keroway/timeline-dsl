@@ -146,9 +146,14 @@ export function useHistorySnapshots(params: Params): HistoryApi {
   }
 
   function handleClearAllHistory() {
-    clearAllHistory()
-    setAutoSnaps([])
-    setManualSnaps([])
+    const ok = clearAllHistory()
+    // 失敗・部分削除でも画面は実際の保存状態に合わせる
+    setAutoSnaps(readAutoSnapshots())
+    setManualSnaps(readManualSnapshots())
+    if (!ok) {
+      showToast(t('historyClearFailed'), 'error')
+      return
+    }
     showToast(t('historyClearedAll'), 'success')
   }
 
