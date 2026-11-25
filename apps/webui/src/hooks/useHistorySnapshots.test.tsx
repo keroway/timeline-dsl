@@ -9,12 +9,13 @@ const t = Object.assign((k: string) => k, {
 }) as unknown as Parameters<typeof useHistorySnapshots>[0]['t']
 
 let latest: HistoryApi | null
+let toasts: { message: string; variant?: string }[] = []
 
 function Harness({ source, enabled }: { source: string; enabled: boolean }) {
   latest = useHistorySnapshots({
     source,
     historyEnabled: enabled,
-    showToast: () => {},
+    showToast: (message, variant) => toasts.push({ message, variant }),
     setSource: () => {},
     setShowHistory: () => {},
     skipAutoSaveRef: { current: false },
@@ -34,6 +35,7 @@ describe('useHistorySnapshots 自動スナップショット', () => {
     vi.setSystemTime(1_000_000)
     localStorage.clear()
     latest = null
+    toasts = []
     container = document.createElement('div')
     root = createRoot(container)
   })
@@ -78,5 +80,31 @@ describe('useHistorySnapshots 自動スナップショット', () => {
     render('B', false)
     act(() => vi.advanceTimersByTime(6 * 60 * 1000))
     expect(readAutoSnapshots().map((s) => s.source)).toEqual(['A'])
+  })
+
+  it('全件削除に成功すると一覧が空になり成功通知を出す', () => {
+    render('A', false)
+    act(() => latest?.handleSaveToHistory())
+    toasts = []
+    act(() => latest?.handleClearAllHistory())
+    expect(latest?.manualSnaps).toEqual([])
+    expect(toasts).toEqual([
+      { message: 'historyClearedAll', variant: 'success' },
+    ])
+  })
+
+  it('全件削除が失敗したら失敗通知を出し、残った履歴を表示し続ける', () => {
+    render('A', false)
+    act(() => latest?.handleSaveToHistory())
+    toasts = []
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new DOMException('denied', 'SecurityError')
+    })
+    act(() => latest?.handleClearAllHistory())
+    vi.restoreAllMocks()
+    expect(latest?.manualSnaps).toHaveLength(1)
+    expect(toasts).toEqual([
+      { message: 'historyClearFailed', variant: 'error' },
+    ])
   })
 })

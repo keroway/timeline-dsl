@@ -157,6 +157,7 @@ describe('i18n key parity', () => {
       'historySavedToHistory',
       'historySaveFailed',
       'historyClearedAll',
+      'historyClearFailed',
       'historyEmpty',
       'historyClearAll',
       'appFileOpenFailed',
