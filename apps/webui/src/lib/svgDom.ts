@@ -79,13 +79,17 @@ export function loadFilterState(): FilterState {
   try {
     const saved = sessionStorage.getItem(FILTER_STATE_KEY)
     if (saved) {
-      const parsed = JSON.parse(saved) as {
-        hiddenLanes?: string[]
-        tagSearch?: string
-      }
-      return {
-        hiddenLanes: new Set(parsed.hiddenLanes ?? []),
-        tagSearch: parsed.tagSearch ?? '',
+      const parsed: unknown = JSON.parse(saved)
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        const { hiddenLanes, tagSearch } = parsed as Record<string, unknown>
+        return {
+          hiddenLanes: new Set(
+            Array.isArray(hiddenLanes)
+              ? hiddenLanes.filter((l): l is string => typeof l === 'string')
+              : [],
+          ),
+          tagSearch: typeof tagSearch === 'string' ? tagSearch : '',
+        }
       }
     }
   } catch {
