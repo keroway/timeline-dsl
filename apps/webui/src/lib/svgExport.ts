@@ -26,20 +26,26 @@ export function svgToPngBlob(svg: string, whiteBg: boolean): Promise<Blob> {
     const url = URL.createObjectURL(blob)
     const img = new Image()
     img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth || img.width || 800
-      canvas.height = img.naturalHeight || img.height || 400
-      const ctx = canvas.getContext('2d')!
-      if (whiteBg) {
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth || img.width || 800
+        canvas.height = img.naturalHeight || img.height || 400
+        const ctx = canvas.getContext('2d')
+        if (!ctx) throw new Error('canvas 2d context unavailable')
+        if (whiteBg) {
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+        }
+        ctx.drawImage(img, 0, 0)
+        URL.revokeObjectURL(url)
+        canvas.toBlob((b) => {
+          if (b) resolve(b)
+          else reject(new Error('canvas.toBlob failed'))
+        }, 'image/png')
+      } catch (e) {
+        URL.revokeObjectURL(url)
+        reject(e instanceof Error ? e : new Error(String(e)))
       }
-      ctx.drawImage(img, 0, 0)
-      URL.revokeObjectURL(url)
-      canvas.toBlob((b) => {
-        if (b) resolve(b)
-        else reject(new Error('canvas.toBlob failed'))
-      }, 'image/png')
     }
     img.onerror = () => {
       URL.revokeObjectURL(url)
