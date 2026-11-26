@@ -80,13 +80,17 @@ export function loadFilterState(): FilterState {
     const saved = sessionStorage.getItem(FILTER_STATE_KEY)
     if (saved) {
       const parsed: unknown = JSON.parse(saved)
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        !Array.isArray(parsed)
+      ) {
         const { hiddenLanes, tagSearch } = parsed as Record<string, unknown>
         return {
           hiddenLanes: new Set(
             Array.isArray(hiddenLanes)
               ? hiddenLanes.filter((l): l is string => typeof l === 'string')
-              : [],
+              : []
           ),
           tagSearch: typeof tagSearch === 'string' ? tagSearch : '',
         }
