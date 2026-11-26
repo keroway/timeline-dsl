@@ -19,9 +19,17 @@ class StubImage {
 function stubEnv(ctx: unknown): { revoke: ReturnType<typeof vi.fn> } {
   const revoke = vi.fn()
   vi.stubGlobal('Image', StubImage)
-  vi.stubGlobal('URL', { createObjectURL: () => 'blob:x', revokeObjectURL: revoke })
+  vi.stubGlobal('URL', {
+    createObjectURL: () => 'blob:x',
+    revokeObjectURL: revoke,
+  })
   vi.stubGlobal('document', {
-    createElement: () => ({ width: 0, height: 0, getContext: () => ctx, toBlob: vi.fn() }),
+    createElement: () => ({
+      width: 0,
+      height: 0,
+      getContext: () => ctx,
+      toBlob: vi.fn(),
+    }),
   })
   return { revoke }
 }
