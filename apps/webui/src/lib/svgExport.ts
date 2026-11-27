@@ -4,7 +4,7 @@
 // 詳細度の差で外側ラベル色などを上書きするため（#1059）、SVG をそのまま変換する。
 export function svgToPngBlob(svg: string, whiteBg: boolean): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    const blob = new Blob([svg],{ type: 'image/svg+xml;charset=utf-8' })
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const img = new Image()
     img.onload = () => {
