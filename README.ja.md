@@ -92,6 +92,9 @@ tdsl render examples/china_dynasties.tdsl --interactive --output china.html
 # 内容一覧表付きHTML（時期・ラベル・レーン・タグ列）
 tdsl render examples/china_dynasties.tdsl --show-table --output china.html
 
+# 静的な凡例パネル（レーンの色 / タグ色の上書き）
+tdsl render examples/china_dynasties.tdsl --show-legend --output china.html
+
 # SVG形式で出力
 tdsl render examples/china_dynasties.tdsl --format svg --output china.svg
 
@@ -164,6 +167,9 @@ tdsl cache status
 
 # 古いキャッシュエントリを削除（7日以上）
 tdsl cache clear --older-than 7
+
+# シェル補完スクリプトを生成（bash / elvish / fish / powershell / zsh）
+tdsl completions fish > ~/.config/fish/completions/tdsl.fish
 ```
 
 ### 最短フロー（Wikidata起点）
@@ -482,8 +488,13 @@ WASM 駆動のブラウザ内エディタです。インストール不要でタ
 - **診断パネル**: 構文エラー・意味エラーを行番号付きで表示
 - **フォントサイズ選択**: エディタのフォントサイズを 12px〜18px から選択
 - **ライト/ダークテーマ**: エディタとUIのカラースキームをワンクリックで切替
-- **ファイル操作**: ローカルの `.tdsl` ファイルを開く / `.tdsl` ・ SVG ・ スタンドアロン HTML としてダウンロード
-- **サンプル切替**: 複数の例文を選択して即試せる
+- **ファイル操作**: ローカルの `.tdsl` ファイルを開く / `.tdsl` としてダウンロード。File System Access API 対応ブラウザ（Chrome / Edge 等）では開いたファイルへ上書き保存できる
+- **エクスポート**: SVG・PNG・PDF・スタンドアロン HTML・JSON IR としてダウンロード、SVG・PNG 画像・Markdown コードブロックをクリップボードへコピー。SVG・PNG・PDF・HTML の出力と画像コピーは、現在のソースとオプションに一致するプレビューが成功している場合のみ実行できる
+- **共有リンク**: ソースを埋め込んだ URL をコピー（エンコード後 256 Ki 文字まで。それより大きいソースは `.tdsl` ファイルで受け渡す）
+- **履歴**: 手動・自動のスナップショットをブラウザに保存し、復元・名前変更・削除ができる
+- **プレビューオプション**: 向き・グリッド・SVG テーマ・レイアウト方式（`timeline` / `group-bands` / `gantt` / `zigzag`）・凡例パネル・イベントラベル常時表示
+- **PWA としてインストール可能**: 初回ロード後は静的な編集・プレビューをオフラインで利用できる
+- **テンプレートギャラリー**: `examples/*.tdsl` から直接取り込んだ例を選択できる。ネットワークが必要なサンプルは CLI 専用の参考例として表示される
 - **ツールチップ**: SVG上にマウスを重ねるとアイテム詳細を表示
 
 > **制限**: ブラウザ内では Wikidata インポート（`import wikidata`）は解決されません。静的な `span`・`event`・`event_range` のみプレビューされます。
@@ -688,6 +699,15 @@ CI はプッシュおよびプルリクエスト時に [`cargo-llvm-cov`](https:
 ```bash
 cargo install cargo-llvm-cov
 cargo llvm-cov --workspace --all-targets --summary-only
+```
+
+### ミューテーションテスト（手動・パーサのみ）
+
+`tdsl-parser` のテストが壊れたコードをどれだけ検出できるかを測ります（[`cargo-mutants`](https://mutants.rs/)）。実行に約 17 分かかるため、CI・pre-commit・Stop hook には**含めません**。手動または週次で実行します。
+
+```bash
+cargo install cargo-mutants --locked
+just mutants   # = cargo mutants -p tdsl-parser --no-shuffle。レポートは mutants.out/
 ```
 
 ## ライセンス

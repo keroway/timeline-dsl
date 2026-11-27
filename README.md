@@ -168,6 +168,9 @@ tdsl cache status
 
 # Clear old cache entries (older than 7 days)
 tdsl cache clear --older-than 7
+
+# Generate a shell completion script (bash / elvish / fish / powershell / zsh)
+tdsl completions fish > ~/.config/fish/completions/tdsl.fish
 ```
 
 ### Quickest workflow (starting from Wikidata)
@@ -488,7 +491,12 @@ A browser-based editor powered by WASM. Create and preview timelines without ins
 - **Diagnostics panel**: Syntax and semantic errors displayed with line numbers
 - **Font size selector**: Choose editor font size from 12px to 18px
 - **Light/dark theme**: Switch color schemes with one click
-- **File operations**: Open a local `.tdsl` file / download as `.tdsl`, SVG, or standalone HTML
+- **File operations**: Open a local `.tdsl` file / download as `.tdsl`. Browsers with the File System Access API (Chrome, Edge, etc.) can save back to the opened file
+- **Export**: Download as SVG, PNG, PDF, standalone HTML, or JSON IR; copy the SVG, a PNG image, or a Markdown code block to the clipboard. SVG / PNG / PDF / HTML export and image copying require a successful preview that matches the current source and options
+- **Share link**: Copy a URL that embeds the source (up to 256 Ki encoded characters; exchange larger sources as `.tdsl` files)
+- **History**: Manual and automatic snapshots stored in the browser, with restore, rename, and delete
+- **Preview options**: Orientation, grid, SVG theme, layout style (`timeline` / `group-bands` / `gantt` / `zigzag`), legend panel, and always-on event labels
+- **Installable PWA**: After the first load, static editing and preview work offline
 - **Template gallery**: Select examples sourced directly from `examples/*.tdsl`; network-required samples are marked as CLI-only references
 - **Tooltips**: Hover over SVG items to see item details
 
