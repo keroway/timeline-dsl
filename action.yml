@@ -48,12 +48,16 @@ runs:
   steps:
     - name: Install tdsl CLI
       shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        RUNNER_OS_NAME: ${{ runner.os }}
+        RUNNER_ARCH_NAME: ${{ runner.arch }}
       run: |
         set -euo pipefail
 
-        OS="${{ runner.os }}"
-        ARCH="${{ runner.arch }}"
-        VERSION="${{ inputs.version }}"
+        OS="$RUNNER_OS_NAME"
+        ARCH="$RUNNER_ARCH_NAME"
+        VERSION="$INPUT_VERSION"
 
         case "$OS-$ARCH" in
           Linux-ARM64)  ARCHIVE="tdsl-linux-aarch64.tar.gz" ;;
@@ -92,12 +96,21 @@ runs:
     - name: Render .tdsl file
       id: render
       shell: bash
+      # 入力は env 経由で渡す（run 本文への ${{ }} 直接展開はシェル注入になる）
+      env:
+        INPUT_FILE: ${{ inputs.file }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_OFFLINE: ${{ inputs.offline }}
+        INPUT_INTERACTIVE: ${{ inputs.interactive }}
+        INPUT_THEME: ${{ inputs.theme }}
+        INPUT_SCALE: ${{ inputs.scale }}
       run: |
         set -euo pipefail
 
-        FILE="${{ inputs.file }}"
-        FORMAT="${{ inputs.format }}"
-        OUTPUT="${{ inputs.output }}"
+        FILE="$INPUT_FILE"
+        FORMAT="$INPUT_FORMAT"
+        OUTPUT="$INPUT_OUTPUT"
 
         if [ -z "$OUTPUT" ]; then
           OUTPUT="${FILE%.*}.${FORMAT}"
@@ -105,10 +118,10 @@ runs:
 
         ARGS=(render "$FILE" --format "$FORMAT" --output "$OUTPUT")
 
-        [[ "${{ inputs.offline }}"     == "true" ]] && ARGS+=(--offline)
-        [[ "${{ inputs.interactive }}" == "true" ]] && ARGS+=(--interactive)
-        [[ -n "${{ inputs.theme }}"               ]] && ARGS+=(--theme "${{ inputs.theme }}")
-        [[ -n "${{ inputs.scale }}"               ]] && ARGS+=(--scale "${{ inputs.scale }}")
+        [[ "$INPUT_OFFLINE"     == "true" ]] && ARGS+=(--offline)
+        [[ "$INPUT_INTERACTIVE" == "true" ]] && ARGS+=(--interactive)
+        [[ -n "$INPUT_THEME"              ]] && ARGS+=(--theme "$INPUT_THEME")
+        [[ -n "$INPUT_SCALE"              ]] && ARGS+=(--scale "$INPUT_SCALE")
 
         echo "Running: tdsl ${ARGS[*]}"
         tdsl "${ARGS[@]}"
