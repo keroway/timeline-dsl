@@ -22,6 +22,11 @@ check:
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace --all-targets
 
+# mutation testing（手動・週次のみ。CI / hook には入れない。#1062）。
+# 対象は tdsl-parser に限定。要 `cargo install cargo-mutants --locked`。結果は mutants.out/ に出る。
+mutants:
+    cargo mutants -p tdsl-parser --no-shuffle
+
 # --- WebUI (apps/webui, npm) ---
 
 webui-lint:
