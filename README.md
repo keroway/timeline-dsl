@@ -696,6 +696,15 @@ cargo install cargo-llvm-cov
 cargo llvm-cov --workspace --all-targets --summary-only
 ```
 
+### Mutation Testing (manual, parser only)
+
+Measures how well the `tdsl-parser` tests detect broken code ([`cargo-mutants`](https://mutants.rs/)). It is slow (about 17 minutes), so it is **not** part of CI, pre-commit, or the Stop hook; run it manually or weekly.
+
+```bash
+cargo install cargo-mutants --locked
+just mutants   # = cargo mutants -p tdsl-parser --no-shuffle; report in mutants.out/
+```
+
 ## License
 
 ### This software
