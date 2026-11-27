@@ -39,6 +39,22 @@ afterEach(() => {
   StubImage.last = null
 })
 
+it('svgToPngBlob は SVG に CSS を追加せずそのまま変換する (#1059)', async () => {
+  stubEnv(null)
+  let captured: Blob | null = null
+  vi.stubGlobal('URL', {
+    createObjectURL: (b: Blob) => {
+      captured = b
+      return 'blob:x'
+    },
+    revokeObjectURL: vi.fn(),
+  })
+  const p = svgToPngBlob(SVG, true)
+  StubImage.last?.onload?.()
+  await expect(p).rejects.toThrow()
+  expect(await (captured as unknown as Blob).text()).toBe(SVG)
+})
+
 it('svgToPngBlob rejects and revokes the URL when getContext returns null (#1057)', async () => {
   const { revoke } = stubEnv(null)
   const p = svgToPngBlob(SVG, true)
