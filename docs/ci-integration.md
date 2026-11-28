@@ -59,6 +59,8 @@ jobs:
 
 ### PR で変更された .tdsl ファイルを SVG プレビューとして添付
 
+action の `file` は1ファイルだけを受け取ります。変更された `.tdsl` の一覧を JSON 配列で出力し、`matrix` で1ファイルずつレンダリングします。
+
 ```yaml
 name: TDSL Preview
 
@@ -66,34 +68,55 @@ on:
   pull_request:
     paths: ['**/*.tdsl']
 
+permissions:
+  contents: read
+
 jobs:
-  preview:
+  changed:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
+    outputs:
+      files: ${{ steps.changed.outputs.files }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get changed .tdsl files
+      - name: List changed .tdsl files
         id: changed
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          FILES=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep '\.tdsl$' || true)
-          echo "files=$FILES" >> $GITHUB_OUTPUT
+          files=$(git diff --name-only -z --diff-filter=d "origin/$BASE_REF...HEAD" -- '*.tdsl' \
+            | jq -Rsc 'split("\u0000") | map(select(length > 0))')
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+
+  preview:
+    needs: changed
+    if: needs.changed.outputs.files != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        file: ${{ fromJSON(needs.changed.outputs.files) }}
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: keroway/timeline-dsl@v3.0.1
-        if: steps.changed.outputs.files != ''
+        id: render
         with:
-          file: ${{ steps.changed.outputs.files }}
+          file: ${{ matrix.file }}
           format: svg
           offline: 'true'
 
       - uses: actions/upload-artifact@v4
         with:
-          name: tdsl-preview
-          path: '*.svg'
+          name: tdsl-preview-${{ strategy.job-index }}
+          path: ${{ steps.render.outputs.output_path }}
 ```
+
+- `--diff-filter=d` で削除されたファイルを除きます。削除だけの PR では一覧が `[]` になり、`preview` ジョブは実行されません。
+- ブランチ名は `env:` 経由で渡します。`run:` の中で `${{ github.base_ref }}` を直接展開すると、ブランチ名がシェルの構文として解釈されます。
+- artifact 名は `matrix` のジョブごとに分けています。同じ名前で複数回アップロードすると失敗します。
 
 ### インタラクティブ HTML を GitHub Pages にデプロイ
 
