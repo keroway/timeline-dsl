@@ -2,6 +2,12 @@
 
 Timeline DSL は GitHub Actions composite action として公開されており、CI/CD パイプラインで `.tdsl` ファイルを SVG / HTML / PNG / PDF にレンダリングできます。
 
+## 参照する版
+
+`uses:` には完全な版番号のタグ（例: `keroway/timeline-dsl@v3.0.1`）を指定します。`@v3` のようなメジャー版だけの移動タグは提供していません。新しい版は [Releases](https://github.com/keroway/timeline-dsl/releases) で確認できます。
+
+`uses:` のタグが固定するのは action の定義です。ダウンロードする tdsl CLI の版は `version` 入力で別に決まり、既定は `latest` です。
+
 ## クイックスタート
 
 ```yaml
@@ -18,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: keroway/timeline-dsl@v1
+      - uses: keroway/timeline-dsl@v3.0.1
         with:
           file: examples/china_dynasties.tdsl
           format: svg
@@ -41,7 +47,7 @@ jobs:
 | `interactive` | — | `false` | インタラクティブ HTML 出力（`format: html` 時のみ有効） |
 | `theme` | — | （CLI デフォルト） | テーマ: `default` / `dark` / `print` / `pastel` |
 | `scale` | — | （CLI デフォルト） | 水平軸のピクセル/年レート |
-| `version` | — | `latest` | 使用する tdsl バージョン（例: `v1.27.0`） |
+| `version` | — | `latest` | 使用する tdsl バージョン（例: `v3.0.1`） |
 
 ## アウトプット
 
@@ -76,7 +82,7 @@ jobs:
           FILES=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep '\.tdsl$' || true)
           echo "files=$FILES" >> $GITHUB_OUTPUT
 
-      - uses: keroway/timeline-dsl@v1
+      - uses: keroway/timeline-dsl@v3.0.1
         if: steps.changed.outputs.files != ''
         with:
           file: ${{ steps.changed.outputs.files }}
@@ -108,7 +114,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: keroway/timeline-dsl@v1
+      - uses: keroway/timeline-dsl@v3.0.1
         with:
           file: timelines/main.tdsl
           format: html
@@ -126,7 +132,7 @@ jobs:
 ### ダークテーマで SVG を生成してリリースに添付
 
 ```yaml
-- uses: keroway/timeline-dsl@v1
+- uses: keroway/timeline-dsl@v3.0.1
   id: render
   with:
     file: timeline.tdsl
@@ -143,7 +149,7 @@ jobs:
 ### PNG 画像としてレンダリングしてリリースに添付
 
 ```yaml
-- uses: keroway/timeline-dsl@v1
+- uses: keroway/timeline-dsl@v3.0.1
   id: render
   with:
     file: timeline.tdsl
@@ -159,10 +165,10 @@ jobs:
 ### 特定バージョンを固定して使用
 
 ```yaml
-- uses: keroway/timeline-dsl@v1
+- uses: keroway/timeline-dsl@v3.0.1
   with:
     file: timeline.tdsl
-    version: v1.27.0   # バージョンを固定
+    version: v3.0.1   # CLI のバージョンを固定
 ```
 
 ## 対応プラットフォーム

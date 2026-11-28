@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **ドキュメントが案内する GitHub Actions の参照を、存在するタグに修正**: README（en / ja）と `docs/ci-integration.md` は `uses: keroway/timeline-dsl@v1` を案内していたが、`v1` というタグは存在せず action を解決できなかった。完全な版番号（`@v3.0.1`）の案内に改め、メジャー版だけの移動タグは提供しないことを明記した。版番号の更新漏れは `scripts/check-action-ref.sh` を CI で実行して検出する（#1067）
+
 ### Changed
 
 - **WebUI が利用する `@keroway/tdsl-wasm` を 3.0.0 から 3.0.1 に更新**: 3.0.1 の WASM は SVG に基本 CSS を内包するため、#1059 以降に欠落していた PNG 出力・SVG ダウンロードのレーン背景・軸・ラベルの配色が戻る。カンマを含むタグの検索も `data-tags-json` 経由で正しく動く。
