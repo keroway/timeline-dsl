@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **WebUI が利用する `@keroway/tdsl-wasm` を 3.0.0 から 3.0.1 に更新**: 3.0.1 の WASM は SVG に基本 CSS を内包するため、#1059 以降に欠落していた PNG 出力・SVG ダウンロードのレーン背景・軸・ラベルの配色が戻る。カンマを含むタグの検索も `data-tags-json` 経由で正しく動く。
+
 ## [3.0.1] - 2026-11-28
 
 ### Changed
