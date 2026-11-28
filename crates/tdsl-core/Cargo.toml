@@ -13,8 +13,8 @@ default = ["wikidata"]
 wikidata = ["dep:tdsl-wikidata", "dep:tokio"]
 
 [dependencies]
-tdsl-parser = { path = "../tdsl-parser", version = "3.0.0" }
-tdsl-wikidata = { path = "../tdsl-wikidata", version = "3.0.0", optional = true }
+tdsl-parser = { path = "../tdsl-parser", version = "3.0.1" }
+tdsl-wikidata = { path = "../tdsl-wikidata", version = "3.0.1", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true
