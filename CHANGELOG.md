@@ -7,19 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-11-28
+
 ### Changed
 
 - **WebUI が利用する `@keroway/tdsl-wasm` を 2.1.0 から 3.0.0 に更新**: 公開中の WebUI は v3.0.0 リリース後も 2.1.0 を参照しており、重複プロパティの拒否（#957）など 3.0.0 の厳格化された検証が効いていなかった。これまで WebUI で通っていた重複指定を含むソースは、今後エラーとして表示される。
 
 ### Fixed
 
-- **スタンドアロン SVG にレーン背景などの基本 CSS が埋め込まれていなかったのを修正**（#1051）: SVG 単体で開くとレーン背景・軸・ラベルの配色が欠落していた（HTML ラッパー側にのみ定義があった）。`tdsl-render` が既定テーマ相当の基本スタイルを SVG の `<style>` に埋め込む。全セレクタを `:where()` で包んで詳細度 0 にしているため、HTML テーマ・`--custom-css`・ホストページの上書きは従来どおり優先される。幅の狭いバーの外付けラベルは暗色で描く。WebUI の PNG 出力用の補完（`svgExport.ts`）は、公開済みの `@keroway/tdsl-wasm` 3.0.0 が基本 CSS を含まないため残す（次の WASM 更新後に削除する）。
+- **スタンドアロン SVG にレーン背景などの基本 CSS が埋め込まれていなかったのを修正**（#1051）: SVG 単体で開くとレーン背景・軸・ラベルの配色が欠落していた（HTML ラッパー側にのみ定義があった）。`tdsl-render` が既定テーマ相当の基本スタイルを SVG の `<style>` に埋め込む。全セレクタを `:where()` で包んで詳細度 0 にしているため、HTML テーマ・`--custom-css`・ホストページの上書きは従来どおり優先される。幅の狭いバーの外付けラベルは暗色で描く。WebUI の PNG 出力は、SVG に追加 CSS を重ねず、レンダラが埋め込んだ基本 CSS をそのまま使う（#1059。重ねた CSS が詳細度の差で外側ラベルの色を上書きしていた）。**公開済みの `@keroway/tdsl-wasm` 3.0.0 は基本 CSS を含まないため、WebUI が 3.0.1 以降の WASM に更新されるまで PNG 出力の配色は欠落する。**
 - **WebUI の保存済み設定で、数値・boolean 項目を型検証せずに復元していたのを修正**（#1045）: `fontSize`・`scale` は型・有限性・設定画面の選択肢の範囲（12〜18px / 0〜8×）を、`lineWrap`・`pngWhiteBg`・`historyEnabled`・`autoSaveEnabled` は boolean であることを検証し、不正な値は項目単位で既定値に戻す。これまで文字列 `"false"` は真として評価されていた。
 - **カンマを含むタグの項目が、インタラクティブ HTML のタグ絞り込みで誤って非表示になるのを修正**（#1035）: 絞り込みスクリプトが `data-tags`（カンマ連結）を分割していたため、単一タグ `a,b` が `a` と `b` に分裂し、凡例の checkbox と一致しなかった。SVG の item に、タグを JSON 文字列配列で持つ `data-tags-json` 属性を追加し、絞り込みはこちらを読む。`data-tags` は従来どおり出力するため既存の消費側は変わらないが、カンマを含むタグを正しく扱うには `data-tags-json` を読む必要がある。WebUI のタグ検索も `data-tags-json` を優先し、無い場合（`@keroway/tdsl-wasm` 3.0.0 以前）だけ `data-tags` にフォールバックする。
 
+- **`import-csv` が識別子として無効な `lane` を受理し、パースできない DSL を終了コード 0 で出力していたのを修正**（#1049）: `lane` 列は空でないことしか検証されず、`bad lane`・`1abc`・`a.b` などがそのまま DSL へ展開されて `build` で構文エラーになっていた。DSL の `ident` 文法で検証し、`CSV row <N>: lane must be a valid identifier` で拒否する。**これまで通っていた無効な `lane` を含む CSV は、今後エラーになる**。
+- **WebUI の保存・履歴の失敗が無通知だったのを修正**（#1031、#1046、#1053）: 編集ソースの自動保存の失敗、自動保存 OFF 時の保存済みソース削除の失敗、履歴の全件削除の失敗を通知する。全件削除が失敗した場合は、保存状態と表示が食い違わないようにする。
+- **WebUI の保存済みフィルタ設定を型検証せずに復元していたのを修正**（#1055）。
+- **WebUI の PNG 変換で Canvas の初期化に失敗しても完了しなかったのを修正**（#1057）: 失敗を reject として返し、Blob URL を解放する。
+
 ### Security
 
+- **GitHub Action（`action.yml`）の入力がシェルコマンドとして実行されうるのを修正**（#1033）: `file`・`version`・`format`・`output`・`offline`・`interactive`・`theme`・`scale` を `run` 本文へ `${{ }}` で直接展開していたため、入力に含まれるコマンド置換が実行されていた。入力は環境変数経由で渡す。
 - **transitive 依存の `url` を 2.5.8 から 2.5.9 に更新**（#1038）: RUSTSEC-2026-0592 の修正版。`tower-lsp` / `reqwest` 経由の依存で、`Cargo.lock` のみ更新（`form_urlencoded` も 1.2.3 へ追従）。
+
+### CI / Docs / Tests
+
+- **リリース検証が gzip 圧縮された配布物の応答を展開してから確認する**（#1026）: 転送時・展開後とも 128 MiB を上限とし、不正な圧縮や未対応の `Content-Encoding` は確認不能として停止する。
+- **`TAP_BUMP_TOKEN` の実効権限を確認する手動 workflow を追加**（#1029）。
+- **`tdsl-parser` 限定の mutation testing を手動実行できるようにした**（#1062）: `just mutants`。CI・pre-commit・Stop hook には含めない。
+- **README（en / ja）と `docs/cli-spec.md` を現行実装に合わせた**（#1064、#1065）: `completions` と WebUI の現行機能を追記し、破損キャッシュの警告は `--offline` では出ないことを明記。
+- **依存更新**（#1027、#1028、#1037、#1041、#1043、#1044）: cargo の minor / patch（clap 4.6.9、pest 2.9.6、wasm-bindgen 0.2.130 ほか。`Cargo.lock` のみ）、npm の minor / patch、rollup 4.68.8、`taiki-e/install-action` v2.90.8。WebUI から不要になった `@types/pako` を削除。
 
 ## [3.0.0] - 2026-11-15
 
@@ -762,6 +778,7 @@ CSVの `tags` 列では **`,` は区切りではなくタグの一部**。旧 `"
 - validate における `start > end` チェック
 - SPARQL QID 抽出改善
 
+[3.0.1]: https://github.com/keroway/timeline-dsl/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/keroway/timeline-dsl/compare/v2.1.0...v3.0.0
 [2.1.0]: https://github.com/keroway/timeline-dsl/releases/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/keroway/timeline-dsl/releases/compare/v1.28.0...v2.0.0
