@@ -381,10 +381,10 @@ apply dynasty_span to wd {
 
 ## GitHub Actions Integration
 
-Use `uses: keroway/timeline-dsl@v1` to render `.tdsl` files to SVG / HTML.
+Use `uses: keroway/timeline-dsl@v3.0.1` to render `.tdsl` files to SVG / HTML.
 
 ```yaml
-- uses: keroway/timeline-dsl@v1
+- uses: keroway/timeline-dsl@v3.0.1
   with:
     file: examples/china_dynasties.tdsl
     format: svg

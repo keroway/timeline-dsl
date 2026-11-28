@@ -18,6 +18,7 @@
 | `editors/vscode/package.json` | `"version"` フィールド |
 | `editors/vscode/package-lock.json` | ルートの `version` と `packages[""].version`。`cd editors/vscode && npm install --package-lock-only` で揃う（v2.0.0 の PR #808 でこの行が無かったため取りこぼし、自動レビューに指摘された） |
 | `editors/vscode/CHANGELOG.md` | `## [Unreleased]` の直下に `## [X.Y.Z] - YYYY-MM-DD` セクションを追加 |
+| `README.md` / `README.ja.md` / `docs/ci-integration.md` / `.claude/rules/feature-status.md` | `uses: keroway/timeline-dsl@vX.Y.Z` の版番号（移動タグ `v3` 等は運用しない。#1067）。`sd -F 'keroway/timeline-dsl@v<前バージョン>' 'keroway/timeline-dsl@vX.Y.Z' <ファイル…>` で揃え、`bash scripts/check-action-ref.sh` で確認する（CI でも検査される） |
 | `CHANGELOG.md`（本体） | `## [Unreleased]` の直下に `## [X.Y.Z] - YYYY-MM-DD` セクションを追加。末尾の compare リンク一覧にも `[X.Y.Z]: .../compare/v<前バージョン>...vX.Y.Z` を追加すること |
 
 > **注意**: `editors/vscode/package.json` の version と git tag の version が一致していないと、
