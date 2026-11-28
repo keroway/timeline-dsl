@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **ドキュメントが案内する GitHub Actions の参照を、存在するタグに修正**: README（en / ja）と `docs/ci-integration.md` は `uses: keroway/timeline-dsl@v1` を案内していたが、`v1` というタグは存在せず action を解決できなかった。完全な版番号（`@v3.0.1`）の案内に改め、メジャー版だけの移動タグは提供しないことを明記した。版番号の更新漏れは `scripts/check-action-ref.sh` を CI で実行して検出する（#1067）
+- **`docs/ci-integration.md` の PR プレビュー例が、`.tdsl` を複数変更した PR で動かなかった問題を修正**: 変更ファイルの一覧を改行区切りのまま `$GITHUB_OUTPUT` と action の `file`（1ファイルのみ）に渡していた。一覧を JSON 配列で出力し `matrix` で1ファイルずつレンダリングする例に改め、`run:` 内の `${{ github.base_ref }}` の直接展開も `env:` 経由にした（#1070）
 
 ### Changed
 
